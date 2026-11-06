@@ -357,7 +357,7 @@ class Bridge:
         return self.request("SYNC", hwnd, timeout_ms)[0][0]
 
     def put_file(self, path: str, data: bytes) -> None:
-        """Write a file on the guest. Serial is slow: about 3 KB/s."""
+        """Write a file on the guest, at about 100 to 190 KB/s."""
         for offset in range(0, max(len(data), 1), CHUNK_SIZE):
             self.request("PUT", path, offset, data[offset : offset + CHUNK_SIZE])
 

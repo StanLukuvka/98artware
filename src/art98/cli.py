@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import sys
 from pathlib import Path
@@ -52,6 +53,38 @@ def cmd_ping(args) -> int:
     return 0
 
 
+def _load_scene(path: Path, name: str | None) -> type:
+    """Import a scene file and pick the scene class it defines."""
+    from .anim import Scene
+
+    sys.path.insert(0, str(path.resolve().parent))
+    spec = importlib.util.spec_from_file_location(path.stem, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    scenes = {
+        key: value for key, value in vars(module).items()
+        if isinstance(value, type) and issubclass(value, Scene) and value.__module__ == path.stem
+    }
+    if name is None and len(scenes) == 1:
+        return next(iter(scenes.values()))
+    if name in scenes:
+        return scenes[name]
+    choices = ", ".join(sorted(scenes)) or "none"
+    raise SystemExit(f"error: choose a scene from {path}: {choices}")
+
+
+def cmd_render(args) -> int:
+    from .anim import render
+
+    scene = _load_scene(args.file, args.scene)
+    written = render(
+        scene, args.output, gif=args.gif, work=args.work, gif_fps=args.gif_fps,
+        gif_colors=args.gif_colors, gif_scale=args.gif_scale, gif_dither=args.gif_dither,
+    )
+    print(f"Wrote {written}" + (f" and {args.gif}" if args.gif else ""))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="art98")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -71,6 +104,19 @@ def main(argv: list[str] | None = None) -> int:
     command = commands.add_parser("ping", help="boot the image and talk to the agent")
     command.add_argument("--work", type=Path, default=Path("work"))
     command.set_defaults(run=cmd_ping)
+
+    command = commands.add_parser("render", help="play a scene and write a video")
+    command.add_argument("file", type=Path, help="Python file holding the scene")
+    command.add_argument("scene", nargs="?", help="scene class, if the file has several")
+    command.add_argument("-o", "--output", type=Path, help="output file, .mp4 or .gif")
+    command.add_argument("--gif", type=Path, help="write a GIF as well")
+    command.add_argument("--work", type=Path, default=Path("work"))
+    command.add_argument("--gif-fps", type=int, default=15)
+    command.add_argument("--gif-colors", type=int, default=128)
+    command.add_argument("--gif-scale", type=float, default=1.0)
+    command.add_argument("--gif-dither", default="none",
+                         help="ffmpeg paletteuse dither: none, bayer, sierra2_4a...")
+    command.set_defaults(run=cmd_render)
 
     args = parser.parse_args(argv)
     return args.run(args)

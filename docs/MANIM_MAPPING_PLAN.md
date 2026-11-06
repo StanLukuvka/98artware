@@ -1,9 +1,8 @@
 # art98 as "Manim for Windows 98": design plan
 
-Status: design, revised 2026-11-06. The library described here is not built. The final Windows 98 image is built with no manual steps and
+Status: design, revised 2026-11-06. A first slice of this library is built, in `src/art98/anim/`, and [its docs](actions/README.md) say what exists. The rest is still design. The final Windows 98 image is built with no manual steps and
 `examples/hello.py` renders on it, so section 2.7 records what the real image has settled. Every other Windows 98 claim stays an assumption until its probe runs.
 
-The readable version is the page at <https://claude.ai/artifact/D39byW5rfT6pTt2AtjEB79>, which is generated from this file. This file is the source.
 
 ## Summary
 

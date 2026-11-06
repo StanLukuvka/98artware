@@ -1,0 +1,446 @@
+# Scene API
+
+Everything here comes from `from art98.anim import *`. For what you pass to `play`, see
+[Animations](animations.md).
+
+Positions are screen pixels, with `(0, 0)` at the top left and y running down. The desktop is
+800 x 600 and the taskbar takes the bottom 28 pixels.
+
+## Scene
+
+`class Scene`
+
+Subclass it and write `construct`. One scene is one recording.
+
+| Attribute | Meaning |
+| --- | --- |
+| `fps` | Frames per second of the video. Default 30. |
+| `clock` | `"free"`, the only one so far. Anything else raises `NotImplementedError`. |
+| `guest` | The raw [`Bridge`](bridge.md). |
+| `vm` | The QEMU `VM`, for real key presses and captures. |
+| `pointer` | The [`Pointer`](#pointer). |
+| `props` | The props on stage. |
+| `work_area` | `(left, top, right, bottom)` of the desktop above the taskbar. |
+| `screen` | The same area as a `Box`, to measure against. |
+| `time` | Video time in seconds: frames written over `fps`. It never reads a clock. |
+
+| Hook | Runs |
+| --- | --- |
+| `setup()` | Before `construct`. |
+| `construct()` | The scene. |
+| `tear_down()` | After `construct`. |
+
+`Scene.render(output=None, **options)` boots a VM and renders from Python. The options are those
+of [`render`](#rendering).
+
+### Stage
+
+`add(*props)` brings props on stage. For a window this starts the program, finds its window, and
+places it. `remove(*props)` takes them off, which closes a window. `refresh_props()` reads
+positions back, for when something other than the script moved a window.
+
+### Playing
+
+`play(*animations, run_time=None, rate_func=None, live=False)`
+
+| Parameter | Meaning |
+| --- | --- |
+| `animations` | One or more. They run together, and shorter ones finish early and hold. |
+| `run_time` | Seconds, overriding each animation's own. |
+| `rate_func` | Overrides each animation's own. |
+| `live` | Follow the host clock, so timers in the guest run at video speed. |
+
+Each frame goes like this: work out every animation's state, apply it to the guest, wait for the
+guest to finish painting, capture.
+
+![Frame loop](../diagrams/frame-loop.png)
+
+Two animations can't drive the same thing at once. Two pointer actions in one `play`, or two
+`Keys`, raise `ValueError`. Two `.animate` calls on one window are fine.
+
+```python
+from art98.anim import *
+
+
+class Together(Scene):
+    def construct(self):
+        pad = Notepad(at=(60, 60), size=(360, 220))
+        self.add(pad)
+        self.play(TypeWithCursor(pad, "moving and typing"),
+                  pad.animate.shift(300 * RIGHT + 200 * DOWN), run_time=2)
+        self.pause(0.5)
+```
+
+### Time
+
+| Method | What the guest does | Frames |
+| --- | --- | --- |
+| `pause(duration=1.0)` | Keeps running, unseen | One capture, repeated |
+| `wait(duration=1.0, stop_condition=None, frozen_frame=False)` | Keeps running, seen | Captured at host speed |
+| `live(seconds, stop_condition=None)` | Keeps running, seen | Captured at host speed, with no repaint wait |
+| `wait_until(stop_condition, max_time=60.0)` | Keeps running, seen | Until the condition is true |
+
+Use `pause` for a beat, `wait` to let a caret blink, and `live` for something that moves by
+itself. `wait(frozen_frame=True)` is `pause`. `wait` and `live` are the same call today. `live`
+wraps `FrameRecorder.live`.
+
+`stop_condition` is a function, tried before each capture. `wait_until` warns if it gives up.
+
+```python
+from art98.anim import *
+
+
+class WaitForCalculator(Scene):
+    def construct(self):
+        self.guest.spawn("calc.exe")
+        self.wait_until(lambda: any(w.class_name == "SciCalc" for w in self.guest.windows()))
+        self.pause(0.5)
+```
+
+## Box
+
+`Box(x=0, y=0, width=0, height=0)`
+
+A rectangle with Manim's layout methods. These change numbers on the host only. A prop's numbers
+reach the guest on the next frame, or at once with `apply()`.
+
+| Method | Effect |
+| --- | --- |
+| `shift(*vectors)` | Move by each vector. |
+| `move_to(target, aligned_edge=ORIGIN)` | Put the centre on the target. `aligned_edge=UL` puts the top left corner there instead. |
+| `center()` | Centre on the desktop, above the taskbar. |
+| `to_edge(edge=LEFT, buff=0)` | Against an edge of the desktop. |
+| `to_corner(corner=DL, buff=0)` | Into a corner of the desktop. |
+| `next_to(other, direction=RIGHT, buff=8)` | Beside another box, centred on it along the other axis. |
+| `resize(width, height)` | New size. The top left corner stays. |
+| `set_rect(x, y, width, height)` | Position and size. |
+| `scale(factor)` | Grow or shrink about the centre. An app keeps its font size. |
+
+| Read | Gives |
+| --- | --- |
+| `rect` | `(left, top, right, bottom)`, the order of a Win32 `RECT`. |
+| `size` | `(width, height)`. |
+| `get_center()` | Centre as a `Vec`. |
+| `get_corner(direction)` | A corner or edge midpoint. |
+
+A target is a point, a [`Spot`](#spot), or a prop, which means its centre.
+
+All of these can be animated through `.animate`.
+
+```python
+from art98.anim import *
+
+
+class Layout(Scene):
+    def construct(self):
+        left = Notepad(size=(260, 180))
+        right = Notepad(size=(260, 180))
+        self.add(left, right)
+        left.to_corner(UL, buff=90)
+        right.next_to(left, RIGHT, buff=16)
+        self.pause(0.5)
+        self.play(right.animate.move_to(self.screen.get_center()))
+        self.play(left.animate.scale(1.3))
+        self.pause(0.5)
+```
+
+## Vectors
+
+`Vec(x, y)` is a named tuple with `+`, `-`, `*`, `/` and negation, and `rounded()`.
+
+| Constant | Value |
+| --- | --- |
+| `ORIGIN` | `(0, 0)` |
+| `UP`, `DOWN` | `(0, -1)`, `(0, 1)` |
+| `LEFT`, `RIGHT` | `(-1, 0)`, `(1, 0)` |
+| `UL`, `UR`, `DL`, `DR` | The four corners. |
+
+`lerp(a, b, alpha)` is the point `alpha` of the way from `a` to `b`.
+
+## Prop
+
+`Prop` is a `Box` that exists in the guest. Add it to a scene to bring it to life.
+
+| Member | Meaning |
+| --- | --- |
+| `animate` | Starts an [`Animate`](animations.md#propanimate). |
+| `guest` | The bridge. Raises `RuntimeError` until the prop is on stage. |
+| `apply()` | Send changed values to the guest now. |
+| `refresh()` | Read the real position back. |
+| `remove()` | Leave the stage. |
+
+To add a kind of prop, subclass `Win` for a window, or `Prop` for anything else, and override
+`apply`.
+
+## Spot
+
+`Spot(locate)`
+
+A place on screen, worked out when needed. `locate` returns `(x, y)`. Controls move with their
+windows, so the props give you Spots, and an animation reads them as it begins.
+
+```python
+from art98.anim import *
+
+
+class Spots(Scene):
+    def construct(self):
+        pad = Notepad(at=(100, 100), size=(300, 200))
+        self.add(pad)
+        close = pad.corner(UR, inset=14)
+        self.play(pad.animate.shift(200 * RIGHT))
+        self.play(Glide(close))
+        self.pause(0.5)
+```
+
+## Win
+
+`Win(title=None, *, class_name=None, hwnd=None, command=None, at=None, size=None)`
+
+A real window. Give `command` to start a program, or `title`, `class_name` or `hwnd` to take hold
+of a window that exists.
+
+| Parameter | Meaning |
+| --- | --- |
+| `title` | Part of the title, ignoring case. |
+| `class_name` | The exact window class. |
+| `hwnd` | A window handle you already have. |
+| `command` | A command line. The window must belong to the program it starts. |
+| `at` | Top left corner, applied when added. |
+| `size` | Outer size, applied when added. |
+
+Each frame, a changed position becomes one `SetWindowPos`, followed by a `RedrawWindow`. Without
+the redraw Windows 98 leaves stale pixels on the frame.
+
+| Member | Meaning |
+| --- | --- |
+| `title_bar` | `Spot` in the middle of the title bar. Drag from here. |
+| `corner(direction=DR, inset=2)` | `Spot` on a corner or edge of the frame. Resize from here. |
+| `client(x, y)` | `Spot` at client coordinates. |
+| `client_size()` | Client area as `(width, height)`. |
+| `children(class_name=None, title=None)` | Descendant windows, from `EnumChildWindows`. |
+| `control(class_name=None, title=None)` | The first match, as a `Win`. |
+| `text` | The window's text. |
+| `set_text(text)` | Set it with `WM_SETTEXT`. |
+| `edit_hwnd` | Where typing goes. |
+| `activate()` | Make it the foreground window. |
+| `bring_to_front()` | Raise it without activating. |
+| `close()` | Post `WM_CLOSE`, which is what its X button does. |
+
+`activate` clicks the title bar between two frames, because `SetForegroundWindow` returns 0 when
+the agent calls it. It then puts the pointer back. It raises `RuntimeError` if another window
+covers the title bar.
+
+Calculator's buttons draw their own faces and have no window text, so this finds them by control
+id. Where a control has text, `control("Button", "Yes")` is shorter.
+
+```python
+from art98.anim import *
+
+
+SEVEN, TIMES, SIX, EQUALS = 131, 91, 130, 112  # Calculator's control ids
+
+
+class Calculator(Scene):
+    def construct(self):
+        calc = Win(command="calc.exe", class_name="SciCalc", at=(240, 120))
+        self.add(calc)
+        for number in (SEVEN, TIMES, SIX, EQUALS):
+            button = self.guest.user32.GetDlgItem(calc.hwnd, number).value
+            self.play(Click(Win(hwnd=button), run_time=0.5))
+        self.pause(1)
+```
+
+## Pointer
+
+The mouse pointer. Every scene has one, as `self.pointer`.
+
+| Member | Meaning |
+| --- | --- |
+| `place(point)` | Jump there now, with no frames in between. |
+| `press(button="left")` | Press a button. |
+| `release(button="left")` | Release it. |
+| `get_center()` | Where it is, as of the last move. |
+| `refresh()` | Read the real position with `GetCursorPos`. |
+
+Moves use `SetCursorPos` and buttons use `mouse_event`. Both are real input, so Windows routes
+them. Double clicks, title-bar drags, context menus and the Start menu all work. The buttons are
+`"left"`, `"right"` and `"middle"`.
+
+Use the animations in most scenes. `place` is useful to park the pointer out of shot:
+
+```python
+from art98.anim import *
+
+
+class Parked(Scene):
+    def construct(self):
+        pad = Notepad(at=(120, 90), size=(400, 240))
+        self.add(pad)
+        self.pointer.place((700, 500))
+        self.play(TypeWithCursor(pad, "The pointer is out of the way."))
+        self.pause(0.5)
+```
+
+## Notepad
+
+`Notepad(at=None, size=None)`
+
+Starts `notepad.exe`. `edit_hwnd`, `text` and `set_text` work on its Edit control. `close` marks
+the text as saved first, so no save prompt appears.
+
+![Typing](../assets/gifs/typing.gif)
+
+Source: [typing.py](../../examples/gallery/typing.py).
+
+## Paint
+
+`Paint(at=None, size=None)`
+
+Starts `MSPAINT.EXE`. Buttons and the canvas are read from the live window. The tool buttons are
+`ToolChild` windows, found by control id. The palette is the `AfxWnd42` child called `Colors`. So
+every target stays right after the window moves or resizes.
+
+| Member | Meaning |
+| --- | --- |
+| `tool(name)` | `Spot` on a toolbox button. |
+| `color(name)` | `Spot` on a palette swatch. Left click sets ink, right click sets paper. |
+| `canvas(x, y)` | `Spot` on a canvas pixel. |
+| `canvas_size` | `(width, height)` of the canvas. |
+| `canvas_handle` | `Spot` on the canvas's bottom right grab handle. |
+| `resize_canvas(width, height, **kwargs)` | A `Drag` that pulls that handle. |
+
+`TOOLS` lists the names: `free_select`, `select`, `eraser`, `fill`, `pick_color`, `magnifier`,
+`pencil`, `brush`, `airbrush`, `text`, `line`, `curve`, `rectangle`, `polygon`, `ellipse`,
+`rounded_rectangle`.
+
+`PALETTE` lists the colours. The top row is `black`, `gray`, `maroon`, `olive`, `green`, `teal`,
+`navy`, `purple`, `khaki`, `dark_teal`, `azure`, `steel`, `indigo`, `brown`. The bottom row is
+`white`, `silver`, `red`, `yellow`, `lime`, `cyan`, `blue`, `magenta`, `cream`, `mint`, `sky`,
+`periwinkle`, `rose`, `orange`.
+
+Paint doesn't report its canvas size. `canvas_size` finds the edge with `GetPixel`, and that needs
+a blank canvas, so read it before you draw or use `resize_canvas` first.
+
+Keep the canvas smaller than the grey area around it. A larger canvas gets scroll bars, and
+`canvas(x, y)` doesn't follow the scroll position. Closing a changed Paint brings up its save
+prompt, which isn't handled.
+
+![Paint drawing](../assets/gifs/paint-drawing.gif)
+
+Source: [paint_drawing.py](../../examples/gallery/paint_drawing.py).
+
+## Minesweeper
+
+`Minesweeper(at=None, size=None)`
+
+Starts `WINMINE.EXE`. The cell positions come from the client area.
+
+| Member | Meaning |
+| --- | --- |
+| `board_size` | `(columns, rows)`. |
+| `cell(column, row)` | `Spot` on a cell. |
+| `find_mines()` | Read the board. Returns the set of mine cells. |
+| `mines` | The result of `find_mines`. |
+| `neighbours(cell)` | The cells around a cell. |
+| `opened_by(cell)` | The cells a click on this cell opens, by flood fill. |
+| `clear()` | Win the game, with real clicks. Plays its own animations. |
+| `sign_scoreboard(name="art98")` | Answer the best time prompt that follows a first win. |
+
+`find_mines` uses Minesweeper's own XYZZY cheat. It types the cheat, then moves the pointer over
+every cell with Progman hidden and reads pixel (0, 0). This happens between two frames, so it
+takes no video time. No window may cover the top left corner of the screen.
+
+![Minesweeper win](../assets/gifs/minesweeper-win.gif)
+
+Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py).
+
+## Screensaver
+
+`Screensaver(name="3D Pipes")`
+
+Starts `<name>.scr /s`. Follow it with `self.live(seconds)`, because a screensaver runs by itself.
+`stop(timeout=5.0)` nudges the pointer, which is how a real one is dismissed, and waits for it to
+exit.
+
+`NAMES` lists what works: 3D Flower Box, 3D Flying Objects, 3D Maze, 3D Pipes, 3D Text, Blank
+Screen, Curves and Colors, Flying Through Space, Flying Windows, Mystify Your Mind.
+
+Channel Screen Saver is on the image but left out, because moving the pointer doesn't dismiss it.
+
+![Screensaver](../assets/gifs/screensaver.gif)
+
+Source: [screensaver.py](../../examples/gallery/screensaver.py).
+
+## Dialog
+
+`Dialog(text, title="art98", *, icon=None, buttons="ok", at=None)`
+
+A real `MessageBoxA`. It blocks whoever calls it, so the agent runs it on its own guest thread
+with `ACALL`, and the scene carries on.
+
+| Parameter | Values |
+| --- | --- |
+| `icon` | `None`, `"error"`, `"question"`, `"warning"`, `"info"` |
+| `buttons` | `"ok"`, `"okcancel"`, `"abortretryignore"`, `"yesnocancel"`, `"yesno"`, `"retrycancel"` |
+
+`button(label)` gives a button as a `Win`. `answer` is the lower-case name of the button pressed,
+and it waits for the box to close.
+
+![Hover and dialog](../assets/gifs/hover-dialog.gif)
+
+Source: [hover_dialog.py](../../examples/gallery/hover_dialog.py).
+
+```python
+from art98.anim import *
+
+
+class Question(Scene):
+    def construct(self):
+        box = Dialog("Keep this?", icon="question", buttons="yesno", at=(280, 200))
+        self.add(box)
+        self.pause(0.5)
+        self.play(Click(box.button("No")))
+        pad = Notepad(at=(200, 120), size=(320, 160))
+        self.add(pad)
+        self.play(TypeWithCursor(pad, f"You pressed {box.answer}."))
+        self.pause(1)
+```
+
+## Rendering
+
+### Command line
+
+```text
+art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
+             [--gif-fps N] [--gif-colors N] [--gif-scale X] [--gif-dither NAME]
+```
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `FILE` | | The Python file. |
+| `SCENE` | | The scene class. Needed if the file has several. |
+| `-o`, `--output` | `<Scene>.mp4` | `.mp4`, or `.gif` for a GIF alone. |
+| `--gif` | | Write a GIF as well as the video. |
+| `--work` | `work` | Where the prepared image is. |
+| `--gif-fps` | 15 | GIF frame rate. |
+| `--gif-colors` | 128 | Palette size. |
+| `--gif-scale` | 1.0 | Size factor, with nearest-neighbour scaling. |
+| `--gif-dither` | `none` | A dither of ffmpeg's `paletteuse`. |
+
+### Python
+
+`render(scene, output=None, *, gif=None, work="work", gif_fps=15, gif_colors=128, gif_scale=1.0,
+gif_dither="none", display="none")`
+
+`scene` is a class or an instance. `display` is passed to QEMU's `-display`. Returns the path
+written.
+
+The prepared image is only copied, as a reflink, into `work/runs/render-*`, and the copy is
+deleted afterwards. Several renders can run at once.
+
+`write_gif(source, output, fps=15, colors=128, scale=1.0, dither="none")` converts a video to a
+GIF with `palettegen` and `paletteuse`.
+
+A video goes through 4:2:0 H.264, which smears 1-pixel coloured text. A GIF comes from a lossless
+FFV1 recording instead, so its pixels stay sharp.

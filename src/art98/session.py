@@ -7,7 +7,9 @@ import shutil
 import subprocess
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Callable, Iterator
 
 from .bridge import Bridge
 from .qemu import VM, VMConfig
@@ -23,16 +25,18 @@ class FrameRecorder:
     host produces the same video as a fast one.
     """
 
-    def __init__(self, session: "Session", path: Path | str, fps: int = 30):
+    def __init__(self, session: "Session", path: Path | str, fps: int = 30,
+                 lossless: bool = False):
         self._session = session
         self._fps = fps
         self._dir = Path(tempfile.mkdtemp(prefix="art98-frames-"))
         self._frame = self._dir / "frame.ppm"
         self.count = 0
+        codec = (["-c:v", "ffv1", "-pix_fmt", "bgr0"] if lossless else
+                 ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-crf", "12"])
         self._ffmpeg = subprocess.Popen(
             ["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-c:v", "ppm",
-             "-framerate", str(fps), "-i", "-", "-c:v", "libx264", "-preset", "veryfast",
-             "-pix_fmt", "yuv420p", "-crf", "12", str(path)],
+             "-framerate", str(fps), "-i", "-", *codec, str(path)],
             stdin=subprocess.PIPE,
         )
 
@@ -41,14 +45,17 @@ class FrameRecorder:
         self._session.bridge.sync()
         self._capture(hold)
 
-    def live(self, seconds: float) -> None:
+    def live(self, seconds: float, stop_condition: Callable[[], bool] | None = None) -> None:
         """Record something that moves by itself, such as a screensaver.
 
         Frames follow the host's clock and skip the sync, so this stretch of
-        video does depend on how fast the host runs.
+        video does depend on how fast the host runs. stop_condition, if given,
+        is checked before each frame and ends the stretch early.
         """
         start = time.monotonic()
         for index in range(round(seconds * self._fps)):
+            if stop_condition is not None and stop_condition():
+                return
             time.sleep(max(0.0, start + index / self._fps - time.monotonic()))
             self._capture(1)
 
@@ -76,8 +83,8 @@ class Session:
         self.vm = vm
         self.bridge = bridge
 
-    def record(self, path: Path | str, fps: int = 30) -> FrameRecorder:
-        return FrameRecorder(self, path, fps)
+    def record(self, path: Path | str, fps: int = 30, lossless: bool = False) -> FrameRecorder:
+        return FrameRecorder(self, path, fps, lossless)
 
     def close(self) -> None:
         self.bridge.close()
@@ -88,6 +95,27 @@ class Session:
 
     def __exit__(self, *exc) -> None:
         self.close()
+
+
+@contextmanager
+def private_stage(work: Path | str = "work") -> Iterator[Path]:
+    """A throwaway copy of the prepared image, for one run.
+
+    A VM writes to its disk, and two can't share one, so a run takes a
+    copy-on-write copy under `work/runs` and it is deleted afterwards.
+    """
+    config = json.loads((Path(work) / IMAGE_FILE).read_text())
+    runs = Path(work) / "runs"
+    runs.mkdir(exist_ok=True)
+    stage = Path(tempfile.mkdtemp(prefix="render-", dir=runs))
+    try:
+        disk = stage / Path(config["disk"]).name
+        subprocess.run(["cp", "--reflink=auto", config["disk"], str(disk)], check=True)
+        config["disk"] = str(disk.resolve())
+        (stage / IMAGE_FILE).write_text(json.dumps(config, indent=2))
+        yield stage
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
 
 
 def boot(work: Path | str = "work", display: str = "none", ready_timeout: float = 30.0) -> Session:

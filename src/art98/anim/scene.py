@@ -1,0 +1,189 @@
+"""Scene: a script for one recording of the desktop."""
+
+from __future__ import annotations
+
+import struct
+import time
+import warnings
+from pathlib import Path
+
+from ..protocol import Out
+from .actions import Pointer
+from .animation import Animation
+from .props import Box, Prop
+
+SPI_GETWORKAREA = 48
+
+
+class Scene:
+    """Subclass this and write `construct`.
+
+    `self.guest` is the raw Bridge, so any Win32 call can sit between
+    animations, `self.vm` is the VM, and `self.pointer` is the mouse pointer.
+    `self.time` is video time, frames written over fps, and it never reads a
+    clock. Only the `free` clock exists so far: the guest runs all the time,
+    and what the script drives lands on exact frames while anything the guest
+    times for itself runs by the host's clock.
+    """
+
+    fps = 30
+    clock = "free"
+
+    def __init__(self):
+        self.session = None
+        self.video = None
+        self.guest = None
+        self.vm = None
+        self.pointer: Pointer | None = None
+        self.props: list[Prop] = []
+        self.work_area = (0, 0, 800, 572)
+
+    # ---- what a scene writes ----
+
+    def setup(self) -> None:
+        pass
+
+    def construct(self) -> None:
+        pass
+
+    def tear_down(self) -> None:
+        pass
+
+    # ---- running ----
+
+    @property
+    def time(self) -> float:
+        return self.video.count / self.fps
+
+    def run(self, session, video) -> None:
+        """Play this scene on a booted session, into an open recorder."""
+        if self.clock != "free":
+            raise NotImplementedError(f"clock {self.clock!r}: only 'free' exists so far")
+        self.session, self.video = session, video
+        self.guest, self.vm = session.bridge, session.vm
+        left, top, right, bottom = struct.unpack(
+            "<iiii", self.guest.user32.SystemParametersInfoA(
+                SPI_GETWORKAREA, 0, Out(16), 0).buffers[0])
+        self.work_area = (left, top, right, bottom)
+        self.pointer = Pointer()
+        self.pointer.attach(self)
+        self.setup()
+        self.construct()
+        self.tear_down()
+
+    def render(self, output: Path | str | None = None, **options) -> Path:
+        """Boot a private VM, play the scene, and write the video."""
+        from .renderer import render
+
+        return render(self, output, **options)
+
+    # ---- the stage ----
+
+    @property
+    def screen(self) -> Box:
+        """The desktop above the taskbar, as a box to measure against."""
+        left, top, right, bottom = self.work_area
+        return Box(left, top, right - left, bottom - top)
+
+    def add(self, *props: Prop) -> None:
+        """Bring props on stage: start the program, find the window, place it."""
+        for prop in props:
+            if prop not in self.props:
+                prop.attach(self)
+                self.props.append(prop)
+
+    def remove(self, *props: Prop) -> None:
+        """Take props off stage. For a window that means closing it."""
+        for prop in props:
+            prop.remove()
+            if prop in self.props:
+                self.props.remove(prop)
+
+    def refresh_props(self) -> None:
+        """Read positions back, after something other than the script moved them."""
+        for prop in self.props:
+            prop.refresh()
+
+    # ---- time ----
+
+    def play(self, *animations: Animation, run_time: float | None = None,
+             rate_func=None, live: bool = False) -> None:
+        """Run animations together, one captured frame at a time.
+
+        run_time and rate_func override every animation given. Shorter
+        animations finish early and hold. With live=True, frames follow the
+        host clock, for guest behaviour that needs real time to happen.
+        """
+        if not animations:
+            raise ValueError("play needs at least one animation")
+        self._check_claims(animations)
+        for animation in animations:
+            if run_time is not None:
+                animation.run_time = run_time
+            if rate_func is not None:
+                animation.rate_func = rate_func
+            animation.begin(self)
+        total = max(animation.run_time for animation in animations)
+        count = max(1, round(total * self.fps))
+        live = live or any(animation.live for animation in animations)
+        running = list(animations)
+        started = time.monotonic()
+        for index in range(1, count + 1):
+            elapsed = index / count * total
+            for animation in list(running):
+                length = animation.run_time
+                progress = 1.0 if length <= 0 or index == count else min(1.0, elapsed / length)
+                animation.update(progress)
+                if progress >= 1:
+                    animation.finish(self)
+                    running.remove(animation)
+            self._apply()
+            if live:
+                time.sleep(max(0.0, started + index / self.fps - time.monotonic()))
+            self.video.frame()
+
+    def wait(self, duration: float = 1.0, stop_condition=None, frozen_frame: bool = False) -> None:
+        """Hold for a while, or until stop_condition() is true.
+
+        The guest keeps running, so a caret blinks and a clock ticks. These
+        frames follow the host clock. frozen_frame=True repeats one capture
+        instead, which costs almost nothing. See also `pause`.
+        """
+        if frozen_frame:
+            self.pause(duration)
+        else:
+            self.live(duration, stop_condition)
+
+    def pause(self, duration: float = 1.0) -> None:
+        """Hold one capture. Nothing the guest does in this time is seen."""
+        self._apply()
+        self.video.frame(hold=max(1, round(duration * self.fps)))
+
+    def live(self, seconds: float, stop_condition=None) -> None:
+        """Record something that moves by itself, such as a screensaver.
+
+        Frames follow the host clock and skip the repaint wait, so this
+        stretch depends on host speed. It wraps `FrameRecorder.live`.
+        """
+        self._apply()
+        self.video.live(seconds, stop_condition)
+
+    def wait_until(self, stop_condition, max_time: float = 60.0) -> None:
+        """Hold until stop_condition() is true, giving up after max_time."""
+        self.live(max_time, stop_condition)
+        if not stop_condition():
+            warnings.warn(f"wait_until gave up after {max_time} s", stacklevel=2)
+
+    def _apply(self) -> None:
+        self.pointer.apply()
+        for prop in self.props:
+            prop.apply()
+
+    @staticmethod
+    def _check_claims(animations) -> None:
+        taken: set[str] = set()
+        for animation in animations:
+            for claim in animation.claims:
+                if claim in taken:
+                    raise ValueError(f"two animations in one play both drive the {claim}")
+                taken.add(claim)

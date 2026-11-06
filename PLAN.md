@@ -3,8 +3,8 @@
 > "Manim for Windows 98" — a repeatable instruction set that treats
 > the Win98 desktop as a puppet stage, using the OS itself as medium.
 
-> **Status, 2026-11-06.** The preparation tool and the bridge now exist; see
-> `README.md`. Building them changed four things in this plan, and the sections
+> **Status, 2026-11-06.** The preparation tool, the bridge and a first Scene
+> API now exist; see `README.md`. Building them changed four things in this plan, and the sections
 > below are kept as the original thinking:
 >
 > - **Transport is COM1, not a shared folder.** VirtualBox's Guest Additions do
