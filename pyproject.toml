@@ -1,0 +1,24 @@
+[project]
+name = "art98"
+version = "0.1.0"
+description = "Script animations with a real Windows 98 desktop inside a VM"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+art98 = "art98.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "pycdlib>=1.14"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/art98"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["qemu: needs qemu-system-i386 on PATH"]
