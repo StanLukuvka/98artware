@@ -15,7 +15,7 @@ The project has two parts:
   that can call any Win32 function in the guest, and a renderer.
 
 [docs/README.md](docs/README.md) lists every page. [PLAN.md](PLAN.md) has the creative
-direction.
+direction. [docs/status.md](docs/status.md) says where the work stands and what is open.
 
 ```
 Host: Python                                     Guest: Windows 98 SE in QEMU

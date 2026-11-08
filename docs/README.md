@@ -46,6 +46,8 @@ Audio is deferred, so everything here is video only.
 
 | Page | What it covers |
 | --- | --- |
+| [Status](status.md) | What exists, what was done, and what is still open. Start here when picking work up. |
+| [State and action design](design/state-and-action.md) | Static starting states and free actions on top. Not built yet, with the first test's results. |
 | [PLAN.md](../PLAN.md) | The creative direction. |
 | [Manim mapping plan](MANIM_MAPPING_PLAN.md) | How Manim's tools map to Windows 98 actions. Only a first slice is built. |
 | [Plan review](MANIM_MAPPING_REVIEW.md) | The review of that plan. |
