@@ -71,6 +71,7 @@ The plumbing under every scene. Read in this order, bottom up:
 - [ ] [bridge.py](../core/art98/bridge.py): the link to the agent, as `guest.user32.X(...)`.
 - [ ] [guestfiles.py](../core/art98/guestfiles.py): files copied to the guest, named by content.
 - [ ] [session.py](../core/art98/session.py): a running stage, `boot`, `private_stage`, revert.
+- [ ] [recorder.py](../core/art98/recorder.py): `FrameRecorder`, one video per render, and the GIF defaults.
 - [ ] [state.py](../core/art98/state.py): the JSON state files for a starting desktop.
 - [ ] [desktop.py](../core/art98/desktop.py): the blank start, a black, empty screen after each revert.
 - [ ] [cli.py](../core/art98/cli.py): the `art98` command.

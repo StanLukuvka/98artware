@@ -7,7 +7,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from ..session import GIF_COLORS, GIF_FPS, H264, stage
+from ..recorder import GIF_COLORS, GIF_FPS, H264
+from ..session import stage
 
 
 def write_gif(source: Path | str, output: Path | str, fps: int = GIF_FPS, colors: int = GIF_COLORS,
