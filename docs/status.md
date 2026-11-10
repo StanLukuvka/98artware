@@ -11,7 +11,7 @@ work can pick up from here.
 | Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](actions/bridge.md), [Instruction set](actions/instruction-set.md) |
 | Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. The program classes are parked, unexported | [Part 2](actions/README.md) |
 | Examples | `examples/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](actions/gallery.md) |
-| Diagrams | Six architecture diagrams with editable `.drawio` files | [Diagrams](diagrams/README.md) |
+| Diagrams | Seven diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
 | States and actions | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Named actions aren't built | [Design](design/state-and-action.md), [States](actions/scene-api.md#states) |
 | Recorder | `FrameRecorder`, one file per render. A `Recorder` with `cut()` is specified, not built | [Recorder](design/state-and-action.md#recorder) |
 
@@ -21,8 +21,9 @@ Audio is deferred. art98 is video only.
 
 1. **Prep tool and bridge.** Built and run against the real disc. First commit, `9f926fa`.
 2. **Manim mapping plan.** A separate session mapped Manim's tools to Windows 98 actions in
-   [MANIM_MAPPING_PLAN.md](MANIM_MAPPING_PLAN.md), and a second pass reviewed it in
-   [MANIM_MAPPING_REVIEW.md](MANIM_MAPPING_REVIEW.md). Only a first slice of it is built.
+   [MANIM_MAPPING_PLAN.md](archive/MANIM_MAPPING_PLAN.md), and a second pass reviewed it in
+   [MANIM_MAPPING_REVIEW.md](archive/MANIM_MAPPING_REVIEW.md). Only a first slice of it is built,
+   and both are archived.
 3. **Scene API and docs.** Four sessions ran in parallel: the action API, the prep docs, the
    bridge docs and the diagrams. Their work was checked, corrected and committed together with
    the gallery GIFs in `a1531ea`.
@@ -59,9 +60,24 @@ Audio is deferred. art98 is video only.
 
 ### Next
 
-[After the MVP](design/state-and-action.md#after-the-mvp): the
-[recorder](design/state-and-action.md#recorder) with clips, then each program as its own action
-class.
+In order, from the cleanup review of 2026-11-10. See also
+[After the MVP](design/state-and-action.md#after-the-mvp).
+
+1. **The [recorder](design/state-and-action.md#recorder) with `cut()`.** It moves
+   `FrameRecorder` out of `session.py`. To decide first: how a GIF works once a render is cut
+   into clips, whether clips are kept after they're joined, and whether the `close()` exit-code
+   bug below is in scope.
+2. **Split `actions.py`** into pointer, keys and window modules (`Teleport` joins the window
+   one). Remove the program list kept twice, in `state.py` and `setstate.py`, and the pointer
+   setup repeated in `scene.py`.
+3. **Sections:** `next_section` and `--section`.
+4. **Program classes:** a one-page design, then a Notepad pilot. Settle first what "action"
+   means: the design calls a named section of a scene an action, and programs are meant to
+   return as action classes.
+5. **Port the showcase** and re-render the gallery.
+
+Two bugs on hold below sit on the `set_state` path, the failed `load_snapshot` and the pending
+async calls on `! CRASH`. They may be worth taking off hold.
 
 ### Known bugs, on hold
 

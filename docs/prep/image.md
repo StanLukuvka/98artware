@@ -222,7 +222,7 @@ with boot("work") as stage:
 reports through `SystemParametersInfoA` or the screen, not just that the value is in
 the registry. All values were read back and match.
 
-The reasons here come from `PLAN.md` section 3 and the names of the settings. The code
+The reasons here come from `docs/archive/PLAN.md` section 3 and the names of the settings. The code
 gives none, apart from what is noted.
 
 All keys are under `HKCU`. Prep writes data as `REG_SZ`, or `REG_BINARY` where
@@ -312,7 +312,7 @@ Setup's `BootMulti=1`, `DoubleBuffer=1` and `WinVer=4.10.2222` are kept.
 
 ## Display
 
-`DISPLAY_MODE` is `(800, 600, 16)`. `PLAN.md` calls it period-correct and reliable.
+`DISPLAY_MODE` is `(800, 600, 16)`. `docs/archive/PLAN.md` calls it period-correct and reliable.
 `bridge.set_display_mode` picks a mode the driver reports and saves it with
 `CDS_UPDATEREGISTRY`, so it survives the reboot. Windows reports 800, 600 and 16 from
 `GetDeviceCaps`.

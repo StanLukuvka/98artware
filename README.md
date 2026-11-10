@@ -14,8 +14,9 @@ The project has two parts:
 - **[Part 2: the action handler](docs/actions/README.md).** A Scene API, a bridge
   that can call any Win32 function in the guest, and a renderer.
 
-[docs/README.md](docs/README.md) lists every page. [PLAN.md](PLAN.md) has the creative
-direction. [docs/status.md](docs/status.md) says where the work stands and what is open.
+[docs/README.md](docs/README.md) lists every page. [PLAN.md](docs/archive/PLAN.md), now
+archived, has the original creative direction. [docs/status.md](docs/status.md) says where
+the work stands and what is open.
 
 ```
 Host: Python                                     Guest: Windows 98 SE in QEMU

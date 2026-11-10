@@ -16,7 +16,7 @@ reading it first. The disk holds your key.
 ## Setup quirks prep handles
 
 These come from running a Windows 98 SE OEM disc. The reasons are the ones given in
-the code and in `docs/MANIM_MAPPING_PLAN.md` section 2.7.
+the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 
 | Quirk | Why it matters | What prep does | Where |
 |-------|----------------|----------------|-------|
@@ -105,7 +105,7 @@ uv run art98 prep --from media --iso /path/to/win98se.iso
 ## QEMU only
 
 art98 works only with QEMU. It depends on QMP for screenshots, keys and snapshots, on a
-Unix socket as COM1, and on `-no-reboot`. `PLAN.md` considered VirtualBox and shared
+Unix socket as COM1, and on `-no-reboot`. `docs/archive/PLAN.md` considered VirtualBox and shared
 folders, and neither is used. See the status note at the top of that file.
 
 The binary is `qemu-system-i386`, the constant `QEMU_BINARY`. It can't be set with a

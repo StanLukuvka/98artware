@@ -1,5 +1,10 @@
 # 98artware — Windows 98 as Animation/Performance Platform
 
+> **Archived, 2026-11-10.** Superseded by [docs/status.md](../status.md), which is the one
+> roadmap, and by [the state and action design](../design/state-and-action.md). Four of its core choices were
+> overturned while building, as its own status note below says.
+> It is kept for its reasoning and is no longer kept up to date.
+
 > "Manim for Windows 98" — a repeatable instruction set that treats
 > the Win98 desktop as a puppet stage, using the OS itself as medium.
 

@@ -46,6 +46,7 @@ art98 has the same jobs in other places:
   at the top level, and `setstate.py` in `anim/`.
 - `actions.py` mixes a prop (`Pointer`), pointer animations, keys and window commands.
 
-The [Manim mapping plan](../MANIM_MAPPING_PLAN.md) already proposes a `Win98Renderer`, updaters
-and partial movies. None of that is built. The [recorder](state-and-action.md#recorder) spec
-covers clips, which are the nearest thing to Manim's partial movies.
+The [Manim mapping plan](../archive/MANIM_MAPPING_PLAN.md), now archived, proposed a
+`Win98Renderer`, updaters and partial movies. None of that is built. The
+[recorder](state-and-action.md#recorder) spec covers clips, which are the nearest thing to
+Manim's partial movies.

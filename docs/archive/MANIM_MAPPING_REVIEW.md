@@ -1,5 +1,10 @@
 # Review of docs/MANIM_MAPPING_PLAN.md  (verdict: CRITICAL, 6 items)
 
+> **Archived, 2026-11-10.** Superseded by [docs/status.md](../status.md), which is the one
+> roadmap, and by [the state and action design](../design/state-and-action.md). This reviews the
+> [Manim mapping plan](MANIM_MAPPING_PLAN.md), archived with it.
+> It is kept for its reasoning and is no longer kept up to date.
+
 Line refs are to MANIM_MAPPING_PLAN.md unless a file is named.
 
 ## CRITICAL
