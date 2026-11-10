@@ -22,6 +22,7 @@ from pathlib import Path
 
 from art98.bridge import DEFAULT_TIMEOUT, Bridge
 from art98.qemu import QemuError
+from art98.session import ImageMissing
 
 from .serve import PORT, VNC_PORT, nodelay, read_line
 
@@ -216,9 +217,7 @@ class ContainerStage:
         self.vnc_address: tuple[str, int] | None = None
         self._token = secrets.token_hex(32)
         self._process: subprocess.Popen | None = None
-        self._log = tempfile.NamedTemporaryFile(
-            prefix="art98-serve-", suffix=".log", dir=os.environ.get("XDG_RUNTIME_DIR"),
-            delete=False)
+        self._log = None  # the container's output, made by start()
 
     def argv(self, secret: list[str]) -> list[str]:
         if self.transport == "unix":
@@ -236,6 +235,8 @@ class ContainerStage:
         ]
 
     def log_tail(self, lines: int = 20) -> str:
+        if self._log is None:
+            return ""
         try:
             text = Path(self._log.name).read_text(errors="replace")
         except OSError:
@@ -248,13 +249,16 @@ class ContainerStage:
 
     def start(self, timeout: float = START_TIMEOUT) -> "ContainerStage":
         if not (self.work / "image.json").exists():
-            raise FileNotFoundError(f"{self.work / 'image.json'} not found; run `art98 up` first")
+            raise ImageMissing(f"{self.work / 'image.json'} not found; run `art98 up` first")
         if not self.engine.has_image(self.image):
             raise ContainerError(f"no image {self.image}; run `art98 up` to build it")
         if self.transport == "unix":
             self._socket_dir = Path(tempfile.mkdtemp(
                 prefix="art98-stage-", dir=os.environ.get("XDG_RUNTIME_DIR")))
             self.address = str(self._socket_dir / "serve.sock")
+        self._log = tempfile.NamedTemporaryFile(
+            prefix="art98-serve-", suffix=".log", dir=os.environ.get("XDG_RUNTIME_DIR"),
+            delete=False)
         secret, cleanup = self.engine.secret_args(
             f"art98_token_{self.name}", self._token.encode(), TOKEN_TARGET)
         try:
@@ -319,8 +323,9 @@ class ContainerStage:
             except subprocess.TimeoutExpired:
                 self.engine("stop", "-t", "5", self.name, check=False)
                 self._process.wait()
-        self._log.close()
-        Path(self._log.name).unlink(missing_ok=True)
+        if self._log is not None:
+            self._log.close()
+            Path(self._log.name).unlink(missing_ok=True)
         if self._socket_dir:
             shutil.rmtree(self._socket_dir, ignore_errors=True)
 

@@ -121,14 +121,20 @@ uv run art98 ping
 The tick count is about 54,400 on every run, since each run restores the same
 moment. The full output is on the [landing page](README.md#quick-path-on-the-host).
 
-It fails with a traceback in these cases:
+It prints `error: <message>` to stderr and exits with 1 when the image is missing:
+
+| Message | Cause |
+|---------|-------|
+| `work/image.json not found; run art98 setup first` | No finished image in that directory. With `--backend container` it says `art98 up` |
+| `no image localhost/art98:latest; run art98 up to build it` | With `--backend container`: the container image hasn't been built. `ART98_IMAGE` names another |
+| `the stage container exited ...` | With `--backend container`: the container stopped. The message ends with the last lines it printed |
+
+`render` prints the same messages. Anything else fails with a traceback:
 
 | Error | Cause |
 |-------|-------|
-| `FileNotFoundError: work/image.json not found; run art98 setup first` | No finished image in that directory |
 | `QemuError: QEMU exited with status 1; see work/qemu.log` | QEMU could not start. The log has the reason. A common one is `Failed to get "write" lock`, when another VM is using the image |
 | `BridgeTimeout` | The agent did not answer within 30 seconds |
-| `ContainerError: the stage container exited ...` | With `--backend container`: the container stopped. The message ends with the last lines it printed |
 
 ## art98 up
 

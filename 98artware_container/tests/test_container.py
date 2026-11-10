@@ -2,7 +2,6 @@
 host client, a fake VM and a fake agent behind a Unix socket like QEMU's COM1."""
 
 import json
-import os
 import socket
 import stat
 import threading
@@ -288,8 +287,6 @@ def test_the_stage_publishes_on_loopback_only_and_keeps_secrets_out_of_argv(
     assert f"{tmp_path.resolve()}:/work" in argv
     assert stage._token not in " ".join(argv)
     assert argv[-4:] == ["serve", "--work", "/work", "--vnc"]
-    stage._log.close()
-    os.unlink(stage._log.name)
 
 
 def test_setup_mounts_the_disc_read_only_and_takes_the_key_as_a_secret(tmp_path, monkeypatch):
@@ -404,5 +401,47 @@ def test_a_unix_stage_mounts_its_socket_folder_and_publishes_no_port(tmp_path, m
     argv = stage.argv([])
     assert f"{tmp_path / 'sock'}:/run/art98" in argv and "-p" not in argv
     assert argv[-2:] == ["--unix", "/run/art98/serve.sock"]
-    stage._log.close()
-    os.unlink(stage._log.name)
+
+
+def test_cli_explains_a_missing_disk_image_without_a_traceback(tmp_path, capsys):
+    from art98.cli import main
+
+    assert main(["ping", "--work", str(tmp_path), "--backend", "local"]) == 1
+    error = capsys.readouterr().err
+    assert error.startswith("error: ") and "run `art98 setup` first" in error
+    assert "Traceback" not in error
+
+    assert main(["ping", "--work", str(tmp_path), "--backend", "container"]) == 1
+    assert "run `art98 up` first" in capsys.readouterr().err
+
+
+def test_cli_explains_a_missing_container_image(tmp_path, monkeypatch, capsys):
+    from art98.cli import main
+
+    (tmp_path / "image.json").write_text("{}")
+
+    def no_image(*args, **kwargs):
+        raise ContainerError("no image localhost/art98:latest; run `art98 up` to build it")
+
+    monkeypatch.setattr(container, "boot", no_image)
+    scene = Path(__file__).resolve().parents[2] / "artware_experiments/set_state/mvp.py"
+    for argv in (["ping"], ["render", str(scene), "-o", str(tmp_path / "x.mp4")]):
+        assert main([*argv, "--work", str(tmp_path), "--backend", "container"]) == 1
+        assert capsys.readouterr().err == (
+            "error: no image localhost/art98:latest; run `art98 up` to build it\n")
+
+
+def test_a_stage_that_cannot_start_leaves_no_files(tmp_path, monkeypatch):
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime))
+    engine = fake_engine(monkeypatch, "podman")
+    monkeypatch.setattr(engine, "has_image", lambda image: False)
+    work = tmp_path / "work"
+    work.mkdir()
+    with pytest.raises(container.ImageMissing):
+        ContainerStage(work, engine, image="art98:test").start()
+    (work / "image.json").write_text("{}")
+    with pytest.raises(ContainerError, match="no image art98:test"):
+        ContainerStage(work, engine, image="art98:test").start()
+    assert list(runtime.iterdir()) == []

@@ -20,6 +20,10 @@ IMAGE_FILE = "image.json"
 BACKENDS = ("local", "container")
 
 
+class ImageMissing(FileNotFoundError):
+    """The work directory has no finished image: setup hasn't run there."""
+
+
 def backend_name(backend: str | None = None) -> str:
     """The backend to use: the argument, else ART98_BACKEND, else "local"."""
     name = backend or os.environ.get("ART98_BACKEND") or "local"
@@ -161,7 +165,8 @@ def boot(work: Path | str = "work", display: str = "none", ready_timeout: float 
     """
     image = Path(work) / IMAGE_FILE
     if not image.exists():
-        raise FileNotFoundError(f"{image} not found; run `art98 setup` first")
+        builder = "art98 up" if backend_name(backend) == "container" else "art98 setup"
+        raise ImageMissing(f"{image} not found; run `{builder}` first")
     if backend_name(backend) == "container":
         from art98_container import host  # 98artware_container/, beside this package
 

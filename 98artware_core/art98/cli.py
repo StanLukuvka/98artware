@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from .guestfiles import guest_build
-from .session import BACKENDS, boot
+from .session import BACKENDS, ImageMissing, boot
 
 KEY_SECRET_FILE = Path("/run/secrets/art98_key")
 
@@ -62,11 +62,24 @@ def cmd_setup(args) -> int:
     return 0
 
 
+def _stage_errors() -> tuple[type[Exception], ...]:
+    """Errors from starting a stage that a message explains better than a traceback."""
+    try:
+        from art98_container.host import ContainerError
+    except ImportError:  # the container package isn't installed
+        return (ImageMissing,)
+    return (ImageMissing, ContainerError)
+
+
 def cmd_ping(args) -> int:
-    with boot(args.work, backend=args.backend) as session:
-        print(f"guest tick count: {session.bridge.ping()}")
-        for pid, name in session.bridge.processes():
-            print(f"{pid:#010x} {name}")
+    try:
+        with boot(args.work, backend=args.backend) as session:
+            print(f"guest tick count: {session.bridge.ping()}")
+            for pid, name in session.bridge.processes():
+                print(f"{pid:#010x} {name}")
+    except _stage_errors() as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     return 0
 
 
@@ -96,11 +109,15 @@ def cmd_render(args) -> int:
     from .anim import render
 
     scene = _load_scene(args.file, args.scene)
-    written = render(
-        scene, args.output, gif=args.gif, work=args.work, gif_fps=args.gif_fps,
-        gif_colors=args.gif_colors, gif_scale=args.gif_scale, gif_dither=args.gif_dither,
-        backend=args.backend,
-    )
+    try:
+        written = render(
+            scene, args.output, gif=args.gif, work=args.work, gif_fps=args.gif_fps,
+            gif_colors=args.gif_colors, gif_scale=args.gif_scale, gif_dither=args.gif_dither,
+            backend=args.backend,
+        )
+    except _stage_errors() as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
     print(f"Wrote {written}" + (f" and {args.gif}" if args.gif else ""))
     return 0
 
