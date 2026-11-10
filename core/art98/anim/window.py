@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
+from ..win32 import SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, WM_SYSCOMMAND, sys_command  # noqa: F401
 from .animation import Instant
 from .vectors import ORIGIN
-
-WM_SYSCOMMAND = 0x0112
-SC_MINIMIZE, SC_MAXIMIZE, SC_RESTORE = 0xF020, 0xF030, 0xF120
 
 
 class _SysCommand(Instant):
     command = 0
 
     def act(self) -> None:
-        self.target.guest.user32.PostMessageA(self.target.hwnd, WM_SYSCOMMAND, self.command, 0)
+        sys_command(self.target.guest, self.target.hwnd, self.command)
         self.target.guest.sync(self.target.hwnd)
 
 

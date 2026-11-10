@@ -6,25 +6,15 @@ is real input: Windows routes it, so menus open and windows drag themselves.
 
 from __future__ import annotations
 
-import struct
-
+from .. import win32
 from ..protocol import Out
+from ..win32 import MF_BYPOSITION, MOUSE_BUTTONS, cursor_pos, menu_item_rect  # noqa: F401
 from .animation import Animation, Succession, path_function
 from .props import Prop, Spot, Win, point_of
 from .rate_functions import smooth
 from .vectors import Vec, lerp
 
-BUTTONS = {
-    "left": (0x0002, 0x0004),
-    "right": (0x0008, 0x0010),
-    "middle": (0x0020, 0x0040),
-}
-MF_BYPOSITION = 0x0400
-
-
-def cursor_pos(guest) -> tuple[int, int]:
-    """Where the guest's pointer is."""
-    return struct.unpack("<ii", guest.user32.GetCursorPos(Out(8)).buffers[0])
+BUTTONS = MOUSE_BUTTONS
 
 
 class Pointer(Prop):
@@ -52,10 +42,10 @@ class Pointer(Prop):
         self.apply()
 
     def press(self, button: str = "left") -> None:
-        self.guest.user32.mouse_event(BUTTONS[button][0], 0, 0, 0, 0)
+        win32.mouse_button(self.guest, button, True)
 
     def release(self, button: str = "left") -> None:
-        self.guest.user32.mouse_event(BUTTONS[button][1], 0, 0, 0, 0)
+        win32.mouse_button(self.guest, button, False)
 
 
 def _span(progress: float, start: float, end: float) -> float:
@@ -283,10 +273,10 @@ def _item_finder(window: Win, labels: tuple[str, ...]):
         menu = user32.GetMenu(window.hwnd).value
         for label in labels[:-1]:
             menu = user32.GetSubMenu(menu, position_of(menu, label)).value
-        result = user32.GetMenuItemRect(window.hwnd, menu, position_of(menu, labels[-1]), Out(16))
-        if not result:
+        rect = menu_item_rect(window.guest, window.hwnd, menu, position_of(menu, labels[-1]))
+        if rect is None:
             raise LookupError(f"menu {' > '.join(labels)} is not open")
-        left, top, right, bottom = struct.unpack("<iiii", result.buffers[0])
+        left, top, right, bottom = rect
         return (left + right) / 2, (top + bottom) / 2
 
     return locate

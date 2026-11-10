@@ -32,12 +32,10 @@ from __future__ import annotations
 import struct
 
 from .protocol import Out
+from .win32 import SM_CXSCREEN, SM_CYSCREEN, SPI_GETWORKAREA, SPI_SETWORKAREA, SW_HIDE, screen_size, work_area  # noqa: F401
 
 COLOR_DESKTOP = 1
 BLACK = 0x000000
-SW_HIDE = 0
-SM_CXSCREEN, SM_CYSCREEN = 0, 1
-SPI_SETWORKAREA, SPI_GETWORKAREA = 0x2F, 0x30
 
 # The interface effects as (name, get action, set action). Each set action
 # takes its on/off value in pvParam, so 0 turns it off.
@@ -72,18 +70,6 @@ def shell_windows(guest) -> tuple[int, int, int]:
     view = user32.FindWindowExA(desktop, 0, "SHELLDLL_DefView", 0).value if desktop else 0
     icons = user32.FindWindowExA(view, 0, "SysListView32", 0).value if view else 0
     return taskbar, desktop, icons
-
-
-def screen_size(guest) -> tuple[int, int]:
-    user32 = guest.user32
-    return user32.GetSystemMetrics(SM_CXSCREEN).value, user32.GetSystemMetrics(SM_CYSCREEN).value
-
-
-def work_area(guest) -> tuple[int, int, int, int]:
-    """The desktop area as (left, top, right, bottom): above the taskbar, or the
-    whole screen on a blank desktop."""
-    return struct.unpack("<4i", guest.user32.SystemParametersInfoA(
-        SPI_GETWORKAREA, 0, Out(16), 0).buffers[0])
 
 
 def blank(guest, pointer: bool = False) -> None:

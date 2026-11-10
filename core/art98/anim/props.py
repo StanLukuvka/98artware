@@ -6,25 +6,19 @@ import struct
 import time
 from typing import Callable
 
-from ..bridge import RDW_REPAINT_ALL, BridgeTimeout, Window
+from .. import win32
+from ..bridge import BridgeTimeout, Window
 from ..protocol import Out
+from ..win32 import (  # noqa: F401  (old names stay importable from here)
+    SM_CYCAPTION, SM_CYSIZEFRAME, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+    WM_CLOSE, WM_GETTEXT, WM_GETTEXTLENGTH, WM_SETTEXT, window_rect,
+)
 from .vectors import DL, DR, LEFT, ORIGIN, RIGHT, Vec
 
 DESKTOP_AREA = (0, 0, 800, 572)  # used until a prop is added to a scene
 DEFAULT_BUFF = 8
 
-WM_SETTEXT, WM_GETTEXT, WM_GETTEXTLENGTH, WM_CLOSE = 0x000C, 0x000D, 0x000E, 0x0010
-SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOACTIVATE = 0x0001, 0x0002, 0x0004, 0x0010
-SM_CYCAPTION, SM_CYSIZEFRAME = 4, 33
 FIND_WINDOW_TIMEOUT = 15.0
-
-
-def window_rect(guest, hwnd: int) -> tuple[int, int, int, int] | None:
-    """A window's (left, top, right, bottom) on the screen, or None if it has gone."""
-    result = guest.user32.GetWindowRect(hwnd, Out(16))
-    if not result:
-        return None
-    return struct.unpack("<iiii", result.buffers[0])
 
 
 class Spot:
@@ -270,9 +264,8 @@ class Win(Prop):
             flags |= SWP_NOSIZE
         if self._sent and (x, y) == self._sent[:2]:
             flags |= SWP_NOMOVE
-        self.guest.user32.SetWindowPos(self.hwnd, 0, x, y, width, height, flags)
         # Moves leave stale pixels on the frame, so it is repainted (Bridge.move_window).
-        self.guest.user32.RedrawWindow(self.hwnd, 0, 0, RDW_REPAINT_ALL)
+        win32.place_window(self.guest, self.hwnd, x, y, width, height, flags)
         self._sent = wanted
 
     # ---- places to aim at ----
@@ -376,7 +369,7 @@ class Win(Prop):
 
     def close(self) -> None:
         """Ask the window to close, as its X button does."""
-        self.guest.user32.PostMessageA(self.hwnd, WM_CLOSE, 0, 0)
+        win32.close_window(self.guest, self.hwnd)
 
     def remove(self) -> None:
         self.close()

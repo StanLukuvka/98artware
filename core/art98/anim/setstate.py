@@ -8,14 +8,13 @@ difference. Anything the state leaves out isn't checked.
 
 from __future__ import annotations
 
-from ..bridge import RDW_REPAINT_ALL
-from ..desktop import screen_size
 from ..state import State, StateError
+from ..win32 import (  # noqa: F401  (SW_*, cursor_pos, screen_size stay importable from here)
+    SW_MAXIMIZE, SW_SHOWMINNOACTIVE, cursor_pos, repaint_window, screen_size, show_window,
+)
 from .picture import Picture
-from .pointer import cursor_pos
 
 BITSPIXEL = 12
-SW_SHOWMINNOACTIVE, SW_MAXIMIZE = 7, 3
 APPS = {"picture": Picture}
 
 
@@ -49,12 +48,12 @@ def apply_state(scene, state: State) -> dict:
         # opens on top of it, and the order stays back to front.
         if window.show != "normal":
             command = SW_SHOWMINNOACTIVE if window.show == "minimized" else SW_MAXIMIZE
-            guest.user32.ShowWindow(prop.hwnd, command)
+            show_window(guest, prop.hwnd, command)
             prop.refresh()
     # A window moving off another can leave desktop pixels on its frame, so
     # every window is repainted, back to front (design doc: "Stray pixels").
     for window in state.windows:
-        guest.user32.RedrawWindow(props[window.id].hwnd, 0, 0, RDW_REPAINT_ALL)
+        repaint_window(guest, props[window.id].hwnd)
     if state.pointer:
         scene.pointer.place(state.pointer)
     guest.sync()
