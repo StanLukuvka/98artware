@@ -10,7 +10,7 @@ Line refs are to MANIM_MAPPING_PLAN.md unless a file is named.
 ## CRITICAL
 
 1. Sec 8 / Phase 2 (A1-A8, T2.1): no way to get agent v2 into the `ready` snapshot.
-   guest/agent.exe is copied only in prep.py stage_disk (mcopy ::ART98/AGENT.EXE, prep.py:412).
+   windows_handlers/build/agent.exe is copied only in prep.py stage_disk (mcopy ::ART98/AGENT.EXE, prep.py:412).
    stage_harden (prep.py:446-464) never copies it and ends with `self.raw.unlink`, so re-running `disk` means a
    full reinstall. boot() loads `ready` (session.py:88-92), where the v1 agent is already running in RAM.
    Phase 2's milestone ("same scene runs with v2 BATCH") cannot be met with the current prep flow.
@@ -97,7 +97,7 @@ Sources: KB 136989 (ftp.zx.net.nz mirror), KB Q125693, KB Q135059, KB Q81592, do
 
 # Second review (2026-11-06)
 
-Two independent reviewers read the rewritten plan: one for truth and feasibility, against `guest/agent.c`, `src/art98/`, QEMU and Manim sources, the other for Manim coverage and features, against the Manim docs. Together they raised 16 critical findings and 13 advisories. Each was checked against the source before it was applied.
+Two independent reviewers read the rewritten plan: one for truth and feasibility, against `windows_handlers/call_proxy/agent.c`, `98artware_core/art98/`, QEMU and Manim sources, the other for Manim coverage and features, against the Manim docs. Together they raised 16 critical findings and 13 advisories. Each was checked against the source before it was applied.
 
 ## Applied
 

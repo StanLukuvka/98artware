@@ -1,6 +1,6 @@
-"""Render every Python sample in docs/actions on the real image.
+"""Render every Python sample in docs/scenes on the real image.
 
-    uv run python examples/check_docs.py [--keep DIR] [word ...]
+    uv run python artware_experiments/check_docs.py [--keep DIR] [word ...]
 
 A sample that fails prints its traceback. With --keep, each video stays in DIR
 so its frames can be looked at. Words pick samples by class name.
@@ -23,7 +23,7 @@ SCENE = re.compile(r"^class (\w+)\(Scene\):", re.M)
 def samples() -> list[tuple[str, str, str]]:
     found = []
     for page in PAGES:
-        for code in SAMPLE.findall((ROOT / "docs/actions" / page).read_text()):
+        for code in SAMPLE.findall((ROOT / "docs/scenes" / page).read_text()):
             names = SCENE.findall(code)
             if len(names) != 1:
                 raise SystemExit(f"{page}: a sample must hold one scene, found {names}:\n{code}")

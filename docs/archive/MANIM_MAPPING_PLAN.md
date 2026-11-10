@@ -5,8 +5,8 @@
 > updaters and partial movies aren't the plan: see [Architecture](../design/architecture.md).
 > It is kept for its reasoning and is no longer kept up to date.
 
-Status: design, revised 2026-11-06. A first slice of this library is built, in `src/art98/anim/`, and [its docs](../actions/README.md) say what exists. The rest is still design. The final Windows 98 image is built with no manual steps and
-`examples/hello.py` renders on it, so section 2.7 records what the real image has settled. Every other Windows 98 claim stays an assumption until its probe runs.
+Status: design, revised 2026-11-06. A first slice of this library is built, in `98artware_core/art98/anim/`, and [its docs](../scenes/README.md) say what exists. The rest is still design. The final Windows 98 image is built with no manual steps and
+`artware_experiments/hello.py` renders on it, so section 2.7 records what the real image has settled. Every other Windows 98 claim stays an assumption until its probe runs.
 
 
 ## Summary
@@ -155,9 +155,9 @@ video bus). Section 5 lists each with its substitute.
 
 | Piece | Fact | File |
 |-------|------|------|
-| Transport | COM1, line frames `<payload> *<crc16>\n`, protocol version 1 | `src/art98/protocol.py`, `guest/agent.c` |
-| Args | int, `"str"`, `#hex` in/out buffer, `&n` zeroed out buffer; max 16 args, 8 KB per buffer, 16 KB per line (hex doubles a buffer, so a `#` argument tops out just under 8 KB). The DLL and function names use 2 of the 16, so a function gets **14 dwords at most** (`CreateFontA` just fits). Return values are one dword, so nothing that returns a float works through `CALL` | `guest/agent.c` (`MAX_ARGS`, `MAX_BLOB`, `MAX_LINE`) |
-| Verbs | `PING CALL ACALL WINDOWS PROCS SPAWN SYNC PUT GET QUIT`. `SYNC` already returns `GetTickCount` | `guest/agent.c` `handle_line`, `verb_sync` |
+| Transport | COM1, line frames `<payload> *<crc16>\n`, protocol version 1 | `98artware_core/art98/protocol.py`, `windows_handlers/call_proxy/agent.c` |
+| Args | int, `"str"`, `#hex` in/out buffer, `&n` zeroed out buffer; max 16 args, 8 KB per buffer, 16 KB per line (hex doubles a buffer, so a `#` argument tops out just under 8 KB). The DLL and function names use 2 of the 16, so a function gets **14 dwords at most** (`CreateFontA` just fits). Return values are one dword, so nothing that returns a float works through `CALL` | `windows_handlers/call_proxy/agent.c` (`MAX_ARGS`, `MAX_BLOB`, `MAX_LINE`) |
+| Verbs | `PING CALL ACALL WINDOWS PROCS SPAWN SYNC PUT GET QUIT`. `SYNC` already returns `GetTickCount` | `windows_handlers/call_proxy/agent.c` `handle_line`, `verb_sync` |
 | `CALL` | Runs on the agent's UI thread; `LoadLibraryA` + `GetProcAddress` on every call; pushes args and restores ESP so cdecl works | `agent.c` `perform_call`, `invoke` |
 | `ACALL` | Same, on a new thread; completion arrives as event `! DONE id value last_error buffers...` | `agent.c` `async_call_thread`, `bridge.py` `_handle_event` |
 | `SYNC` | `RedrawWindow(UPDATENOW\|ALLCHILDREN)` plus `SendMessageTimeout(WM_NULL)` on each visible top-level window, then `GdiFlush`. Repaint guarantee on 9x is explicitly unproven | `agent.c` `verb_sync`, `README.md` |
@@ -169,7 +169,7 @@ video bus). Section 5 lists each with its substitute.
 | Agent deployment | `agent.exe` is copied onto the disk **only** in `stage_disk` (`prep.py:474`); `stage_harden` never copies it and ends with `self.raw.unlink`. The agent running inside `ready` is whatever was built at `disk` time | `prep.py` |
 | Hardened registry | no screen saver, `DragFullWindows=1`, `FontSmoothing=0`, `MenuShowDelay=0`, `SmoothScroll` off, `MinAnimate=0`, no wallpaper, "No Sounds" scheme, no Tips | `prep.py` `HARDEN_SETTINGS` |
 | Desktop gate | `verify_desktop` rejects any visible titled window other than `Program Manager`, and requires a `Shell_TrayWnd` to exist | `prep.py` `verify_desktop` |
-| PE gate | `check_agent` allows only listed imports and subsystem <= 4.10 | `src/art98/pecheck.py` |
+| PE gate | `check_agent` allows only listed imports and subsystem <= 4.10 | `98artware_core/art98/pecheck.py` |
 | Throughput | "about 11 KB/s", `put_file` about 3 KB/s. Latency is measured (2.7), bulk transfer is not | `README.md` |
 | Not proven | audio capture and playback in a scene, bulk serial, frame capture under load. The rest of the README's list is now measured (2.7) | 2.7 |
 | Setup prompts | This OEM disc ignores the answer file's request to skip its first-boot wizard, so `prep` answers the wizard and the logon prompt by watching the screen. Licence acceptance is automated with the owner's approval. The blank logon password means the prompt does not return on later boots | `prep.py` `setup_wizard_showing`, `logon_prompt_showing` |
@@ -363,7 +363,7 @@ flowchart TB
 New package layout (all NEW; existing modules untouched except where section 8 says):
 
 ```
-src/art98/anim/
+98artware_core/art98/anim/
   __init__.py        # re-exports: from art98.anim import *
   scene.py           # Scene, Section, Timeline
   prop.py            # Prop, PropGroup, Attr, Op, State
@@ -383,7 +383,7 @@ src/art98/anim/
   cache.py           # content hash, section store
   mock.py            # FakeGuest: pure-Python desktop for tests and instant preview
   journal.py         # handle journal and ReplayBridge for fast-forward (6.9)
-src/art98/cli.py     # extended: render, dry, preview, probe, timeline, new, block, test, record, live
+98artware_core/art98/cli.py     # extended: render, dry, preview, probe, timeline, new, block, test, record, live
 src/manim_win98/     # the compat plugin; imports manim, so only the extra installs it
   camera.py          # Win98Camera: flatten VMobjects, draw through the bridge, set pixel_array
   scene.py           # Win98Scene, boots the VM and passes camera_class
@@ -813,7 +813,7 @@ scenes with no desktop in shot, and real windows can still pass in front of it.
 | `Create` (window) | **XOR outline first, then show**: classic drag rectangle with `R2_NOT` pen; then `ShowWindow` | `SetROP2(R2_NOT)`, `Rectangle`, or `DrawFocusRect` | N~A |
 | `DrawBorderThenFill` | XOR outline -> fill; for windows the same as above | | A |
 | `Uncreate`, `Unwrite` | reverse | | A |
-| `AddTextLetterByLetter`, `TypeWithCursor` (Notepad/WordPad/Edit) | **real typing**: `WM_CHAR` per letter, caret visible | `SendMessageA(edit, WM_CHAR, ch, 1)` (as `examples/hello.py` [V:src]) | **N** (best mapping in the library) |
+| `AddTextLetterByLetter`, `TypeWithCursor` (Notepad/WordPad/Edit) | **real typing**: `WM_CHAR` per letter, caret visible | `SendMessageA(edit, WM_CHAR, ch, 1)` (as `artware_experiments/hello.py` [V:src]) | **N** (best mapping in the library) |
 | `Write` (Edit control) | the same typing, as a convenience. Manim's `Write` subclasses `DrawBorderThenFill` and simulates hand-drawing, so typing is a stand-in | `WM_CHAR` | A |
 | `Write` (canvas text) | reveal glyphs by clipping or per-char `TextOut` | | A |
 | `AddTextWordByWord`, `RemoveTextLetterByLetter`, `UntypeWithCursor` | `WM_CHAR` words; `WM_CHAR VK_BACK`/`EM_SETSEL`+`EM_REPLACESEL` | | N |
@@ -1122,7 +1122,7 @@ With `manim-win98` all of these are Manim's own, unchanged.
 New code skeleton (every declaration below is NEW; none exists today):
 
 ```python
-# src/art98/anim/prop.py
+# 98artware_core/art98/anim/prop.py
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -1146,7 +1146,7 @@ class Prop:
     def teardown(self, scene: "Scene") -> list[Op]: ...
     cost: Callable[["Prop"], int]                  # estimated wire bytes for dry runs
 
-# src/art98/anim/animation.py
+# 98artware_core/art98/anim/animation.py
 class Animation:
     def __init__(self, target, *, run_time=1.0, rate_func=smooth, lag_ratio=0.0): ...
     def begin(self, scene) -> None: ...            # capture start state
@@ -1154,7 +1154,7 @@ class Animation:
     def finish(self, scene) -> None: ...           # apply alpha=1 exactly
     def clean_up(self, scene) -> None: ...
 
-# src/art98/anim/scene.py
+# 98artware_core/art98/anim/scene.py
 class Scene:
     fps: int = 30
     strict: "bool | Strict" = False             # Strict(captions=True, audio=True): the labelled exceptions
@@ -1391,7 +1391,7 @@ Protocol v2 also uses denser encodings for blobs (base85 vs hex: ~1.25x vs 2x), 
 
 ### 8.1 Agent verbs
 
-All agent work lands in `guest/agent.c` and must stay a no-CRT, subsystem <= 4.10 binary that passes
+All agent work lands in `windows_handlers/call_proxy/agent.c` and must stay a no-CRT, subsystem <= 4.10 binary that passes
 `pecheck.check_agent`. These tasks all touch the same file, so they are sequential.
 **None of it reaches a render until the new binary is inside `ready`; see 8.3.**
 
@@ -1618,7 +1618,7 @@ flowchart LR
 | Phase | Milestone (done when) | Rough size | Main risk |
 |-------|-----------------------|------------|-----------|
 | 0 | A clean `ready` snapshot exists (done) and probes P1-P4, P9, P10, P26 are green or have documented workarounds | probes only | `SYNC` gaps beyond moves; bulk serial slower than 11 KB/s |
-| 1 | `examples/hello.py` rewritten in the Manim style under the `free` clock and producing the same video; `art98 dry hello.py` prints a cost report; unit tests run on the mock | M | API shape churn; keep a small, versioned surface |
+| 1 | `artware_experiments/hello.py` rewritten in the Manim style under the `free` clock and producing the same video; `art98 dry hello.py` prints a cost report; unit tests run on the mock | M | API shape churn; keep a small, versioned surface |
 | 2 | `art98 prep --from agent` puts the v2 agent and hardening v2 into `ready`; the same scene runs with `BATCH` and shows measurably fewer bytes/frame; `SYNC` survives a visible non-pumping window; `test_agent_wine` and `check_agent` pass | M | agent bugs crash the UI thread; Wine cannot prove 9x behaviour; the redeploy stage replaces `ready` (keep the backup) |
 | 3 | `Wave` example (6.4) renders on the `window` back-end; `Create/Write/FadeIn(dither)/Indicate/Circumscribe` on shapes and windows | L | per-frame byte budget; resource leaks; dither look is acceptable? |
 | 3b | The `Parabola` scene (6.8) and Manim's `SquareToCircle` tutorial render unchanged from Manim code, with a real `MathTex`; a sample of the Example Gallery renders or fails with a clear message; a stock manim-slides deck runs through it | M-L | moving text byte cliff; tracking Manim internals; Manim's static-image flow against a guest canvas |
@@ -1636,32 +1636,32 @@ Lane `implementer` = code that needs judgement; `utility` = mechanical.
 
 | ID | Task | Files | Key constraints | Authority | Test | Lane |
 |----|------|-------|-----------------|-----------|------|------|
-| T0.1 | Probe harness: `art98 probe <id>` runner plus P1-P4, P9, P10, P26 scripts, writes `docs/PROBES.md` | NEW `src/art98/probes/*.py`, edit `src/art98/cli.py` | runs only against a real `ready`; never touches `work/` in tests | this doc 10.1 | `uv run --group dev pytest tests/test_probes.py` (mock only) | implementer |
-| T0.2 | Per-run golden copy in `boot()` (`cp --reflink=auto`, delete on close unless checkpoints exist, doctor reports whether reflink works); `VM.insert_media(path)` over QMP for the existing `ide1-cd0` | `src/art98/session.py`, `src/art98/qemu.py`, `src/art98/cli.py` | golden never opened writable by a render; the CD drive already exists (verified), so no device-set change | 3.3, 8.4 | `pytest tests/test_qemu.py` | implementer |
-| T0.3 | `agent` stage and hardening v2: `art98 prep --from agent` per 8.3; add `ForegroundLockTimeout` with `REG_DWORD` support or the `SPI` route; record agent hash in `image.json` | `src/art98/prep.py` (new stage in `STAGES`, new entries in `HARDEN_SETTINGS`) | backs up golden first; replaces the `ready` snapshot; versioned agent filename; boots with `image.json`'s machine, not `_machine()` | 8.3 | `pytest tests/test_prep.py` (mtools/mock) plus a real run | implementer |
-| T1.1 | `art98.anim` core: `Scene`, `Prop`, `Op`, `Animation`, `AnimationGroup/LaggedStart/Succession`, 49 rate funcs, `ValueTracker`, updaters, colour module | NEW `src/art98/anim/{scene,prop,animation,rate,updaters,color}.py` | no import of QEMU in these modules; pure functions testable; ints and 565 snapping | section 6 | `pytest tests/test_anim_core.py` | implementer |
-| T1.2 | Coalescer + `FakeGuest` + `art98 dry` | NEW `anim/coalesce.py`, `anim/mock.py`; edit `cli.py` | must produce the same op stream for mock and real; ops go out as v1 `CALL`s through `Bridge`, so `protocol.py` is untouched in Phase 1 | 3.2, 6.2 | `pytest tests/test_coalesce.py` | implementer |
+| T0.1 | Probe harness: `art98 probe <id>` runner plus P1-P4, P9, P10, P26 scripts, writes `docs/PROBES.md` | NEW `98artware_core/art98/probes/*.py`, edit `98artware_core/art98/cli.py` | runs only against a real `ready`; never touches `work/` in tests | this doc 10.1 | `uv run --group dev pytest 98artware_core/tests/test_probes.py` (mock only) | implementer |
+| T0.2 | Per-run golden copy in `boot()` (`cp --reflink=auto`, delete on close unless checkpoints exist, doctor reports whether reflink works); `VM.insert_media(path)` over QMP for the existing `ide1-cd0` | `98artware_core/art98/session.py`, `98artware_core/art98/qemu.py`, `98artware_core/art98/cli.py` | golden never opened writable by a render; the CD drive already exists (verified), so no device-set change | 3.3, 8.4 | `pytest 98artware_core/tests/test_qemu.py` | implementer |
+| T0.3 | `agent` stage and hardening v2: `art98 prep --from agent` per 8.3; add `ForegroundLockTimeout` with `REG_DWORD` support or the `SPI` route; record agent hash in `image.json` | `98artware_core/art98/prep.py` (new stage in `STAGES`, new entries in `HARDEN_SETTINGS`) | backs up golden first; replaces the `ready` snapshot; versioned agent filename; boots with `image.json`'s machine, not `_machine()` | 8.3 | `pytest 98artware_core/tests/test_prep.py` (mtools/mock) plus a real run | implementer |
+| T1.1 | `art98.anim` core: `Scene`, `Prop`, `Op`, `Animation`, `AnimationGroup/LaggedStart/Succession`, 49 rate funcs, `ValueTracker`, updaters, colour module | NEW `98artware_core/art98/anim/{scene,prop,animation,rate,updaters,color}.py` | no import of QEMU in these modules; pure functions testable; ints and 565 snapping | section 6 | `pytest 98artware_core/tests/test_anim_core.py` | implementer |
+| T1.2 | Coalescer + `FakeGuest` + `art98 dry` | NEW `anim/coalesce.py`, `anim/mock.py`; edit `cli.py` | must produce the same op stream for mock and real; ops go out as v1 `CALL`s through `Bridge`, so `protocol.py` is untouched in Phase 1 | 3.2, 6.2 | `pytest 98artware_core/tests/test_coalesce.py` | implementer |
 | T1.6 | Renderer: frame loop over `FrameRecorder`, encoder, the guarded bridge of 3.2, `free` as the default clock until T4.1 | NEW `anim/renderer.py` | wraps, does not change, `FrameRecorder.frame` | 3.2 | mock test plus real run when `ready` exists | implementer |
-| T1.3 | `Win`, `Notepad`, `Dialog` props and `TypeWithCursor`, `UntypeWithCursor`, `FadeOut(fade="cut")`, `Wiggle`, `MoveAlongPath` animations; port `examples/hello.py` | NEW `anim/props_window.py`, `anim/anims_*.py`; NEW `examples/hello_scene.py` | uses `Bridge.find_window`, `SendMessageA`, `SetWindowPos` plus `RedrawWindow` (6.2); leave `examples/hello.py` as is | 4.6, 4.10 | mock test plus real run when `ready` exists | implementer |
-| T1.4 | Rate function table-driven tests against Manim's published formulas | `tests/test_rate.py` | the 49 names from 2.2 | [V:doc] rate_functions page | `pytest tests/test_rate.py` | utility |
-| T1.5 | `art98 block`: poll `WINDOWS` in a live VM, print `at=`/`size=` code | edit `src/art98/cli.py` | read-only on the guest | 2.3 | mock test | utility |
+| T1.3 | `Win`, `Notepad`, `Dialog` props and `TypeWithCursor`, `UntypeWithCursor`, `FadeOut(fade="cut")`, `Wiggle`, `MoveAlongPath` animations; port `artware_experiments/hello.py` | NEW `anim/props_window.py`, `anim/anims_*.py`; NEW `artware_experiments/hello_scene.py` | uses `Bridge.find_window`, `SendMessageA`, `SetWindowPos` plus `RedrawWindow` (6.2); leave `artware_experiments/hello.py` as is | 4.6, 4.10 | mock test plus real run when `ready` exists | implementer |
+| T1.4 | Rate function table-driven tests against Manim's published formulas | `98artware_core/tests/test_rate.py` | the 49 names from 2.2 | [V:doc] rate_functions page | `pytest 98artware_core/tests/test_rate.py` | utility |
+| T1.5 | `art98 block`: poll `WINDOWS` in a live VM, print `at=`/`size=` code | edit `98artware_core/art98/cli.py` | read-only on the guest | 2.3 | mock test | utility |
 | T1.7 | UI actions and input feel: `Click`, `DoubleClick`, `RightClick`, `Hover`, `Drag`, `Scroll`, `Menu`, `Minimize`, `Maximize`, `RestoreWindow`, `Keys`, `Alert`, `RecycleBin`, seeded typing and mouse paths | NEW `anim/anims_ui.py`; edit `anim/props_window.py` | seeded, so a render repeats; needs T1.3 | 4.10b, 7.3 | mock test plus P22, P23 | implementer |
-| T2.0 | `SYNC` hang-safety fix (A0) with a Wine test that holds a non-pumping window open | `guest/agent.c`, `tests/test_agent_wine.py` | first agent task; no new imports | 3.6, 8.1 | `pytest tests/test_agent_wine.py` | implementer |
-| T2.1 | Agent v2: `BATCH`, `%n` refs, `FN/CALLX`, call cache, `PEEK/POKE`, `ADVANCE`, `POLY`, `REPAINT`, in-only blob, capability list | `guest/agent.c`, `src/art98/protocol.py`, `src/art98/bridge.py` | **all agent tasks sequential**; keep no-CRT; version negotiation in `wait_ready` | 8 | `pytest tests/test_agent_wine.py tests/test_bridge.py` | implementer |
-| T2.2 | Canvas class and `HANG` verb (after T2.0); extend `ALLOWED_IMPORTS` | `guest/agent.c`, `src/art98/pecheck.py` | after T2.1 (same file); import delta exactly as in section 8 | 8 | `pytest` suite plus `uv run art98 doctor` | implementer |
-| T2.3 | Export catalogue builder, deny-list (`denylist.json`) and call linter with the error-120 runtime guard | NEW `src/art98/exports.py` | parse PE exports the way `pecheck` parses imports; lands before any GDI work | 8.5 | `pytest tests/test_exports.py` with a system DLL from Wine | utility |
+| T2.0 | `SYNC` hang-safety fix (A0) with a Wine test that holds a non-pumping window open | `windows_handlers/call_proxy/agent.c`, `98artware_core/tests/test_agent_wine.py` | first agent task; no new imports | 3.6, 8.1 | `pytest 98artware_core/tests/test_agent_wine.py` | implementer |
+| T2.1 | Agent v2: `BATCH`, `%n` refs, `FN/CALLX`, call cache, `PEEK/POKE`, `ADVANCE`, `POLY`, `REPAINT`, in-only blob, capability list | `windows_handlers/call_proxy/agent.c`, `98artware_core/art98/protocol.py`, `98artware_core/art98/bridge.py` | **all agent tasks sequential**; keep no-CRT; version negotiation in `wait_ready` | 8 | `pytest 98artware_core/tests/test_agent_wine.py 98artware_core/tests/test_bridge.py` | implementer |
+| T2.2 | Canvas class and `HANG` verb (after T2.0); extend `ALLOWED_IMPORTS` | `windows_handlers/call_proxy/agent.c`, `98artware_core/art98/pecheck.py` | after T2.1 (same file); import delta exactly as in section 8 | 8 | `pytest` suite plus `uv run art98 doctor` | implementer |
+| T2.3 | Export catalogue builder, deny-list (`denylist.json`) and call linter with the error-120 runtime guard | NEW `98artware_core/art98/exports.py` | parse PE exports the way `pecheck` parses imports; lands before any GDI work | 8.5 | `pytest 98artware_core/tests/test_exports.py` with a system DLL from Wine | utility |
 | T3.1 | `Canvas`/`Shape` props with static and frame DCs, sprite cache, screen-DC back-end, a small `Axes`/`Plot`, `BarChart`, `Trackbar`/`ProgressBar` props, `Create/Uncreate/Write/FadeIn(dither)/FadeOut(dither)/Indicate/Circumscribe/FocusOn` | `anim/props_gdi.py`, `anim/anims_*.py` | needs T1.*, T2.1, T2.3; byte guard. Native `Axes` stays small: the full graphing surface comes from T3.3 | 4.3-4.6 | mock tests; real-run screenshots compared by eye | implementer |
 | T3.2 | `manim-win98` spike: `Win98Camera`, `Win98Renderer`, `Win98Scene`, the `Parabola` scene | NEW `src/manim_win98/*`, `pyproject.toml` extra `art98[manim]` | Cairo path only; settle the static-image flow first | 2.6, 6.8 | one real render; a mock-canvas test | implementer |
-| T3.3 | Compat layer proper: content-hashed static layer, sprite detection for rigid moves, `fill_opacity` to dither levels, pinned Manim version, caching off when `self.guest` is used, manim-slides and manim-voiceover smoke tests, `SquareToCircle` and Example Gallery as acceptance scenes | `src/manim_win98/*` | byte budget enforced through `dry`; no changes to Manim | 2.5, 6.8 | `pytest tests/test_manim_win98.py` | implementer |
-| T4.1 | Clock modes (`stepped`, `locked`), debt with `rebase_t0()`, `advance()` (the `ACALL Sleep` route until A4), QMP stop/cont wrapper, `Checkpoint`; flip the default clock to `stepped` | NEW `anim/clock.py`; edit `src/art98/session.py`, `src/art98/qemu.py` | do not change `FrameRecorder.frame` behaviour for existing callers; add new recorder | 3.4, 6.6 | `pytest tests/test_qemu.py` (real QEMU without Windows) plus P2/P11/P21 | implementer |
-| T4.2 | Render cache and sections: content hash, segment store, `repro.json` | NEW `anim/cache.py`; edit renderer | per-section prefix hash (3.3) over image.json digest, machine type, agent hash and emitted ops | 4.12 | `pytest tests/test_cache.py` | implementer |
-| T4.3 | Bridge-level handle journal, `ReplayBridge`, `Animation.fast_forward()`, the skip rules of 6.9; `art98 test` golden frames | NEW `anim/journal.py`; edit renderer and `cli.py` | journal format is text and versioned; a stale journal forces a re-run, never a guess | 6.9 | `pytest tests/test_journal.py` | implementer |
-| T5.1 | Host output: raster normaliser, captions, SFX mix, share presets, post filters, `strict` enforcement | NEW `anim/host/*.py`, `anim/audio.py` | host realm flagged in output metadata | 3.2, 4.7, 4.11 | `pytest tests/test_compose.py` with synthetic frames | implementer |
-| T5.2 | Host compositor: sprite lift, exposure blend, `HostCamera` zoom and pan | NEW `anim/camera.py`, `anim/host/compose.py` | outside strict only; recorded in `host_ops` | 4.6, 4.7 | `pytest tests/test_compose.py` with synthetic frames | implementer |
-| T6.x | App drivers, GL tier, DOS box, BSOD, set-piece scenes, `Scene.reboot()` per 3.3 | NEW `anim/apps/*`, `anim/props_gl.py`, `examples/scenes/*` | each depends on its probe result; the recorder must outlive the VM | 4.9, 4.10 | per-driver real-run checks | implementer |
+| T3.3 | Compat layer proper: content-hashed static layer, sprite detection for rigid moves, `fill_opacity` to dither levels, pinned Manim version, caching off when `self.guest` is used, manim-slides and manim-voiceover smoke tests, `SquareToCircle` and Example Gallery as acceptance scenes | `src/manim_win98/*` | byte budget enforced through `dry`; no changes to Manim | 2.5, 6.8 | `pytest 98artware_core/tests/test_manim_win98.py` | implementer |
+| T4.1 | Clock modes (`stepped`, `locked`), debt with `rebase_t0()`, `advance()` (the `ACALL Sleep` route until A4), QMP stop/cont wrapper, `Checkpoint`; flip the default clock to `stepped` | NEW `anim/clock.py`; edit `98artware_core/art98/session.py`, `98artware_core/art98/qemu.py` | do not change `FrameRecorder.frame` behaviour for existing callers; add new recorder | 3.4, 6.6 | `pytest 98artware_core/tests/test_qemu.py` (real QEMU without Windows) plus P2/P11/P21 | implementer |
+| T4.2 | Render cache and sections: content hash, segment store, `repro.json` | NEW `anim/cache.py`; edit renderer | per-section prefix hash (3.3) over image.json digest, machine type, agent hash and emitted ops | 4.12 | `pytest 98artware_core/tests/test_cache.py` | implementer |
+| T4.3 | Bridge-level handle journal, `ReplayBridge`, `Animation.fast_forward()`, the skip rules of 6.9; `art98 test` golden frames | NEW `anim/journal.py`; edit renderer and `cli.py` | journal format is text and versioned; a stale journal forces a re-run, never a guess | 6.9 | `pytest 98artware_core/tests/test_journal.py` | implementer |
+| T5.1 | Host output: raster normaliser, captions, SFX mix, share presets, post filters, `strict` enforcement | NEW `anim/host/*.py`, `anim/audio.py` | host realm flagged in output metadata | 3.2, 4.7, 4.11 | `pytest 98artware_core/tests/test_compose.py` with synthetic frames | implementer |
+| T5.2 | Host compositor: sprite lift, exposure blend, `HostCamera` zoom and pan | NEW `anim/camera.py`, `anim/host/compose.py` | outside strict only; recorded in `host_ops` | 4.6, 4.7 | `pytest 98artware_core/tests/test_compose.py` with synthetic frames | implementer |
+| T6.x | App drivers, GL tier, DOS box, BSOD, set-piece scenes, `Scene.reboot()` per 3.3 | NEW `anim/apps/*`, `anim/props_gl.py`, `artware_experiments/scenes/*` | each depends on its probe result; the recorder must outlive the VM | 4.9, 4.10 | per-driver real-run checks | implementer |
 | T7.x | Live editing, presenter, voice-over, record, beat sync, templates, Jupyter magic, timeline viewer, plugin loader, docs | NEW `anim/live.py`, `anim/plugins.py`, `docs/` | depends on T4.2, T4.3 | 9 | per feature | implementer |
 
-Sequencing flags: T2.0, T2.1 and T2.2 share `guest/agent.c` (and T2.2 `pecheck.py`): strictly sequential in that order;
+Sequencing flags: T2.0, T2.1 and T2.2 share `windows_handlers/call_proxy/agent.c` (and T2.2 `pecheck.py`): strictly sequential in that order;
 T0.3 must land before Phase 2 can
 show anything in a render, and shares `prep.py` with nothing else. T0.2 and T4.1 both
 edit `qemu.py`/`session.py` (T0.2 first). T1.1, T1.2, T1.6, T1.3 and T1.7 build on each other in that order.

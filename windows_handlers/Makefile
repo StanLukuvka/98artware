@@ -23,13 +23,13 @@ LIBS    = -lkernel32 -luser32 -lgdi32
 
 all: $(OUT)/agent.exe $(OUT)/view.exe $(OUT)/mbr.bin
 
-$(OUT)/agent.exe: agent.c | $(OUT)
+$(OUT)/agent.exe: call_proxy/agent.c | $(OUT)
 	$(MINGW) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
 
-$(OUT)/view.exe: view.c | $(OUT)
+$(OUT)/view.exe: picture_viewer/view.c | $(OUT)
 	$(MINGW) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
 
-$(OUT)/mbr.bin: mbr.S | $(OUT)
+$(OUT)/mbr.bin: boot_record/mbr.S | $(OUT)
 	$(HOSTAS) --32 -o $(OUT)/mbr.o $<
 	$(HOSTLD) -m elf_i386 -Ttext=0x600 -o $(OUT)/mbr.elf $(OUT)/mbr.o
 	$(HOSTOBJCOPY) -O binary -j .text $(OUT)/mbr.elf $@

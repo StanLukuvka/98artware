@@ -2,7 +2,7 @@
 
 Notepad opens, types a line, drifts across the desktop and closes.
 
-    uv run art98 render examples/hello.py Hello -o hello.mp4
+    uv run art98 render artware_experiments/hello.py Hello -o hello.mp4
 """
 
 from art98.anim import *

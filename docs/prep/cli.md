@@ -1,11 +1,11 @@
 # Commands and the work directory
 
-The `art98` command is `src/art98/cli.py`. Run it with `uv run art98`, from a source
-checkout: it finds `guest/build` relative to the source file, so an installed wheel
+The `art98` command is `98artware_core/art98/cli.py`. Run it with `uv run art98`, from a source
+checkout: it finds `windows_handlers/build` relative to the source file, so an installed wheel
 would not find it.
 
 This page covers `doctor`, `prep` and `ping`. For `art98 render`, see
-[the scene API](../actions/scene-api.md).
+[the scene API](../scenes/scene-api.md).
 
 ## art98 doctor
 
@@ -36,11 +36,11 @@ Install the missing tools with:
 | 1 | Something is missing. It prints a `dnf` command for it |
 
 It looks up each tool with `shutil.which` and nothing more. It does not check
-versions or whether `guest/build` exists. The install hint is always `dnf`. On
+versions or whether `windows_handlers/build` exists. The install hint is always `dnf`. On
 other distributions the package names differ.
 
-`i686-w64-mingw32-gcc`, `make` and `as` are only needed to build `guest/`. If
-`guest/build/` already holds `agent.exe` and `mbr.bin`, `prep` runs without them,
+`i686-w64-mingw32-gcc`, `make` and `as` are only needed to build `windows_handlers/`. If
+`windows_handlers/build/` already holds `agent.exe` and `mbr.bin`, `prep` runs without them,
 though `doctor` still reports them missing.
 
 ## art98 prep

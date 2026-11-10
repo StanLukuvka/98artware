@@ -2,7 +2,7 @@
 
 The facts on this page were read from a running guest on 2026-11-06, using a private
 copy of the image built from a Windows 98 SE OEM disc on QEMU 10.2.2. A different
-disc may give a different inventory. Settings come from `src/art98/prep.py`, and
+disc may give a different inventory. Settings come from `98artware_core/art98/prep.py`, and
 each one was read back from the guest.
 
 ## At a glance
@@ -354,7 +354,7 @@ There is no prep option for adding files to the image. Only `AGENT.EXE` is copie
 
 ## Hardware
 
-`VMConfig` in `src/art98/qemu.py` holds the VM's hardware, and `argv` turns it into
+`VMConfig` in `98artware_core/art98/qemu.py` holds the VM's hardware, and `argv` turns it into
 the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 
 | Field | Value | QEMU | Why |

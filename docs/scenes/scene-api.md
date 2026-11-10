@@ -94,18 +94,18 @@ from art98.anim import *
 
 
 class TwoStates(Scene):
-    state = "examples/mvp/states/two_windows.json"
+    state = "artware_experiments/set_state/states/two_windows.json"
 
     def construct(self):
         flower = self.prop("flower")
         self.play(flower.animate.shift(200 * RIGHT), run_time=2)
-        self.set_state("examples/mvp/states/gallery.json")
+        self.set_state("artware_experiments/set_state/states/gallery.json")
         self.pause(1)
         self.play(self.prop("picture").animate.shift(100 * DOWN), run_time=2)
 ```
 
 These paths are from the repository's root. The whole sample is
-[examples/mvp](../../examples/mvp/mvp.py), with its states beside it.
+[artware_experiments/set_state](../../artware_experiments/set_state/mvp.py), with its states beside it.
 
 ### Playing
 
@@ -359,7 +359,7 @@ class Parked(Scene):
 `Picture(title="Picture", *, image=None, at=None, size=None)`
 
 A plain window that shows one BMP at 1:1, centred on grey. Windows 98 has no small image viewer,
-so this is art98's own program, `VIEW.EXE`, built by `make` in `guest/` and copied to the guest
+so this is art98's own program, `VIEW.EXE`, built by `make` in `windows_handlers/` and copied to the guest
 when it's needed. `image` is a BMP on the host, or `None` for an empty window. The window opens at
 `at` (default `(100, 100)`) with the outer `size` (default `(320, 240)`), with no move on screen
 first.
@@ -395,7 +395,7 @@ the text as saved first, so no save prompt appears.
 
 ![Typing](../assets/gifs/typing.gif)
 
-Source: [typing.py](../../examples/gallery/typing.py).
+Source: [typing.py](../../artware_experiments/gallery/typing.py).
 
 ## Paint
 
@@ -434,7 +434,7 @@ prompt, which isn't handled.
 
 ![Paint drawing](../assets/gifs/paint-drawing.gif)
 
-Source: [paint_drawing.py](../../examples/gallery/paint_drawing.py).
+Source: [paint_drawing.py](../../artware_experiments/gallery/paint_drawing.py).
 
 ## Minesweeper
 
@@ -461,7 +461,7 @@ takes no video time. No window may cover the top left corner of the screen.
 
 ![Minesweeper win](../assets/gifs/minesweeper-win.gif)
 
-Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py).
+Source: [minesweeper_win.py](../../artware_experiments/gallery/minesweeper_win.py).
 
 ## Screensaver
 
@@ -480,7 +480,7 @@ Channel Screen Saver is on the image but left out, because moving the pointer do
 
 ![Screensaver](../assets/gifs/screensaver.gif)
 
-Source: [screensaver.py](../../examples/gallery/screensaver.py).
+Source: [screensaver.py](../../artware_experiments/gallery/screensaver.py).
 
 ## Dialog
 
@@ -501,7 +501,7 @@ and it waits for the box to close.
 
 ![Hover and dialog](../assets/gifs/hover-dialog.gif)
 
-Source: [hover_dialog.py](../../examples/gallery/hover_dialog.py).
+Source: [hover_dialog.py](../../artware_experiments/gallery/hover_dialog.py).
 
 ```python
 from art98.anim import *

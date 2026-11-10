@@ -130,7 +130,7 @@ class Draw(Scene):
 
 The fill stays inside because the stroke is closed. Paint floods whatever is connected, as it
 would for a person. A path can also be a function from 0..1 to a point.
-[`examples/showcase.py`](../../examples/showcase.py) draws a rose that way.
+[`artware_experiments/showcase.py`](../../artware_experiments/showcase.py) draws a rose that way.
 
 ## Go under the scene layer
 

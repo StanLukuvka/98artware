@@ -5,8 +5,9 @@ from pathlib import Path
 import pytest
 
 from art98 import pecheck, prep
+from art98.guestfiles import guest_build
 
-GUEST_BUILD = Path(__file__).resolve().parents[1] / "guest" / "build"
+GUEST_BUILD = guest_build()
 needs_mtools = pytest.mark.skipif(shutil.which("mformat") is None, reason="needs mtools")
 
 

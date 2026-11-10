@@ -1,7 +1,7 @@
 # Documentation
 
 art98 has two parts. [Part 1](prep/README.md) prepares the VM image once, and
-[Part 2](actions/README.md) drives that image to make videos.
+[Part 2](scenes/README.md) drives that image to make videos.
 
 Audio is deferred, so everything here is video only.
 
@@ -17,19 +17,19 @@ Audio is deferred, so everything here is video only.
 | [The image](prep/image.md) | What the finished image holds, including your product key. |
 | [Troubleshooting](prep/troubleshooting.md) | Setup quirks and how to recover from a failed run. |
 
-## Part 2: the action handler
+## Part 2: scenes
 
 | Page | What it covers |
 | --- | --- |
-| [Overview](actions/README.md) | A first scene and how the layers fit. |
-| [Tutorial](actions/tutorial.md) | Your first scenes, step by step. Start here. |
-| [Scene API](actions/scene-api.md) | `Scene`, props, picture windows, states, rendering. |
-| [Animations](actions/animations.md) | Everything you pass to `play`, and how to write your own. |
-| [Gallery](actions/gallery.md) | One short scene per feature, with its GIF and source. |
-| [Bridge](actions/bridge.md) | The raw Win32 proxy behind `self.guest`. |
-| [Instruction set](actions/instruction-set.md) | The serial protocol the agent speaks. |
-| [Win32 recipes](actions/win32-recipes.md) | Win32 calls that are known to work from the agent. |
-| [App catalog](actions/app-catalog.md) | What is on the image, and how each program behaves. |
+| [Overview](scenes/README.md) | A first scene and how the layers fit. |
+| [Tutorial](scenes/tutorial.md) | Your first scenes, step by step. Start here. |
+| [Scene API](scenes/scene-api.md) | `Scene`, props, picture windows, states, rendering. |
+| [Animations](scenes/animations.md) | Everything you pass to `play`, and how to write your own. |
+| [Gallery](scenes/gallery.md) | One short scene per feature, with its GIF and source. |
+| [Bridge](scenes/bridge.md) | The raw Win32 proxy behind `self.guest`. |
+| [Instruction set](scenes/instruction-set.md) | The serial protocol the agent speaks. |
+| [Win32 recipes](scenes/win32-recipes.md) | Win32 calls that are known to work from the agent. |
+| [App catalog](scenes/app-catalog.md) | What is on the image, and how each program behaves. |
 
 ## Architecture
 

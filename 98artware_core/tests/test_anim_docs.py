@@ -1,4 +1,4 @@
-"""The docs stay true to the code. Rendering the samples is examples/check_docs.py."""
+"""The docs stay true to the code. Rendering the samples is artware_experiments/check_docs.py."""
 
 import re
 from pathlib import Path
@@ -7,8 +7,8 @@ import pytest
 
 import art98.anim
 
-ROOT = Path(__file__).resolve().parents[1]
-DOCS = ROOT / "docs" / "actions"
+ROOT = Path(__file__).resolve().parents[2]
+DOCS = ROOT / "docs" / "scenes"
 PAGES = ("README.md", "tutorial.md", "scene-api.md", "animations.md")
 SAMPLE = re.compile(r"```python\n(.*?)```", re.S)
 LINK = re.compile(r"!\[[^\]]*\]\(([^)]+)\)|(?<!!)\[[^\]]*\]\(([^)#]+)(?:#[^)]*)?\)")

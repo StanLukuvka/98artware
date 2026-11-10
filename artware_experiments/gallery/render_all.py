@@ -1,6 +1,6 @@
 """Render every gallery scene to docs/assets/gifs, a few VMs at a time.
 
-    uv run python examples/gallery/render_all.py [name ...]
+    uv run python artware_experiments/gallery/render_all.py [name ...]
 """
 
 import subprocess
@@ -29,9 +29,9 @@ SCENES = {
 def render(name: str) -> str:
     scene, options = SCENES[name]
     output = OUT / f"{name.replace('_', '-')}.gif"
-    source = ROOT / "examples" / "gallery" / f"{name}.py"
+    source = ROOT / "artware_experiments" / "gallery" / f"{name}.py"
     if not source.exists():
-        source = ROOT / "examples" / f"{name}.py"
+        source = ROOT / "artware_experiments" / f"{name}.py"
     subprocess.run(
         [sys.executable, "-m", "art98.cli", "render", str(source), scene, "-o", str(output), "--work", str(ROOT / "work"), *options],
         check=True, cwd=ROOT,

@@ -19,9 +19,10 @@ from pathlib import Path
 import pytest
 
 from art98.bridge import Bridge, BridgeError, GuestCrashed
+from art98.guestfiles import guest_build
 from art98.protocol import Out
 
-AGENT = Path(__file__).resolve().parents[1] / "guest" / "build" / "agent.exe"
+AGENT = guest_build() / "agent.exe"
 pytestmark = [
     pytest.mark.skipif(shutil.which("wine") is None, reason="needs Wine"),
     pytest.mark.skipif(not AGENT.exists(), reason="agent not built"),

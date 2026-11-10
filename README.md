@@ -11,7 +11,7 @@ The project has two parts:
 
 - **[Part 1: VM preparation](docs/prep/README.md).** `art98 prep` turns your own
   Windows 98 SE disc into a desktop snapshot with no input.
-- **[Part 2: the action handler](docs/actions/README.md).** A Scene API, a bridge
+- **[Part 2: scenes](docs/scenes/README.md).** A Scene API, a bridge
   that can call any Win32 function in the guest, and a renderer.
 
 [docs/README.md](docs/README.md) lists every page. [PLAN.md](docs/archive/PLAN.md), now
@@ -35,7 +35,7 @@ sudo dnf install qemu-system-x86 qemu-img mtools 7zip ffmpeg make binutils mingw
 ```
 
 ```bash
-make -C guest
+make -C windows_handlers
 ```
 
 ```bash
@@ -83,11 +83,11 @@ A scene describes what happens, and `art98 render` turns it into a video:
 **Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
 `from art98.anim import *` leaves them out until each program returns as its own action
 class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is
-[`Picture`](docs/actions/scene-api.md#picture).
-The MVP's own scene is [examples/mvp/mvp.py](examples/mvp/mvp.py):
+[`Picture`](docs/scenes/scene-api.md#picture).
+The MVP's own scene is [artware_experiments/set_state/mvp.py](artware_experiments/set_state/mvp.py):
 
 ```bash
-uv run art98 render examples/mvp/mvp.py -o mvp.mp4
+uv run art98 render artware_experiments/set_state/mvp.py -o mvp.mp4
 ```
 
 A scene with a parked program:
@@ -111,7 +111,7 @@ class Hello(Scene):
 ```
 
 ```bash
-uv run art98 render examples/hello.py Hello -o hello.mp4
+uv run art98 render artware_experiments/hello.py Hello -o hello.mp4
 ```
 
 `-o` also takes `.gif`. Each render runs on a private copy of the image, so renders
@@ -123,9 +123,9 @@ by itself, such as a screensaver. `live(seconds)` follows the host's clock and s
 the sync, so that stretch does depend on host speed. Its `stop_condition` ends it
 early.
 
-Start with the [tutorial](docs/actions/tutorial.md). The
-[gallery](docs/actions/gallery.md) has one scene per feature, and
-[examples/showcase.py](examples/showcase.py) draws in Paint with the mouse, clears a
+Start with the [tutorial](docs/scenes/tutorial.md). The
+[gallery](docs/scenes/gallery.md) has one scene per feature, and
+[artware_experiments/showcase.py](artware_experiments/showcase.py) draws in Paint with the mouse, clears a
 Minesweeper board and runs 3D Pipes.
 
 ### The raw bridge
@@ -151,9 +151,9 @@ with boot("work") as stage:
 ```
 
 Every `boot()` restores the same snapshot, so nothing carries over between runs. In
-a scene the same object is `self.guest`. See the [bridge](docs/actions/bridge.md),
-the [instruction set](docs/actions/instruction-set.md) and the
-[Win32 recipes](docs/actions/win32-recipes.md).
+a scene the same object is `self.guest`. See the [bridge](docs/scenes/bridge.md),
+the [instruction set](docs/scenes/instruction-set.md) and the
+[Win32 recipes](docs/scenes/win32-recipes.md).
 
 A guest reboot ends the VM, because Windows freezes on its logo after a warm reset
 in the same QEMU process. Start a new one with `boot()` afterwards. `ExitWindowsEx`
@@ -187,8 +187,8 @@ From a Windows 98 SE OEM disc, on QEMU 10.2.2 with software emulation:
 | `SYNC` plus one frame capture | About 6.5 ms |
 | `put_file` | 100 to 190 KB/s |
 | `get_file` | About 325 KB/s |
-| `examples/hello.py`, 211 frames | About 3 s |
-| `examples/showcase.py`, 1858 frames, 62 s of video | About 42 s |
+| `artware_experiments/hello.py`, 211 frames | About 3 s |
+| `artware_experiments/showcase.py`, 1858 frames, 62 s of video | About 42 s |
 | 3D Pipes under TCG, launched with `/s` | About 37 new frames per second |
 | Guest clock against host | 5004 ms over 5 s |
 | Screenshots | Include the mouse pointer |

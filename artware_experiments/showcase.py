@@ -4,7 +4,7 @@ Paint draws a rose with the mouse, Minesweeper is cleared without a wrong
 move, and 3D Pipes takes over the screen. Only the screensaver runs on a
 wall clock: everything else is drawn when the script asks for a frame.
 
-    uv run art98 render examples/showcase.py Showcase -o showcase.mp4
+    uv run art98 render artware_experiments/showcase.py Showcase -o showcase.mp4
 """
 
 import math

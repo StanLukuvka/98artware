@@ -1,7 +1,7 @@
 __pycache__/
 *.egg-info/
 .venv/
-guest/build/
+windows_handlers/build/
 work/
 *.iso
 .tools/

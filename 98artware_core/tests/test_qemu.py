@@ -9,10 +9,11 @@ from pathlib import Path
 import pytest
 
 from art98 import prep
+from art98.guestfiles import guest_build
 from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
 from art98.session import Session
 
-MBR = Path(__file__).resolve().parents[1] / "guest" / "build" / "mbr.bin"
+MBR = guest_build() / "mbr.bin"
 pytestmark = [
     pytest.mark.qemu,
     pytest.mark.skipif(shutil.which(QEMU_BINARY) is None, reason="needs QEMU"),

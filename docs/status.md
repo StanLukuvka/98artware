@@ -8,11 +8,11 @@ work can pick up from here.
 | Part | State | Docs |
 | --- | --- | --- |
 | VM preparation | Built. `art98 prep` turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input | [Part 1](prep/README.md) |
-| Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](actions/bridge.md), [Instruction set](actions/instruction-set.md) |
-| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. The program classes are parked, unexported | [Part 2](actions/README.md) |
-| Examples | `examples/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](actions/gallery.md) |
+| Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](scenes/bridge.md), [Instruction set](scenes/instruction-set.md) |
+| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. The program classes are parked, unexported | [Part 2](scenes/README.md) |
+| Examples | `artware_experiments/set_state`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
 | Diagrams | Seven diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
-| States and actions | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Named actions aren't built | [Design](design/state-and-action.md), [States](actions/scene-api.md#states) |
+| States and actions | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Named actions aren't built | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
 | Recorder | `FrameRecorder`, one file per render. A `Recorder` with `cut()` is specified, not built | [Recorder](design/state-and-action.md#recorder) |
 
 Audio is deferred. art98 is video only.
@@ -34,7 +34,7 @@ Audio is deferred. art98 is video only.
 5. **Revert test.** The first MVP step, run on a private copy. Set repeats and a revert leaves
    nothing behind. A Set takes 1.6 to 2.0 s on a quiet host, and 10 s on a busy one. Details are
    under [Test results](design/state-and-action.md#test-results), and the scripts are in
-   [experiments/revert-test](../experiments/revert-test/README.md).
+   [artware_experiments/revert-test](../artware_experiments/revert-test/README.md).
 6. **Stray pixels explained.** The odd Set out was the clean one. Usually Paint moving away leaves
    the "My Documents" label's pixels in Notepad's frame. Repainting the windows back to front at the
    end of Apply made 20 of 20 Sets identical, from `ready` and from a warm baseline. See
@@ -48,7 +48,7 @@ Audio is deferred. art98 is video only.
    that shows a BMP. Windows can be moved, teleported, closed and opened. See
    [Picture window](design/state-and-action.md#picture-window).
 10. **MVP built, 2026-11-10.** `VIEW.EXE` and `Picture`, `Teleport`, state files, `Session.revert`,
-    `set_state` and `self.prop`, the sample in `examples/mvp`, and their docs and tests. All five
+    `set_state` and `self.prop`, the sample in `artware_experiments/set_state`, and their docs and tests. All five
     done-when checks pass. A Set with two windows and an image takes 1.45 s. See
     [MVP results](design/state-and-action.md#mvp-results). Committed in `24e8803`.
 11. **Program classes parked, 2026-11-10.** `Notepad`, `Paint`, `Minesweeper`, `Screensaver` and
@@ -98,8 +98,8 @@ work. None of them block the MVP.
 
 ### Docs that are out of date
 
-- `put_file`, `get_file` and app launch times in the README, [bridge.md](actions/bridge.md),
-  [win32-recipes.md](actions/win32-recipes.md) and the `put_file` docstring are quiet-host
+- `put_file`, `get_file` and app launch times in the README, [bridge.md](scenes/bridge.md),
+  [win32-recipes.md](scenes/win32-recipes.md) and the `put_file` docstring are quiet-host
   figures. On a busy host they can be several times slower.
 - On a fresh boot, frames before the first pointer move have no pointer and slightly brighter
   colours. This affects today's scenes and isn't documented.

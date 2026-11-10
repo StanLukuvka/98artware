@@ -1,4 +1,4 @@
-# Part 2: the action handler
+# Part 2: scenes
 
 [Part 1](../prep/) builds the prepared Windows 98 image. Part 2 runs it. A Python script on the
 host drives the real desktop inside QEMU and records the screen.
@@ -34,7 +34,7 @@ class Hello(Scene):
 ```
 
 ```bash
-uv run art98 render examples/hello.py Hello -o hello.mp4
+uv run art98 render artware_experiments/hello.py Hello -o hello.mp4
 ```
 
 ![Notepad types a line and moves](../assets/gifs/hello.gif)

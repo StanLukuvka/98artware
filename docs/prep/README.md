@@ -6,7 +6,7 @@ saves a QEMU snapshot called `ready`. Everything else in art98 starts from that
 snapshot.
 
 This part covers the preparation scripts. To drive the finished desktop, see
-[Part 2](../actions/README.md).
+[Part 2](../scenes/README.md).
 
 ![How the host, QEMU and the guest fit together](../diagrams/system-overview.png)
 
@@ -70,11 +70,11 @@ Install the tools:
 sudo dnf install qemu-system-x86 qemu-img mtools 7zip ffmpeg make binutils mingw32-gcc
 ```
 
-Build the two files that go on the Windows disk, `guest/build/agent.exe` and
-`guest/build/mbr.bin`:
+Build the two files that go on the Windows disk, `windows_handlers/build/agent.exe` and
+`windows_handlers/build/mbr.bin`:
 
 ```bash
-make -C guest
+make -C windows_handlers
 ```
 
 Check the host:

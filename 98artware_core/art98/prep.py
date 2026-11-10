@@ -493,7 +493,7 @@ class Prep:
             raise PrepError("the media stage needs --key")
         agent = self.guest_build / "agent.exe"
         if not agent.exists():
-            raise PrepError(f"{agent} missing; run make in guest/")
+            raise PrepError(f"{agent} missing; run make in windows_handlers/")
         pecheck.check_agent(agent)
         extract_setup_files(self.iso, self.media)
         self.floppy.write_bytes(boot_floppy_image(self.iso))

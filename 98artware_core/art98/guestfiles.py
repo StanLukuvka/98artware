@@ -21,8 +21,8 @@ BI_RGB, BI_BITFIELDS = 0, 3
 
 
 def guest_build() -> Path:
-    """Where `make` in guest/ leaves the programs that run on the guest."""
-    return Path(__file__).resolve().parents[2] / "guest" / "build"
+    """Where `make` in windows_handlers/ leaves the programs that run on the guest."""
+    return Path(__file__).resolve().parents[2] / "windows_handlers" / "build"
 
 
 def guest_path(data: bytes, name: str) -> str:
@@ -42,10 +42,10 @@ def ensure(guest, data: bytes, name: str) -> str:
 
 
 def viewer() -> bytes:
-    """VIEW.EXE, the picture window, as built in guest/build."""
+    """VIEW.EXE, the picture window, as built in windows_handlers/build."""
     path = guest_build() / "view.exe"
     if not path.exists():
-        raise FileNotFoundError(f"{path} missing; run make in guest/")
+        raise FileNotFoundError(f"{path} missing; run make in windows_handlers/")
     return path.read_bytes()
 
 

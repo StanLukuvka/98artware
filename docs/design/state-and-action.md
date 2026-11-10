@@ -216,7 +216,7 @@ Status: built, 2026-11-10.
 The MVP's only window. Windows 98 has no small image viewer, and Paint brings its own tools,
 canvas and quirks, so art98 ships a tiny one.
 
-- **Program.** `guest/view.c` builds `VIEW.EXE` with the agent's toolchain, using only functions
+- **Program.** `windows_handlers/picture_viewer/view.c` builds `VIEW.EXE` with the agent's toolchain, using only functions
   Windows 98 has. It came out at 4 KB.
 - **Command line.** `VIEW.EXE <x> <y> <width> <height> "<title>" ["<image.bmp>"]`. Each window is
   its own process, and it opens where the state wants it, so nothing moves on screen first.
@@ -449,7 +449,7 @@ Run on 2026-11-10 on private copies, with host CPU pressure (some, avg10) betwee
 | 1. Same state 10 times | 10 of 10 screenshots identical, for both sample states |
 | 2. Set under 2 s | Two windows and a 57 KB image: median 1.45 s (1.18 to 1.61). One window and an image: median 0.97 s (0.75 to 1.27) |
 | 3. Clear errors | A bad file lists every problem before the desktop is touched. A window Windows won't make (`"size": [40, 20]`) stops with `size [40, 20] wanted, the guest has [112, 27]`. A cut-short image fails on the host. Unit tests cover a missing window, the wrong order, title, show state, display and pointer |
-| 4. Sample scene | `examples/mvp/mvp.py` renders in 7.7 s, moving, teleporting, closing and opening a picture window, then jumping to a second state |
+| 4. Sample scene | `artware_experiments/set_state/mvp.py` renders in 7.7 s, moving, teleporting, closing and opening a picture window, then jumping to a second state |
 | 5. Nothing broken | 199 tests pass (32 skip without QEMU set up), all 32 doc samples render, and so do `hello.py`, `showcase.py` and the gallery scenes |
 
 What it's made of:
