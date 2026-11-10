@@ -80,6 +80,17 @@ Audio is deferred. art98 is video only.
     (`bd2c56c`). A named part of a scene is now a **section**, Manim's word, and "action" means
     an action class: one kind of thing on screen and the verbs that drive it. A plan to split
     the package into clearer parts was reviewed and adopted. Its steps are under Next.
+16. **Package restructure, 2026-11-11.** Win32 constants and small guest helpers are in
+    `win32.py` (`765a8cc`). The building blocks (`Animation` and its groups, rate functions,
+    vectors, `Box`, `Prop`, `Spot`) are in `base/`, and the action families in `actions/`:
+    `pointer.py`, `keyboard.py` and `window/` (`Win`, its commands, `Menu`, `Picture`).
+    `art98.anim` is the entry point scripts import, with the same names (`f4a5e12`). The frame
+    recorder is in `recorder.py` (`79a014a`). `Scene` calls `anim/setstate.py` for the desktop
+    state and `anim/timeline.py` for the frames (`62b4634`). A scene loads under its own module
+    name, so `gallery/typing.py` finds its own folder (`0f39d01`). Scenes are in `examples/`,
+    the tools in `tools/`, the revert probes in `experiments/`, and render output goes to the
+    ignored `out/` (`5579adc`). The lifecycle and architecture diagrams' PNGs were not
+    redrawn.
 
 ## What is open
 
@@ -88,36 +99,19 @@ Audio is deferred. art98 is video only.
 In order, from the layer review of 2026-11-11. See also
 [After the MVP](design/state-and-action.md#after-the-mvp).
 
-1. **Restructure the package**, one commit each, with the tests passing between. Nothing a
-   scene imports changes: `art98.anim` and `art98.anim.apps` keep working.
-   1. `win32.py`: the Win32 constants and small helpers, moved without changes. Raw
-      `guest.user32` stays first-class, and `Bridge.move_window`, `find_window` and
-      `set_display_mode` stay.
-   2. Move the building blocks (`Animation` and its groups, rate functions, vectors, `Box`,
-      `Prop`, `Spot`) out of `anim/` into a package below the actions, so `anim/` is only the
-      public entry point. Short modules stay at the old paths for the tests that import them.
-   3. Split `session.py` into the session and the recorder.
-   4. Split `scene.py` into its desktop half (`set_state`, the blank start, the props on
-      stage) and its timeline half (`play`, `pause`, `live`). `Scene` stays the one class a
-      script uses.
-   5. Move the top-level folders: `examples/` for maintained scenes, `experiments/` for
-      throwaway work, `tools/` for `check_docs.py` and `render_all.py`, and a gitignored `out/`.
-      Docs links, tests and script paths move in the same commit. Fix `cli._load_scene` here: it
-      registers a scene module by file name, so a scene file named like a standard module (such
-      as `gallery/typing.py`) finds state files in the wrong folder.
-2. **The [recorder](design/state-and-action.md#recorder) with `cut()`.** It moves
-   `FrameRecorder` out of `session.py`. Its open questions were
+1. **The [recorder](design/state-and-action.md#recorder) with `cut()`.** It builds
+   on `FrameRecorder` in `recorder.py`. Its open questions were
    [decided](design/state-and-action.md#recorder-decisions) on 2026-11-10: one GIF from joined lossless
    clips, clips kept as MP4, the `close()` exit-code fix included, and a size change inside a
    clip raises.
-3. **Sections:** `next_section` and `--section`.
-4. **Program classes:** a one-page design, then a Notepad pilot. Each program becomes a file
+2. **Sections:** `next_section` and `--section`.
+3. **Program classes:** a one-page design, then a Notepad pilot. Each program becomes a file
    in `actions/programs/` that subclasses `Win`, made when its pilot starts. The base is `Prop`,
    with hooks for a name used in state files, a check of its state entry, and opening or
    adopting a window from a state. Those replace the fixed `APPS` list and the `"picture"`
    special case in `state.py`. `apps.py` stays whole until then.
-5. **Port the showcase** and re-render the gallery.
-6. **Container follow-ups.** Try real Docker, rootful above all: the switch to the host's uid
+4. **Port the showcase** and re-render the gallery.
+5. **Container follow-ups.** Try real Docker, rootful above all: the switch to the host's uid
    in `entry.py` has only run against a stand-in uid map. Then decide whether `container`
    becomes the default backend.
 
