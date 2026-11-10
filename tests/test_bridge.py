@@ -3,6 +3,7 @@
 import socket
 import struct
 import threading
+import time
 
 import pytest
 
@@ -128,6 +129,30 @@ def test_async_call_completes_through_an_event(pair):
     assert pending.wait().value == 1
 
 
+def test_abandon_fails_open_requests_and_async_calls_at_once(pair):
+    bridge, agent = pair
+    bridge.timeout = 30
+    agent.handlers["ACALL"] = lambda i, a: agent.send(b"%d OK %d" % (i, i))
+    agent.handlers["CALL"] = lambda i, a: None  # never answers
+    pending = bridge.acall("kernel32", "Sleep", 4000)
+    blocked = []
+    thread = threading.Thread(target=lambda: blocked.append(
+        pytest.raises(BridgeError, bridge.call, "kernel32", "Sleep", 1)))
+    thread.start()
+    deadline = time.monotonic() + 2
+    while not any(r[0] == "CALL" for r in agent.requests) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    bridge.abandon("the desktop was reverted")
+    thread.join(2)
+    assert blocked and "reverted" in str(blocked[0].value)
+    assert pending.done
+    with pytest.raises(BridgeError, match="reverted"):
+        pending.wait(timeout=1)
+    agent.send(b"! DONE %d 0 0" % pending.id)  # a late answer is ignored
+    agent.handlers["PING"] = lambda i, a: agent.send(b"%d OK 5 1" % i)
+    assert bridge.ping() == 5
+
+
 def test_wait_event_picks_by_name_and_leaves_the_rest(pair):
     bridge, agent = pair
     agent.send(b"! OTHER 1")
@@ -172,6 +197,14 @@ def test_file_transfer_is_chunked_both_ways(pair):
     bridge.put_file(r"C:\X.BIN", blob)
     assert sum(1 for r in agent.requests if r[0] == "PUT") == 3
     assert bridge.get_file(r"C:\X.BIN") == blob
+
+
+def test_short_write_on_the_guest_fails_the_put(pair):
+    bridge, agent = pair
+    agent.handlers["PUT"] = lambda i, a: agent.send(b"%d OK %d" % (i, len(a[2]) - 1))
+    with pytest.raises(BridgeError, match="wrote 4095 of 4096"):
+        bridge.put_file(r"C:\FULL.BIN", bytes(10000))
+    assert len(agent.requests) == 1
 
 
 def test_put_of_an_empty_file_still_creates_it(pair):

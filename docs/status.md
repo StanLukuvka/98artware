@@ -1,6 +1,6 @@
 # Status
 
-Last updated 2026-11-08. This page says what exists, what was done, and what is still open, so
+Last updated 2026-11-10. This page says what exists, what was done, and what is still open, so
 work can pick up from here.
 
 ## What exists
@@ -12,7 +12,8 @@ work can pick up from here.
 | Scene API and renderer | Built. `Scene`, props, animations, `art98 render` | [Part 2](actions/README.md) |
 | Examples | `hello.py`, `showcase.py` and the gallery scenes | [Gallery](actions/gallery.md) |
 | Diagrams | Six architecture diagrams with editable `.drawio` files | [Diagrams](diagrams/README.md) |
-| States and actions | Designed, not built. One throwaway test has run | [Design](design/state-and-action.md) |
+| States and actions | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Named actions aren't built | [Design](design/state-and-action.md), [States](actions/scene-api.md#states) |
+| Recorder | `FrameRecorder`, one file per render. A `Recorder` with `cut()` is specified, not built | [Recorder](design/state-and-action.md#recorder) |
 
 Audio is deferred. art98 is video only.
 
@@ -33,19 +34,30 @@ Audio is deferred. art98 is video only.
    nothing behind. A Set takes 1.6 to 2.0 s on a quiet host, and 10 s on a busy one. Details are
    under [Test results](design/state-and-action.md#test-results), and the scripts are in
    [experiments/revert-test](../experiments/revert-test/README.md).
+6. **Stray pixels explained.** The odd Set out was the clean one. Usually Paint moving away leaves
+   the "My Documents" label's pixels in Notepad's frame. Repainting the windows back to front at the
+   end of Apply made 20 of 20 Sets identical, from `ready` and from a warm baseline. See
+   [Stray pixels, explained](design/state-and-action.md#stray-pixels-explained).
+7. **Warm baseline decided.** The MVP uses `ready` as it is. A warm baseline is only added if Set
+   misses 2 s, and then preferably per run on the private copy.
+8. **Recorder specified.** `Recorder` replaces `FrameRecorder` and can cut to a new clip during a
+   run. See [Recorder](design/state-and-action.md#recorder).
+9. **MVP narrowed, 2026-11-10.** All programs are out of the MVP, Paint included. Each will be its
+   own action class later. The MVP has one window kind, a small art98 picture viewer (`VIEW.EXE`)
+   that shows a BMP. Windows can be moved, teleported, closed and opened. See
+   [Picture window](design/state-and-action.md#picture-window).
+10. **MVP built, 2026-11-10.** `VIEW.EXE` and `Picture`, `Teleport`, state files, `Session.revert`,
+    `set_state` and `self.prop`, the sample in `examples/mvp`, and their docs and tests. All five
+    done-when checks pass. A Set with two windows and an image takes 1.45 s. See
+    [MVP results](design/state-and-action.md#mvp-results). Not committed yet.
 
 ## What is open
 
-### MVP, waiting for a go-ahead
+### Next
 
-No MVP code exists yet. Before it starts:
-
-- **Warm baseline.** Saving `ready` after Notepad and Paint have run once makes a Set about
-  0.4 s faster. It changes how prep makes the baseline, so it needs a decision.
-- **Stray pixels.** In one run, 1 Set in 4 differed by 8 pixels at Notepad's left edge. The
-  MVP's first "done when" item needs this explained.
-
-Then the [MVP order](design/state-and-action.md#order) continues from step 2.
+[After the MVP](design/state-and-action.md#after-the-mvp): the
+[recorder](design/state-and-action.md#recorder) with clips, then each program as its own action
+class.
 
 ### Known bugs, on hold
 
@@ -62,7 +74,6 @@ work. None of them block the MVP.
 | Host | `AsyncCall.wait()` waits forever by default |
 | Host | `_read_loop` only catches `OSError` |
 | Host | A failed `load_snapshot` leaves QEMU in its `restore-vm` state |
-| Host | `put_file` ignores the written count the agent returns. This one is MVP step 2 |
 | Host | `FrameRecorder.close` doesn't check ffmpeg's exit code |
 
 ### Docs that are out of date
@@ -72,6 +83,8 @@ work. None of them block the MVP.
   figures. On a busy host they can be several times slower.
 - On a fresh boot, frames before the first pointer move have no pointer and slightly brighter
   colours. This affects today's scenes and isn't documented.
+- Moving a window off another one can leave desktop label pixels in the lower window's frame.
+  Today's scenes probably show this. It isn't checked or documented in Part 2.
 
 ### Smaller decisions
 

@@ -126,6 +126,8 @@ class Bridge:
         self._pending: dict[int, _Pending] = {}
         self._events: deque[tuple[str, list]] = deque(maxlen=256)
         self._done: dict[int, CallResult] = {}
+        self._async_open: set[int] = set()
+        self._abandoned: dict[int, BridgeError] = {}
         self._closed: BridgeError | None = None
         self.kernel32 = _Dll(self, "kernel32")
         self.user32 = _Dll(self, "user32")
@@ -203,8 +205,9 @@ class Bridge:
         if name == "DONE":
             request_id, value, last_error, *buffers = values
             with self._cond:
-                self._done[request_id] = CallResult(value, last_error, buffers)
-                self._cond.notify_all()
+                if request_id in self._async_open:
+                    self._done[request_id] = CallResult(value, last_error, buffers)
+                    self._cond.notify_all()
             return
         if name == "CRASH":
             code, address = values
@@ -248,27 +251,48 @@ class Bridge:
         with self._cond:
             self._events.clear()
 
+    def abandon(self, reason: str) -> None:
+        """Fail every open request and async call now, and drop unread events.
+
+        For when the guest has been reverted: whatever was running there no
+        longer exists, so nothing should wait for its timeout.
+        """
+        error = BridgeError(reason)
+        self._fail_all(error)
+        with self._cond:
+            for request_id in self._async_open - self._done.keys():
+                self._abandoned[request_id] = error
+            self._async_open -= self._abandoned.keys()
+            self._events.clear()
+            self._cond.notify_all()
+
     def _peek_done(self, request_id: int) -> bool:
         with self._cond:
-            return request_id in self._done
+            return request_id in self._done or request_id in self._abandoned
 
     def _wait_done(self, request_id: int, timeout: float | None) -> CallResult:
         deadline = time.monotonic() + (self.timeout if timeout is None else timeout)
         with self._cond:
             while request_id not in self._done:
+                if request_id in self._abandoned:
+                    raise self._abandoned.pop(request_id)
                 if self._closed:
                     raise self._closed
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise BridgeTimeout(f"async call {request_id} did not finish")
                 self._cond.wait(remaining)
+            self._async_open.discard(request_id)
             return self._done.pop(request_id)
 
     # ---- outgoing ----
 
     def request(self, verb: str, *args, timeout: float | None = None) -> tuple[list, list[list]]:
         """Send one request and return its final values and any rows."""
-        request_id = next(self._ids)
+        return self._send(next(self._ids), verb, *args, timeout=timeout)
+
+    def _send(self, request_id: int, verb: str, *args,
+              timeout: float | None = None) -> tuple[list, list[list]]:
         pending = _Pending()
         with self._cond:
             if self._closed:
@@ -302,8 +326,17 @@ class Bridge:
 
     def acall(self, dll: str, function: str, *args) -> AsyncCall:
         """Call on a new guest thread. Use for anything that may block."""
-        values, _ = self.request("ACALL", dll, function, *args)
-        return AsyncCall(self, values[0])
+        with self._cond:
+            # Registered before the request goes out, so its DONE can't arrive first.
+            request_id = next(self._ids)
+            self._async_open.add(request_id)
+        try:
+            self._send(request_id, "ACALL", dll, function, *args)
+        except BaseException:
+            with self._cond:
+                self._async_open.discard(request_id)
+            raise
+        return AsyncCall(self, request_id)
 
     def ping(self, timeout: float | None = None) -> int:
         """Return the guest's tick count."""
@@ -357,9 +390,17 @@ class Bridge:
         return self.request("SYNC", hwnd, timeout_ms)[0][0]
 
     def put_file(self, path: str, data: bytes) -> None:
-        """Write a file on the guest, at about 100 to 190 KB/s."""
+        """Write a file on the guest, at about 100 to 190 KB/s on a quiet host.
+
+        Fails if the guest wrote less than it was sent, as it does when its
+        disk is full.
+        """
         for offset in range(0, max(len(data), 1), CHUNK_SIZE):
-            self.request("PUT", path, offset, data[offset : offset + CHUNK_SIZE])
+            chunk = data[offset : offset + CHUNK_SIZE]
+            written = self.request("PUT", path, offset, chunk)[0][0]
+            if written != len(chunk):
+                raise BridgeError(
+                    f"guest wrote {written} of {len(chunk)} bytes to {path} at offset {offset}")
 
     def get_file(self, path: str) -> bytes:
         data = bytearray()

@@ -9,11 +9,10 @@ import sys
 from pathlib import Path
 
 from . import prep
+from .guestfiles import guest_build
 from .session import boot
 
 
-def _guest_build() -> Path:
-    return Path(__file__).resolve().parents[2] / "guest" / "build"
 
 
 def cmd_doctor(_args) -> int:
@@ -33,7 +32,7 @@ def cmd_doctor(_args) -> int:
 def cmd_prep(args) -> int:
     key = args.key or os.environ.get("ART98_PRODUCT_KEY")
     tool = prep.Prep(
-        work=args.work, guest_build=_guest_build(), iso=args.iso, product_key=key,
+        work=args.work, guest_build=guest_build(), iso=args.iso, product_key=key,
         disk_mb=args.disk_mb, watch=args.watch,
     )
     try:
@@ -60,6 +59,8 @@ def _load_scene(path: Path, name: str | None) -> type:
     sys.path.insert(0, str(path.resolve().parent))
     spec = importlib.util.spec_from_file_location(path.stem, path)
     module = importlib.util.module_from_spec(spec)
+    # Registered so a scene can find its own file, for state paths beside it.
+    sys.modules.setdefault(path.stem, module)
     spec.loader.exec_module(module)
     scenes = {
         key: value for key, value in vars(module).items()

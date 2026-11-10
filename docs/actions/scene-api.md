@@ -16,6 +16,7 @@ Subclass it and write `construct`. One scene is one recording.
 | --- | --- |
 | `fps` | Frames per second of the video. Default 30. |
 | `clock` | `"free"`, the only one so far. Anything else raises `NotImplementedError`. |
+| `state` | A [state file](#states) to set the desktop to before `setup`. Default `None`, the plain desktop. |
 | `guest` | The raw [`Bridge`](bridge.md). |
 | `vm` | The QEMU `VM`, for real key presses and captures. |
 | `pointer` | The [`Pointer`](#pointer). |
@@ -38,6 +39,69 @@ of [`render`](#rendering).
 `add(*props)` brings props on stage. For a window this starts the program, finds its window, and
 places it. `remove(*props)` takes them off, which closes a window. `refresh_props()` reads
 positions back, for when something other than the script moved a window.
+
+### States
+
+A state file describes the desktop: the display mode, the windows, and where the pointer is.
+`set_state(path)` makes the desktop look like it, within one frame, as many times as a scene
+likes. It reverts the guest to the snapshot it booted from, opens the state's windows, and then
+checks that the guest matches. Props from before are gone, and adding one again opens a new
+window. `prop(id)` is the prop for a window the last state opened.
+
+A relative path is looked for beside the scene's file first, then in the current folder. A file
+path inside a state is relative to the state file.
+
+```json
+{
+  "version": 1,
+  "display": [800, 600, 16],
+  "windows": [
+    {"id": "album", "app": "picture", "title": "Album", "at": [380, 220], "size": [360, 280]},
+    {"id": "flower", "app": "picture", "title": "Flower", "at": [60, 60], "size": [240, 200],
+     "open": {"file": "../assets/flower.bmp", "sha256": "2357680...a619"}}
+  ],
+  "pointer": [400, 500]
+}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `version` | `1`. The only field that must be there. |
+| `display` | `[width, height, depth]`, a mode the guest's driver offers. Depth is 8, 16, 24 or 32. |
+| `windows` | Listed back to front, so the last one is on top. |
+| `id` | The name for `prop(id)`. Each one is used once. |
+| `app` | `"picture"`, a [`Picture`](#picture). The only kind so far. |
+| `title` | Default `"Picture"`. No double quotes. |
+| `at`, `size` | The top left corner, and the outer size. |
+| `show` | `"normal"` (the default), `"minimized"` or `"maximized"`. |
+| `open` | A BMP to show: its `file`, and its `sha256` so a changed file is caught. |
+| `pointer` | `[x, y]`, placed last. |
+
+Every mistake in the file is listed at once, as a `StateError`, before the desktop is touched. If
+the guest doesn't match the state afterwards, `StateMismatch` lists each difference. For example,
+Windows won't make a window smaller than 112 x 27, so `"size": [40, 20]` stops with
+`size [40, 20] wanted, the guest has [112, 27]`.
+
+A Set with two windows and a 57 KB image took 1.2 to 1.6 s on a quiet host, mostly reverting and
+copying the files again. The revert also winds the guest's clock back to the snapshot's time.
+
+```python
+from art98.anim import *
+
+
+class TwoStates(Scene):
+    state = "examples/mvp/states/two_windows.json"
+
+    def construct(self):
+        flower = self.prop("flower")
+        self.play(flower.animate.shift(200 * RIGHT), run_time=2)
+        self.set_state("examples/mvp/states/gallery.json")
+        self.pause(1)
+        self.play(self.prop("picture").animate.shift(100 * DOWN), run_time=2)
+```
+
+These paths are from the repository's root. The whole sample is
+[examples/mvp](../../examples/mvp/mvp.py), with its states beside it.
 
 ### Playing
 
@@ -280,6 +344,36 @@ class Parked(Scene):
         self.pointer.place((700, 500))
         self.play(TypeWithCursor(pad, "The pointer is out of the way."))
         self.pause(0.5)
+```
+
+## Picture
+
+`Picture(title="Picture", *, image=None, at=None, size=None)`
+
+A plain window that shows one BMP at 1:1, centred on grey. Windows 98 has no small image viewer,
+so this is art98's own program, `VIEW.EXE`, built by `make` in `guest/` and copied to the guest
+when it's needed. `image` is a BMP on the host, or `None` for an empty window. The window opens at
+`at` (default `(100, 100)`) with the outer `size` (default `(320, 240)`), with no move on screen
+first.
+
+The image is checked when the prop is made, so a file that isn't a BMP, or one cut short, raises
+`ValueError` straight away. Windows 98 crashes on a cut-short BMP instead of failing.
+`image_size` is the picture's `(width, height)`.
+
+Move one with `.animate`, jump it with [`Teleport`](animations.md#teleport), close it with
+`Close`, and open another with `add`.
+
+```python
+from art98.anim import *
+
+
+class OnePicture(Scene):
+    def construct(self):
+        pic = Picture("Empty", at=(100, 100), size=(320, 240))
+        self.add(pic)
+        self.play(pic.animate.shift(200 * RIGHT), run_time=1)
+        self.play(Teleport(pic, (40, 40), aligned_edge=UL))
+        self.play(Close(pic))
 ```
 
 ## Notepad

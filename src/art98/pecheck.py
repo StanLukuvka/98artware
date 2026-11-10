@@ -34,6 +34,20 @@ ALLOWED_IMPORTS = {
     "GDI32.dll": {"GdiFlush"},
 }
 
+# Every import the picture window (VIEW.EXE) uses, each present in Windows 98.
+VIEWER_IMPORTS = {
+    "KERNEL32.dll": {
+        "ExitProcess", "GetCommandLineA", "GetModuleHandleA",
+    },
+    "USER32.dll": {
+        "BeginPaint", "CreateWindowExA", "DefWindowProcA", "DispatchMessageA", "EndPaint",
+        "GetClientRect", "GetMessageA", "InvalidateRect", "LoadCursorA", "LoadIconA",
+        "LoadImageA", "PostQuitMessage", "RegisterClassA", "ShowWindow", "TranslateMessage",
+        "UpdateWindow",
+    },
+    "GDI32.dll": {"BitBlt", "CreateCompatibleDC", "DeleteDC", "GetObjectA", "SelectObject"},
+}
+
 
 class PEError(ValueError):
     pass
@@ -88,10 +102,20 @@ def read_imports(path: Path) -> tuple[tuple[int, int], dict[str, set[str]]]:
 
 def check_agent(path: Path) -> None:
     """Raise PEError if the agent would not load on Windows 98."""
+    check_program(path, ALLOWED_IMPORTS)
+
+
+def check_viewer(path: Path) -> None:
+    """Raise PEError if the picture window would not load on Windows 98."""
+    check_program(path, VIEWER_IMPORTS)
+
+
+def check_program(path: Path, allowed: dict[str, set[str]]) -> None:
+    """Raise PEError if a program needs a newer Windows or an unreviewed import."""
     version, imports = read_imports(path)
     if version > MAX_SUBSYSTEM_VERSION:
         raise PEError(f"{path} needs Windows {version[0]}.{version[1]}")
     for dll, names in imports.items():
-        unknown = names - ALLOWED_IMPORTS.get(dll, set())
+        unknown = names - allowed.get(dll, set())
         if unknown:
             raise PEError(f"{path} imports unreviewed functions from {dll}: {sorted(unknown)}")

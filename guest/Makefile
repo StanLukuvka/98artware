@@ -1,4 +1,4 @@
-# Builds the two things that go on the Windows 98 disk. The agent links
+# Builds the things that go on the Windows 98 disk. The agent links
 # without the mingw CRT because that CRT imports functions Windows 98 lacks.
 
 MINGW   ?= i686-w64-mingw32-gcc
@@ -21,9 +21,12 @@ LDFLAGS = -nostdlib -nostartfiles -s -Wl,-e,_entry \
           -Wl,--no-insert-timestamp
 LIBS    = -lkernel32 -luser32 -lgdi32
 
-all: $(OUT)/agent.exe $(OUT)/mbr.bin
+all: $(OUT)/agent.exe $(OUT)/view.exe $(OUT)/mbr.bin
 
 $(OUT)/agent.exe: agent.c | $(OUT)
+	$(MINGW) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
+
+$(OUT)/view.exe: view.c | $(OUT)
 	$(MINGW) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
 
 $(OUT)/mbr.bin: mbr.S | $(OUT)

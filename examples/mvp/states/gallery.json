@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "windows": [
+    {"id": "picture", "app": "picture", "title": "Gallery", "at": [200, 100], "size": [400, 300],
+     "open": {"file": "../assets/sky.bmp",
+              "sha256": "d1b022a02f34f93c2dbbe2feea6115c366395ed86dbc193293dd3c1801bb54a9"}}
+  ],
+  "pointer": [700, 520]
+}

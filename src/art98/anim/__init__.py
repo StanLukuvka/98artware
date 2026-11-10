@@ -12,6 +12,7 @@ from .animation import (
     Animate, Animation, AnimationGroup, Instant, LaggedStart, MoveAlongPath, Succession, Wait,
 )
 from .apps import Dialog, Minesweeper, Notepad, Paint, Screensaver
+from .picture import Picture, Teleport
 from .props import Box, Prop, Spot, Win
 from .rate_functions import linear, rush_from, rush_into, smooth, smoothstep, there_and_back
 from .renderer import render, write_gif
@@ -22,8 +23,8 @@ __all__ = [
     "Animate", "Animation", "AnimationGroup", "Box", "Click", "Close", "DL", "DOWN", "DR",
     "Dialog", "DoubleClick", "Drag", "Glide", "Hover", "Instant", "Keys", "LEFT", "LaggedStart",
     "Maximize", "Menu", "Minesweeper", "Minimize", "MoveAlongPath", "Notepad", "ORIGIN", "Paint",
-    "Pointer", "Prop", "RIGHT", "RestoreWindow", "RightClick", "Scene", "Screensaver",
-    "Spot", "Stroke", "Succession", "TypeKeys", "TypeWithCursor", "UL", "UP", "UR",
+    "Picture", "Pointer", "Prop", "RIGHT", "RestoreWindow", "RightClick", "Scene", "Screensaver",
+    "Spot", "Stroke", "Succession", "Teleport", "TypeKeys", "TypeWithCursor", "UL", "UP", "UR",
     "UntypeWithCursor", "Vec", "Wait", "Win", "lerp", "linear", "render", "rush_from",
     "rush_into", "smooth", "smoothstep", "there_and_back", "write_gif",
 ]

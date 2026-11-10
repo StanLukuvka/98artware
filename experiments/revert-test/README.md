@@ -23,6 +23,8 @@ uv run python -u experiments/revert-test/probe.py out/probe
 | `surface.py OUT` | When the screenshot colours and the pointer change. Needs `uv run --with pillow` |
 | `warm.py OUT` | Set from `ready`, then from a baseline saved after Notepad and Paint ran once |
 | `warm_new_file.py OUT` | The same, copying to a file name the warm baseline doesn't already have |
+| `stray.py OUT` | The stray pixels: 10 Sets from `ready` and 10 from a warm baseline, each screenshot taken after the Set and again 1 s later. `REDRAW=1` repaints the windows after placing them |
+| `stray_order.py OUT` | When the stray pixels appear: placing Notepad or Paint first, with a screenshot after each step and after repainting Notepad |
 
 A state here is Notepad at (60, 60, 300, 200), Paint opening a 57 KB BMP at (300, 140, 420, 340),
 and the pointer at (400, 500).

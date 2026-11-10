@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "display": [800, 600, 16],
+  "windows": [
+    {"id": "album", "app": "picture", "title": "Album", "at": [380, 220], "size": [360, 280]},
+    {"id": "flower", "app": "picture", "title": "Flower", "at": [60, 60], "size": [240, 200],
+     "open": {"file": "../assets/flower.bmp",
+              "sha256": "235768010b463d9ab566c62020f830d7a0ca1527ac643cfb8fe0d892ea62a619"}}
+  ],
+  "pointer": [400, 500]
+}

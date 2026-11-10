@@ -136,6 +136,11 @@ def test_unreviewed_import_is_caught(monkeypatch):
         pecheck.check_agent(GUEST_BUILD / "agent.exe")
 
 
+@pytest.mark.skipif(not (GUEST_BUILD / "view.exe").exists(), reason="viewer not built")
+def test_built_viewer_can_load_on_windows_98():
+    pecheck.check_viewer(GUEST_BUILD / "view.exe")
+
+
 @pytest.fixture
 def rehearsal_disc(tmp_path):
     """A small bootable disc laid out like the real one."""

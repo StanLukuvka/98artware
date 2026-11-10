@@ -161,6 +161,10 @@ class Prop(Box):
     def remove(self) -> None:
         """Leave the stage."""
 
+    def forget(self) -> None:
+        """Leave the stage without touching the guest, after a revert."""
+        self.scene = None
+
 
 class Win(Prop):
     """A real top-level window, or a real control inside one.
@@ -358,3 +362,8 @@ class Win(Prop):
 
     def remove(self) -> None:
         self.close()
+
+    def forget(self) -> None:
+        # The window went with the revert. Adding the prop again opens a new one.
+        super().forget()
+        self.hwnd, self._sent = None, None

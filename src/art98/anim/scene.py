@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import struct
 import time
 import warnings
@@ -24,10 +25,15 @@ class Scene:
     clock. Only the `free` clock exists so far: the guest runs all the time,
     and what the script drives lands on exact frames while anything the guest
     times for itself runs by the host's clock.
+
+    `state`, a path to a state file, sets the desktop before `setup` runs.
+    `set_state` jumps to another state at any point, and `prop(id)` is the
+    prop for a window the state opened.
     """
 
     fps = 30
     clock = "free"
+    state: str | Path | None = None
 
     def __init__(self):
         self.session = None
@@ -37,6 +43,7 @@ class Scene:
         self.pointer: Pointer | None = None
         self.props: list[Prop] = []
         self.work_area = (0, 0, 800, 572)
+        self._state_props: dict[str, Prop] = {}
 
     # ---- what a scene writes ----
 
@@ -61,12 +68,12 @@ class Scene:
             raise NotImplementedError(f"clock {self.clock!r}: only 'free' exists so far")
         self.session, self.video = session, video
         self.guest, self.vm = session.bridge, session.vm
-        left, top, right, bottom = struct.unpack(
-            "<iiii", self.guest.user32.SystemParametersInfoA(
-                SPI_GETWORKAREA, 0, Out(16), 0).buffers[0])
-        self.work_area = (left, top, right, bottom)
-        self.pointer = Pointer()
-        self.pointer.attach(self)
+        if self.state is not None:
+            self.set_state(self.state)
+        else:
+            self.read_work_area()
+            self.pointer = Pointer()
+            self.pointer.attach(self)
         self.setup()
         self.construct()
         self.tear_down()
@@ -78,6 +85,56 @@ class Scene:
         return render(self, output, **options)
 
     # ---- the stage ----
+
+    def set_state(self, path: Path | str) -> None:
+        """Make the desktop look like a state file, all within one frame.
+
+        This is a Set: revert the guest to the snapshot, apply the state, and
+        check it took. Props from before are gone, as are their windows. A
+        relative path is looked for next to the scene's file, then in the
+        current folder. Nothing is recorded, so the next frame shows the state.
+        """
+        from ..state import load_state
+        from .setstate import apply_state, check_state
+
+        state = load_state(self._find_state(Path(path)))
+        self.session.revert()
+        for prop in self.props:
+            prop.forget()
+        self.props.clear()
+        self._state_props = {}
+        self.read_work_area()
+        self.pointer = Pointer()
+        self.pointer.attach(self)
+        props = apply_state(self, state)
+        check_state(self, state, props)
+        self._state_props = props
+
+    def prop(self, window_id: str) -> Prop:
+        """The prop for a window the last state opened, by its id."""
+        try:
+            return self._state_props[window_id]
+        except KeyError:
+            known = ", ".join(self._state_props) or "none"
+            raise KeyError(f"no window {window_id!r} in the state (it has {known})") from None
+
+    def read_work_area(self) -> None:
+        """Read the desktop area above the taskbar from the guest."""
+        left, top, right, bottom = struct.unpack(
+            "<iiii", self.guest.user32.SystemParametersInfoA(
+                SPI_GETWORKAREA, 0, Out(16), 0).buffers[0])
+        self.work_area = (left, top, right, bottom)
+
+    def _find_state(self, path: Path) -> Path:
+        if path.is_absolute():
+            return path
+        try:
+            beside = Path(inspect.getfile(type(self))).resolve().parent / path
+        except (TypeError, OSError):
+            beside = None
+        if beside is not None and beside.exists():
+            return beside
+        return Path.cwd() / path
 
     @property
     def screen(self) -> Box:

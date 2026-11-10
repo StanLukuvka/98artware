@@ -73,6 +73,26 @@ class Chained(Scene):
 
 Source: [window_motion.py](../../examples/gallery/window_motion.py).
 
+### Teleport
+
+`Teleport(target, to=None, *, aligned_edge=ORIGIN, size=None)` puts a window somewhere else in
+one frame, with nothing in between. `to` and `aligned_edge` work as in `move_to`, so by default
+the window's centre lands on `to`. `size` changes its outer size as well. It needs `to`, `size`
+or both.
+
+```python
+from art98.anim import *
+
+
+class Jump(Scene):
+    def construct(self):
+        pic = Picture("Jump", at=(100, 100), size=(320, 240))
+        self.add(pic)
+        self.pause(0.5)
+        self.play(Teleport(pic, (40, 40), aligned_edge=UL, size=(240, 180)))
+        self.pause(0.5)
+```
+
 ### MoveAlongPath
 
 `MoveAlongPath(target, path, *, run_time=1.0, rate_func=smooth)`
