@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -16,6 +17,26 @@ from .qemu import VM, VMConfig
 
 SNAPSHOT = "ready"
 IMAGE_FILE = "image.json"
+BACKENDS = ("local", "container")
+
+
+def backend_name(backend: str | None = None) -> str:
+    """The backend to use: the argument, else ART98_BACKEND, else "local"."""
+    name = backend or os.environ.get("ART98_BACKEND") or "local"
+    if name not in BACKENDS:
+        raise ValueError(f"unknown backend {name!r}; choose from {', '.join(BACKENDS)}")
+    return name
+
+
+def image_disk(work: Path | str, config: dict) -> Path:
+    """The disk image.json names, or the file of that name beside it.
+
+    A work folder can be prepared in the container, which records
+    /work/golden.qcow2, and used on the host, or the other way round.
+    """
+    disk = Path(config["disk"])
+    beside = Path(work) / disk.name
+    return disk if disk.exists() or not beside.exists() else beside
 
 
 class FrameRecorder:
@@ -119,8 +140,9 @@ def private_stage(work: Path | str = "work") -> Iterator[Path]:
     runs.mkdir(exist_ok=True)
     stage = Path(tempfile.mkdtemp(prefix="render-", dir=runs))
     try:
-        disk = stage / Path(config["disk"]).name
-        subprocess.run(["cp", "--reflink=auto", config["disk"], str(disk)], check=True)
+        source = image_disk(work, config)
+        disk = stage / source.name
+        subprocess.run(["cp", "--reflink=auto", str(source), str(disk)], check=True)
         config["disk"] = str(disk.resolve())
         (stage / IMAGE_FILE).write_text(json.dumps(config, indent=2))
         yield stage
@@ -128,16 +150,26 @@ def private_stage(work: Path | str = "work") -> Iterator[Path]:
         shutil.rmtree(stage, ignore_errors=True)
 
 
-def boot(work: Path | str = "work", display: str = "none", ready_timeout: float = 30.0) -> Session:
+def boot(work: Path | str = "work", display: str = "none", ready_timeout: float = 30.0,
+         backend: str | None = None) -> Session:
     """Restore the prepared desktop and connect to it.
 
     Each boot starts from the same snapshot, so nothing a previous run did to
-    the guest survives.
+    the guest survives. backend "local" runs QEMU here; "container" runs it in
+    the art98 container, which works on its own copy of the disk. ART98_BACKEND
+    sets the default.
     """
     image = Path(work) / IMAGE_FILE
     if not image.exists():
         raise FileNotFoundError(f"{image} not found; run `art98 setup` first")
-    config = VMConfig.from_json(json.loads(image.read_text()))
+    if backend_name(backend) == "container":
+        from art98_container import host  # 98artware_container/, beside this package
+
+        return host.boot(work, display=display,
+                         ready_timeout=max(ready_timeout, host.START_TIMEOUT))
+    data = json.loads(image.read_text())
+    data["disk"] = str(image_disk(work, data))
+    config = VMConfig.from_json(data)
     config.loadvm = SNAPSHOT
     config.display = display
     vm = VM(config, log=Path(work) / "qemu.log").start()
@@ -148,3 +180,19 @@ def boot(work: Path | str = "work", display: str = "none", ready_timeout: float 
         vm.close()
         raise
     return Session(vm, bridge)
+
+
+@contextmanager
+def stage(work: Path | str = "work", display: str = "none",
+          backend: str | None = None) -> Iterator[Session]:
+    """A booted session on a throwaway copy of the image, closed afterwards.
+
+    The local backend copies the disk under work/runs here; the container
+    makes its own copy there, so it is only made once either way.
+    """
+    if backend_name(backend) == "container":
+        with boot(work, display=display, backend="container") as session:
+            yield session
+        return
+    with private_stage(work) as copy, boot(copy, display=display, backend="local") as session:
+        yield session

@@ -872,14 +872,8 @@ def test_render_turns_a_class_into_a_scene_and_routes_a_gif(tmp_path, monkeypatc
             return Recorder(guest)
 
     options, gifs = {}, []
-    from contextlib import contextmanager
-
-    @contextmanager
-    def stage(work):
-        yield tmp_path
-
-    monkeypatch.setattr(render_module, "private_stage", stage)
-    monkeypatch.setattr(render_module, "boot", lambda work, display: Booted(guest))
+    monkeypatch.setattr(render_module, "stage",
+                        lambda work, display, backend: Booted(guest))
     monkeypatch.setattr(render_module, "write_gif", lambda *a: gifs.append(a))
     written = render_module.render(Tiny, tmp_path / "out.gif")
     assert written == tmp_path / "out.gif"

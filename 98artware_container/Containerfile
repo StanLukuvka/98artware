@@ -1,0 +1,39 @@
+# The art98 stage: QEMU, the setup tools and the art98 packages, with no disk
+# image, disc or key inside. Build from the repo root:
+#   podman build -t localhost/art98:latest -f 98artware_container/Containerfile \
+#       --ignorefile 98artware_container/Containerfile.dockerignore .
+# `art98 up` does this. Docker reads Containerfile.dockerignore by itself.
+
+# ---- build: the programs that run on the guest ----
+FROM registry.fedoraproject.org/fedora:44 AS build
+RUN dnf -y install --setopt=install_weak_deps=False mingw32-gcc binutils make \
+ && dnf clean all
+COPY windows_handlers /src/windows_handlers
+RUN make -C /src/windows_handlers
+
+# ---- run ----
+FROM registry.fedoraproject.org/fedora-minimal:44
+# Pinned to the build that saved the `ready` snapshot: a snapshot only loads on
+# the QEMU machine type that made it (pc-i440fx-10.2). Fedora 44's release
+# repository is frozen, so this exact version stays available.
+ARG QEMU_VERSION=10.2.2-1.fc44
+RUN microdnf -y install --setopt=install_weak_deps=0 \
+        qemu-system-x86-core-${QEMU_VERSION} qemu-img-${QEMU_VERSION} \
+        mtools 7zip python3 \
+ && microdnf clean all
+
+COPY 98artware_core/art98 /opt/art98/98artware_core/art98
+COPY 98artware_setup/art98_setup /opt/art98/98artware_setup/art98_setup
+COPY 98artware_container/art98_container /opt/art98/98artware_container/art98_container
+COPY --from=build /src/windows_handlers/build /opt/art98/windows_handlers/build
+RUN printf '#!/bin/sh\nexec python3 -m art98.cli "$@"\n' > /usr/local/bin/art98 \
+ && chmod 755 /usr/local/bin/art98
+ENV PYTHONPATH=/opt/art98/98artware_core:/opt/art98/98artware_setup:/opt/art98/98artware_container \
+    PYTHONUNBUFFERED=1 \
+    XDG_RUNTIME_DIR=/tmp
+
+# The work folder is bind-mounted here; it is never part of the image.
+WORKDIR /work
+EXPOSE 7598
+ENTRYPOINT ["art98"]
+CMD ["serve"]

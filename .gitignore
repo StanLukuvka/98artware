@@ -3,6 +3,7 @@ __pycache__/
 .venv/
 windows_handlers/build/
 work/
+work-*/
 *.iso
 .tools/
 .pytest_cache/

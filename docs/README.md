@@ -11,9 +11,9 @@ Audio is deferred, so everything here is video only.
 
 | Page | What it covers |
 | --- | --- |
-| [Overview](setup/README.md) | What `art98 setup` does, and the quick path. |
+| [Overview](setup/README.md) | What `art98 setup` does, and the quick paths: `art98 up` in a container, or on the host. |
 | [Steps](setup/stages.md) | Each step in detail: inputs, outputs, failures. |
-| [CLI](setup/cli.md) | `art98 doctor`, `setup` and `ping`, and the work directory. |
+| [CLI](setup/cli.md) | `art98 doctor`, `setup`, `ping`, `up` and `serve`, and the work directory. |
 | [The image](setup/image.md) | What the finished image holds, including your product key. |
 | [Troubleshooting](setup/troubleshooting.md) | Setup quirks and how to recover from a failed run. |
 
@@ -48,10 +48,12 @@ Audio is deferred, so everything here is video only.
 
 | Page | What it covers |
 | --- | --- |
+| [Repo tour](tour.md) | Every folder and file in reading order, with what each does and where it is explained. |
 | [Status](status.md) | What exists, what was done, and what is still open. Start here when picking work up. |
 | [State and action design](design/state-and-action.md) | Static starting states and free actions on top. The MVP is built; named actions and the recorder aren't. |
 | [Architecture](design/architecture.md) | Every part of art98, and how it compares with Manim. |
 | [Blank start](design/blank-start.md) | Why nothing pops up, and how a scene gets its black, empty screen. |
+| [Container](design/container.md) | QEMU and setup in a Podman or Docker container, `art98 up`, the relay protocol and its timings. Built and tested from scratch. |
 
 Archived, kept for their reasoning: [PLAN.md](archive/PLAN.md), the original creative
 direction, the [Manim mapping plan](archive/MANIM_MAPPING_PLAN.md) and its

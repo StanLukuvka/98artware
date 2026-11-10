@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from ..session import boot, private_stage
+from ..session import stage
 
 GIF_FPS = 15
 GIF_COLORS = 128
@@ -32,12 +32,14 @@ def write_gif(source: Path | str, output: Path | str, fps: int = GIF_FPS, colors
 
 def render(scene, output: Path | str | None = None, *, gif: Path | str | None = None,
            work: Path | str = "work", gif_fps: int = GIF_FPS, gif_colors: int = GIF_COLORS,
-           gif_scale: float = 1.0, gif_dither: str = "none", display: str = "none") -> Path:
+           gif_scale: float = 1.0, gif_dither: str = "none", display: str = "none",
+           backend: str | None = None) -> Path:
     """Play a scene on a private copy of the prepared image and write the video.
 
     `output` ends in .mp4 or .gif. `gif` asks for a GIF as well. A GIF is made
     from a lossless recording, because 4:2:0 video smears 1-pixel coloured
-    text. The prepared image itself is only copied, never written.
+    text. The prepared image itself is only copied, never written. backend is
+    "local" or "container", as for `boot`.
     """
     scene = scene() if isinstance(scene, type) else scene
     output = Path(output or f"{type(scene).__name__}.mp4")
@@ -46,7 +48,7 @@ def render(scene, output: Path | str | None = None, *, gif: Path | str | None = 
     temp = Path(tempfile.mkdtemp(prefix="art98-render-")) if gif else None
     master = temp / "master.mkv" if temp else output
     try:
-        with private_stage(work) as stage, boot(stage, display=display) as session:
+        with stage(work, display=display, backend=backend) as session:
             with session.record(master, fps=scene.fps, lossless=bool(gif)) as video:
                 scene.run(session, video)
         if gif:

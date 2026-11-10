@@ -1,0 +1,16 @@
+# Disk images in work/ hold the product key in clear text: never in a build context.
+work/
+work-*/
+.tools/
+.venv/
+.git/
+.claude/
+*.mp4
+*.gif.tmp
+*.iso
+*.qcow2
+*.img
+**/__pycache__/
+**/.pytest_cache/
+.ruff_cache/
+windows_handlers/build/

@@ -52,9 +52,30 @@ class SetupError(RuntimeError):
     pass
 
 
+# Debian and Ubuntu name the same tools differently.
+DEBIAN_PACKAGES = {
+    QEMU_BINARY: "qemu-system-x86",
+    "qemu-img": "qemu-utils",
+    "mcopy": "mtools",
+    "7z": "7zip",
+    "ffmpeg": "ffmpeg",
+    "make": "make",
+    "as": "binutils",
+    "i686-w64-mingw32-gcc": "gcc-mingw-w64-i686",
+}
+
+
 def doctor() -> list[tuple[str, str | None, str]]:
     """Report (tool, path or None, package that provides it)."""
     return [(tool, shutil.which(tool), package) for tool, package in HOST_TOOLS.items()]
+
+
+def install_hints(tools: list[str]) -> list[tuple[str, str, list[str]]]:
+    """(system, install command, packages) for each distribution family."""
+    return [
+        ("Fedora", "sudo dnf install", [HOST_TOOLS[tool] for tool in tools]),
+        ("Debian, Ubuntu", "sudo apt install", [DEBIAN_PACKAGES[tool] for tool in tools]),
+    ]
 
 
 def _run(*args, **kwargs) -> subprocess.CompletedProcess:
@@ -217,7 +238,8 @@ class Setup:
     # helpers
 
     def _config(self, **overrides) -> VMConfig:
-        display = "gtk" if self.watch else "none"
+        # In the container there is no window to open: `art98 up --watch` sets VNC.
+        display = os.environ.get("ART98_WATCH_DISPLAY", "gtk") if self.watch else "none"
         return VMConfig(disk=self.golden, machine=self._machine(), display=display, **overrides)
 
     def _machine(self) -> str:
