@@ -78,8 +78,8 @@ built on the host.
 
 The MVP's one window is [`Picture`](docs/scenes/scene-api.md#picture), art98's own small
 viewer that shows a BMP. Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
-they're parked in `art98.anim.apps` until each comes back as its own action class. Named
-actions (`next_section`), re-recording one action, and a recorder that cuts clips are designed
+they're parked in `art98.anim.apps` until each comes back as its own action class. Sections
+(`next_section`), re-recording one section, and a recorder that cuts clips are designed
 but not built: see the [state and action design](docs/design/state-and-action.md) and
 [status](docs/status.md).
 

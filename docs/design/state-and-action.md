@@ -4,22 +4,22 @@ Status: the MVP is built (see "MVP results"). Everything after it is a proposal.
 
 Today a scene runs from start to finish on the `ready` snapshot. art98 can't put Windows 98
 into a chosen state, so reaching one point in a scene means playing everything before it, on
-camera. This design adds static starting states and named actions, and leaves actions as free
-as they are now. Where Manim already has the idea, this follows Manim.
+camera. This design adds static starting states and named sections, and leaves the script as free
+as it is now. Where Manim already has the idea, this follows Manim.
 
 ![Life of an animation .py](scene-lifecycle.png)
 
 ## Goal
 
-**Any scene starts from a hand-written static state, and its actions can do anything from
+**Any scene starts from a hand-written static state, and its script can do anything from
 there.**
 
 1. Set gives the same starting desktop every time.
 2. Part of a scene can be recorded again without recording the rest.
-3. Actions have no limits and produce no JSON.
+3. Scripts have no limits and produce no JSON.
 4. Only the backend knows about QEMU.
 
-Not in scope: capturing an action's result as a state, saving a snapshot per action, matching
+Not in scope: capturing a section's result as a state, saving a snapshot per section, matching
 memory byte for byte, audio, running on real hardware, and moving frame capture into the guest.
 
 ## Terms
@@ -29,30 +29,32 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
 | **Baseline** | The clean desktop we always revert to. Today that's `ready`. |
 | **State** | A hand-written JSON file describing a static starting desktop. |
 | **Set** | Revert to the baseline and apply a state, off camera. In code, `set_state()`. |
-| **Action** | A named section of `construct()`, marked with `next_section`. |
-| **Animation** | A building block an action uses, like `Glide` or `Stroke`. |
-| **Clip** | The video file one action writes. |
-| **Scene** | A state plus the actions that run on it, recorded. |
+| **Section** | A named part of `construct()`, marked with `next_section`, as in Manim. |
+| **Animation** | A building block a section plays, like `Glide` or `Stroke`. |
+| **Action** | A class for one kind of thing on screen and the verbs that drive it, such as `Win` and `Teleport`. Programs come back as action classes. |
+| **Clip** | The video file one section writes. |
+| **Scene** | A state plus the sections that run on it, recorded. |
 | **Backend** | Whatever provides revert and capture. Today that's QEMU. |
 
 "Stage" keeps its meaning in the setup tool only (its steps were stages before). "Snapshot" only means the VM feature behind the baseline.
 
 Manim users may read "state" as `save_state`, so the docs should say early that a state here is
-a desktop. The pointer and keyboard animations were in `anim/actions.py`, which clashed with the
-new meaning of action, so they were split into `anim/pointer.py`, `anim/keys.py` and
+a desktop. Until 2026-11-11 this design called a named part of a scene an action. That word now
+means action classes, and the parts are sections, which is Manim's word for them. The pointer and
+keyboard animations, once in `anim/actions.py`, are in `anim/pointer.py`, `anim/keys.py` and
 `anim/window.py`.
 
 ## Decisions
 
 | Decision | Why |
 | --- | --- |
-| A state is static and hand-written | Not every action result can be described, and forcing it would limit what actions can do |
+| A state is static and hand-written | Not every result of a scene can be described, and forcing it would limit what scenes can do |
 | A state is stored as JSON | It can be written by hand, and it covers wallpaper, icons and tray, which props can't |
-| A state can open a file | A finished drawing can start the next scene, without saving an action's result |
-| Actions are sections of `construct()` | Manim's `next_section` already does this, and a list of method names would be a second system |
-| Actions can chain | Each one picks up where the last ended |
-| Each action writes its own clip | Part of a scene can be recorded again, and clips are host files with no tie to the VM |
-| A finished run holds the desktop | You can try more actions without a restart |
+| A state can open a file | A finished drawing can start the next scene, without saving a scene's result |
+| Sections are parts of `construct()` | Manim's `next_section` already does this, and a list of method names would be a second system |
+| Sections can chain | Each one picks up where the last ended |
+| Each section writes its own clip | Part of a scene can be recorded again, and clips are host files with no tie to the VM |
+| A finished run holds the desktop | You can try more sections without a restart |
 | A failed run holds the desktop too | The most useful evidence is the live desktop where it failed |
 | Every restart takes the same path | A run never continues from a half-finished desktop |
 
@@ -109,15 +111,15 @@ class Flower(Scene):
     def construct(self):
         flower = self.prop("flower")
 
-        self.next_section("action_slide")
+        self.next_section("slide")
         self.play(...)
 
-        self.next_section("action_close")
+        self.next_section("close")
         self.play(...)
 ```
 
 ```bash
-uv run art98 render flower.py Flower --section action_close
+uv run art98 render flower.py Flower --section close
 ```
 
 `self.prop("flower")` returns the prop for that window `id`. `Win(hwnd=...)` can already take
@@ -125,7 +127,7 @@ hold of an existing window. Program props such as Paint also need adopting prope
 for their own classes: see "After the MVP".
 
 `state` is optional. Without one, a scene starts on the baseline, so scenes written today keep
-working. Actions keep the animations and raw `self.guest` access they have now.
+working. Sections keep the animations and raw `self.guest` access scenes have now.
 
 ## How it runs
 
@@ -136,7 +138,7 @@ working. Actions keep the animations and raw `self.guest` access they have now.
 | Applying | Copies the state's files to the guest, applies the JSON through the bridge, then repaints the state's windows back to front |
 | Checking | Reads back what the state describes, and fails on a difference |
 | Ready | `STATE_1` is on screen and no frames have been written |
-| Action N | Runs one action and writes its clip, with its own ffmpeg |
+| Section N | Runs one section and writes its clip, with its own ffmpeg. The diagram still says Action N |
 | Encoding | Joins the clips into one file, and fails if ffmpeg did |
 | Holding | Keeps the VM up and opens a Python prompt |
 | Failed | Keeps the VM up at the failure, with the log and last frame |
@@ -147,7 +149,7 @@ Checking only covers what the state describes. Anything else on the desktop is i
 ### Holding
 
 Holding opens a Python prompt where `self` is the live scene. Anything typed there runs as a new
-action with its own clip. This is the same idea as Manim's `interactive_embed`. A file can't do
+section with its own clip. This is the same idea as Manim's `interactive_embed`. A file can't do
 this job, because the variables from `construct()` only exist in the running process.
 
 Clips made this way are previews. They may differ from a clean run, so the final output should
@@ -155,16 +157,16 @@ come from a full run. Failed opens the same prompt, without the new clip.
 
 ### Recording part of a scene
 
-With `--section action_3`, actions 1 and 2 run first with capture off, action 3 records, and the
+With `--section part_3`, sections 1 and 2 run first with capture off, section 3 records, and the
 result is joined with the clips already on disk.
 
-- **Capture off is not free.** Manim can skip an animation in one step. Here, earlier actions must
+- **Capture off is not free.** Manim can skip an animation in one step. Here, earlier sections must
   still make their real mouse moves and clicks, and `Hover`, other live animations and keypresses
   still take real time. Only the screenshots are saved. A later `fast_forward()` hook on
   animations could jump window moves to their end, but pointer actions would still replay.
 - **Reuse is your call.** art98 can't tell whether an edit to `construct()` changed an earlier
-  action. A full render ignores old clips, and only `--section` reuses them.
-- **Later clips can go stale.** If action 3 ends differently, clip 4 starts with a visible jump.
+  section. A full render ignores old clips, and only `--section` reuses them.
+- **Later clips can go stale.** If section 3 ends differently, clip 4 starts with a visible jump.
 
 ## Recorder
 
@@ -512,7 +514,7 @@ Found on the way:
 
 ## After the MVP
 
-1. **Actions and clips.** The recorder above, then `next_section`, one clip per action, capture
+1. **Sections and clips.** The recorder above, then `next_section`, one clip per section, capture
    off and `--section`.
 2. **Programs.** Each program (Paint, Notepad, Minesweeper and others) becomes its own action
    class. Not designed yet.

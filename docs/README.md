@@ -50,7 +50,7 @@ Audio is deferred, so everything here is video only.
 | --- | --- |
 | [Repo tour](tour.md) | Every folder and file in reading order, with what each does and where it is explained. |
 | [Status](status.md) | What exists, what was done, and what is still open. Start here when picking work up. |
-| [State and action design](design/state-and-action.md) | Static starting states and free actions on top. The MVP is built; named actions and the recorder aren't. |
+| [State and action design](design/state-and-action.md) | Static starting states and a free script on top. The MVP is built; sections and the recorder aren't. |
 | [Architecture](design/architecture.md) | Every part of art98, and how it compares with Manim. |
 | [Blank start](design/blank-start.md) | Why nothing pops up, and how a scene gets its black, empty screen. |
 | [Container](design/container.md) | QEMU and setup in a Docker container, `art98 up`, the relay protocol and its timings. Built and tested from scratch. |

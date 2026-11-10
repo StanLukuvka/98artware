@@ -1,6 +1,6 @@
 # Status
 
-Last updated 2026-11-10. This page says what exists, what was done, and what is still open, so
+Last updated 2026-11-11. This page says what exists, what was done, and what is still open, so
 work can pick up from here.
 
 ## What exists
@@ -12,7 +12,7 @@ work can pick up from here.
 | Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. The program classes are parked, unexported | [Part 2](scenes/README.md) |
 | Examples | `artware_experiments/set_state`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
 | Diagrams | Seven diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
-| States and actions | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Named actions aren't built | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
+| States and sections | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Sections aren't built | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
 | Recorder | `FrameRecorder`, one file per render. A `Recorder` with `cut()` is specified, not built | [Recorder](design/state-and-action.md#recorder) |
 | Container | Built: the backend in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image, runs setup in it and pings; `ART98_BACKEND=container` or `--backend container` runs a stage in it. The default backend is still `local`. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
 
@@ -75,25 +75,49 @@ Audio is deferred. art98 is video only.
     `anim/window.py`, and `Teleport` moved from `picture.py` to `window.py`. The programs a
     state can open are listed once, in `setstate.py`, and `scene.py` sets up the pointer in
     one place. Nothing a scene imports changed.
+15. **Cleanup and naming, 2026-11-11.** Each duplicated guest read (work area, screen size,
+    pointer, window rect) now has one helper, and `Win._find` holds the one wait-for-window loop
+    (`bd2c56c`). A named part of a scene is now a **section**, Manim's word, and "action" means
+    an action class: one kind of thing on screen and the verbs that drive it. A plan to split
+    the package into clearer parts was reviewed and adopted. Its steps are under Next.
 
 ## What is open
 
 ### Next
 
-In order, from the cleanup review of 2026-11-10. See also
+In order, from the layer review of 2026-11-11. See also
 [After the MVP](design/state-and-action.md#after-the-mvp).
 
-1. **The [recorder](design/state-and-action.md#recorder) with `cut()`.** It moves
+1. **Restructure the package**, one commit each, with the tests passing between. Nothing a
+   scene imports changes: `art98.anim` and `art98.anim.apps` keep working.
+   1. `win32.py`: the Win32 constants and small helpers, moved without changes. Raw
+      `guest.user32` stays first-class, and `Bridge.move_window`, `find_window` and
+      `set_display_mode` stay.
+   2. Move the building blocks (`Animation` and its groups, rate functions, vectors, `Box`,
+      `Prop`, `Spot`) out of `anim/` into a package below the actions, so `anim/` is only the
+      public entry point. Short modules stay at the old paths for the tests that import them.
+   3. Split `session.py` into the session and the recorder.
+   4. Split `scene.py` into its desktop half (`set_state`, the blank start, the props on
+      stage) and its timeline half (`play`, `pause`, `live`). `Scene` stays the one class a
+      script uses.
+   5. Move the top-level folders: `examples/` for maintained scenes, `experiments/` for
+      throwaway work, `tools/` for `check_docs.py` and `render_all.py`, and a gitignored `out/`.
+      Docs links, tests and script paths move in the same commit. Fix `cli._load_scene` here: it
+      registers a scene module by file name, so a scene file named like a standard module (such
+      as `gallery/typing.py`) finds state files in the wrong folder.
+2. **The [recorder](design/state-and-action.md#recorder) with `cut()`.** It moves
    `FrameRecorder` out of `session.py`. Its open questions were
    [decided](design/state-and-action.md#recorder-decisions) on 2026-11-10: one GIF from joined lossless
    clips, clips kept as MP4, the `close()` exit-code fix included, and a size change inside a
    clip raises.
-2. **Sections:** `next_section` and `--section`.
-3. **Program classes:** a one-page design, then a Notepad pilot. Settle first what "action"
-   means: the design calls a named section of a scene an action, and programs are meant to
-   return as action classes.
-4. **Port the showcase** and re-render the gallery.
-5. **Container follow-ups.** Try real Docker, rootful above all: the switch to the host's uid
+3. **Sections:** `next_section` and `--section`.
+4. **Program classes:** a one-page design, then a Notepad pilot. Each program becomes a file
+   in `actions/programs/` that subclasses `Win`, made when its pilot starts. The base is `Prop`,
+   with hooks for a name used in state files, a check of its state entry, and opening or
+   adopting a window from a state. Those replace the fixed `APPS` list and the `"picture"`
+   special case in `state.py`. `apps.py` stays whole until then.
+5. **Port the showcase** and re-render the gallery.
+6. **Container follow-ups.** Try real Docker, rootful above all: the switch to the host's uid
    in `entry.py` has only run against a stand-in uid map. Then decide whether `container`
    becomes the default backend.
 
