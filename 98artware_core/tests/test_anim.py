@@ -7,8 +7,9 @@ import pytest
 from art98 import anim, session as session_module
 from art98.anim import *
 from art98.anim.apps import PARKED, Dialog, Minesweeper, Notepad, Paint, Screensaver
-from art98.anim import actions
-from art98.anim.actions import BUTTONS, char_chord, key_chord
+from art98.anim import keys as keys_module
+from art98.anim.keys import char_chord, key_chord
+from art98.anim.pointer import BUTTONS
 from art98.bridge import CallResult, Window
 
 WM_CHAR, WM_CLOSE, WM_SYSCOMMAND = 0x0102, 0x0010, 0x0112
@@ -154,7 +155,7 @@ def guest():
 
 @pytest.fixture
 def scene(guest, monkeypatch):
-    monkeypatch.setattr(actions, "KEY_SETTLE", 0)
+    monkeypatch.setattr(keys_module, "KEY_SETTLE", 0)
     stage = Stage()
     stage.run(FakeSession(guest), FakeVideo(guest))
     guest.calls.clear()

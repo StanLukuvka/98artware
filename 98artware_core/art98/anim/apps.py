@@ -14,7 +14,8 @@ import time
 
 from ..bridge import BridgeTimeout
 from ..protocol import Out
-from .actions import Click, Drag, Keys, RightClick, TypeKeys
+from .keys import Keys, TypeKeys
+from .pointer import Click, Drag, RightClick
 from .props import WM_SETTEXT, Spot, Win
 from .vectors import Vec
 

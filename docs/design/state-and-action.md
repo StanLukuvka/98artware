@@ -38,8 +38,9 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
 "Stage" keeps its meaning in the setup tool only (its steps were stages before). "Snapshot" only means the VM feature behind the baseline.
 
 Manim users may read "state" as `save_state`, so the docs should say early that a state here is
-a desktop. `anim/actions.py` holds pointer and keyboard animations, which now clashes with the
-new meaning of action, so it becomes `anim/input.py`.
+a desktop. The pointer and keyboard animations were in `anim/actions.py`, which clashed with the
+new meaning of action, so they were split into `anim/pointer.py`, `anim/keys.py` and
+`anim/window.py`.
 
 ## Decisions
 
@@ -478,6 +479,7 @@ Found on the way:
 4. **Backend.** Move start, revert, capture and keys behind one interface.
 5. **Run control.** Holding and Failed with the Python prompt, and Stop. `render()` closes the VM
    on exit today, so this needs restructuring.
-6. **Docs.** Update Part 2, rename `anim/actions.py`, and port the showcase as the proof.
+6. **Docs.** Update Part 2 and port the showcase as the proof. (`anim/actions.py` is already
+   split.)
 
 The agent bug fixes are separate work. Nothing here depends on them.

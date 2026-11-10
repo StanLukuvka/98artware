@@ -1,4 +1,4 @@
-"""The art98 picture window, and moving a window in one frame."""
+"""The art98 picture window."""
 
 from __future__ import annotations
 
@@ -7,9 +7,7 @@ from pathlib import Path
 
 from .. import guestfiles
 from ..bridge import BridgeTimeout, Window
-from .animation import Instant
 from .props import FIND_WINDOW_TIMEOUT, Win
-from .vectors import ORIGIN
 
 DEFAULT_AT = (100, 100)
 DEFAULT_SIZE = (320, 240)
@@ -63,27 +61,3 @@ class Picture(Win):
             if time.monotonic() >= deadline:
                 raise BridgeTimeout(f"no window for Picture {self.title_text!r}")
             time.sleep(0.05)
-
-
-class Teleport(Instant):
-    """Put a window somewhere else in one frame, with no movement in between.
-
-    `to` and `aligned_edge` work as in `move_to`, so by default the window's
-    centre lands on `to`. Give `size` to change its outer size as well.
-    """
-
-    def __init__(self, target, to=None, *, aligned_edge=ORIGIN,
-                 size: tuple[int, int] | None = None, **kwargs):
-        if to is None and size is None:
-            raise ValueError("Teleport needs somewhere to go, a size, or both")
-        super().__init__(target, **kwargs)
-        self.claims = target.claims
-        self.to, self.aligned_edge, self.new_size = to, aligned_edge, size
-
-    def act(self) -> None:
-        self.target.refresh()
-        if self.new_size is not None:
-            self.target.resize(*self.new_size)
-        if self.to is not None:
-            self.target.move_to(self.to, aligned_edge=self.aligned_edge)
-        self.target.apply()

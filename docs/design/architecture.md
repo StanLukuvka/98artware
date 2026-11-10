@@ -44,7 +44,6 @@ art98 has the same jobs in other places:
 - `render` in `anim/renderer.py` also owns booting and the private copy, which are backend jobs.
 - `anim/` holds the scene, the renderer and the state code as well as animations. `state.py` sits
   at the top level, and `setstate.py` in `anim/`.
-- `actions.py` mixes a prop (`Pointer`), pointer animations, keys and window commands.
 
 The [Manim mapping plan](../archive/MANIM_MAPPING_PLAN.md), now archived, proposed a
 `Win98Renderer`, updaters and partial movies. None of that is built. The

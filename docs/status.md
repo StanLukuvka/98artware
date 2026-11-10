@@ -60,6 +60,10 @@ Audio is deferred. art98 is video only.
     (`Scene.desktop = "blank"`, `pointer_visible`), made at run time by `art98/desktop.py`
     after each revert. The snapshot isn't changed. The older demos are pinned to
     `desktop = "stock"`. See [Blank start](design/blank-start.md).
+13. **`actions.py` split, 2026-11-10.** It's now `anim/pointer.py`, `anim/keys.py` and
+    `anim/window.py`, and `Teleport` moved from `picture.py` to `window.py`. The programs a
+    state can open are listed once, in `setstate.py`, and `scene.py` sets up the pointer in
+    one place. Nothing a scene imports changed.
 
 ## What is open
 
@@ -72,14 +76,11 @@ In order, from the cleanup review of 2026-11-10. See also
    `FrameRecorder` out of `session.py`. To decide first: how a GIF works once a render is cut
    into clips, whether clips are kept after they're joined, and whether the `close()` exit-code
    bug below is in scope.
-2. **Split `actions.py`** into pointer, keys and window modules (`Teleport` joins the window
-   one). Remove the program list kept twice, in `state.py` and `setstate.py`, and the pointer
-   setup repeated in `scene.py`.
-3. **Sections:** `next_section` and `--section`.
-4. **Program classes:** a one-page design, then a Notepad pilot. Settle first what "action"
+2. **Sections:** `next_section` and `--section`.
+3. **Program classes:** a one-page design, then a Notepad pilot. Settle first what "action"
    means: the design calls a named section of a scene an action, and programs are meant to
    return as action classes.
-5. **Port the showcase** and re-render the gallery.
+4. **Port the showcase** and re-render the gallery.
 
 Two bugs on hold below sit on the `set_state` path, the failed `load_snapshot` and the pending
 async calls on `! CRASH`. They may be worth taking off hold.

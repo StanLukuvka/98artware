@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ..desktop import blank
 from ..protocol import Out
-from .actions import Pointer
+from .pointer import Pointer
 from .animation import Animation
 from .props import Box, Prop
 
@@ -83,9 +83,7 @@ class Scene:
         if self.state is not None:
             self.set_state(self.state)
         else:
-            self.prepare_desktop()
-            self.pointer = Pointer()
-            self.pointer.attach(self)
+            self._start_desktop()
         self.setup()
         self.construct()
         self.tear_down()
@@ -115,9 +113,7 @@ class Scene:
             prop.forget()
         self.props.clear()
         self._state_props = {}
-        self.prepare_desktop()
-        self.pointer = Pointer()
-        self.pointer.attach(self)
+        self._start_desktop()
         props = apply_state(self, state)
         check_state(self, state, props)
         self._state_props = props
@@ -129,6 +125,12 @@ class Scene:
         except KeyError:
             known = ", ".join(self._state_props) or "none"
             raise KeyError(f"no window {window_id!r} in the state (it has {known})") from None
+
+    def _start_desktop(self) -> None:
+        """After a boot or a revert: the desktop the scene asked for, and a new pointer."""
+        self.prepare_desktop()
+        self.pointer = Pointer()
+        self.pointer.attach(self)
 
     def prepare_desktop(self) -> None:
         """Put the desktop the scene asked for in place, then read the work area."""

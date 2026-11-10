@@ -29,7 +29,6 @@ from pathlib import Path
 from .guestfiles import check_bmp
 
 VERSION = 1
-APPS = ("picture",)
 SHOWS = ("normal", "minimized", "maximized")
 DEPTHS = (8, 16, 24, 32)
 TOP_FIELDS = {"version", "display", "windows", "pointer"}
@@ -37,6 +36,17 @@ WINDOW_FIELDS = {"id", "app", "title", "at", "size", "show", "open"}
 FILE_FIELDS = {"file", "sha256"}
 LATER = {"desktop": "wallpaper, icons and tray come after the MVP",
          "focus": "the last window is the active one"}
+
+
+def programs() -> tuple[str, ...]:
+    """The programs a state can open, by their name in the file.
+
+    They're listed once, with their classes, in anim/setstate.py. That module
+    imports this one, so the import happens here at call time.
+    """
+    from .anim.setstate import APPS
+
+    return tuple(APPS)
 
 
 class StateError(ValueError):
@@ -137,8 +147,9 @@ class _Reader:
         if not isinstance(id_, str) or not id_:
             self.fail(f"{where}.id", "needs a name")
         app = value.get("app")
-        if app not in APPS:
-            self.fail(f"{where}.app", f"should be one of {', '.join(APPS)}, not {app!r}")
+        apps = programs()
+        if app not in apps:
+            self.fail(f"{where}.app", f"should be one of {', '.join(apps)}, not {app!r}")
         title = value.get("title", "Picture")
         if not isinstance(title, str) or '"' in title:
             self.fail(f"{where}.title", "needs text without double quotes")
