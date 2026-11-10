@@ -35,7 +35,7 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
 | **Scene** | A state plus the actions that run on it, recorded. |
 | **Backend** | Whatever provides revert and capture. Today that's QEMU. |
 
-"Stage" keeps its meaning in prep only. "Snapshot" only means the VM feature behind the baseline.
+"Stage" keeps its meaning in the setup tool only (its steps were stages before). "Snapshot" only means the VM feature behind the baseline.
 
 Manim users may read "state" as `save_state`, so the docs should say early that a state here is
 a desktop. `anim/actions.py` holds pointer and keyboard animations, which now clashes with the
@@ -228,7 +228,7 @@ canvas and quirks, so art98 ships a tiny one.
 - **Getting there.** A revert removes everything copied since `ready`, so `VIEW.EXE` and each
   image are copied again when they're missing. Each file goes in `C:\ART98\F<7 hex of its
   sha256>\`, so one `GetFileAttributesA` call tells whether the right file is there. Putting the
-  viewer in prep instead would change the image, so that needs a decision.
+  viewer in the setup tool instead would change the image, so that needs a decision.
 - **Prop.** `Picture(Win)`, with `title`, `image`, `at` and `size`. The image is checked on the
   host when the prop is made. Windows 98's `LoadImage` crashes inside 16-bit code on a BMP that's
   cut short, so the viewer can't catch it. The host check stops that before the guest is asked,
@@ -311,7 +311,7 @@ baseline is made, so it's a decision, not a test result.
 
 **Decided 2026-11-08: the MVP uses `ready` as it is.** A warm baseline is only added if Set misses
 the 2 s target. If it is added, the first choice is a `warm` snapshot made at the start of each run
-on the private copy, so prep, `ready` and today's scenes don't change. Two costs come with any warm
+on the private copy, so setup, `ready` and today's scenes don't change. Two costs come with any warm
 baseline. Running the apps once leaves traces: the window cascade moves on (Notepad then opens at
 (116, 110) instead of (68, 66)), and closing Paint likely writes its settings and recent files to
 the registry, which isn't checked. Saving the snapshot also takes time, which hasn't been measured.

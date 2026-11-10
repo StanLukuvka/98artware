@@ -18,16 +18,16 @@ Host and guest side by side, and which link carries commands and which carries f
 
 ![System overview](system-overview.png)
 
-## Prep pipeline
+## Setup pipeline
 
-The five `art98 prep` stages, what each needs and leaves in `work/`, ending at
+The four `art98 setup` steps (vm, setup, init_api, ready), what each needs and leaves in `work/`, ending at
 `golden.qcow2` with the `ready` snapshot.
 
-![Prep pipeline](prep-pipeline.png)
+![Setup pipeline](prep-pipeline.png)
 
 ## Install boot chain
 
-How the `install` stage gets through three boots, with each reboot ending QEMU and a
+How the `setup` step gets through three boots, with each reboot ending QEMU and a
 new VM starting, until the agent says `HELLO`.
 
 ![Install boot chain](install-boot-chain.png)

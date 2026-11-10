@@ -1,10 +1,13 @@
+import json
 import shutil
 import struct
 from pathlib import Path
 
 import pytest
 
-from art98 import pecheck, prep
+from art98_setup import builder, init_api, pecheck
+from art98_setup import setup as install_step
+from art98_setup import vm as vm_step
 from art98.guestfiles import guest_build
 
 GUEST_BUILD = guest_build()
@@ -12,96 +15,96 @@ needs_mtools = pytest.mark.skipif(shutil.which("mformat") is None, reason="needs
 
 
 def fake_disc(path: Path, media: int = 2, indicator: int = 0x88) -> bytes:
-    floppy = (b"BOOTFLOPPY" * 200000)[: prep.EL_TORITO_FLOPPY_SIZES.get(media, 2048)]
-    data = bytearray(30 * prep.CD_SECTOR)
-    record = bytearray(prep.CD_SECTOR)
+    floppy = (b"BOOTFLOPPY" * 200000)[: vm_step.EL_TORITO_FLOPPY_SIZES.get(media, 2048)]
+    data = bytearray(30 * vm_step.CD_SECTOR)
+    record = bytearray(vm_step.CD_SECTOR)
     record[1:6] = b"CD001"
     record[7:30] = b"EL TORITO SPECIFICATION"
     struct.pack_into("<I", record, 0x47, 20)
-    data[17 * prep.CD_SECTOR : 18 * prep.CD_SECTOR] = record
+    data[17 * vm_step.CD_SECTOR : 18 * vm_step.CD_SECTOR] = record
     entry = bytearray(32)
     entry[0], entry[1] = indicator, media
     struct.pack_into("<I", entry, 8, 25)
-    start = 20 * prep.CD_SECTOR + 32
+    start = 20 * vm_step.CD_SECTOR + 32
     data[start : start + 32] = entry
-    path.write_bytes(bytes(data[: 25 * prep.CD_SECTOR]) + floppy)
+    path.write_bytes(bytes(data[: 25 * vm_step.CD_SECTOR]) + floppy)
     return floppy
 
 
 def test_boot_floppy_is_found_through_el_torito(tmp_path):
     iso = tmp_path / "disc.iso"
     expected = fake_disc(iso)
-    assert prep.boot_floppy_image(iso) == expected
+    assert vm_step.boot_floppy_image(iso) == expected
 
 
 def test_disc_without_el_torito_is_refused(tmp_path):
     iso = tmp_path / "disc.iso"
-    iso.write_bytes(bytes(40 * prep.CD_SECTOR))
-    with pytest.raises(prep.PrepError, match="not a bootable disc"):
-        prep.boot_floppy_image(iso)
+    iso.write_bytes(bytes(40 * vm_step.CD_SECTOR))
+    with pytest.raises(builder.SetupError, match="not a bootable disc"):
+        vm_step.boot_floppy_image(iso)
 
 
 def test_no_emulation_disc_is_refused(tmp_path):
     iso = tmp_path / "disc.iso"
     fake_disc(iso, media=0)
-    with pytest.raises(prep.PrepError, match="emulated floppy"):
-        prep.boot_floppy_image(iso)
+    with pytest.raises(builder.SetupError, match="emulated floppy"):
+        vm_step.boot_floppy_image(iso)
 
 
 def test_mbr_layout():
-    mbr = prep.build_mbr(b"\xfa" * 100, 4_000_000)
+    mbr = vm_step.build_mbr(b"\xfa" * 100, 4_000_000)
     assert len(mbr) == 512 and mbr[510:] == b"\x55\xaa"
-    assert mbr[446] == 0x80 and mbr[450] == prep.FAT32_LBA
+    assert mbr[446] == 0x80 and mbr[450] == vm_step.FAT32_LBA
     assert struct.unpack_from("<II", mbr, 454) == (63, 4_000_000 - 63)
 
 
 def test_mbr_rejects_oversized_boot_code():
-    with pytest.raises(prep.PrepError):
-        prep.build_mbr(bytes(441), 1000)
+    with pytest.raises(builder.SetupError):
+        vm_step.build_mbr(bytes(441), 1000)
 
 
 @needs_mtools
 def test_disk_holds_files_in_a_fat32_partition(tmp_path):
     disk = tmp_path / "disk.img"
-    prep.create_disk(disk, 600, b"\xfa")
+    vm_step.create_disk(disk, 600, b"\xfa")
     (tmp_path / "HELLO.TXT").write_text("hi")
-    spec = prep.disk_spec(disk)
-    prep._mtool("mcopy", "-i", spec, str(tmp_path / "HELLO.TXT"), "::HELLO.TXT")
-    assert prep._mtool("mtype", "-i", spec, "::HELLO.TXT").stdout == b"hi"
-    boot_sector = disk.read_bytes()[prep.PARTITION_OFFSET : prep.PARTITION_OFFSET + 512]
+    spec = builder.disk_spec(disk)
+    builder._mtool("mcopy", "-i", spec, str(tmp_path / "HELLO.TXT"), "::HELLO.TXT")
+    assert builder._mtool("mtype", "-i", spec, "::HELLO.TXT").stdout == b"hi"
+    boot_sector = disk.read_bytes()[builder.PARTITION_OFFSET : builder.PARTITION_OFFSET + 512]
     assert boot_sector[82:87] == b"FAT32"
-    assert struct.unpack_from("<I", boot_sector, 28)[0] == prep.PARTITION_START
+    assert struct.unpack_from("<I", boot_sector, 28)[0] == builder.PARTITION_START
 
 
 @needs_mtools
 def test_patch_floppy_replaces_boot_files(tmp_path):
     floppy = tmp_path / "boot.img"
     floppy.write_bytes(bytes(1474560))
-    prep._mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
+    builder._mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
     himem = tmp_path / "HIMEM.SYS"
     himem.write_bytes(b"x")
-    prep._mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
-    prep._mtool("mcopy", "-i", str(floppy), str(himem), "::JO.SYS")
-    prep._mtool("mattrib", "-i", str(floppy), "+h", "+s", "+r", "::JO.SYS")
-    prep.patch_floppy(floppy, tmp_path)
-    autoexec = prep._mtool("mtype", "-i", str(floppy), "::AUTOEXEC.BAT").stdout
+    builder._mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
+    builder._mtool("mcopy", "-i", str(floppy), str(himem), "::JO.SYS")
+    builder._mtool("mattrib", "-i", str(floppy), "+h", "+s", "+r", "::JO.SYS")
+    vm_step.patch_floppy(floppy, tmp_path)
+    autoexec = builder._mtool("mtype", "-i", str(floppy), "::AUTOEXEC.BAT").stdout
     assert b"MSBATCH.INF" in autoexec and b"\r\n" in autoexec
-    listing = prep._mtool("mdir", "-a", "-b", "-i", str(floppy), "::", text=True).stdout
+    listing = builder._mtool("mdir", "-a", "-b", "-i", str(floppy), "::", text=True).stdout
     assert "JO.SYS" not in listing.upper()
 
 
 def test_patch_floppy_accepts_a_disc_without_the_menu(tmp_path):
     floppy = tmp_path / "boot.img"
     floppy.write_bytes(bytes(1474560))
-    prep._mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
+    builder._mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
     himem = tmp_path / "HIMEM.SYS"
     himem.write_bytes(b"x")
-    prep._mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
-    prep.patch_floppy(floppy, tmp_path)
+    builder._mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
+    vm_step.patch_floppy(floppy, tmp_path)
 
 
 def test_msbatch_carries_key_and_starts_the_agent():
-    text = prep.render_msbatch("AAAAA-BBBBB")
+    text = vm_step.render_msbatch("AAAAA-BBBBB")
     assert 'ProductKey="AAAAA-BBBBB"' in text
     assert "Express=1" in text and "EBD=0" in text
     assert r'"Art98Agent",,"C:\ART98\AGENT.EXE"' in text
@@ -113,7 +116,7 @@ def test_msbatch_carries_key_and_starts_the_agent():
 
 def test_msdos_sys_patch_updates_adds_and_keeps():
     original = "[Paths]\r\nWinDir=C:\\WINDOWS\r\n\r\n[Options]\r\nBootMulti=1\r\nlogo=1\r\n;xxx\r\n"
-    patched = prep.patch_msdos_sys(original, {"Logo": "0", "AutoScan": "0"})
+    patched = init_api.patch_msdos_sys(original, {"Logo": "0", "AutoScan": "0"})
     assert "WinDir=C:\\WINDOWS" in patched and "BootMulti=1" in patched
     assert "Logo=0" in patched and "logo=1" not in patched
     assert "AutoScan=0" in patched and ";xxx" in patched
@@ -121,7 +124,7 @@ def test_msdos_sys_patch_updates_adds_and_keeps():
 
 def test_msdos_sys_patch_stops_at_the_next_section():
     original = "[Options]\r\nA=1\r\n[Other]\r\nB=2\r\n"
-    patched = prep.patch_msdos_sys(original, {"Logo": "0"})
+    patched = init_api.patch_msdos_sys(original, {"Logo": "0"})
     assert patched.index("Logo=0") < patched.index("[Other]")
 
 
@@ -148,10 +151,10 @@ def rehearsal_disc(tmp_path):
     pycdlib = pytest.importorskip("pycdlib")
     floppy = tmp_path / "source-floppy.img"
     floppy.write_bytes(bytes(1474560))
-    prep._mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
+    builder._mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
     himem = tmp_path / "HIMEM.SYS"
     himem.write_bytes(b"himem")
-    prep._mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
+    builder._mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
 
     disc = pycdlib.PyCdlib()
     disc.new(interchange_level=3, joliet=3)
@@ -172,55 +175,115 @@ def rehearsal_disc(tmp_path):
 @pytest.mark.skipif(shutil.which("7z") is None, reason="needs 7z")
 @pytest.mark.skipif(not (GUEST_BUILD / "mbr.bin").exists(), reason="guest not built")
 def test_media_and_disk_stages_lay_out_a_ready_to_install_disk(rehearsal_disc, tmp_path):
-    tool = prep.Prep(work=tmp_path / "work", guest_build=GUEST_BUILD, iso=rehearsal_disc,
+    tool = builder.Setup(work=tmp_path / "work", guest_build=GUEST_BUILD, iso=rehearsal_disc,
                      product_key="AAAAA-BBBBB", disk_mb=600, log=lambda _: None)
-    tool.stage_media()
-    autoexec = prep._mtool("mtype", "-i", str(tool.floppy), "::AUTOEXEC.BAT").stdout
+    vm_step.media(tool)
+    autoexec = builder._mtool("mtype", "-i", str(tool.floppy), "::AUTOEXEC.BAT").stdout
     assert b"SETUP.EXE" in autoexec
 
-    tool.stage_disk()
-    spec = prep.disk_spec(tool.raw)
-    listing = prep._mtool("mdir", "-b", "-i", spec, "::WIN98").stdout.upper()
+    vm_step.disk(tool)
+    spec = builder.disk_spec(tool.raw)
+    listing = builder._mtool("mdir", "-b", "-i", spec, "::WIN98").stdout.upper()
     assert b"SETUP.EXE" in listing and b"PRECOPY1.CAB" in listing and b"MSBATCH.INF" in listing
-    answer = prep._mtool("mtype", "-i", spec, "::WIN98/MSBATCH.INF").stdout
+    answer = builder._mtool("mtype", "-i", spec, "::WIN98/MSBATCH.INF").stdout
     assert b'ProductKey="AAAAA-BBBBB"' in answer
-    agent = prep._mtool("mtype", "-i", spec, "::ART98/AGENT.EXE").stdout
+    agent = builder._mtool("mtype", "-i", spec, "::ART98/AGENT.EXE").stdout
     assert agent == (GUEST_BUILD / "agent.exe").read_bytes()
     assert not list(tool.work.glob("MSBATCH*"))
 
 
 def test_disk_stage_refuses_to_run_without_a_key(tmp_path):
-    tool = prep.Prep(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
-    with pytest.raises(prep.PrepError, match="--key"):
-        tool.stage_disk()
+    tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
+    with pytest.raises(builder.SetupError, match="--key"):
+        vm_step.disk(tool)
 
 
-def test_stages_resume_and_can_be_redone(tmp_path, monkeypatch):
+def test_steps_resume_and_can_be_redone(tmp_path, monkeypatch):
     calls = []
-    for stage in prep.Prep.STAGES:
-        monkeypatch.setattr(prep.Prep, f"stage_{stage}",
-                            lambda self, s=stage: calls.append(s))
-    tool = prep.Prep(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
+    monkeypatch.setattr(builder.Setup, "_execute", lambda self, step: calls.append(step))
+    tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
     tool.run()
-    assert calls == list(prep.Prep.STAGES)
+    assert calls == ["vm", "setup", "init_api", "ready"]
+    assert builder.Setup.STAGES == ("vm", "setup", "init_api", "ready")
     calls.clear()
     tool.run()
     assert calls == []
-    tool.run("patch")
-    assert calls == ["patch", "harden"]
+    tool.run("init_api")
+    assert calls == ["init_api", "ready"]
 
 
-def test_a_failed_stage_is_not_marked_done(tmp_path, monkeypatch):
-    def fail(self):
-        raise prep.PrepError("boom")
+def test_a_failed_step_is_not_marked_done(tmp_path, monkeypatch):
+    def execute(self, step):
+        if step == "setup":
+            raise builder.SetupError("boom")
 
-    for stage in ("media", "disk"):
-        monkeypatch.setattr(prep.Prep, f"stage_{stage}", lambda self: None)
-    monkeypatch.setattr(prep.Prep, "stage_install", fail)
-    tool = prep.Prep(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
-    with pytest.raises(prep.PrepError):
+    monkeypatch.setattr(builder.Setup, "_execute", execute)
+    tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
+    with pytest.raises(builder.SetupError):
         tool.run()
-    assert tool._done() == ["media", "disk"]
+    assert tool._done() == ["vm"]
+
+
+OLD_STATE = ["media", "disk", "install", "patch", "harden"]
+
+
+def test_a_finished_build_with_old_stage_names_runs_nothing(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(builder.Setup, "_execute", lambda self, step: calls.append(step))
+    state = tmp_path / "state.json"
+    state.write_text(json.dumps(OLD_STATE))
+    tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
+    assert tool._done() == ["vm", "setup", "init_api", "ready"]
+    tool.run()
+    assert calls == []
+    assert json.loads(state.read_text()) == OLD_STATE  # not rewritten just to rename
+
+
+def test_old_stage_names_count_step_by_step(tmp_path):
+    state = tmp_path / "state.json"
+    tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
+    for recorded, done in (
+        (["media"], []),  # vm needs both of its old stages
+        (["media", "disk"], ["vm"]),
+        (["media", "disk", "install"], ["vm", "setup"]),
+        (["media", "disk", "install", "patch"], ["vm", "setup", "init_api"]),
+        (["vm", "setup"], ["vm", "setup"]),
+        (["media", "disk", "setup"], ["vm", "setup"]),
+    ):
+        state.write_text(json.dumps(recorded))
+        assert tool._done() == done
+
+
+def test_a_resumed_old_build_writes_new_names(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(builder.Setup, "_execute", lambda self, step: calls.append(step))
+    state = tmp_path / "state.json"
+    state.write_text(json.dumps(["media", "disk", "install"]))
+    builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None).run()
+    assert calls == ["init_api", "ready"]
+    assert json.loads(state.read_text()) == ["vm", "setup", "init_api", "ready"]
+
+
+def test_from_accepts_old_stage_names(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(builder.Setup, "_execute", lambda self, step: calls.append(step))
+    tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
+    for old, first in (("media", "vm"), ("disk", "vm"), ("install", "setup"),
+                       ("patch", "init_api"), ("harden", "ready")):
+        (tmp_path / "state.json").write_text(json.dumps(OLD_STATE))
+        calls.clear()
+        tool.run(old)
+        assert calls[0] == first and calls[-1] == "ready"
+    with pytest.raises(builder.SetupError, match="unknown step"):
+        tool.run("bogus")
+
+
+def test_init_api_boots_the_converted_image_and_shuts_it_down(tmp_path, monkeypatch):
+    order = []
+    monkeypatch.setattr(init_api, "patch", lambda setup: order.append("patch"))
+    monkeypatch.setattr(init_api, "boot_and_ping", lambda setup: order.append("boot"))
+    init_api.run(None)
+    assert order == ["patch", "boot"]
 
 
 def wizard_screen(heading: int = 0, wizard: bool = True) -> bytes:
@@ -239,16 +302,16 @@ def wizard_screen(heading: int = 0, wizard: bool = True) -> bytes:
 
 
 def test_screen_reads_the_ppm_qemu_writes():
-    screen = prep.Screen.from_ppm(wizard_screen())
+    screen = builder.Screen.from_ppm(wizard_screen())
     assert (screen.width, screen.height) == (640, 480)
     assert screen.pixel(300, 70) == (0, 0, 168)
     assert len(screen.crop(10, 20, 30, 25)) == 20 * 5 * 3
 
 
 def test_wizard_is_told_from_other_setup_screens():
-    assert prep.setup_wizard_showing(prep.Screen.from_ppm(wizard_screen()))
-    assert not prep.setup_wizard_showing(prep.Screen.from_ppm(wizard_screen(wizard=False)))
-    assert not prep.setup_wizard_showing(prep.Screen(800, 600, bytes(800 * 600 * 3)))
+    assert builder.setup_wizard_showing(builder.Screen.from_ppm(wizard_screen()))
+    assert not builder.setup_wizard_showing(builder.Screen.from_ppm(wizard_screen(wizard=False)))
+    assert not builder.setup_wizard_showing(builder.Screen(800, 600, bytes(800 * 600 * 3)))
 
 
 class WizardVM:
@@ -259,7 +322,7 @@ class WizardVM:
         self.pending = 0
 
     def screenshot(self, path, format="png"):
-        showing = self.page < len(prep.WIZARD_PAGES)
+        showing = self.page < len(builder.WIZARD_PAGES)
         path.write_bytes(wizard_screen(self.page * 8 + 8, wizard=showing))
         return path
 
@@ -267,13 +330,13 @@ class WizardVM:
         self.keys.append(chord)
         self.pending += 1
         if (self.page != self.stuck_at
-                and self.pending == len(prep.WIZARD_PAGES[self.page])):
+                and self.pending == len(builder.WIZARD_PAGES[self.page])):
             self.page, self.pending = self.page + 1, 0
 
 
 def wizard_tool(tmp_path, monkeypatch):
-    monkeypatch.setattr(prep.time, "sleep", lambda _: None)
-    tool = prep.Prep(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
+    monkeypatch.setattr(builder.time, "sleep", lambda _: None)
+    tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
     tool.shots.mkdir(parents=True, exist_ok=True)
     return tool
 
@@ -286,20 +349,20 @@ def test_wizard_pages_are_answered_in_order(tmp_path, monkeypatch):
 
 def test_no_keys_are_sent_without_a_wizard(tmp_path, monkeypatch):
     vm = WizardVM()
-    vm.page = len(prep.WIZARD_PAGES)
+    vm.page = len(builder.WIZARD_PAGES)
     wizard_tool(tmp_path, monkeypatch)._answer_setup_prompts(vm)
     assert vm.keys == []
 
 
 def test_wizard_that_stops_advancing_is_reported(tmp_path, monkeypatch):
-    monkeypatch.setattr(prep, "WIZARD_PAGE_TIMEOUT", -1)
-    with pytest.raises(prep.PrepError, match="did not advance"):
+    monkeypatch.setattr(builder, "WIZARD_PAGE_TIMEOUT", -1)
+    with pytest.raises(builder.SetupError, match="did not advance"):
         wizard_tool(tmp_path, monkeypatch)._answer_setup_wizard(WizardVM(stuck_at=1))
 
 
 class SilentBridge:
     def wait_event(self, name, timeout):
-        raise prep.BridgeTimeout("nothing yet")
+        raise builder.BridgeTimeout("nothing yet")
 
 
 def test_blinking_screen_with_an_idle_disk_counts_as_a_stall(tmp_path, monkeypatch):
@@ -315,9 +378,9 @@ def test_blinking_screen_with_an_idle_disk_counts_as_a_stall(tmp_path, monkeypat
             path.write_bytes(bytes([self.blink % 2]))
             return path
 
-    monkeypatch.setattr(prep, "STALL_LIMIT", -1)
+    monkeypatch.setattr(builder, "STALL_LIMIT", -1)
     tool = wizard_tool(tmp_path, monkeypatch)
-    with pytest.raises(prep.PrepError, match="no disk writes"):
+    with pytest.raises(builder.SetupError, match="no disk writes"):
         tool._wait_for_agent(BlinkingVM(), SilentBridge(), "install", 60)
 
 
@@ -345,8 +408,8 @@ def test_logon_prompt_is_answered_once_with_enter(tmp_path, monkeypatch):
     vm = LogonVM()
     wizard_tool(tmp_path, monkeypatch)._answer_setup_prompts(vm)
     assert vm.keys == [("ret",)]
-    assert not prep.setup_wizard_showing(prep.Screen.from_ppm(logon_screen()))
-    assert not prep.logon_prompt_showing(prep.Screen.from_ppm(wizard_screen()))
+    assert not builder.setup_wizard_showing(builder.Screen.from_ppm(logon_screen()))
+    assert not builder.logon_prompt_showing(builder.Screen.from_ppm(wizard_screen()))
 
 
 class RestartingVM:
@@ -383,7 +446,7 @@ class RestartingBridge:
 
     def wait_event(self, name, timeout):
         if len(RestartingVM.boots) < 3:
-            raise prep.BridgeError("link to the guest closed")
+            raise builder.BridgeError("link to the guest closed")
         return []
 
     def wait_ready(self):
@@ -395,20 +458,20 @@ class RestartingBridge:
 
 def test_install_starts_a_new_vm_after_each_guest_reboot(tmp_path, monkeypatch):
     RestartingVM.boots, RestartingBridge.calls = [], []
-    monkeypatch.setattr(prep, "VM", RestartingVM)
-    monkeypatch.setattr(prep, "Bridge", RestartingBridge)
-    monkeypatch.setattr(prep.Prep, "_machine", lambda self: "pc")
+    monkeypatch.setattr(install_step, "VM", RestartingVM)
+    monkeypatch.setattr(install_step, "Bridge", RestartingBridge)
+    monkeypatch.setattr(builder.Setup, "_machine", lambda self: "pc")
     tool = wizard_tool(tmp_path, monkeypatch)
-    tool.stage_install()
+    install_step.install(tool)
     assert RestartingVM.boots == [(tool.floppy, "a"), (None, None), (None, None)]
     assert RestartingBridge.calls == [("user32", "ExitWindowsEx", 6, 0)]
 
 
 def test_install_gives_up_when_windows_never_comes_up(tmp_path, monkeypatch):
     RestartingVM.boots = []
-    monkeypatch.setattr(prep, "VM", RestartingVM)
-    monkeypatch.setattr(prep, "Bridge", RestartingBridge)
-    monkeypatch.setattr(prep, "SETUP_BOOTS", 2)
-    monkeypatch.setattr(prep.Prep, "_machine", lambda self: "pc")
-    with pytest.raises(prep.PrepError, match="after 2 boots"):
-        wizard_tool(tmp_path, monkeypatch).stage_install()
+    monkeypatch.setattr(install_step, "VM", RestartingVM)
+    monkeypatch.setattr(install_step, "Bridge", RestartingBridge)
+    monkeypatch.setattr(install_step, "SETUP_BOOTS", 2)
+    monkeypatch.setattr(builder.Setup, "_machine", lambda self: "pc")
+    with pytest.raises(builder.SetupError, match="after 2 boots"):
+        install_step.install(wizard_tool(tmp_path, monkeypatch))

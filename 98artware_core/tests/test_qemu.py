@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from art98 import prep
 from art98.guestfiles import guest_build
 from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
 from art98.session import Session
+from art98_setup import builder, vm as vm_step
 
 MBR = guest_build() / "mbr.bin"
 pytestmark = [
@@ -44,11 +44,11 @@ def serial_output(path: Path, wanted: bytes, timeout: float = 20.0) -> bytes:
 @pytest.fixture
 def disk(tmp_path):
     path = tmp_path / "disk.img"
-    prep.create_disk(path, 600, MBR.read_bytes())
+    vm_step.create_disk(path, 600, MBR.read_bytes())
     with open(path, "r+b") as image:
-        image.seek(prep.PARTITION_OFFSET)
+        image.seek(builder.PARTITION_OFFSET)
         image.write(FAKE_BOOT_SECTOR)
-        image.seek(prep.PARTITION_OFFSET + 510)
+        image.seek(builder.PARTITION_OFFSET + 510)
         image.write(b"\x55\xaa")
     return path
 
@@ -63,7 +63,7 @@ def test_blank_partition_gets_a_message_rather_than_a_hang(tmp_path):
     path = tmp_path / "disk.img"
     with open(path, "wb") as image:
         image.truncate(32 * 1024 * 1024)
-        image.write(prep.build_mbr(MBR.read_bytes(), 65000))
+        image.write(vm_step.build_mbr(MBR.read_bytes(), 65000))
     dump = tmp_path / "vga.bin"
     with VM(VMConfig(disk=path, disk_format="raw")) as vm:
         deadline = time.monotonic() + 15
@@ -144,7 +144,7 @@ def test_recorder_writes_exactly_the_requested_frames(disk, tmp_path):
 
 
 def test_machine_type_is_pinned_to_a_real_version(tmp_path):
-    tool = prep.Prep(work=tmp_path, guest_build=tmp_path)
+    tool = builder.Setup(work=tmp_path, guest_build=tmp_path)
     assert tool._machine().startswith("pc-i440fx-")
 
 

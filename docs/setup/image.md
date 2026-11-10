@@ -2,7 +2,7 @@
 
 The facts on this page were read from a running guest on 2026-11-06, using a private
 copy of the image built from a Windows 98 SE OEM disc on QEMU 10.2.2. A different
-disc may give a different inventory. Settings come from `98artware_core/art98/prep.py`, and
+disc may give a different inventory. Settings come from `ready.py` and `init_api.py` in `98artware_setup/art98_setup/`, and
 each one was read back from the guest.
 
 ## At a glance
@@ -28,7 +28,7 @@ each one was read back from the guest.
 
 The icons are My Computer, My Documents, Internet Explorer, Recycle Bin, Setup MSN
 Internet Access, Online Services and Outlook Express. There is no Network
-Neighborhood. Prep does not remove or arrange icons. The wallpaper is off, so the
+Neighborhood. Setup does not remove or arrange icons. The wallpaper is off, so the
 background is the plain teal.
 
 ### Processes
@@ -41,7 +41,7 @@ Eight processes run in the snapshot, all listed in the
 
 Your key is stored in clear text in at least two places inside `golden.qcow2`:
 
-- `C:\WIN98\MSBATCH.INF`, the answer file. Prep leaves `C:\WIN98` in place.
+- `C:\WIN98\MSBATCH.INF`, the answer file. Setup leaves `C:\WIN98` in place.
 - The `ProductKey` value under `HKLM\Software\Microsoft\Windows\CurrentVersion`,
   written by Setup.
 
@@ -71,7 +71,7 @@ without questions. Meanings are from Microsoft's
 | `TimeZone` | `"GMT"` | The `timezone` argument of `render_msbatch`. The CLI has no flag for it |
 | `Uninstall` | `0` | No uninstall backup |
 | `PenWinWarning` | `0` | No Pen Windows warning |
-| `NoPrompt2Boot` | `1` | No prompt before rebooting. Appendix D's parameter table says `1` means prompt, but its own sample script uses `1`, and prep follows the sample |
+| `NoPrompt2Boot` | `1` | No prompt before rebooting. Appendix D's parameter table says `1` means prompt, but its own sample script uses `1`, and setup follows the sample |
 | `[System] Locale` | `L0409` | US English |
 | `[System] SelectedKeyboard` | `KEYBOARD_00000409` | US keyboard |
 | `[NameAndOrg]` | `Name="art98"`, `Org=""`, `Display=0` | Registered user. Do not show the page |
@@ -84,7 +84,7 @@ appeared and the `[OptionalComponents]` section was honoured anyway.
 
 ## Installed components
 
-`OPTIONAL_COMPONENTS` lists what prep asks for on top of a Typical install. Setup
+`OPTIONAL_COMPONENTS` lists what setup asks for on top of a Typical install. Setup
 ignores names it does not know, so asking does not prove it installed. The result:
 
 | Requested | Installed |
@@ -109,7 +109,7 @@ There are two ways to check a component on an image:
 - `HKLM\Software\Microsoft\Windows\CurrentVersion\Setup\OptionalComponents` has one
   key per component, each with an `Installed` value. 37 of the 95 are `1`.
 
-Not installed, because prep does not ask for them and Typical leaves them out:
+Not installed, because setup does not ask for them and Typical leaves them out:
 Accessibility Tools (so no Magnifier), System Resource Meter, System Monitor, Net
 Watcher, Clipboard Viewer, Quick View, HyperTerminal, Backup, Microsoft Chat, Web TV.
 To add one, add its Setup name to `OPTIONAL_COMPONENTS` and rebuild from `disk`.
@@ -218,14 +218,14 @@ with boot("work") as stage:
 
 ## Registry settings
 
-`harden` writes all of `HARDEN_SETTINGS`. "Took effect" says what Windows itself
+`ready` writes all of `HARDEN_SETTINGS`. "Took effect" says what Windows itself
 reports through `SystemParametersInfoA` or the screen, not just that the value is in
 the registry. All values were read back and match.
 
 The reasons here come from `docs/archive/PLAN.md` section 3 and the names of the settings. The code
 gives none, apart from what is noted.
 
-All keys are under `HKCU`. Prep writes data as `REG_SZ`, or `REG_BINARY` where
+All keys are under `HKCU`. Setup writes data as `REG_SZ`, or `REG_BINARY` where
 shown.
 
 ### `Control Panel\Desktop`
@@ -290,13 +290,13 @@ all five. The prepared image does not have that change.
 | `HKLM\Software\Microsoft\Windows\CurrentVersion\RunServices` | Empty |
 | `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | Empty |
 
-Prep does not touch `RunOnce`, `RunServicesOnce`, `RunOnceEx`, the StartUp folder or
+Setup does not touch `RunOnce`, `RunServicesOnce`, `RunOnceEx`, the StartUp folder or
 `WIN.INI`. All of them are empty on this image: `load=` and `run=` have no value in
 `WIN.INI`.
 
 ## MSDOS.SYS
 
-`patch` sets `MSDOS_SYS_OPTIONS` offline. Only `AutoScan` has a reason in the code. The
+`init_api` sets `MSDOS_SYS_OPTIONS` offline. Only `AutoScan` has a reason in the code. The
 others are standard `MSDOS.SYS` options.
 
 | Option | Value | Effect | In the file |
@@ -329,7 +329,7 @@ The Cirrus driver offers these modes:
 | 1024x768 | 8, 16 |
 | 1280x1024 | 8 |
 
-Prep only sets 800x600x16.
+Setup only sets 800x600x16.
 
 ## The snapshot
 
@@ -350,7 +350,7 @@ uses `wait_ready`, which sends `PING`.
 A snapshot only loads on the same machine version and devices. That is why `image.json`
 exists, and why a change to `VMConfig` means a new image.
 
-There is no prep option for adding files to the image. Only `AGENT.EXE` is copied in.
+There is no setup option for adding files to the image. Only `AGENT.EXE` is copied in.
 
 ## Hardware
 
@@ -374,7 +374,7 @@ the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 | `display` | `none` | `-display none` | `gtk` with `--watch`, or if `boot()` is asked for it |
 | | | `-serial chardev:guest` | COM1 is a Unix socket on the host. It carries the bridge |
 | | | `-mon chardev=qmp,mode=control` | QMP is a second Unix socket. It handles screenshots, keys and snapshots |
-| `icount_shift` | `None` | `-icount shift=N,sleep=off,align=off` when set | Off. Prep and `boot()` do not set it |
+| `icount_shift` | `None` | `-icount shift=N,sleep=off,align=off` when set | Off. Setup and `boot()` do not set it |
 | `floppy` | `None` | `-drive ...,if=floppy` when set | Only the first install boot |
 | `loadvm` | `None` in `image.json` | `-loadvm ready` | `boot()` sets it |
 | `audio_wav` | `None` | `-audiodev wav,...` when set | Deferred |
@@ -391,6 +391,6 @@ that reboots the guest must do the same. See
 [reboots](troubleshooting.md#reboots-end-the-vm).
 
 **The clock.** The RTC restarts at `rtc_base` in every new process, so after each reboot
-during prep the date goes back to 1998-06-25 09:00. In the snapshot it reads 09:01. A
+during setup the date goes back to 1998-06-25 09:00. In the snapshot it reads 09:01. A
 restored run continues from that moment, and it keeps real time from there: `GetTickCount`
 moved 5,005 ms over 5,010 ms of host time.

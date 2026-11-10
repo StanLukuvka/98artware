@@ -8,7 +8,6 @@ import os
 import sys
 from pathlib import Path
 
-from . import prep
 from .guestfiles import guest_build
 from .session import boot
 
@@ -16,8 +15,10 @@ from .session import boot
 
 
 def cmd_doctor(_args) -> int:
+    from art98_setup import builder
+
     missing = []
-    for tool, path, package in prep.doctor():
+    for tool, path, package in builder.doctor():
         print(f"{tool:24} {path or 'missing'}")
         if not path:
             missing.append(package)
@@ -29,15 +30,17 @@ def cmd_doctor(_args) -> int:
     return 0
 
 
-def cmd_prep(args) -> int:
+def cmd_setup(args) -> int:
+    from art98_setup.builder import Setup, SetupError
+
     key = args.key or os.environ.get("ART98_PRODUCT_KEY")
-    tool = prep.Prep(
+    tool = Setup(
         work=args.work, guest_build=guest_build(), iso=args.iso, product_key=key,
         disk_mb=args.disk_mb, watch=args.watch,
     )
     try:
         tool.run(args.from_stage)
-    except prep.PrepError as error:
+    except SetupError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     print(f"Ready: {Path(args.work).resolve()}")
@@ -92,15 +95,18 @@ def main(argv: list[str] | None = None) -> int:
 
     commands.add_parser("doctor", help="check the host tools").set_defaults(run=cmd_doctor)
 
-    command = commands.add_parser("prep", help="build the prepared Windows 98 image")
+    command = commands.add_parser("setup", aliases=["prep"],
+                                  help="build the prepared Windows 98 image")
     command.add_argument("--iso", type=Path, help="your Windows 98 SE disc image")
     command.add_argument("--key", help="product key, or set ART98_PRODUCT_KEY")
     command.add_argument("--work", type=Path, default=Path("work"))
     command.add_argument("--disk-mb", type=int, default=2047)
-    command.add_argument("--from", dest="from_stage", choices=prep.Prep.STAGES,
-                         help="redo this stage and everything after it")
+    command.add_argument("--from", dest="from_stage",
+                         help="redo this step and everything after it: vm, setup, init_api or "
+                              "ready (the old stage names media, disk, install, patch and "
+                              "harden also work)")
     command.add_argument("--watch", action="store_true", help="show the VM's screen")
-    command.set_defaults(run=cmd_prep)
+    command.set_defaults(run=cmd_setup)
 
     command = commands.add_parser("ping", help="boot the image and talk to the agent")
     command.add_argument("--work", type=Path, default=Path("work"))

@@ -1,6 +1,6 @@
 # Documentation
 
-art98 has two parts. [Part 1](prep/README.md) prepares the VM image once, and
+art98 has two parts. [Part 1](setup/README.md) prepares the VM image once, and
 [Part 2](scenes/README.md) drives that image to make videos.
 
 Audio is deferred, so everything here is video only.
@@ -11,11 +11,11 @@ Audio is deferred, so everything here is video only.
 
 | Page | What it covers |
 | --- | --- |
-| [Overview](prep/README.md) | What `art98 prep` does, and the quick path. |
-| [Stages](prep/stages.md) | Each stage in detail: inputs, outputs, failures. |
-| [CLI](prep/cli.md) | `art98 doctor`, `prep` and `ping`, and the work directory. |
-| [The image](prep/image.md) | What the finished image holds, including your product key. |
-| [Troubleshooting](prep/troubleshooting.md) | Setup quirks and how to recover from a failed run. |
+| [Overview](setup/README.md) | What `art98 setup` does, and the quick path. |
+| [Steps](setup/stages.md) | Each step in detail: inputs, outputs, failures. |
+| [CLI](setup/cli.md) | `art98 doctor`, `setup` and `ping`, and the work directory. |
+| [The image](setup/image.md) | What the finished image holds, including your product key. |
+| [Troubleshooting](setup/troubleshooting.md) | Setup quirks and how to recover from a failed run. |
 
 ## Part 2: scenes
 
@@ -38,7 +38,7 @@ Audio is deferred, so everything here is video only.
 
 - [Architecture](diagrams/architecture.png) and [art98 vs Manim](diagrams/manim-comparison.png)
 - [System overview](diagrams/system-overview.png)
-- [Prep pipeline](diagrams/prep-pipeline.png)
+- [Setup pipeline](diagrams/prep-pipeline.png)
 - [Install boot chain](diagrams/install-boot-chain.png)
 - [Action stack](diagrams/action-stack.png)
 - [Request lifecycle](diagrams/request-lifecycle.png)

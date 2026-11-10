@@ -136,7 +136,7 @@ def boot(work: Path | str = "work", display: str = "none", ready_timeout: float 
     """
     image = Path(work) / IMAGE_FILE
     if not image.exists():
-        raise FileNotFoundError(f"{image} not found; run `art98 prep` first")
+        raise FileNotFoundError(f"{image} not found; run `art98 setup` first")
     config = VMConfig.from_json(json.loads(image.read_text()))
     config.loadvm = SNAPSHOT
     config.display = display

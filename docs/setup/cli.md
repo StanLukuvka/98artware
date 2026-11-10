@@ -4,7 +4,7 @@ The `art98` command is `98artware_core/art98/cli.py`. Run it with `uv run art98`
 checkout: it finds `windows_handlers/build` relative to the source file, so an installed wheel
 would not find it.
 
-This page covers `doctor`, `prep` and `ping`. For `art98 render`, see
+This page covers `doctor`, `setup` and `ping`. `setup` was called `prep`, and `art98 prep` still works as an alias. For `art98 render`, see
 [the scene API](../scenes/scene-api.md).
 
 ## art98 doctor
@@ -40,27 +40,29 @@ versions or whether `windows_handlers/build` exists. The install hint is always 
 other distributions the package names differ.
 
 `i686-w64-mingw32-gcc`, `make` and `as` are only needed to build `windows_handlers/`. If
-`windows_handlers/build/` already holds `agent.exe` and `mbr.bin`, `prep` runs without them,
+`windows_handlers/build/` already holds `agent.exe` and `mbr.bin`, `setup` runs without them,
 though `doctor` still reports them missing.
 
-## art98 prep
+## art98 setup
 
-Builds the image. See [stages.md](stages.md) for what each stage does.
+Builds the image in four steps: `vm`, `setup`, `init_api`, `ready`. See
+[stages.md](stages.md) for what each does. The code is `98artware_setup/art98_setup/`,
+which `art98 doctor` and `art98 setup` import when they run.
 
 ```bash
-uv run art98 prep --iso /path/to/win98se.iso
+uv run art98 setup --iso /path/to/win98se.iso
 ```
 
 | Flag | Default | Effect |
 |------|---------|--------|
-| `--iso PATH` | None | Your disc image. Only the `media` stage reads it |
-| `--key KEY` | `ART98_PRODUCT_KEY` | Your product key. Only `media` and `disk` need it, and only `disk` uses it. `--key` wins over the variable |
+| `--iso PATH` | None | Your disc image. Only the `vm` step reads it |
+| `--key KEY` | `ART98_PRODUCT_KEY` | Your product key. Only `vm` needs it, and it is used when the answer file is written. `--key` wins over the variable |
 | `--work PATH` | `work` | The work directory, relative to where you run the command. Created if missing |
-| `--disk-mb N` | 2047 | Size of the Windows disk. Only the `disk` stage reads it, and it rounds down to whole cylinders. Only the default has been run |
-| `--from STAGE` | None | Redo `media`, `disk`, `install`, `patch` or `harden`, and everything after it. See [what `--from` needs](stages.md#what---from-needs) |
+| `--disk-mb N` | 2047 | Size of the Windows disk. Only the `vm` step reads it, and it rounds down to whole cylinders. Only the default has been run |
+| `--from STEP` | None | Redo `vm`, `setup`, `init_api` or `ready`, and everything after it. The old stage names `media`, `disk`, `install`, `patch` and `harden` are accepted and mean the step that holds them. See [what `--from` needs](stages.md#what---from-needs) |
 | `--watch` | Off | Show the VM's screen in a window, with `-display gtk` instead of `-display none`. Needs a graphical session and a QEMU built with GTK |
 
-Stages that are already done don't need their flags. Resuming at `install` needs
+Steps that are already done don't need their flags. Resuming at `setup` needs
 neither `--iso` nor a key.
 
 `--key` on the command line is visible in your shell history and to other users in
@@ -69,36 +71,34 @@ neither `--iso` nor a key.
 `--watch` is stored as `"display": "gtk"` in `image.json`. It has no effect later,
 because `boot()` always sets the display itself.
 
-The stages print progress as they go:
+The steps print progress as they go:
 
 ```
-[media] starting
+[vm] starting
   setup files in /home/you/98artware/work/media
-[media] done in 1s
-[disk] starting
   copying setup files to the disk
-[disk] done in 0s
-[install] starting
+[vm] done in 1s
+[setup] starting
   running Setup, this takes a while; progress shots in /home/you/98artware/work/shots
   Setup restarted the machine (boot 1)
   answering the first-boot wizard, accepting the license agreement
   Setup restarted the machine (boot 2)
   answering the logon prompt with a blank password
-[install] done in 2083s
-[patch] starting
-[patch] done in 1s
-[harden] starting
-[harden] done in 78s
+[setup] done in 2083s
+[init_api] starting
+[init_api] done in 40s
+[ready] starting
+[ready] done in 78s
 Ready: /home/you/98artware/work
 ```
 
 | Exit code | Meaning |
 |-----------|---------|
-| 0 | All stages are done. It prints `Ready: <work directory>` |
-| 1 | It failed. A `PrepError` prints `error: <message>` to stderr |
-| 1 | Any other exception prints a Python traceback. This is what happens with `PEError`, `QemuError`, `BridgeError` and `FileNotFoundError`, which `cmd_prep` does not catch |
+| 0 | All steps are done. It prints `Ready: <work directory>` |
+| 1 | It failed. A `SetupError` prints `error: <message>` to stderr |
+| 1 | Any other exception prints a Python traceback. This is what happens with `PEError`, `QemuError`, `BridgeError` and `FileNotFoundError`, which `cmd_setup` does not catch |
 
-[stages.md](stages.md) lists the messages for each stage.
+[stages.md](stages.md) lists the messages for each step.
 
 ## art98 ping
 
@@ -120,7 +120,7 @@ It fails with a traceback in these cases:
 
 | Error | Cause |
 |-------|-------|
-| `FileNotFoundError: work/image.json not found; run art98 prep first` | No finished image in that directory |
+| `FileNotFoundError: work/image.json not found; run art98 setup first` | No finished image in that directory |
 | `QemuError: QEMU exited with status 1; see work/qemu.log` | QEMU could not start. The log has the reason. A common one is `Failed to get "write" lock`, when another VM is using the image |
 | `BridgeTimeout` | The agent did not answer within 30 seconds |
 
@@ -128,33 +128,33 @@ It fails with a traceback in these cases:
 
 | Variable | Read by | Effect |
 |----------|---------|--------|
-| `ART98_PRODUCT_KEY` | `cmd_prep` | The product key when `--key` is not given |
+| `ART98_PRODUCT_KEY` | `cmd_setup` | The product key when `--key` is not given |
 | `XDG_RUNTIME_DIR` | `VM.__init__` | Where each VM's temporary folder for its QMP and serial sockets goes. If unset, Python's default temp directory is used |
 
-`MTOOLS_SKIP_CHECK=1` is not yours to set. Prep sets it for its own mtools calls.
+`MTOOLS_SKIP_CHECK=1` is not yours to set. Setup sets it for its own mtools calls.
 
 ## The work directory
 
-Everything prep makes goes under `--work`. `work/` is in `.gitignore`.
+Everything setup makes goes under `--work`. `work/` is in `.gitignore`.
 
 | Path | From | Removed | What it is |
 |------|------|---------|------------|
-| `state.json` | Every stage | | Finished stages |
-| `media/win98/` | `media` | | Setup files from your disc. Microsoft's files, so keep them out of anything you publish |
-| `boot.img` | `media` | | Patched boot floppy |
-| `AUTOEXEC.BAT`, `CONFIG.SYS` | `media` | | Scratch copies of what went on the floppy. No key in them, and nothing reads them again |
-| `install.img` | `disk` | End of `harden` | Raw disk. **Holds your key** |
-| `MSBATCH.INF` | `disk` | Same stage | Answer file. **Holds your key.** Left behind only if the copy to the disk fails |
-| `MSDOS.SYS` | `patch` | Same stage | Edited copy |
-| `golden.qcow2` | `patch` | | The prepared disk and, after `harden`, the snapshot. **Holds your key** |
-| `image.json` | `harden` | | `VMConfig` as JSON |
+| `state.json` | Every step | | Finished steps. Old stage names in it still count, see [how steps are tracked](stages.md#how-steps-are-tracked) |
+| `media/win98/` | `vm` | | Setup files from your disc. Microsoft's files, so keep them out of anything you publish |
+| `boot.img` | `vm` | | Patched boot floppy |
+| `AUTOEXEC.BAT`, `CONFIG.SYS` | `vm` | | Scratch copies of what went on the floppy. No key in them, and nothing reads them again |
+| `install.img` | `vm` | End of `ready` | Raw disk. **Holds your key** |
+| `MSBATCH.INF` | `vm` | Same stage | Answer file. **Holds your key.** Left behind only if the copy to the disk fails |
+| `MSDOS.SYS` | `init_api` | Same stage | Edited copy |
+| `golden.qcow2` | `init_api` | | The prepared disk and, after `ready`, the snapshot. **Holds your key** |
+| `image.json` | `ready` | | `VMConfig` as JSON |
 | `qemu.log` | Every VM | | QEMU's stdout and stderr. Appended, never cleared |
-| `shots/install<boot>-<n>.png` | `install` | | One frame every 30 seconds |
-| `shots/harden-<n>.png`, `shots/reboot-<n>.png` | `harden` | | The same, while waiting for the agent. May be absent if it starts within 30 seconds |
-| `shots/probe.ppm` | `install`, `harden` | | Last frame checked for prompts |
-| `shots/ready.png` | `harden` | | The desktop in the snapshot |
+| `shots/install<boot>-<n>.png` | `setup` | | One frame every 30 seconds |
+| `shots/init_api-<n>.png`, `shots/harden-<n>.png`, `shots/reboot-<n>.png` | `init_api`, `ready` | | The same, while waiting for the agent. May be absent if it starts within 30 seconds |
+| `shots/probe.ppm` | `setup`, `init_api`, `ready` | | Last frame checked for prompts |
+| `shots/ready.png` | `ready` | | The desktop in the snapshot |
 | `shots/wizard.png`, `shots/shutdown.png` | On failure | | The screen when the wizard or a shutdown got stuck |
-| `runs/` | `art98 render` | Each `render-*` folder at the end of its run | Private copies of the image. Not made by `prep`, and a crash can leave one behind |
+| `runs/` | `art98 render` | Each `render-*` folder at the end of its run | Private copies of the image. Not made by `setup`, and a crash can leave one behind |
 
 `shots/` is never cleared. Numbers restart with each run and overwrite old files, so a
 shorter run leaves later frames from an earlier run in place. Check the times when

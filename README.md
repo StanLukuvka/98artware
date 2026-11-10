@@ -9,7 +9,7 @@ the guest's screen showed.
 
 The project has two parts:
 
-- **[Part 1: VM preparation](docs/prep/README.md).** `art98 prep` turns your own
+- **[Part 1: VM preparation](docs/setup/README.md).** `art98 setup` turns your own
   Windows 98 SE disc into a desktop snapshot with no input.
 - **[Part 2: scenes](docs/scenes/README.md).** A Scene API, a bridge
   that can call any Win32 function in the guest, and a renderer.
@@ -45,7 +45,7 @@ uv run art98 doctor
 ## Part 1: prepare the image
 
 You need your own Windows 98 SE disc image and product key. Nothing here supplies
-them. Running `prep` accepts the Windows 98 licence agreement on your behalf: the
+them. Running `art98 setup` accepts the Windows 98 licence agreement on your behalf: the
 answer file asks to skip it, and OEM discs that show it anyway get "I accept"
 selected by keystroke.
 
@@ -56,10 +56,10 @@ read -rs ART98_PRODUCT_KEY && export ART98_PRODUCT_KEY
 ```
 
 ```bash
-uv run art98 prep --iso /path/to/win98se.iso
+uv run art98 setup --iso /path/to/win98se.iso
 ```
 
-Add `--watch` to see the screen. Progress is saved after each stage, so rerunning
+Add `--watch` to see the screen. Progress is saved after each step, so rerunning
 resumes, and `--from STAGE` repeats a stage and everything after it.
 
 | Stage | What happens |
@@ -74,7 +74,7 @@ The result is `work/golden.qcow2` and `work/image.json`.
 
 **Keep `work/` private.** The finished image holds your product key in clear text,
 so never publish `golden.qcow2` or a copy of it. `work/` is gitignored for that
-reason. See [the key on the image](docs/prep/image.md#your-product-key-is-on-the-image).
+reason. See [the key on the image](docs/setup/image.md#your-product-key-is-on-the-image).
 
 ## Part 2: animate it
 
@@ -167,7 +167,7 @@ uv run --group dev pytest
 
 | Suite | Runs against |
 |-------|--------------|
-| `test_protocol`, `test_bridge`, `test_prep` | Python alone, with mtools for the disk tests |
+| `test_protocol`, `test_bridge`, `test_setup` | Python alone, with mtools for the disk tests |
 | `test_anim`, `test_anim_docs` | The scene layer on a fake guest, and the documented API |
 | `test_qemu` | Real QEMU with no Windows: boot chain, QMP, snapshots |
 | `test_agent_wine` | The real `agent.exe` under Wine, with a pty as COM1 |
@@ -181,7 +181,7 @@ From a Windows 98 SE OEM disc, on QEMU 10.2.2 with software emulation:
 
 | What | Result |
 |------|--------|
-| Full `prep`, blank disk to snapshot, no input | About 40 min |
+| Full `art98 setup`, blank disk to snapshot, no input | About 40 min |
 | Snapshot restore to a working agent | About 1 s |
 | `PING` round trip | About 5 ms |
 | `SYNC` plus one frame capture | About 6.5 ms |
@@ -195,8 +195,8 @@ From a Windows 98 SE OEM disc, on QEMU 10.2.2 with software emulation:
 | Installed extras | Games, Character Map, 12 screensavers, sound schemes. Screensavers have long names, such as `3D Pipes.scr`, and 11 of the 12 are in `C:\WINDOWS\SYSTEM` |
 
 The serial port is emulated and QEMU does not pace it to 115200 baud, so files move
-well above the line rate. Setup quirks that `prep` handles are in
-[troubleshooting](docs/prep/troubleshooting.md).
+well above the line rate. Setup quirks that `art98 setup` handles are in
+[troubleshooting](docs/setup/troubleshooting.md).
 
 ## Deferred
 

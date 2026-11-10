@@ -1,6 +1,6 @@
 # Part 2: scenes
 
-[Part 1](../prep/) builds the prepared Windows 98 image. Part 2 runs it. A Python script on the
+[Part 1](../setup/) builds the prepared Windows 98 image. Part 2 runs it. A Python script on the
 host drives the real desktop inside QEMU and records the screen.
 
 Python draws nothing. Each window, letter and brush stroke is made by Windows, and the video is

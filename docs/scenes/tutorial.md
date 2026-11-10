@@ -10,7 +10,7 @@ Every scene in this tutorial uses one of them.
 
 ## Before you start
 
-You need the prepared image from [Part 1](../prep/), and `qemu-system-i386` and `ffmpeg` on your
+You need the prepared image from [Part 1](../setup/), and `qemu-system-i386` and `ffmpeg` on your
 `PATH`. Check the host tools with:
 
 ```bash

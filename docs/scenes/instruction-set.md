@@ -403,7 +403,7 @@ Events start with `!` and have no id.
 
 The agent sends this when it starts, then every 3 s until it receives its first valid frame.
 
-`boot` does not use it. It sends `PING` instead. Prep uses `HELLO` to see the installed agent come
+`boot` does not use it. It sends `PING` instead. Setup uses `HELLO` to see the installed agent come
 up.
 
 ```text

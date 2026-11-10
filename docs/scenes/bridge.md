@@ -41,7 +41,7 @@ answer. It takes about 0.1 s.
 | `display` | QEMU's `-display` value. `"none"` runs headless. |
 | `ready_timeout` | Seconds to wait for the agent. |
 
-Raises `FileNotFoundError` when `image.json` is missing, which means prep has not run. If the agent
+Raises `FileNotFoundError` when `image.json` is missing, which means setup has not run. If the agent
 never answers, the VM is closed and the `BridgeTimeout` is raised.
 
 Each boot starts from the same moment, so nothing from an earlier run survives. But two VMs can't

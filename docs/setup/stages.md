@@ -1,42 +1,72 @@
-# The prep stages
+# The setup steps
 
-`Prep.STAGES` is `media`, `disk`, `install`, `patch`, `harden`, in that order. Each
-stage is a method on `Prep` in `98artware_core/art98/prep.py`, such as `stage_media`.
+`Setup.STAGES` is `vm`, `setup`, `init_api`, `ready`, in that order, named after the
+path from a blank machine to a desktop you can script: a VM to install onto, Windows
+Setup, the agent's first call, and the `ready` snapshot. Each step is a module in
+`98artware_setup/art98_setup/` with a `run` function, and `Setup` in `builder.py`
+runs them.
 
-![The five prep stages, their inputs and their outputs](../diagrams/prep-pipeline.png)
+| Step | Module | What it holds | Old stages |
+|------|--------|---------------|------------|
+| `vm` | `vm.py` | Boot floppy, Setup files from the disc, blank disk with the MBR, `AGENT.EXE` copied in | `media`, `disk` |
+| `setup` | `setup.py` | Unattended Windows Setup through its reboots | `install` |
+| `init_api` | `init_api.py` | `MSDOS.SYS` options, convert to qcow2, then boot once and wait for the agent | `patch` |
+| `ready` | `ready.py` | Registry settings, display mode, clean desktop check, the `ready` snapshot | `harden` |
 
-## How stages are tracked
+![The four setup steps, their inputs and their outputs](../diagrams/prep-pipeline.png)
 
-`Prep.run` reads `work/state.json`, a JSON list of finished stages, and skips what
-is in it. A stage is added only after it returns, so a failed stage is not marked
-done. Running `prep` again resumes at that stage from its start. A stage has no
+The command is `art98 setup`. `art98 prep` still works as an alias, and the old
+stage names are accepted wherever a step name is.
+
+## How steps are tracked
+
+`Setup.run` reads `work/state.json`, a JSON list of finished steps, and skips what
+is in it. A step is added only after it returns, so a failed step is not marked
+done. Running `art98 setup` again resumes at that step from its start. A step has no
 checkpoints of its own.
 
-`--from STAGE` cuts the list down to the stages before `STAGE`, writes that to
-`state.json`, and then runs as usual. The file is rewritten before any work
-starts, so if the redo fails, the later stages stay forgotten.
+**Old `state.json` files still count.** Builds made before the rename recorded five
+stages: `["media", "disk", "install", "patch", "harden"]`. Reading the file maps them
+onto the steps: `vm` is done when both `media` and `disk` are, `setup` when `install`
+is, `init_api` when `patch` is, and `ready` when `harden` is. So a finished old build
+says every step is already done and nothing runs. The file is not rewritten just to
+rename; the next step to finish writes the list again with the new names.
 
-The list is cut by position, so `--from` never skips a stage that has not run. On
-a `state.json` holding `["media", "disk"]`, `--from harden` runs `install` next.
+`--from STEP` cuts the list down to the steps before `STEP`, writes that to
+`state.json`, and then runs as usual. The file is rewritten before any work
+starts, so if the redo fails, the later steps stay forgotten. `STEP` can be a new
+name or an old stage name: `media` or `disk` mean `vm`, `install` means `setup`,
+`patch` means `init_api`, `harden` means `ready`.
+
+The list is cut by position, so `--from` never skips a step that has not run. On
+a `state.json` holding `["vm"]`, `--from ready` runs `setup` next.
 
 ### What `--from` needs
 
-`stage_harden` deletes `work/install.img` when it finishes. Two stages read that
-file, so what you can redo depends on how far prep got.
+The `ready` step deletes `work/install.img` when it finishes. Two steps read that
+file, so what you can redo depends on how far setup got.
 
-| `--from` | Needs | Before `harden` has finished | After `harden` has finished |
-|----------|-------|------------------------------|-----------------------------|
-| `media` | `--iso`, a key | Full rebuild | Full rebuild |
-| `disk` | A key, `work/media/` | New disk, then a new install | New disk, then a new install. Use this one to rebuild when the disc has not changed |
-| `install` | `work/install.img`, `work/boot.img` | Runs Setup again over whatever is on the disk, see the warning under [install](#install) | **Fails.** QEMU can't find `install.img`, which ends in a `QemuError` traceback |
-| `patch` | `work/install.img` | Redoes `patch` and `harden` | **Fails** with `mtype failed: ...` |
-| `harden` | `work/golden.qcow2` | Redoes `harden` | Works, with a catch, see [harden](#harden) |
+| `--from` | Needs | Before `ready` has finished | After `ready` has finished |
+|----------|-------|-----------------------------|----------------------------|
+| `vm` (or `media`, `disk`) | `--iso`, a key | New disk, then a new install | New disk, then a new install. Use this one to rebuild |
+| `setup` (or `install`) | `work/install.img`, `work/boot.img` | Runs Setup again over whatever is on the disk, see the warning under [setup](#setup) | **Fails.** QEMU can't find `install.img`, which ends in a `QemuError` traceback |
+| `init_api` (or `patch`) | `work/install.img` | Redoes `init_api` and `ready` | **Fails** with `mtype failed: ...` |
+| `ready` (or `harden`) | `work/golden.qcow2` | Redoes `ready` | Works, with a catch, see [ready](#ready) |
 
-A failed `--from install` or `--from patch` has already shortened `state.json`.
-Run `--from disk` afterwards, not a plain `prep`, because a plain run would retry
-the failed stage.
+`disk` used to skip the disc and need only a key. It now means `vm`, which runs both
+of its parts, so `--from disk` needs `--iso` too.
 
-## media
+A failed `--from setup` or `--from init_api` has already shortened `state.json`.
+Run `--from vm` afterwards, not a plain `art98 setup`, because a plain run would
+retry the failed step.
+
+## vm
+
+Step 1. Checks the agent, unpacks Setup, makes a boot floppy that starts it, then
+builds a blank hard disk and copies in what Setup needs. It was two stages, `media`
+and `disk`, and runs them one after the other in `vm.py`.
+
+### media
 
 Checks the agent, unpacks Setup, and makes a boot floppy that starts it.
 
@@ -116,9 +146,9 @@ Checks the agent, unpacks Setup, and makes a boot floppy that starts it.
 | `the disc's boot floppy has no HIMEM.SYS` | Unexpected floppy |
 | `7z failed: ...` | `7z` could not read the file |
 
-**`--from media`** redoes everything.
+**`--from media`** means `--from vm`, which redoes everything.
 
-## disk
+### disk
 
 Builds a blank hard disk and copies in what Setup needs.
 
@@ -144,7 +174,7 @@ Builds a blank hard disk and copies in what Setup needs.
    signature. The boot code must fit in 440 bytes.
 
    A blank MBR will not boot, and Setup writes only the partition's boot sector, so
-   prep has to supply this. `windows_handlers/boot_record/mbr.S` moves itself to `0x600`, finds the active
+   setup has to supply this. `windows_handlers/boot_record/mbr.S` moves itself to `0x600`, finds the active
    partition, reads its first sector to `0x7C00` with INT 13h extensions, checks the
    `AA55` signature and jumps to it. If anything fails it prints
    `art98: no bootable partition` and halts.
@@ -174,11 +204,14 @@ Builds a blank hard disk and copies in what Setup needs.
 - A `FileNotFoundError` or `StopIteration` traceback if `work/media` is missing or
   has no `WIN98` folder.
 
-**`--from disk`** makes a new `install.img`, replacing any old one, then runs
-`install`, `patch` and `harden`. It needs a key but not `--iso`. This is the normal
-way to redo an install.
+**`--from disk`** now means `--from vm`: it runs `media` again, then makes a new
+`install.img`, replacing any old one, then runs `setup`, `init_api` and `ready`. It
+needs `--iso` and a key. Before the regroup `disk` could be redone alone, without
+`--iso`.
 
-## install
+## setup
+
+Step 2. This was the `install` stage, in `setup.py`.
 
 Runs Windows 98 Setup to the end, across several boots.
 
@@ -188,7 +221,7 @@ Runs Windows 98 Setup to the end, across several boots.
 cleanly. Screenshots in `work/shots/`. QEMU's output in `work/qemu.log`.
 
 **Inside:** every guest reboot ends QEMU, because the VM runs with `-no-reboot`, so
-the stage is a loop of new VMs on one disk.
+the step is a loop of new VMs on one disk.
 [Why](image.md#hardware) is covered with the hardware. The first boot uses the
 floppy, through `boot_once="a"`. Later ones use the disk.
 
@@ -215,12 +248,12 @@ seconds, it:
    - `setup_wizard_showing`: the OEM first-boot wizard. `_answer_setup_wizard` sends
      the keys in `WIZARD_PAGES`. On each page it waits for the heading area
      `WIZARD_HEADING` to change, up to `WIZARD_PAGE_TIMEOUT`, 2 minutes.
-   - `logon_prompt_showing`: the logon dialog. Prep presses Enter, which sets a
+   - `logon_prompt_showing`: the logon dialog. Setup presses Enter, which sets a
      blank password.
 3. Checks whether the disk file has been written, see
    [the stall rule](troubleshooting.md#the-stall-rule).
 
-The guest reboot shows up as the link to the guest closing. Prep then starts the
+The guest reboot shows up as the link to the guest closing. Setup then starts the
 next VM, and `Setup restarted the machine (boot N)` appears in the log.
 
 The agent starts by itself on the first real desktop. The answer file adds it to
@@ -242,22 +275,29 @@ replies, and then waits up to `SHUTDOWN_TIMEOUT`, 5 minutes, for QEMU to exit.
 | `the first-boot wizard did not advance; see .../wizard.png` | `WIZARD_PAGE_TIMEOUT` | A key had no effect, or the disc's wizard has different pages |
 | `Windows did not shut down; see .../shutdown.png` | `SHUTDOWN_TIMEOUT` | Windows hung while closing |
 
-**Warning: `install` does not reset the disk.** It always starts by booting the
+**Warning: `setup` does not reset the disk.** It always starts by booting the
 floppy, which runs Setup again. If you rerun after a failure, plain or with
-`--from install`, Setup runs over the partly installed disk it left behind. The
+`--from setup`, Setup runs over the partly installed disk it left behind. The
 answer file sets `NoDirWarn=1`, so it will not stop to warn you. Nothing in the code
-or tests covers this case. Use `--from disk` to start from a clean disk.
+or tests covers this case. Use `--from vm` to start from a clean disk.
 
-**`--from install`** is only useful straight after `disk`. See
+**`--from setup`** is only useful straight after `vm`. See
 [what `--from` needs](#what---from-needs).
 
-## patch
+## init_api
+
+Step 3. Gets the installed system ready to be called, and proves the agent answers.
+It was the `patch` stage, followed by a boot that did not exist before: the first
+call to the agent now happens here instead of at the start of `ready`. The module
+is `init_api.py`.
+
+### patch
 
 Edits one file offline and converts the disk.
 
 **Inputs:** `work/install.img`, shut down.
 
-**Outputs:** `work/golden.qcow2`. `install.img` stays until `harden` finishes.
+**Outputs:** `work/golden.qcow2`. `install.img` stays until `ready` finishes.
 
 **Inside:**
 
@@ -278,10 +318,34 @@ Edits one file offline and converts the disk.
 **How it fails:** `mtype failed: ...` if `install.img` is missing or was not
 installed. `qemu-img failed: ...` if the host disk is full.
 
-**`--from patch`** works only while `install.img` exists, so only if `harden` has not
+
+### boot and ping
+
+Boots `golden.qcow2` once, as `ready` will, and checks the agent comes up on its own.
+
+**Inputs:** `work/golden.qcow2`, from the patch part.
+
+**Outputs:** `golden.qcow2` with Windows shut down cleanly. Shots are `init_api-*`.
+
+**Inside:** `_require_agent` waits for `HELLO` from `AGENT.EXE`, up to 15 minutes,
+still answering prompts, then `bridge.wait_ready()` gets a `PING` reply with the
+right protocol version. `_reboot` then shuts Windows down with `ExitWindowsEx`.
+
+**Finished when:** the agent has answered and QEMU has exited.
+
+**How it fails:** as in `ready`, `init_api did not finish; last screen: ...`, or `the guest
+rebooted during init_api before the agent started`, or `Windows did not shut down`.
+This is the first boot of the converted disk, so a bad `MSDOS.SYS` shows up here and
+not after the hardening.
+
+**`--from init_api`** works only while `install.img` exists, so only if `ready` has not
 finished. It overwrites `golden.qcow2`.
 
-## harden
+## ready
+
+Step 4. This was the `harden` stage, in `ready.py`. The registry settings that make the
+desktop quiet and deterministic live here, so this is where any future blank-start
+settings go.
 
 Applies the settings, proves the desktop is clean, and saves the snapshot.
 
@@ -305,7 +369,7 @@ First VM:
 Second VM:
 
 5. `_require_agent` again. Shots are `reboot-*`.
-6. `_wait_for_quiet_screen` waits until `shots/ready.png` has not changed for
+6. `wait_for_quiet_screen` waits until `shots/ready.png` has not changed for
    `SETTLE_SECONDS`, 30 seconds, so startup has finished. It compares a hash of
    the screenshot.
 7. `verify_desktop` refuses anything but a clean desktop.
@@ -321,21 +385,21 @@ exists.
 |---------|-------|
 | `harden did not finish; last screen: ...`, `reboot did not finish; ...` | No agent within 15 minutes. The 20 minute stall rule can't fire here, because this limit comes first |
 | `the guest rebooted during ... before the agent started` | Windows restarted before the agent came up |
-| `unexpected windows on the desktop: [...]` | A window other than `Program Manager` is visible and has a title. Prep will not snapshot it. See `shots/ready.png` |
+| `unexpected windows on the desktop: [...]` | A window other than `Program Manager` is visible and has a title. Setup will not snapshot it. See `shots/ready.png` |
 | `the taskbar is missing` | No `Shell_TrayWnd` window |
-| `Windows did not shut down; see ...` | As in `install` |
+| `Windows did not shut down; see ...` | As in `setup` |
 | `cannot open ...` or `cannot set ...` | `BridgeError` from a registry call. Shows as a traceback |
 | `guest has no 800x600x16 display mode` | `BridgeError`: the driver lists no such mode. Shows as a traceback |
 | `guest speaks protocol N, host M` | `BridgeError`: `agent.exe` and the Python code are from different versions. Shows as a traceback |
 
 **`_wait_for_quiet_screen` has no time limit.** If something on screen keeps moving,
-such as a blinking caret, `harden` waits forever. A taskbar clock is not a problem,
+such as a blinking caret, `ready` waits forever. A taskbar clock is not a problem,
 since it changes once a minute. Run with `--watch` to see what is moving.
 
-**`--from harden`** cold-boots whatever is on `golden.qcow2` now, and `savevm`
+**`--from ready`** cold-boots whatever is on `golden.qcow2` now, and `savevm`
 replaces the old `ready`. The catch: `art98 ping` and `boot("work")` write to that
 file. `boot()` restores the snapshot at the start of each run, but what the last run
 left on disk stays there until the next restore, and a cold boot skips the restore. So
-`--from harden` can bake those leftovers into the new snapshot. `art98 render` is not
-a problem, because it runs on a copy. `--from harden` is safe right after a failed
-`harden`. For a clean result on an image you have used directly, use `--from disk`.
+`--from ready` can bake those leftovers into the new snapshot. `art98 render` is not
+a problem, because it runs on a copy. `--from ready` is safe right after a failed
+`ready`. For a clean result on an image you have used directly, use `--from vm`.

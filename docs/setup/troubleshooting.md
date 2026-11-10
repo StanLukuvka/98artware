@@ -1,11 +1,11 @@
 # Troubleshooting
 
 Start with the error message. [stages.md](stages.md) lists the messages for each
-stage. When the VM is involved, these show what happened:
+step. When the VM is involved, these show what happened:
 
 | Where | What it shows |
 |-------|---------------|
-| `work/shots/` | The newest `install*`, `harden*` or `reboot*` PNG is the last screen, at most 30 seconds old |
+| `work/shots/` | The newest `install*`, `init_api*`, `harden*` or `reboot*` PNG is the last screen, at most 30 seconds old |
 | `work/qemu.log` | Why QEMU would not start. Appended across runs, so read the end |
 | `--watch` | The live screen |
 | `C:\SETUPLOG.TXT`, `DETLOG.TXT` | Setup's own logs. On a failed install, read them from `work/install.img` with `mtype -i "work/install.img@@32256" ::SETUPLOG.TXT`. Set `MTOOLS_SKIP_CHECK=1` first |
@@ -13,12 +13,12 @@ stage. When the VM is involved, these show what happened:
 Don't paste `SETUPLOG.TXT` or anything else from the disk into a public place without
 reading it first. The disk holds your key.
 
-## Setup quirks prep handles
+## Setup quirks the tool handles
 
 These come from running a Windows 98 SE OEM disc. The reasons are the ones given in
 the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 
-| Quirk | Why it matters | What prep does | Where |
+| Quirk | Why it matters | What setup does | Where |
 |-------|----------------|----------------|-------|
 | `JO.SYS` on the boot floppy | It is the disc's startup menu. `IO.SYS` runs it before `CONFIG.SYS`, and after a timeout it boots the hard disk, so Setup never starts | Deletes it | `patch_floppy` |
 | Setup writes no MBR | Only the partition's boot sector is written, and a blank MBR will not boot | Supplies `windows_handlers/boot_record/mbr.S` | `build_mbr` |
@@ -27,7 +27,7 @@ the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 | Logon prompt | Appears once on the first real boot and waits forever | Presses Enter. A blank password means it never comes back | `_answer_setup_prompts` |
 | Workgroup page | Setup asks for a workgroup unless the answer file gives one, and Windows refuses one with the computer's name | `Workgroup="WORKGROUP"`, computer `art98`, `Display=0` | `render_msbatch` |
 | `NoPrompt2Boot` | Microsoft's table and sample disagree on what `1` means | Follows the sample | `render_msbatch` |
-| Warm reboot freeze | Windows hangs on its logo after a reset in the same QEMU process | `-no-reboot`, and a new VM per boot | `VMConfig`, `stage_install` |
+| Warm reboot freeze | Windows hangs on its logo after a reset in the same QEMU process | `-no-reboot`, and a new VM per boot | `VMConfig`, `setup.py` |
 | `ExitWindowsEx` never replies | A plain call would block the bridge until it timed out | Uses `acall`, then waits for QEMU to exit | `_reboot` |
 | Blinking caret | A dialog waiting forever still changes the screen | The stall rule watches the disk instead | `_wait_for_agent` |
 | Modern toolchains | They build files that fail on 98 with a vague error | Links without the mingw CRT, and checks the result on the host | `windows_handlers/Makefile`, `pecheck` |
@@ -38,7 +38,7 @@ the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 
 Every `SHOT_INTERVAL`, 30 seconds, `_wait_for_agent` reads the modified time of the
 disk file on the host. When it changes, the timer resets. When it has not changed for
-20 minutes, prep raises:
+20 minutes, setup raises:
 
 ```
 no disk writes for 20 minutes during install2; see .../shots/install2-0049.png, or rerun with --watch to see the VM
@@ -55,27 +55,26 @@ Other limits apply at the same time:
 
 | Limit | Constant | Value |
 |-------|----------|-------|
-| One boot of `install` | `INSTALL_TIMEOUT` | 3 hours, so a very bad run could last far longer in total |
+| One boot of `setup` | `INSTALL_TIMEOUT` | 3 hours, so a very bad run could last far longer in total |
 | Number of boots | `SETUP_BOOTS` | 8 |
-| Waiting for the agent in `harden` | Literal in `_require_agent` | 15 minutes |
+| Waiting for the agent in `init_api` and `ready` | Literal in `_require_agent` | 15 minutes |
 | One wizard page | `WIZARD_PAGE_TIMEOUT` | 2 minutes |
 | Windows shutting down | `SHUTDOWN_TIMEOUT` | 5 minutes |
 | A ready agent after `HELLO` | `wait_ready` default | 60 seconds |
 
-The wait for a quiet screen in `harden` has no limit. See [harden](stages.md#harden).
+The wait for a quiet screen in `ready` has no limit. See [ready](stages.md#ready).
 
-## Recovering from a failed stage
+## Recovering from a failed step
 
 Fix the cause, then:
 
 | Failed in | Do this | Why |
 |-----------|---------|-----|
-| `media` | `art98 prep --iso ... ` again | It starts clean |
-| `disk` | `art98 prep` again, with a key | It makes a new disk |
-| `install` | `art98 prep --from disk` | A plain rerun boots Setup again over the partly installed disk. `--from disk` starts from a blank one. It needs a key, not the ISO |
-| `patch` | `art98 prep` again | `install.img` is still there |
-| `harden` | `art98 prep` again | It boots `golden.qcow2` again, and `install.img` is still there |
-| `--from install` or `--from patch` after a finished build | `art98 prep --from disk` | `install.img` is gone, and `state.json` was already shortened |
+| `vm` (old `media` or `disk`) | `art98 setup --iso ... ` again, with a key | Both parts rerun and start clean. A `state.json` that holds only `media` does not count as `vm` done |
+| `setup` (old `install`) | `art98 setup --from vm` | A plain rerun boots Setup again over the partly installed disk. `--from vm` starts from a blank one. It needs the ISO and a key |
+| `init_api` (old `patch`) | `art98 setup` again | `install.img` is still there |
+| `ready` (old `harden`) | `art98 setup` again | It boots `golden.qcow2` again, and `install.img` is still there |
+| `--from setup` or `--from init_api` after a finished build | `art98 setup --from vm` | `install.img` is gone, and `state.json` was already shortened |
 
 Common causes:
 
@@ -84,11 +83,11 @@ Common causes:
 | Traceback ending in `QemuError: QEMU exited with status 1` | See `work/qemu.log` | Usually a lock, or a missing file |
 | `Failed to get "write" lock` in `qemu.log` | Another VM has that disk open, possibly left over from a crash | Stop it. Check with `pgrep -a qemu-system`. See [several VMs](cli.md#moving-the-image-and-running-several-vms) |
 | `FileNotFoundError` for `mbr.bin` | The guest was not built | `make -C windows_handlers` |
-| `image.json not found` | No finished image in `--work` | Check `--work`, or finish `prep` |
+| `image.json not found` | No finished image in `--work` | Check `--work`, or finish `art98 setup` |
 | `ping` can't open the disk after moving the repository | `image.json` holds an absolute path | [Edit `disk`](cli.md#moving-the-image-and-running-several-vms) |
 | `guest speaks protocol N, host M` | The agent on the image is older or newer than the Python code | Rebuild the agent and redo the install, see below |
-| Snapshot fails to load after a QEMU upgrade | The image's device state doesn't match the new QEMU | Rebuild from `disk` |
-| `unexpected windows on the desktop` | Something opened at startup | See `shots/ready.png`, deal with its cause, then `--from harden` |
+| Snapshot fails to load after a QEMU upgrade | The image's device state doesn't match the new QEMU | Rebuild from `vm` |
+| `unexpected windows on the desktop` | Something opened at startup | See `shots/ready.png`, deal with its cause, then `--from ready` |
 
 To put a new `agent.exe` on the image, rebuild it and redo the install:
 
@@ -97,10 +96,10 @@ make -C windows_handlers
 ```
 
 ```bash
-uv run art98 prep --from media --iso /path/to/win98se.iso
+uv run art98 setup --from vm --iso /path/to/win98se.iso
 ```
 
-`--from disk` also copies the new agent, but only `media` runs `pecheck` on it.
+`--from disk` also copies the new agent, but only the `media` part of `vm` runs `pecheck` on it.
 
 ## QEMU only
 
@@ -119,7 +118,7 @@ libraries. QEMU also needs `-L` pointing at its firmware, so a small wrapper scr
 named `qemu-system-i386` works best.
 
 Don't unpack into `/tmp`. It is cleared when the host reboots, and every tool in it goes
-with it. Prep would then fail with a missing program, or `doctor` would report it
+with it. Setup would then fail with a missing program, or `doctor` would report it
 missing, even though nothing about the image changed.
 
 Keep the same QEMU version for the life of an image, because a snapshot may not load on
@@ -132,18 +131,18 @@ behind. It is safe to delete once that VM has gone.
 ### Reboots end the VM
 
 A guest reboot ends the QEMU process. This is on purpose, see
-[`-no-reboot`](image.md#hardware). During prep it is handled. In your own scripts:
+[`-no-reboot`](image.md#hardware). During setup it is handled. In your own scripts:
 
 - The bridge reports the link closing, and the session is over.
 - Start a new VM. `boot()` restores the snapshot, so a reboot does not keep anything
   from the session.
 - To keep changes across a reboot, you need a cold boot without `-loadvm`, the way
-  `stage_harden` does it, on a private copy of the image.
+  the `ready` step does it, on a private copy of the image.
 - Call `ExitWindowsEx` with `acall`, since it never replies.
 
 ## A different disc
 
-Prep has run on one Windows 98 SE OEM disc. Anything else may need changes. Look at
+Setup has run on one Windows 98 SE OEM disc. Anything else may need changes. Look at
 these first.
 
 | Part | Depends on | Change if |
@@ -157,20 +156,20 @@ these first.
 | `setup_wizard_showing` | A 640x480 screen with exact colours at five points: `(10,10)` and `(20,470)` blue `(0,0,255)`, `(300,70)` navy `(0,0,168)`, `(300,360)` grey `(192,199,200)` | The wizard looks different |
 | `WIZARD_HEADING` | The heading area at `(220, 92)` to `(560, 118)` | The dialog sits elsewhere |
 | `logon_prompt_showing` | A 640x480 screen: `(10,10)` and `(20,470)` teal `(0,128,128)`, `(300,72)` navy `(0,0,128)`, `(300,245)` grey `(192,192,192)` | The logon dialog differs. Also if a network client is installed, since the prompt changes |
-| `--key` | Always required by `media` and `disk` | The disc takes no key |
+| `--key` | Always required by `vm` | The disc takes no key |
 
 A retail disc may not show the wizard at all. That is fine: the check only fires when
 those pixels match, and no keys are sent otherwise.
 
-If a prompt isn't recognised, prep doesn't know it is there. It sees no disk writes and
+If a prompt isn't recognised, setup doesn't know it is there. It sees no disk writes and
 stops after 20 minutes. To find the new values:
 
 1. Run with `--watch`, or open the newest PNG in `work/shots/`.
 2. Read the colours at those coordinates from `work/shots/probe.ppm` with the screen on
    show.
-3. Update the checks in `prep.py`, and the matching test screens in
-   `98artware_core/tests/test_prep.py`.
+3. Update the checks in `98artware_setup/art98_setup/builder.py`, and the matching test screens in
+   `98artware_setup/tests/test_setup.py`.
 
-`--from disk` then reruns the install.
+`--from vm` then reruns the install.
 
 Windows 98 first edition, Windows 95 and Windows ME have not been tried.

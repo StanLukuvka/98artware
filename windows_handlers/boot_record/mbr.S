@@ -1,5 +1,5 @@
 # Master boot record for the install disk. A blank MBR will not boot, and
-# Windows 98 Setup only writes the partition's boot sector, so the prep tool
+# Windows 98 Setup only writes the partition's boot sector, so the setup tool
 # supplies this. Finds the active partition, loads its first sector with the
 # INT 13h extensions and chains to it.
 

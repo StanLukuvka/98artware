@@ -7,7 +7,7 @@ work can pick up from here.
 
 | Part | State | Docs |
 | --- | --- | --- |
-| VM preparation | Built. `art98 prep` turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input | [Part 1](prep/README.md) |
+| VM preparation | Built. `art98 setup` (alias `prep`) turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input. Four steps: vm, setup, init_api, ready | [Part 1](setup/README.md) |
 | Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](scenes/bridge.md), [Instruction set](scenes/instruction-set.md) |
 | Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. The program classes are parked, unexported | [Part 2](scenes/README.md) |
 | Examples | `artware_experiments/set_state`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
@@ -19,7 +19,7 @@ Audio is deferred. art98 is video only.
 
 ## What was done
 
-1. **Prep tool and bridge.** Built and run against the real disc. First commit, `9f926fa`.
+1. **Setup tool and bridge.** (Called the prep tool then.) Built and run against the real disc. First commit, `9f926fa`.
 2. **Manim mapping plan.** A separate session mapped Manim's tools to Windows 98 actions in
    [MANIM_MAPPING_PLAN.md](archive/MANIM_MAPPING_PLAN.md), and a second pass reviewed it in
    [MANIM_MAPPING_REVIEW.md](archive/MANIM_MAPPING_REVIEW.md). Only a first slice of it is built,
@@ -108,10 +108,10 @@ work. None of them block the MVP.
 
 ### Smaller decisions
 
-- Prep writes `UserPreferencesMask`, but Windows 98 reads `UserPreferencemask`, so the setting has
-  no effect. Fixing it changes the image. See [image.md](prep/image.md).
-- `art98 prep --from install` and `--from patch` fail after a finished build, because
-  `install.img` is gone. The workaround is `--from disk`.
+- The `ready` step writes `UserPreferencesMask`, but Windows 98 reads `UserPreferencemask`, so the setting has
+  no effect. Fixing it changes the image. See [image.md](setup/image.md).
+- `art98 setup --from setup` and `--from init_api` (old names `install` and `patch`) fail after a
+  finished build, because `install.img` is gone. The workaround is `--from vm`.
 
 ## Working notes
 

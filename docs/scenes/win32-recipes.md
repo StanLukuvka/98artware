@@ -1533,5 +1533,5 @@ Windows guards them. To crash on purpose, use `RaiseException` or
 [`CallWindowProcA`](#crash-without-an-open-request).
 
 On the prepared image, menu animation, combo box animation, list box smooth scrolling and gradient
-captions are all on. Prep sets `UserPreferencesMask` to zero, but Windows 98 reads
+captions are all on. Setup sets `UserPreferencesMask` to zero, but Windows 98 reads
 `UserPreferencemask`, so that setting has no effect.
