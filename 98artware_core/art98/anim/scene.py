@@ -8,12 +8,14 @@ import time
 import warnings
 from pathlib import Path
 
+from ..desktop import blank
 from ..protocol import Out
 from .actions import Pointer
 from .animation import Animation
 from .props import Box, Prop
 
 SPI_GETWORKAREA = 48
+DESKTOPS = ("blank", "stock")
 
 
 class Scene:
@@ -26,6 +28,12 @@ class Scene:
     and what the script drives lands on exact frames while anything the guest
     times for itself runs by the host's clock.
 
+    `desktop` is what the scene starts on. "blank", the default, is a black
+    screen with no icons or taskbar (see art98.desktop), and no pointer
+    unless `pointer_visible` is True. "stock" is the Windows 98 desktop as
+    the `ready` snapshot has it, pointer included. Either way it is set again
+    after every revert, so `set_state` starts from it too.
+
     `state`, a path to a state file, sets the desktop before `setup` runs.
     `set_state` jumps to another state at any point, and `prop(id)` is the
     prop for a window the state opened.
@@ -33,6 +41,8 @@ class Scene:
 
     fps = 30
     clock = "free"
+    desktop = "blank"
+    pointer_visible = False
     state: str | Path | None = None
 
     def __init__(self):
@@ -66,12 +76,14 @@ class Scene:
         """Play this scene on a booted session, into an open recorder."""
         if self.clock != "free":
             raise NotImplementedError(f"clock {self.clock!r}: only 'free' exists so far")
+        if self.desktop not in DESKTOPS:
+            raise ValueError(f"desktop {self.desktop!r}: use one of {', '.join(DESKTOPS)}")
         self.session, self.video = session, video
         self.guest, self.vm = session.bridge, session.vm
         if self.state is not None:
             self.set_state(self.state)
         else:
-            self.read_work_area()
+            self.prepare_desktop()
             self.pointer = Pointer()
             self.pointer.attach(self)
         self.setup()
@@ -103,7 +115,7 @@ class Scene:
             prop.forget()
         self.props.clear()
         self._state_props = {}
-        self.read_work_area()
+        self.prepare_desktop()
         self.pointer = Pointer()
         self.pointer.attach(self)
         props = apply_state(self, state)
@@ -118,8 +130,15 @@ class Scene:
             known = ", ".join(self._state_props) or "none"
             raise KeyError(f"no window {window_id!r} in the state (it has {known})") from None
 
+    def prepare_desktop(self) -> None:
+        """Put the desktop the scene asked for in place, then read the work area."""
+        if self.desktop == "blank":
+            blank(self.guest, pointer=self.pointer_visible)
+        self.read_work_area()
+
     def read_work_area(self) -> None:
-        """Read the desktop area above the taskbar from the guest."""
+        """Read the desktop area from the guest: above the taskbar, or the whole
+        screen on a blank desktop."""
         left, top, right, bottom = struct.unpack(
             "<iiii", self.guest.user32.SystemParametersInfoA(
                 SPI_GETWORKAREA, 0, Out(16), 0).buffers[0])
@@ -138,7 +157,7 @@ class Scene:
 
     @property
     def screen(self) -> Box:
-        """The desktop above the taskbar, as a box to measure against."""
+        """The work area, as a box to measure against."""
         left, top, right, bottom = self.work_area
         return Box(left, top, right - left, bottom - top)
 

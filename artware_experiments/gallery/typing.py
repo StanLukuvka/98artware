@@ -5,6 +5,8 @@ from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class Typing(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         pad = Notepad(at=(120, 90), size=(480, 300))
         self.add(pad)

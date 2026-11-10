@@ -5,6 +5,8 @@ from art98.anim.apps import Minesweeper  # parked, see apps.py
 
 
 class MinesweeperWin(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         board = Minesweeper(at=(300, 120))
         self.add(board)

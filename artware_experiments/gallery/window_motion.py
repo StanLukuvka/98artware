@@ -5,6 +5,8 @@ from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class WindowMotion(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         pad = Notepad(at=(100, 80), size=(320, 220))
         self.add(pad)

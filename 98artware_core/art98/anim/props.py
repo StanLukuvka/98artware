@@ -93,7 +93,7 @@ class Box:
         return self.shift(point_of(target) - self.get_corner(aligned_edge))
 
     def center(self) -> "Box":
-        """Centre on the desktop, above the taskbar."""
+        """Centre in the work area: the whole screen, or above the taskbar."""
         left, top, right, bottom = self.area
         return self.move_to(((left + right) / 2, (top + bottom) / 2))
 

@@ -54,6 +54,11 @@ Starting the VM takes a few seconds. What the lines do:
   moves. By default that is ten letters a second.
 - `self.pause(1)` holds the last frame for one second.
 
+The video starts on a black screen: no icons, no taskbar and no pointer. Only what the scene
+puts there shows. Set `pointer_visible = True` on the scene to see the pointer, or
+`desktop = "stock"` for the Windows 98 desktop as it is. See
+[Blank start](../design/blank-start.md).
+
 ## Move a window
 
 Every prop has `.animate`, which turns a layout call into an animation. Positions are screen
@@ -87,6 +92,8 @@ from art98.anim.apps import Notepad
 
 
 class UseTheMouse(Scene):
+    pointer_visible = True
+
     def construct(self):
         pad = Notepad(at=(120, 100), size=(420, 260))
         self.add(pad)
@@ -114,6 +121,8 @@ from art98.anim.apps import Paint
 
 
 class Draw(Scene):
+    pointer_visible = True
+
     def construct(self):
         paint = Paint(at=(120, 40), size=(520, 480))
         self.add(paint)

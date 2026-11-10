@@ -5,6 +5,8 @@ from art98.anim.apps import Screensaver  # parked, see apps.py
 
 
 class ScreensaverRun(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         self.pause(0.4)
         saver = Screensaver("Mystify Your Mind")

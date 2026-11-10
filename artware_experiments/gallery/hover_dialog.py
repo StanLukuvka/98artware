@@ -5,6 +5,8 @@ from art98.anim.apps import Dialog  # parked, see apps.py
 
 
 class HoverDialog(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         self.pause(0.3)
         self.play(Hover((768, 587), hold=1.5))

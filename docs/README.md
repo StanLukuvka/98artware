@@ -51,6 +51,7 @@ Audio is deferred, so everything here is video only.
 | [Status](status.md) | What exists, what was done, and what is still open. Start here when picking work up. |
 | [State and action design](design/state-and-action.md) | Static starting states and free actions on top. The MVP is built; named actions and the recorder aren't. |
 | [Architecture](design/architecture.md) | Every part of art98, and how it compares with Manim. |
+| [Blank start](design/blank-start.md) | Why nothing pops up, and how a scene gets its black, empty screen. |
 
 Archived, kept for their reasoning: [PLAN.md](archive/PLAN.md), the original creative
 direction, the [Manim mapping plan](archive/MANIM_MAPPING_PLAN.md) and its

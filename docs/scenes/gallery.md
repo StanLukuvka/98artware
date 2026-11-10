@@ -34,6 +34,8 @@ from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class Hello(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         pad = Notepad()
         self.add(pad)
@@ -61,6 +63,8 @@ from art98.anim import *
 
 
 class PointerClicks(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         self.pause(0.4)
         self.play(Glide((200, 120)))
@@ -88,6 +92,8 @@ from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class Typing(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         pad = Notepad(at=(120, 90), size=(480, 300))
         self.add(pad)
@@ -116,6 +122,8 @@ from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class WindowMotion(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         pad = Notepad(at=(100, 80), size=(320, 220))
         self.add(pad)
@@ -145,6 +153,8 @@ from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class DragWindow(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         pad = Notepad(at=(90, 60), size=(340, 240))
         self.add(pad)
@@ -172,6 +182,8 @@ from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class MenusKeys(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         pad = Notepad(at=(130, 80), size=(460, 300))
         self.add(pad)
@@ -202,6 +214,8 @@ from art98.anim.apps import Dialog  # parked, see apps.py
 
 
 class HoverDialog(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         self.pause(0.3)
         self.play(Hover((768, 587), hold=1.5))
@@ -239,6 +253,8 @@ RADIUS = 110
 
 
 class PaintDrawing(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         paint = Paint(at=(150, 40), size=(520, 480))
         self.add(paint)
@@ -280,6 +296,8 @@ from art98.anim.apps import Minesweeper  # parked, see apps.py
 
 
 class MinesweeperWin(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         board = Minesweeper(at=(300, 120))
         self.add(board)
@@ -305,6 +323,8 @@ from art98.anim.apps import Screensaver  # parked, see apps.py
 
 
 class ScreensaverRun(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         self.pause(0.4)
         saver = Screensaver("Mystify Your Mind")

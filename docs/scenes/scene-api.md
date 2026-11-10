@@ -7,8 +7,9 @@ class. Samples that use them import them from `art98.anim.apps`. The MVP's one w
 Everything here comes from `from art98.anim import *`. For what you pass to `play`, see
 [Animations](animations.md).
 
-Positions are screen pixels, with `(0, 0)` at the top left and y running down. The desktop is
-800 x 600 and the taskbar takes the bottom 28 pixels.
+Positions are screen pixels, with `(0, 0)` at the top left and y running down. The screen is
+800 x 600. A scene starts on a black screen with no icons, taskbar or pointer, so the whole
+screen is the work area. On the stock desktop the taskbar takes the bottom 28 pixels.
 
 ## Scene
 
@@ -20,12 +21,14 @@ Subclass it and write `construct`. One scene is one recording.
 | --- | --- |
 | `fps` | Frames per second of the video. Default 30. |
 | `clock` | `"free"`, the only one so far. Anything else raises `NotImplementedError`. |
+| `desktop` | `"blank"`, the default: a black screen with no icons, taskbar or Start menu, and the work area the whole screen. `"stock"`: the Windows 98 desktop as the `ready` snapshot has it. Either is set again after every revert. See [Blank start](../design/blank-start.md). |
+| `pointer_visible` | On a blank desktop, whether the pointer is drawn. Default `False`. It still moves and clicks either way. It can't change partway through a scene. The stock desktop always draws it. |
 | `state` | A [state file](#states) to set the desktop to before `setup`. Default `None`, the plain desktop. |
 | `guest` | The raw [`Bridge`](bridge.md). |
 | `vm` | The QEMU `VM`, for real key presses and captures. |
 | `pointer` | The [`Pointer`](#pointer). |
 | `props` | The props on stage. |
-| `work_area` | `(left, top, right, bottom)` of the desktop above the taskbar. |
+| `work_area` | `(left, top, right, bottom)` of the work area: the whole screen when blank, above the taskbar when stock. |
 | `screen` | The same area as a `Box`, to measure against. |
 | `time` | Video time in seconds: frames written over `fps`. It never reads a clock. |
 
@@ -177,7 +180,7 @@ reach the guest on the next frame, or at once with `apply()`.
 | --- | --- |
 | `shift(*vectors)` | Move by each vector. |
 | `move_to(target, aligned_edge=ORIGIN)` | Put the centre on the target. `aligned_edge=UL` puts the top left corner there instead. |
-| `center()` | Centre on the desktop, above the taskbar. |
+| `center()` | Centre in the work area. |
 | `to_edge(edge=LEFT, buff=0)` | Against an edge of the desktop. |
 | `to_corner(corner=DL, buff=0)` | Into a corner of the desktop. |
 | `next_to(other, direction=RIGHT, buff=8)` | Beside another box, centred on it along the other axis. |
@@ -255,6 +258,8 @@ from art98.anim.apps import Notepad
 
 
 class Spots(Scene):
+    pointer_visible = True
+
     def construct(self):
         pad = Notepad(at=(100, 100), size=(300, 200))
         self.add(pad)
@@ -313,6 +318,8 @@ SEVEN, TIMES, SIX, EQUALS = 131, 91, 130, 112  # Calculator's control ids
 
 
 class Calculator(Scene):
+    pointer_visible = True
+
     def construct(self):
         calc = Win(command="calc.exe", class_name="SciCalc", at=(240, 120))
         self.add(calc)
@@ -346,6 +353,8 @@ from art98.anim.apps import Notepad
 
 
 class Parked(Scene):
+    pointer_visible = True
+
     def construct(self):
         pad = Notepad(at=(120, 90), size=(400, 240))
         self.add(pad)
@@ -509,6 +518,8 @@ from art98.anim.apps import Dialog, Notepad
 
 
 class Question(Scene):
+    pointer_visible = True
+
     def construct(self):
         box = Dialog("Keep this?", icon="question", buttons="yesno", at=(280, 200))
         self.add(box)

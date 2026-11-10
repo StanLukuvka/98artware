@@ -55,6 +55,11 @@ Audio is deferred. art98 is video only.
     `Dialog` still work and are tested, but `art98.anim` no longer exports them. Scenes import
     them from `art98.anim.apps`, which lists them in `PARKED`. Each program comes back later as
     its own action class, starting from that code.
+12. **Blank start, 2026-11-10.** An audit found nothing that pops up on its own after a restore.
+    Scenes now start on a black screen with no icons, taskbar, Start menu or pointer
+    (`Scene.desktop = "blank"`, `pointer_visible`), made at run time by `art98/desktop.py`
+    after each revert. The snapshot isn't changed. The older demos are pinned to
+    `desktop = "stock"`. See [Blank start](design/blank-start.md).
 
 ## What is open
 
@@ -102,14 +107,17 @@ work. None of them block the MVP.
   [win32-recipes.md](scenes/win32-recipes.md) and the `put_file` docstring are quiet-host
   figures. On a busy host they can be several times slower.
 - On a fresh boot, frames before the first pointer move have no pointer and slightly brighter
-  colours. This affects today's scenes and isn't documented.
+  colours. This affects stock scenes and isn't documented.
 - Moving a window off another one can leave desktop label pixels in the lower window's frame.
   Today's scenes probably show this. It isn't checked or documented in Part 2.
 
 ### Smaller decisions
 
 - The `ready` step writes `UserPreferencesMask`, but Windows 98 reads `UserPreferencemask`, so the setting has
-  no effect. Fixing it changes the image. See [image.md](setup/image.md).
+  no effect. Fixing it changes the image. See [image.md](setup/image.md). `blank` turns the
+  same effects off at run time, so it only matters for stock scenes. This and the other prep
+  options for a blank snapshot are listed in
+  [Blank start](design/blank-start.md#prep-changes-not-made).
 - `art98 setup --from setup` and `--from init_api` (old names `install` and `patch`) fail after a
   finished build, because `install.img` is gone. The workaround is `--from vm`.
 

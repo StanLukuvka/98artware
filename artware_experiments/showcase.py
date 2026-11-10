@@ -19,6 +19,8 @@ PETAL_COLOURS = ("red", "yellow", "lime", "cyan", "magenta")
 
 
 class Showcase(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def rose(self, paint, scale=1.0):
         """Five petals: r = cos(5 angle), as canvas pixels turned to screen points."""
 

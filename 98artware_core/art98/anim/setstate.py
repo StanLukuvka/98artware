@@ -41,7 +41,7 @@ def apply_state(scene, state: State) -> dict:
     guest = scene.guest
     if state.display and display_mode(guest) != state.display:
         guest.set_display_mode(*state.display, persist=False)
-        scene.read_work_area()
+        scene.prepare_desktop()
     props = {}
     for window in state.windows:
         prop = APPS[window.app](window.title, image=window.open.path if window.open else None,

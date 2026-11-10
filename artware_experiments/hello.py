@@ -10,6 +10,8 @@ from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class Hello(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         pad = Notepad()
         self.add(pad)

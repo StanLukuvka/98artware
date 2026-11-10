@@ -5,6 +5,8 @@ from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class MenusKeys(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         pad = Notepad(at=(130, 80), size=(460, 300))
         self.add(pad)

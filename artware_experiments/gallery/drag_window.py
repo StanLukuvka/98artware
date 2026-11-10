@@ -5,6 +5,8 @@ from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class DragWindow(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
         pad = Notepad(at=(90, 60), size=(340, 240))
         self.add(pad)

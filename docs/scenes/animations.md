@@ -155,6 +155,8 @@ from art98.anim.apps import Notepad
 
 
 class InOrder(Scene):
+    pointer_visible = True
+
     def construct(self):
         pad = Notepad(at=(120, 100), size=(420, 260))
         self.add(pad)
@@ -216,6 +218,8 @@ from art98.anim import *
 
 
 class Tooltip(Scene):
+    desktop = "stock"  # it uses the desktop icons or the taskbar
+
     def construct(self):
         self.play(Hover((768, 587), hold=1.5))
         self.pause(0.5)
@@ -248,6 +252,8 @@ from art98.anim import *
 
 
 class OpenMyComputer(Scene):
+    desktop = "stock"  # it uses the desktop icons or the taskbar
+
     def construct(self):
         self.play(DoubleClick((38, 22)))
         self.wait(1)
@@ -275,6 +281,8 @@ from art98.anim.apps import Notepad
 
 
 class DragAndResize(Scene):
+    pointer_visible = True
+
     def construct(self):
         pad = Notepad(at=(90, 60), size=(340, 240))
         self.add(pad)
@@ -301,6 +309,8 @@ from art98.anim.apps import Paint
 
 
 class Line(Scene):
+    pointer_visible = True
+
     def construct(self):
         paint = Paint(at=(120, 40), size=(520, 480))
         self.add(paint)
@@ -329,6 +339,8 @@ from art98.anim.apps import Notepad
 
 
 class WordWrap(Scene):
+    pointer_visible = True
+
     def construct(self):
         pad = Notepad(at=(120, 90), size=(300, 220))
         self.add(pad)
