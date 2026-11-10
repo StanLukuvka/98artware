@@ -281,6 +281,12 @@ def test_wait_until_warns_when_it_gives_up(scene):
         scene.wait_until(lambda: False, max_time=0.1)
 
 
+def test_wait_until_warning_points_at_the_caller(scene):
+    with pytest.warns(UserWarning, match="gave up") as record:
+        scene.wait_until(lambda: False, max_time=0.1)
+    assert record[0].filename == __file__
+
+
 def test_only_the_free_clock_exists(guest):
     class Stepped(Scene):
         clock = "stepped"

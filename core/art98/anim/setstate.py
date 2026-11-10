@@ -8,10 +8,15 @@ difference. Anything the state leaves out isn't checked.
 
 from __future__ import annotations
 
-from ..state import State, StateError
+import inspect
+from pathlib import Path
+
+from ..desktop import blank
+from ..state import State, StateError, load_state
 from ..win32 import (  # noqa: F401  (SW_*, cursor_pos, screen_size stay importable from here)
-    SW_MAXIMIZE, SW_SHOWMINNOACTIVE, cursor_pos, repaint_window, screen_size, show_window,
+    SW_MAXIMIZE, SW_SHOWMINNOACTIVE, cursor_pos, repaint_window, screen_size, show_window, work_area,
 )
+from ..actions.pointer import Pointer
 from ..actions.window.picture import Picture
 
 BITSPIXEL = 12
@@ -105,3 +110,44 @@ def check_state(scene, state: State, props: dict) -> None:
             problems.append(f"pointer: {list(state.pointer)} wanted, the guest has {list(actual)}")
     if problems:
         raise StateMismatch(state.path, problems)
+
+
+def set_state(scene, path) -> None:
+    state = load_state(scene._find_state(Path(path)))
+    scene.session.revert()
+    for prop in scene.props:
+        prop.forget()
+    scene.props.clear()
+    scene._state_props = {}
+    scene._start_desktop()
+    props = apply_state(scene, state)
+    check_state(scene, state, props)
+    scene._state_props = props
+
+
+def find_state(scene, path: Path) -> Path:
+    if path.is_absolute():
+        return path
+    try:
+        beside = Path(inspect.getfile(type(scene))).resolve().parent / path
+    except (TypeError, OSError):
+        beside = None
+    if beside is not None and beside.exists():
+        return beside
+    return Path.cwd() / path
+
+
+def start_desktop(scene) -> None:
+    scene.prepare_desktop()
+    scene.pointer = Pointer()
+    scene.pointer.attach(scene)
+
+
+def prepare_desktop(scene) -> None:
+    if scene.desktop == "blank":
+        blank(scene.guest, pointer=scene.pointer_visible)
+    scene.read_work_area()
+
+
+def read_work_area(scene) -> None:
+    scene.work_area = work_area(scene.guest)

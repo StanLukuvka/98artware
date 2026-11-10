@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import inspect
-import time
-import warnings
 from pathlib import Path
 
-from ..desktop import blank, work_area
 from ..actions.pointer import Pointer
 from ..base.animation import Animation
 from ..base.props import DESKTOP_AREA, Box, Prop
+from . import setstate, timeline
 
 DESKTOPS = ("blank", "stock")
 
@@ -91,7 +88,7 @@ class Scene:
 
         return render(self, output, **options)
 
-    # ---- the stage ----
+    # ---- desktop state ----
 
     def set_state(self, path: Path | str) -> None:
         """Make the desktop look like a state file, all within one frame.
@@ -101,19 +98,7 @@ class Scene:
         relative path is looked for next to the scene's file, then in the
         current folder. Nothing is recorded, so the next frame shows the state.
         """
-        from ..state import load_state
-        from .setstate import apply_state, check_state
-
-        state = load_state(self._find_state(Path(path)))
-        self.session.revert()
-        for prop in self.props:
-            prop.forget()
-        self.props.clear()
-        self._state_props = {}
-        self._start_desktop()
-        props = apply_state(self, state)
-        check_state(self, state, props)
-        self._state_props = props
+        setstate.set_state(self, path)
 
     def prop(self, window_id: str) -> Prop:
         """The prop for a window the last state opened, by its id."""
@@ -125,31 +110,19 @@ class Scene:
 
     def _start_desktop(self) -> None:
         """After a boot or a revert: the desktop the scene asked for, and a new pointer."""
-        self.prepare_desktop()
-        self.pointer = Pointer()
-        self.pointer.attach(self)
+        setstate.start_desktop(self)
 
     def prepare_desktop(self) -> None:
         """Put the desktop the scene asked for in place, then read the work area."""
-        if self.desktop == "blank":
-            blank(self.guest, pointer=self.pointer_visible)
-        self.read_work_area()
+        setstate.prepare_desktop(self)
 
     def read_work_area(self) -> None:
         """Read the desktop area from the guest: above the taskbar, or the whole
         screen on a blank desktop."""
-        self.work_area = work_area(self.guest)
+        setstate.read_work_area(self)
 
     def _find_state(self, path: Path) -> Path:
-        if path.is_absolute():
-            return path
-        try:
-            beside = Path(inspect.getfile(type(self))).resolve().parent / path
-        except (TypeError, OSError):
-            beside = None
-        if beside is not None and beside.exists():
-            return beside
-        return Path.cwd() / path
+        return setstate.find_state(self, path)
 
     @property
     def screen(self) -> Box:
@@ -186,33 +159,7 @@ class Scene:
         animations finish early and hold. With live=True, frames follow the
         host clock, for guest behaviour that needs real time to happen.
         """
-        if not animations:
-            raise ValueError("play needs at least one animation")
-        self._check_claims(animations)
-        for animation in animations:
-            if run_time is not None:
-                animation.run_time = run_time
-            if rate_func is not None:
-                animation.rate_func = rate_func
-            animation.begin(self)
-        total = max(animation.run_time for animation in animations)
-        count = max(1, round(total * self.fps))
-        live = live or any(animation.live for animation in animations)
-        running = list(animations)
-        started = time.monotonic()
-        for index in range(1, count + 1):
-            elapsed = index / count * total
-            for animation in list(running):
-                length = animation.run_time
-                progress = 1.0 if length <= 0 or index == count else min(1.0, elapsed / length)
-                animation.update(progress)
-                if progress >= 1:
-                    animation.finish(self)
-                    running.remove(animation)
-            self._apply()
-            if live:
-                time.sleep(max(0.0, started + index / self.fps - time.monotonic()))
-            self.video.frame()
+        timeline.play(self, animations, run_time, rate_func, live)
 
     def wait(self, duration: float = 1.0, stop_condition=None, frozen_frame: bool = False) -> None:
         """Hold for a while, or until stop_condition() is true.
@@ -221,15 +168,11 @@ class Scene:
         frames follow the host clock. frozen_frame=True repeats one capture
         instead, which costs almost nothing. See also `pause`.
         """
-        if frozen_frame:
-            self.pause(duration)
-        else:
-            self.live(duration, stop_condition)
+        timeline.wait(self, duration, stop_condition, frozen_frame)
 
     def pause(self, duration: float = 1.0) -> None:
         """Hold one capture. Nothing the guest does in this time is seen."""
-        self._apply()
-        self.video.frame(hold=max(1, round(duration * self.fps)))
+        timeline.pause(self, duration)
 
     def live(self, seconds: float, stop_condition=None) -> None:
         """Record something that moves by itself, such as a screensaver.
@@ -237,25 +180,15 @@ class Scene:
         Frames follow the host clock and skip the repaint wait, so this
         stretch depends on host speed. It wraps `FrameRecorder.live`.
         """
-        self._apply()
-        self.video.live(seconds, stop_condition)
+        timeline.live(self, seconds, stop_condition)
 
     def wait_until(self, stop_condition, max_time: float = 60.0) -> None:
         """Hold until stop_condition() is true, giving up after max_time."""
-        self.live(max_time, stop_condition)
-        if not stop_condition():
-            warnings.warn(f"wait_until gave up after {max_time} s", stacklevel=2)
+        timeline.wait_until(self, stop_condition, max_time)
 
     def _apply(self) -> None:
-        self.pointer.apply()
-        for prop in self.props:
-            prop.apply()
+        timeline.apply_props(self)
 
     @staticmethod
     def _check_claims(animations) -> None:
-        taken: set[str] = set()
-        for animation in animations:
-            for claim in animation.claims:
-                if claim in taken:
-                    raise ValueError(f"two animations in one play both drive the {claim}")
-                taken.add(claim)
+        timeline.check_claims(animations)

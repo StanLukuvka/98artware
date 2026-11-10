@@ -96,6 +96,7 @@ What a scene author imports with `from art98.anim import *`.
 - [ ] [menu.py](../core/art98/actions/window/menu.py): open a window's menu and pick an item.
 - [ ] [picture.py](../core/art98/actions/window/picture.py): the picture window.
 - [ ] [apps.py](../core/art98/anim/apps.py): the programs on the image, as props.
+- [ ] [timeline.py](../core/art98/anim/timeline.py): `play`, `wait`, `pause`, `live` as functions `Scene` calls.
 - [ ] [setstate.py](../core/art98/anim/setstate.py): applies a state and checks it took.
 - [ ] [renderer.py](../core/art98/anim/renderer.py): VM, recorder, output file.
 
