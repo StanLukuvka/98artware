@@ -12,7 +12,7 @@ from ..state import State, StateError
 from ..win32 import (  # noqa: F401  (SW_*, cursor_pos, screen_size stay importable from here)
     SW_MAXIMIZE, SW_SHOWMINNOACTIVE, cursor_pos, repaint_window, screen_size, show_window,
 )
-from .picture import Picture
+from ..actions.window.picture import Picture
 
 BITSPIXEL = 12
 APPS = {"picture": Picture}

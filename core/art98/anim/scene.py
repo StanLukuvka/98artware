@@ -8,9 +8,9 @@ import warnings
 from pathlib import Path
 
 from ..desktop import blank, work_area
-from .pointer import Pointer
-from .animation import Animation
-from .props import DESKTOP_AREA, Box, Prop
+from ..actions.pointer import Pointer
+from ..base.animation import Animation
+from ..base.props import DESKTOP_AREA, Box, Prop
 
 DESKTOPS = ("blank", "stock")
 

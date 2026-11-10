@@ -12,10 +12,12 @@ import math
 import time
 
 from ..bridge import BridgeTimeout
-from .keys import Keys, TypeKeys
-from .pointer import Click, Drag, RightClick
-from .props import WM_SETTEXT, Spot, Win, window_rect
-from .vectors import Vec
+from ..actions.keyboard import Keys, TypeKeys
+from ..actions.pointer import Click, Drag, RightClick
+from ..actions.window.win import Win
+from ..base.props import Spot
+from ..base.vectors import Vec
+from ..win32 import WM_SETTEXT, window_rect
 
 EM_SETMODIFY = 0x00B9
 SW_HIDE, SW_SHOWNA = 0, 8

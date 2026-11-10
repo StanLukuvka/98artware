@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from ..win32 import SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, WM_SYSCOMMAND, sys_command  # noqa: F401
-from .animation import Instant
-from .vectors import ORIGIN
+from ...base.animation import Instant
+from ...base.vectors import ORIGIN
+from ...win32 import SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, WM_SYSCOMMAND, sys_command  # noqa: F401
 
 
 class _SysCommand(Instant):

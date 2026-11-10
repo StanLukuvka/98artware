@@ -84,17 +84,19 @@ Diagrams: [request lifecycle](diagrams/request-lifecycle.png), [architecture](di
 What a scene author imports with `from art98.anim import *`.
 
 - [ ] [scene.py](../core/art98/anim/scene.py): `Scene`, `play`, `wait`, `set_state`, `desktop`.
-- [ ] [animation.py](../core/art98/anim/animation.py) and
-  [rate_functions.py](../core/art98/anim/rate_functions.py): what changes over a run time.
-- [ ] [props.py](../core/art98/anim/props.py): host-side handles on windows and controls.
-- [ ] [pointer.py](../core/art98/anim/pointer.py): the pointer, and moves, clicks, drags, strokes and menus.
-- [ ] [keys.py](../core/art98/anim/keys.py): typing and key presses.
-- [ ] [window.py](../core/art98/anim/window.py): minimize, maximize, restore, close, and `Teleport`.
+- [ ] [animation.py](../core/art98/base/animation.py) and
+  [rate_functions.py](../core/art98/base/rate_functions.py): what changes over a run time.
+- [ ] [props.py](../core/art98/base/props.py): host-side handles on things in the guest.
+- [ ] [vectors.py](../core/art98/base/vectors.py): screen directions, with y running down.
+- [ ] [pointer.py](../core/art98/actions/pointer.py): the pointer, and moves, clicks, drags and strokes.
+- [ ] [keyboard.py](../core/art98/actions/keyboard.py): typing and key presses.
+- [ ] [win.py](../core/art98/actions/window/win.py): a real window or control as a prop.
+- [ ] [commands.py](../core/art98/actions/window/commands.py): minimize, maximize, restore, close, and `Teleport`.
+- [ ] [menu.py](../core/art98/actions/window/menu.py): open a window's menu and pick an item.
+- [ ] [picture.py](../core/art98/actions/window/picture.py): the picture window.
 - [ ] [apps.py](../core/art98/anim/apps.py): the programs on the image, as props.
-- [ ] [picture.py](../core/art98/anim/picture.py): the picture window.
 - [ ] [setstate.py](../core/art98/anim/setstate.py): applies a state and checks it took.
 - [ ] [renderer.py](../core/art98/anim/renderer.py): VM, recorder, output file.
-- [ ] [vectors.py](../core/art98/anim/vectors.py): screen directions, with y running down.
 
 Explained in: [Tutorial](scenes/tutorial.md) (start here), [Scene API](scenes/scene-api.md),
 [Animations](scenes/animations.md), [App catalog](scenes/app-catalog.md).

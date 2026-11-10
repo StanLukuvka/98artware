@@ -174,7 +174,7 @@ changes.
 
 | Folder | What it holds |
 | --- | --- |
-| [core/](core/art98/) | The `art98` package: the scene layer in `anim/`, the bridge, QEMU control, states, and the container backend in `container/` |
+| [core/](core/art98/) | The `art98` package: the scene layer in `anim/` on top of `base/` and `actions/`, the bridge, QEMU control, states, and the container backend in `container/` |
 | [setup/](setup/art98_setup/) | `art98 setup` and `art98 up`, which turn a disc into `work/golden.qcow2`, and the `Dockerfile` |
 | [guest/](guest/) | The programs that run inside Windows 98: `AGENT.EXE`, the `VIEW.EXE` picture viewer and the install disk's boot record |
 | [artware_experiments/](artware_experiments/) | The MVP scene, the gallery, older demos and throwaway probes |

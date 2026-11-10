@@ -4,19 +4,18 @@ Names follow Manim where the meaning matches. Units do not: everything is in
 screen pixels with y running down, because that is what Win32 speaks.
 """
 
-from .animation import (
+# The program classes are parked in .apps: they still work but aren't exported.
+from ..actions.keyboard import Keys, TypeKeys, TypeWithCursor, UntypeWithCursor
+from ..actions.pointer import Click, DoubleClick, Drag, Glide, Hover, Pointer, RightClick, Stroke
+from ..actions.window import Close, Maximize, Menu, Minimize, Picture, RestoreWindow, Teleport, Win
+from ..base.animation import (
     Animate, Animation, AnimationGroup, Instant, LaggedStart, MoveAlongPath, Succession, Wait,
 )
-# The program classes are parked in .apps: they still work but aren't exported.
-from .keys import Keys, TypeKeys, TypeWithCursor, UntypeWithCursor
-from .picture import Picture
-from .pointer import Click, DoubleClick, Drag, Glide, Hover, Menu, Pointer, RightClick, Stroke
-from .props import Box, Prop, Spot, Win
-from .rate_functions import linear, rush_from, rush_into, smooth, smoothstep, there_and_back
+from ..base.props import Box, Prop, Spot
+from ..base.rate_functions import linear, rush_from, rush_into, smooth, smoothstep, there_and_back
+from ..base.vectors import DL, DOWN, DR, LEFT, ORIGIN, RIGHT, UL, UP, UR, Vec, lerp
 from .renderer import render, write_gif
 from .scene import Scene
-from .vectors import DL, DOWN, DR, LEFT, ORIGIN, RIGHT, UL, UP, UR, Vec, lerp
-from .window import Close, Maximize, Minimize, RestoreWindow, Teleport
 
 __all__ = [
     "Animate", "Animation", "AnimationGroup", "Box", "Click", "Close", "DL", "DOWN", "DR",
