@@ -6,6 +6,7 @@ Paint is moved and resized first, so nothing here can rest on one layout.
 import math
 
 from art98.anim import *
+from art98.anim.apps import Paint  # parked, see apps.py
 
 WIDTH, HEIGHT = 400, 310
 RADIUS = 110

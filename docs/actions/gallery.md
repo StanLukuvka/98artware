@@ -6,6 +6,11 @@ Each GIF is a real scene on the real image, cut down to keep the file small. To 
 uv run python examples/gallery/render_all.py
 ```
 
+**Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
+`from art98.anim import *` leaves them out until each program returns as its own action
+class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is [`Picture`](scene-api.md#picture).
+Every scene here but `pointer_clicks` uses one.
+
 Give scene names to render only those, such as `render_all.py typing`. A GIF's frame rate and colours are set in that file.
 
 ## Hello
@@ -25,6 +30,7 @@ Notepad opens, types a line, drifts across the desktop and closes.
 """
 
 from art98.anim import *
+from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class Hello(Scene):
@@ -78,6 +84,7 @@ Source: [typing.py](../../examples/gallery/typing.py)
 """Typing: letters reach a real Edit control, and the caret moves with them."""
 
 from art98.anim import *
+from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class Typing(Scene):
@@ -105,6 +112,7 @@ Source: [window_motion.py](../../examples/gallery/window_motion.py)
 """Window motion: a move, a resize, and both at once, as one SetWindowPos a frame."""
 
 from art98.anim import *
+from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class WindowMotion(Scene):
@@ -133,6 +141,7 @@ Source: [drag_window.py](../../examples/gallery/drag_window.py)
 """Dragging: Windows moves the window itself, because the pointer holds its title bar."""
 
 from art98.anim import *
+from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class DragWindow(Scene):
@@ -159,6 +168,7 @@ Source: [menus_keys.py](../../examples/gallery/menus_keys.py)
 """Menus and keys: real menu clicks select and stamp, real key presses delete and type."""
 
 from art98.anim import *
+from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class MenusKeys(Scene):
@@ -188,6 +198,7 @@ Source: [hover_dialog.py](../../examples/gallery/hover_dialog.py)
 """A tooltip, which the guest times itself, and a real message box."""
 
 from art98.anim import *
+from art98.anim.apps import Dialog  # parked, see apps.py
 
 
 class HoverDialog(Scene):
@@ -221,6 +232,7 @@ Paint is moved and resized first, so nothing here can rest on one layout.
 import math
 
 from art98.anim import *
+from art98.anim.apps import Paint  # parked, see apps.py
 
 WIDTH, HEIGHT = 400, 310
 RADIUS = 110
@@ -264,6 +276,7 @@ Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py)
 """Minesweeper: the board is read through the XYZZY cheat, then played by hand."""
 
 from art98.anim import *
+from art98.anim.apps import Minesweeper  # parked, see apps.py
 
 
 class MinesweeperWin(Scene):
@@ -288,6 +301,7 @@ Source: [screensaver.py](../../examples/gallery/screensaver.py)
 """A screensaver, launched directly and recorded live, then dismissed."""
 
 from art98.anim import *
+from art98.anim.apps import Screensaver  # parked, see apps.py
 
 
 class ScreensaverRun(Scene):

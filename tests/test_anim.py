@@ -6,6 +6,7 @@ import pytest
 
 from art98 import anim, session as session_module
 from art98.anim import *
+from art98.anim.apps import PARKED, Dialog, Minesweeper, Notepad, Paint, Screensaver
 from art98.anim import actions
 from art98.anim.actions import BUTTONS, char_chord, key_chord
 from art98.bridge import CallResult, Window
@@ -902,6 +903,8 @@ def test_cli_finds_the_scene_in_a_file(tmp_path):
 def test_star_import_gives_the_scene_api():
     namespace = {}
     exec("from art98.anim import *", namespace)
-    for name in ("Scene", "Click", "Notepad", "RIGHT", "smooth", "Paint", "Stroke"):
+    for name in ("Scene", "Click", "Picture", "RIGHT", "smooth", "Teleport", "Stroke"):
         assert name in namespace
+    # Parked program classes come from art98.anim.apps, not the star import.
+    assert not set(PARKED) & set(namespace)
     assert set(anim.__all__) <= set(dir(anim))

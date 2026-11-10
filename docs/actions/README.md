@@ -9,10 +9,15 @@ and cannot do.
 
 ![System overview](../diagrams/system-overview.png)
 
+**Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
+`from art98.anim import *` leaves them out until each program returns as its own action
+class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is [`Picture`](scene-api.md#picture).
+
 ## A first scene
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class Hello(Scene):
@@ -60,6 +65,7 @@ between two animations:
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class Lower(Scene):

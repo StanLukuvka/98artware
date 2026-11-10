@@ -3,6 +3,11 @@
 This takes you from nothing to a scene that draws in Paint and writes a GIF. Each scene below was
 rendered on the real image.
 
+**Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
+`from art98.anim import *` leaves them out until each program returns as its own action
+class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is [`Picture`](scene-api.md#picture).
+Every scene in this tutorial uses one of them.
+
 ## Before you start
 
 You need the prepared image from [Part 1](../prep/), and `qemu-system-i386` and `ffmpeg` on your
@@ -23,6 +28,7 @@ Save this as `first.py`:
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class First(Scene):
@@ -55,6 +61,7 @@ pixels, with y running down. `at` is the window's top left corner.
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class MoveIt(Scene):
@@ -76,6 +83,7 @@ releases. It is real input, so Windows decides what the click does.
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class UseTheMouse(Scene):
@@ -102,6 +110,7 @@ stay right after you move it. `Stroke` holds the button down along a path.
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Paint
 
 
 class Draw(Scene):
@@ -130,6 +139,7 @@ animating. This one reads the screen resolution and shows it.
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 SM_CXSCREEN, SM_CYSCREEN = 0, 1
 
@@ -152,6 +162,7 @@ rate function. `begin` and `finish` are there if you need them.
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class CountInTitle(Animation):

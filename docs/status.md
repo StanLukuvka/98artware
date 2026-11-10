@@ -9,8 +9,8 @@ work can pick up from here.
 | --- | --- | --- |
 | VM preparation | Built. `art98 prep` turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input | [Part 1](prep/README.md) |
 | Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](actions/bridge.md), [Instruction set](actions/instruction-set.md) |
-| Scene API and renderer | Built. `Scene`, props, animations, `art98 render` | [Part 2](actions/README.md) |
-| Examples | `hello.py`, `showcase.py` and the gallery scenes | [Gallery](actions/gallery.md) |
+| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. The program classes are parked, unexported | [Part 2](actions/README.md) |
+| Examples | `examples/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](actions/gallery.md) |
 | Diagrams | Six architecture diagrams with editable `.drawio` files | [Diagrams](diagrams/README.md) |
 | States and actions | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Named actions aren't built | [Design](design/state-and-action.md), [States](actions/scene-api.md#states) |
 | Recorder | `FrameRecorder`, one file per render. A `Recorder` with `cut()` is specified, not built | [Recorder](design/state-and-action.md#recorder) |
@@ -49,7 +49,11 @@ Audio is deferred. art98 is video only.
 10. **MVP built, 2026-11-10.** `VIEW.EXE` and `Picture`, `Teleport`, state files, `Session.revert`,
     `set_state` and `self.prop`, the sample in `examples/mvp`, and their docs and tests. All five
     done-when checks pass. A Set with two windows and an image takes 1.45 s. See
-    [MVP results](design/state-and-action.md#mvp-results). Not committed yet.
+    [MVP results](design/state-and-action.md#mvp-results). Committed in `24e8803`.
+11. **Program classes parked, 2026-11-10.** `Notepad`, `Paint`, `Minesweeper`, `Screensaver` and
+    `Dialog` still work and are tested, but `art98.anim` no longer exports them. Scenes import
+    them from `art98.anim.apps`, which lists them in `PARKED`. Each program comes back later as
+    its own action class, starting from that code.
 
 ## What is open
 

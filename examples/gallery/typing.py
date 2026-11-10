@@ -1,6 +1,7 @@
 """Typing: letters reach a real Edit control, and the caret moves with them."""
 
 from art98.anim import *
+from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class Typing(Scene):

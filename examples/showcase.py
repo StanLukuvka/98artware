@@ -10,6 +10,7 @@ wall clock: everything else is drawn when the script asks for a frame.
 import math
 
 from art98.anim import *
+from art98.anim.apps import Minesweeper, Paint, Screensaver  # parked, see apps.py
 
 CANVAS = (496, 376)
 ROSE_CENTRE = (248, 188)

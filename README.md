@@ -79,8 +79,21 @@ reason. See [the key on the image](docs/prep/image.md#your-product-key-is-on-the
 
 A scene describes what happens, and `art98 render` turns it into a video:
 
+**Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
+`from art98.anim import *` leaves them out until each program returns as its own action
+class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is
+[`Picture`](docs/actions/scene-api.md#picture).
+The MVP's own scene is [examples/mvp/mvp.py](examples/mvp/mvp.py):
+
+```bash
+uv run art98 render examples/mvp/mvp.py -o mvp.mp4
+```
+
+A scene with a parked program:
+
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class Hello(Scene):

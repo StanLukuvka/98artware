@@ -412,7 +412,8 @@ class Mvp(Scene):
 
 ### Out, for now
 
-Every program: Paint, Notepad, Minesweeper and any `command`. Wallpaper, icons and tray.
+Every program: Paint, Notepad, Minesweeper and any `command`. Their classes are parked in
+`art98/anim/apps.py`, unexported, until each returns as its own action class. Wallpaper, icons and tray.
 Sections, clips and `--section`. Holding, Failed with a live VM, the Python prompt and Stop. The
 backend interface, and the agent bug fixes.
 

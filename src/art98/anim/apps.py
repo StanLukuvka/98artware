@@ -1,4 +1,10 @@
-"""The programs on the image, as props that know their own controls."""
+"""Parked: the programs on the image, as props that know their own controls.
+
+Programs are out of the MVP, and each one (Notepad, Paint, Minesweeper, the
+screensavers and message boxes) comes back later as its own action class. Until
+then this module still works and is tested, but `art98.anim` doesn't export it:
+import the classes from `art98.anim.apps`. `PARKED` lists them.
+"""
 
 from __future__ import annotations
 
@@ -15,6 +21,7 @@ from .vectors import Vec
 EM_SETMODIFY = 0x00B9
 SW_HIDE, SW_SHOWNA = 0, 8
 BLACK = 0
+PARKED = ("Dialog", "Minesweeper", "Notepad", "Paint", "Screensaver")
 
 
 class Dialog(Win):

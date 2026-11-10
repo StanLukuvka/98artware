@@ -1,6 +1,7 @@
 """Window motion: a move, a resize, and both at once, as one SetWindowPos a frame."""
 
 from art98.anim import *
+from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class WindowMotion(Scene):

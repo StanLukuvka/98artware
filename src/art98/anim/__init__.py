@@ -11,7 +11,7 @@ from .actions import (
 from .animation import (
     Animate, Animation, AnimationGroup, Instant, LaggedStart, MoveAlongPath, Succession, Wait,
 )
-from .apps import Dialog, Minesweeper, Notepad, Paint, Screensaver
+# The program classes are parked in .apps: they still work but aren't exported.
 from .picture import Picture, Teleport
 from .props import Box, Prop, Spot, Win
 from .rate_functions import linear, rush_from, rush_into, smooth, smoothstep, there_and_back
@@ -21,9 +21,9 @@ from .vectors import DL, DOWN, DR, LEFT, ORIGIN, RIGHT, UL, UP, UR, Vec, lerp
 
 __all__ = [
     "Animate", "Animation", "AnimationGroup", "Box", "Click", "Close", "DL", "DOWN", "DR",
-    "Dialog", "DoubleClick", "Drag", "Glide", "Hover", "Instant", "Keys", "LEFT", "LaggedStart",
-    "Maximize", "Menu", "Minesweeper", "Minimize", "MoveAlongPath", "Notepad", "ORIGIN", "Paint",
-    "Picture", "Pointer", "Prop", "RIGHT", "RestoreWindow", "RightClick", "Scene", "Screensaver",
+    "DoubleClick", "Drag", "Glide", "Hover", "Instant", "Keys", "LEFT", "LaggedStart",
+    "Maximize", "Menu", "Minimize", "MoveAlongPath", "ORIGIN",
+    "Picture", "Pointer", "Prop", "RIGHT", "RestoreWindow", "RightClick", "Scene",
     "Spot", "Stroke", "Succession", "Teleport", "TypeKeys", "TypeWithCursor", "UL", "UP", "UR",
     "UntypeWithCursor", "Vec", "Wait", "Win", "lerp", "linear", "render", "rush_from",
     "rush_into", "smooth", "smoothstep", "there_and_back", "write_gif",

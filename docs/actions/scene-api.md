@@ -1,5 +1,9 @@
 # Scene API
 
+**Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
+`from art98.anim import *` leaves them out until each program returns as its own action
+class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is [`Picture`](#picture).
+
 Everything here comes from `from art98.anim import *`. For what you pass to `play`, see
 [Animations](animations.md).
 
@@ -124,6 +128,7 @@ Two animations can't drive the same thing at once. Two pointer actions in one `p
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class Together(Scene):
@@ -193,6 +198,7 @@ All of these can be animated through `.animate`.
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class Layout(Scene):
@@ -245,6 +251,7 @@ windows, so the props give you Spots, and an animation reads them as it begins.
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class Spots(Scene):
@@ -335,6 +342,7 @@ Use the animations in most scenes. `place` is useful to park the pointer out of 
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Notepad
 
 
 class Parked(Scene):
@@ -378,6 +386,8 @@ class OnePicture(Scene):
 
 ## Notepad
 
+Parked: import it from `art98.anim.apps`.
+
 `Notepad(at=None, size=None)`
 
 Starts `notepad.exe`. `edit_hwnd`, `text` and `set_text` work on its Edit control. `close` marks
@@ -388,6 +398,8 @@ the text as saved first, so no save prompt appears.
 Source: [typing.py](../../examples/gallery/typing.py).
 
 ## Paint
+
+Parked: import it from `art98.anim.apps`.
 
 `Paint(at=None, size=None)`
 
@@ -426,6 +438,8 @@ Source: [paint_drawing.py](../../examples/gallery/paint_drawing.py).
 
 ## Minesweeper
 
+Parked: import it from `art98.anim.apps`.
+
 `Minesweeper(at=None, size=None)`
 
 Starts `WINMINE.EXE`. The cell positions come from the client area.
@@ -451,6 +465,8 @@ Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py).
 
 ## Screensaver
 
+Parked: import it from `art98.anim.apps`.
+
 `Screensaver(name="3D Pipes")`
 
 Starts `<name>.scr /s`. Follow it with `self.live(seconds)`, because a screensaver runs by itself.
@@ -467,6 +483,8 @@ Channel Screen Saver is on the image but left out, because moving the pointer do
 Source: [screensaver.py](../../examples/gallery/screensaver.py).
 
 ## Dialog
+
+Parked: import it from `art98.anim.apps`.
 
 `Dialog(text, title="art98", *, icon=None, buttons="ok", at=None)`
 
@@ -487,6 +505,7 @@ Source: [hover_dialog.py](../../examples/gallery/hover_dialog.py).
 
 ```python
 from art98.anim import *
+from art98.anim.apps import Dialog, Notepad
 
 
 class Question(Scene):
