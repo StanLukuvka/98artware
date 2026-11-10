@@ -45,9 +45,9 @@ Your key is stored in clear text in at least two places inside `golden.qcow2`:
 - The `ProductKey` value under `HKLM\Software\Microsoft\Windows\CurrentVersion`,
   written by Setup.
 
-Both were confirmed present on the private copy. The values were not printed. Do not
-publish `golden.qcow2`, a copy of it, or `install.img`. This also applies to any
-script that reads those places and shows the result on screen.
+Both were confirmed present on the private copy. The values were not printed. An old
+Windows 98 key is rarely worth guarding, but the disk is still an installed copy of Windows,
+so don't publish `golden.qcow2`, a copy of it, or `install.img`.
 
 ## The answer file
 

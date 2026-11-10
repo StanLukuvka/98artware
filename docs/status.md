@@ -14,6 +14,7 @@ work can pick up from here.
 | Diagrams | Seven diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
 | States and actions | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Named actions aren't built | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
 | Recorder | `FrameRecorder`, one file per render. A `Recorder` with `cut()` is specified, not built | [Recorder](design/state-and-action.md#recorder) |
+| Container | Built in `98artware_container/`. `art98 up` builds the image, runs setup in it and pings; `ART98_BACKEND=container` or `--backend container` runs a stage in it. The default backend is still `local`. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
 
 Audio is deferred. art98 is video only.
 
@@ -60,7 +61,17 @@ Audio is deferred. art98 is video only.
     (`Scene.desktop = "blank"`, `pointer_visible`), made at run time by `art98/desktop.py`
     after each revert. The snapshot isn't changed. The older demos are pinned to
     `desktop = "stock"`. See [Blank start](design/blank-start.md).
-13. **`actions.py` split, 2026-11-10.** It's now `anim/pointer.py`, `anim/keys.py` and
+13. **Container, 2026-11-10.** QEMU 10.2.2, setup and the guest programs moved into a Podman or
+    Docker image, all in `98artware_container/`. The existing `ready` snapshot restores in it
+    unchanged. The container relays the agent's protocol to the host and serves screenshots,
+    keys and reverts on a JSON channel, over a Unix socket on Linux and loopback TCP elsewhere.
+    The host keeps `Bridge`, `FrameRecorder` and ffmpeg. A recorded frame takes 6.8 to 7.0 ms
+    through the container against 5.6 to 6.3 ms locally. The suite passes on both backends, and
+    the MVP scene renders through the container. A from-scratch `art98 up` took about 25
+    minutes on a quiet host, and its image renders the MVP scene with all 257 frames identical
+    to the host-built image's. Doctor and the guides now give Debian and Ubuntu package names
+    too. See [Container](design/container.md).
+14. **`actions.py` split, 2026-11-10.** It's now `anim/pointer.py`, `anim/keys.py` and
     `anim/window.py`, and `Teleport` moved from `picture.py` to `window.py`. The programs a
     state can open are listed once, in `setstate.py`, and `scene.py` sets up the pointer in
     one place. Nothing a scene imports changed.
@@ -76,12 +87,14 @@ In order, from the cleanup review of 2026-11-10. See also
    `FrameRecorder` out of `session.py`. Its open questions were
    [decided](design/state-and-action.md#recorder-decisions) on 2026-11-10: one GIF from joined lossless
    clips, clips kept as MP4, the `close()` exit-code fix included, and a size change inside a
-   clip raises. Build it after the container branch merges, since both change `session.py`.
+   clip raises.
 2. **Sections:** `next_section` and `--section`.
 3. **Program classes:** a one-page design, then a Notepad pilot. Settle first what "action"
    means: the design calls a named section of a scene an action, and programs are meant to
    return as action classes.
 4. **Port the showcase** and re-render the gallery.
+5. **Container follow-ups.** Try real Docker, then decide whether `container` becomes the
+   default backend.
 
 Two bugs on hold below sit on the `set_state` path, the failed `load_snapshot` and the pending
 async calls on `! CRASH`. They may be worth taking off hold.
@@ -102,6 +115,7 @@ work. None of them block the MVP.
 | Host | `_read_loop` only catches `OSError` |
 | Host | A failed `load_snapshot` leaves QEMU in its `restore-vm` state |
 | Host | `FrameRecorder.close` doesn't check ffmpeg's exit code |
+| Tests | Each `test_qemu.py` run leaves one `art98-*` socket folder in `$XDG_RUNTIME_DIR`: a test VM isn't closed |
 
 ### Docs that are out of date
 
@@ -125,9 +139,13 @@ work. None of them block the MVP.
 
 ## Working notes
 
-- Set up QEMU in each shell with `. .tools/env.sh`.
-- `work/` is gitignored and holds the images, which contain the product key in clear text.
-  Never commit or push anything from it, including the copies under `work/runs`.
+- For the local backend, set up QEMU in each shell with `. .tools/env.sh`. The container
+  backend doesn't need `.tools/`.
+- The stage tests boot the real image: point `ART98_TEST_WORK` at a prepared work folder when
+  running from a worktree. They run on both backends.
+- `work/` is gitignored and holds the images: installed copies of Windows, with the product
+  key in clear text. Never commit or push anything from it, including the copies under
+  `work/runs`.
 - To stop a stray VM, kill it by its PID. `pkill -f qemu-system-i386` can match the shell that
   runs it.
 - Timings depend on host load, so note `/proc/pressure/cpu` next to any figure.

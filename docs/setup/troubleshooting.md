@@ -10,8 +10,8 @@ step. When the VM is involved, these show what happened:
 | `--watch` | The live screen |
 | `C:\SETUPLOG.TXT`, `DETLOG.TXT` | Setup's own logs. On a failed install, read them from `work/install.img` with `mtype -i "work/install.img@@32256" ::SETUPLOG.TXT`. Set `MTOOLS_SKIP_CHECK=1` first |
 
-Don't paste `SETUPLOG.TXT` or anything else from the disk into a public place without
-reading it first. The disk holds your key.
+The logs are fine to paste into an issue, but don't share the disk itself: it is an installed
+copy of Windows.
 
 ## Setup quirks the tool handles
 

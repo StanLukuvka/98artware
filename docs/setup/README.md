@@ -30,22 +30,28 @@ system sounds and power saving off, and `C:\ART98\AGENT.EXE` already running.
 - **A Windows 98 SE disc image and product key of your own.** The disc must boot
   from an emulated floppy and hold a `WIN98` folder. The tool was run on one OEM
   disc only, see [what a different disc needs](troubleshooting.md#a-different-disc).
-- **Linux with these tools.** `art98 doctor` checks them.
+- **Podman or Docker, and ffmpeg**, for the [container path](#quick-path-in-a-container).
+  The container holds QEMU 10.2.2, mtools, 7-Zip and the guest programs, so the host needs
+  nothing else.
+- **Or, for the [local path](#quick-path-on-the-host), Linux with these tools.**
+  `art98 doctor` checks them.
 
-  | Tool | Fedora package | Used for |
-  |------|----------------|----------|
-  | `qemu-system-i386` | `qemu-system-x86` | Running the VM |
-  | `qemu-img` | `qemu-img` | Converting the disk to qcow2 |
-  | `mcopy` and the rest of mtools | `mtools` | Editing the FAT floppy and disk from the host |
-  | `7z` | `7zip` | Unpacking the disc |
-  | `ffmpeg` | `ffmpeg` | Not used by `setup`. Scenes need it to encode video |
-  | `make`, `as` | `make`, `binutils` | Building `mbr.bin` |
-  | `i686-w64-mingw32-gcc` | `mingw32-gcc` | Building `agent.exe` |
+  | Tool | Fedora package | Debian and Ubuntu package | Used for |
+  |------|----------------|---------------------------|----------|
+  | `qemu-system-i386` | `qemu-system-x86` | `qemu-system-x86` | Running the VM |
+  | `qemu-img` | `qemu-img` | `qemu-utils` | Converting the disk to qcow2 |
+  | `mcopy` and the rest of mtools | `mtools` | `mtools` | Editing the FAT floppy and disk from the host |
+  | `7z` | `7zip` | `7zip` (`p7zip-full` on Debian 12 and older) | Unpacking the disc |
+  | `ffmpeg` | `ffmpeg` | `ffmpeg` | Not used by `setup`. Scenes need it to encode video |
+  | `make`, `as` | `make`, `binutils` | `make`, `binutils` | Building `mbr.bin` |
+  | `i686-w64-mingw32-gcc` | `mingw32-gcc` | `gcc-mingw-w64-i686` | Building `agent.exe` |
 
+  The `ready` snapshot only loads on the QEMU machine type that saved it, so an image made
+  with one QEMU version may not restore on another. The container pins the version.
 - **Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).** art98 has no
   runtime Python dependencies.
 - **About 3 GB of free disk space during the build**, and 40 minutes. The raw
-  install disk is 2 GB, and it exists next to the qcow2 until `harden` deletes it.
+  install disk is 2 GB, and it exists next to the qcow2 until the `ready` step deletes it.
 
 KVM is not used. See [why TCG](image.md#hardware).
 
@@ -58,16 +64,77 @@ answer file sets `ShowEula=0`, and on OEM discs that show the agreement anyway,
 setup selects "I accept the Agreement" by keystroke. Only run it with a disc and
 key you are licensed to use.
 
-The finished image holds your key in clear text, see
-[the key on the image](image.md#your-product-key-is-on-the-image). Do not share
-`golden.qcow2`.
+Do not share `golden.qcow2`: it is an installed copy of Windows 98. It also holds your key
+in clear text, see [the key on the image](image.md#your-product-key-is-on-the-image).
 
-## Quick path
+## Quick path in a container
+
+One command builds the image, runs setup in the container and checks the result:
+
+```bash
+uv run art98 up --iso /path/to/win98se.iso
+```
+
+It asks for your product key without echoing it, or reads `ART98_PRODUCT_KEY`. Setup takes
+25 to 40 minutes, depending on host load: about 25 on a quiet one. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the screen.
+If setup stops, run the same command again: it resumes, and Podman keeps the key as the secret
+`art98_key` until setup finishes. Running `up` again once everything is done only boots the
+desktop and pings the agent.
+
+Then render through the container:
+
+```bash
+ART98_BACKEND=container uv run art98 render artware_experiments/set_state/mvp.py
+```
+
+`--backend container` on `render` or `ping` does the same for one command. The default backend
+is still `local`. See [the container design](../design/container.md) for how it works.
+
+### By hand
+
+`art98 up` runs these. Build the image from the repository root:
+
+```bash
+podman build -t localhost/art98:latest -f 98artware_container/Containerfile --ignorefile 98artware_container/Containerfile.dockerignore .
+```
+
+Store the key as a secret, typed without echo:
+
+```bash
+read -rs KEY && printf %s "$KEY" | podman secret create art98_key - && unset KEY
+```
+
+Run setup, with `work/` and the disc mounted:
+
+```bash
+podman run --rm --init --security-opt label=disable -v "$PWD/work:/work" -v /path/to/win98se.iso:/media/win98.iso:ro --secret art98_key localhost/art98:latest setup --work /work --iso /media/win98.iso
+```
+
+Then delete the secret, since the key is in the finished image:
+
+```bash
+podman secret rm art98_key
+```
+
+A stage container runs `art98 serve`, which needs a token in `/run/secrets/art98_token` and
+waits for the host to connect. `art98_container.host` starts those for you. Everything for the
+container is in [98artware_container/](../../98artware_container/README.md).
+
+With Docker, use `docker` in place of `podman`. `docker run` has no `--secret`, so mount a file
+holding the key instead: `-v /path/to/keyfile:/run/secrets/art98_key:ro`.
+
+## Quick path on the host
 
 Install the tools:
 
 ```bash
 sudo dnf install qemu-system-x86 qemu-img mtools 7zip ffmpeg make binutils mingw32-gcc
+```
+
+On Debian or Ubuntu:
+
+```bash
+sudo apt install qemu-system-x86 qemu-utils mtools 7zip ffmpeg make binutils gcc-mingw-w64-i686
 ```
 
 Build the two files that go on the Windows disk, `windows_handlers/build/agent.exe` and
@@ -146,7 +213,7 @@ few minutes:
 | Page | Covers |
 |------|--------|
 | [stages.md](stages.md) | Each step: inputs, outputs, what happens inside, how it fails, what `--from` redoes |
-| [cli.md](cli.md) | `art98 doctor`, `setup` and `ping`, every flag, environment variables, the work directory |
+| [cli.md](cli.md) | `art98 doctor`, `setup`, `ping`, `up` and `serve`, every flag, environment variables, the work directory |
 | [image.md](image.md) | What is on the finished image, every setting and why, the snapshot, the VM hardware |
 | [troubleshooting.md](troubleshooting.md) | Setup quirks, the stall rule, recovery, other discs |
 

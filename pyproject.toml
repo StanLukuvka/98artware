@@ -16,9 +16,14 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["98artware_core/art98", "98artware_setup/art98_setup"]
+packages = ["98artware_core/art98", "98artware_setup/art98_setup",
+            "98artware_container/art98_container"]
 
 [tool.pytest.ini_options]
-testpaths = ["98artware_core/tests", "98artware_setup/tests"]
-pythonpath = ["98artware_core", "98artware_setup"]
-markers = ["qemu: needs qemu-system-i386 on PATH"]
+testpaths = ["98artware_core/tests", "98artware_setup/tests", "98artware_container/tests"]
+pythonpath = ["98artware_core", "98artware_setup", "98artware_container"]
+markers = [
+    "qemu: needs qemu-system-i386 on PATH",
+    "container: needs Podman or Docker and the art98 image",
+    "stage: boots the prepared image in work/ (or ART98_TEST_WORK)",
+]

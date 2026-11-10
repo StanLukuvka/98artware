@@ -30,8 +30,39 @@ Host: Python                                     Guest: Windows 98 SE in QEMU
 
 ## Setup
 
+You need your own Windows 98 SE disc image and product key. Nothing here supplies
+them. Running `art98 setup` or `art98 up` accepts the Windows 98 licence agreement on your
+behalf: the answer file asks to skip it, and OEM discs that show it anyway get "I accept"
+selected by keystroke.
+
+### In a container
+
+With Podman or Docker, Python and ffmpeg on the host, one command builds the image, prepares
+the desktop and checks it:
+
+```bash
+uv run art98 up --iso /path/to/win98se.iso
+```
+
+It asks for the key without echo, or reads `ART98_PRODUCT_KEY`, and takes 25 to 40 minutes,
+depending on how busy the host is.
+`--watch` shows setup over VNC on `127.0.0.1:5998`. Then render with
+`ART98_BACKEND=container` or `--backend container`. Everything for the container is in
+[98artware_container/](98artware_container/README.md); the by-hand commands are in
+[the setup guide](docs/setup/README.md#quick-path-in-a-container).
+
+### On the host
+
+Install the tools. On Fedora:
+
 ```bash
 sudo dnf install qemu-system-x86 qemu-img mtools 7zip ffmpeg make binutils mingw32-gcc
+```
+
+On Debian or Ubuntu:
+
+```bash
+sudo apt install qemu-system-x86 qemu-utils mtools 7zip ffmpeg make binutils gcc-mingw-w64-i686
 ```
 
 ```bash
@@ -44,10 +75,7 @@ uv run art98 doctor
 
 ## Part 1: prepare the image
 
-You need your own Windows 98 SE disc image and product key. Nothing here supplies
-them. Running `art98 setup` accepts the Windows 98 licence agreement on your behalf: the
-answer file asks to skip it, and OEM discs that show it anyway get "I accept"
-selected by keystroke.
+This is the host path. `art98 up` runs the same steps in the container.
 
 Pass the key through the environment, so it stays out of your shell history:
 
@@ -60,21 +88,23 @@ uv run art98 setup --iso /path/to/win98se.iso
 ```
 
 Add `--watch` to see the screen. Progress is saved after each step, so rerunning
-resumes, and `--from STAGE` repeats a stage and everything after it.
+resumes, and `--from STEP` repeats a step and everything after it.
 
-| Stage | What happens |
-|-------|--------------|
-| `media` | Checks the agent can load on 98, unpacks `WIN98`, pulls the boot floppy from the disc and points it at Setup |
-| `disk` | Makes a raw disk with a boot record and FAT32, copies in the setup files, answer file and agent |
-| `install` | Runs Setup until the agent says hello, starting a new VM each time Setup reboots, then forces a reboot that ends QEMU. Answers the OEM first-boot wizard and the logon prompt by watching the screen. Screenshots go to `work/shots/` |
-| `patch` | Edits `MSDOS.SYS` offline and converts the disk to qcow2 |
-| `harden` | Over the bridge: applies registry settings, clears the Run keys except the agent and the tray, sets 800x600x16, reboots, checks the desktop is clean, saves snapshot `ready` |
+| Step | What happens |
+|------|--------------|
+| `vm` | Checks the agent can load on 98, unpacks `WIN98`, pulls the boot floppy from the disc and points it at Setup, then makes a raw disk with a boot record and FAT32 and copies in the setup files, answer file and agent |
+| `setup` | Runs Setup until the agent says hello, starting a new VM each time Setup reboots, then forces a reboot that ends QEMU. Answers the OEM first-boot wizard and the logon prompt by watching the screen. Screenshots go to `work/shots/` |
+| `init_api` | Edits `MSDOS.SYS` offline, converts the disk to qcow2, and boots once to see the agent answer |
+| `ready` | Over the bridge: applies registry settings, clears the Run keys except the agent and the tray, sets 800x600x16, reboots, checks the desktop is clean, saves snapshot `ready` |
+
+The old stage names `media`, `disk`, `install`, `patch` and `harden` still work with `--from`.
 
 The result is `work/golden.qcow2` and `work/image.json`.
 
-**Keep `work/` private.** The finished image holds your product key in clear text,
-so never publish `golden.qcow2` or a copy of it. `work/` is gitignored for that
-reason. See [the key on the image](docs/setup/image.md#your-product-key-is-on-the-image).
+**Don't publish `work/`.** The finished image is an installed copy of Windows 98, so
+never share `golden.qcow2` or a copy of it. `work/` is gitignored for that reason. It
+also holds your product key in clear text, which matters less for a 1998 key; see
+[the key on the image](docs/setup/image.md#your-product-key-is-on-the-image).
 
 ## Part 2: animate it
 
@@ -171,9 +201,12 @@ uv run --group dev pytest
 | `test_anim`, `test_anim_docs` | The scene layer on a fake guest, and the documented API |
 | `test_qemu` | Real QEMU with no Windows: boot chain, QMP, snapshots |
 | `test_agent_wine` | The real `agent.exe` under Wine, with a pty as COM1 |
+| `test_container` | The container's server and the host's end of it, on a fake VM and agent. No container needed |
+| `test_stage` | The prepared image in `work/` (or `ART98_TEST_WORK`), booted on the local and the container backend, including a render |
 
-The QEMU and Wine suites skip themselves if those tools are missing. They can't
-stand in for real Windows 98, so the findings from real runs are below.
+The QEMU, Wine and container suites skip themselves if those tools are missing, and
+`test_stage` skips without a prepared image. Only `test_stage` runs real Windows 98, so the
+findings from real runs are below.
 
 ## Measured on real Windows 98
 
@@ -182,9 +215,12 @@ From a Windows 98 SE OEM disc, on QEMU 10.2.2 with software emulation:
 | What | Result |
 |------|--------|
 | Full `art98 setup`, blank disk to snapshot, no input | About 40 min |
+| Full `art98 up` in the container, quiet host | About 25 min, of which Windows Setup 22 min |
+| Image built in the container against one built on the host | Same frames: 0 of 257 differ in the MVP scene |
 | Snapshot restore to a working agent | About 1 s |
 | `PING` round trip | About 5 ms |
 | `SYNC` plus one frame capture | About 6.5 ms |
+| One recorded frame, local and through the container on Linux | 5.6 to 6.3 ms and 6.8 to 7.0 ms ([timing](docs/design/container.md#timing)) |
 | `put_file` | 100 to 190 KB/s |
 | `get_file` | About 325 KB/s |
 | `artware_experiments/hello.py`, 211 frames | About 3 s |
