@@ -3,18 +3,15 @@
 from __future__ import annotations
 
 import inspect
-import struct
 import time
 import warnings
 from pathlib import Path
 
-from ..desktop import blank
-from ..protocol import Out
+from ..desktop import blank, work_area
 from .pointer import Pointer
 from .animation import Animation
-from .props import Box, Prop
+from .props import DESKTOP_AREA, Box, Prop
 
-SPI_GETWORKAREA = 48
 DESKTOPS = ("blank", "stock")
 
 
@@ -52,7 +49,7 @@ class Scene:
         self.vm = None
         self.pointer: Pointer | None = None
         self.props: list[Prop] = []
-        self.work_area = (0, 0, 800, 572)
+        self.work_area = DESKTOP_AREA
         self._state_props: dict[str, Prop] = {}
 
     # ---- what a scene writes ----
@@ -141,10 +138,7 @@ class Scene:
     def read_work_area(self) -> None:
         """Read the desktop area from the guest: above the taskbar, or the whole
         screen on a blank desktop."""
-        left, top, right, bottom = struct.unpack(
-            "<iiii", self.guest.user32.SystemParametersInfoA(
-                SPI_GETWORKAREA, 0, Out(16), 0).buffers[0])
-        self.work_area = (left, top, right, bottom)
+        self.work_area = work_area(self.guest)
 
     def _find_state(self, path: Path) -> Path:
         if path.is_absolute():

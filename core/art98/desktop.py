@@ -79,6 +79,13 @@ def screen_size(guest) -> tuple[int, int]:
     return user32.GetSystemMetrics(SM_CXSCREEN).value, user32.GetSystemMetrics(SM_CYSCREEN).value
 
 
+def work_area(guest) -> tuple[int, int, int, int]:
+    """The desktop area as (left, top, right, bottom): above the taskbar, or the
+    whole screen on a blank desktop."""
+    return struct.unpack("<4i", guest.user32.SystemParametersInfoA(
+        SPI_GETWORKAREA, 0, Out(16), 0).buffers[0])
+
+
 def blank(guest, pointer: bool = False) -> None:
     """Turn the restored desktop into a black, empty screen, then check it.
 
@@ -128,8 +135,7 @@ def check_blank(guest) -> list[str]:
     if colour != BLACK:
         problems.append(f"the desktop colour is {colour:06x}, not black")
     width, height = screen_size(guest)
-    area = struct.unpack("<4i", user32.SystemParametersInfoA(
-        SPI_GETWORKAREA, 0, Out(16), 0).buffers[0])
+    area = work_area(guest)
     if area != (0, 0, width, height):
         problems.append(f"the work area is {list(area)}, not the whole {width}x{height} screen")
     for name, get_action, _set in UI_EFFECTS:

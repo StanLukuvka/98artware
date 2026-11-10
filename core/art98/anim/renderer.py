@@ -7,10 +7,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from ..session import stage
-
-GIF_FPS = 15
-GIF_COLORS = 128
+from ..session import GIF_COLORS, GIF_FPS, H264, stage
 
 
 def write_gif(source: Path | str, output: Path | str, fps: int = GIF_FPS, colors: int = GIF_COLORS,
@@ -55,8 +52,7 @@ def render(scene, output: Path | str | None = None, *, gif: Path | str | None = 
             write_gif(master, gif, gif_fps, gif_colors, gif_scale, gif_dither)
             if output:
                 subprocess.run(
-                    ["ffmpeg", "-y", "-loglevel", "error", "-i", str(master), "-c:v", "libx264",
-                     "-preset", "veryfast", "-pix_fmt", "yuv420p", "-crf", "12", str(output)],
+                    ["ffmpeg", "-y", "-loglevel", "error", "-i", str(master), *H264, str(output)],
                     check=True,
                 )
     finally:

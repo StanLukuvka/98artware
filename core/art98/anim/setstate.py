@@ -8,14 +8,12 @@ difference. Anything the state leaves out isn't checked.
 
 from __future__ import annotations
 
-import struct
-
 from ..bridge import RDW_REPAINT_ALL
-from ..protocol import Out
+from ..desktop import screen_size
 from ..state import State, StateError
 from .picture import Picture
+from .pointer import cursor_pos
 
-SM_CXSCREEN, SM_CYSCREEN = 0, 1
 BITSPIXEL = 12
 SW_SHOWMINNOACTIVE, SW_MAXIMIZE = 7, 3
 APPS = {"picture": Picture}
@@ -26,8 +24,7 @@ class StateMismatch(StateError):
 
 
 def display_mode(guest) -> tuple[int, int, int]:
-    width = guest.user32.GetSystemMetrics(SM_CXSCREEN).value
-    height = guest.user32.GetSystemMetrics(SM_CYSCREEN).value
+    width, height = screen_size(guest)
     dc = guest.user32.GetDC(0).value
     try:
         depth = guest.gdi32.GetDeviceCaps(dc, BITSPIXEL).value
@@ -104,7 +101,7 @@ def check_state(scene, state: State, props: dict) -> None:
         problems.append(f"windows: front to back should be {[ids[h] for h in wanted]}, "
                         f"the guest has {[ids[h] for h in order]}")
     if state.pointer:
-        actual = struct.unpack("<ii", guest.user32.GetCursorPos(Out(8)).buffers[0])
+        actual = cursor_pos(guest)
         if actual != state.pointer:
             problems.append(f"pointer: {list(state.pointer)} wanted, the guest has {list(actual)}")
     if problems:

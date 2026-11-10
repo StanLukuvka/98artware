@@ -19,6 +19,14 @@ SM_CYCAPTION, SM_CYSIZEFRAME = 4, 33
 FIND_WINDOW_TIMEOUT = 15.0
 
 
+def window_rect(guest, hwnd: int) -> tuple[int, int, int, int] | None:
+    """A window's (left, top, right, bottom) on the screen, or None if it has gone."""
+    result = guest.user32.GetWindowRect(hwnd, Out(16))
+    if not result:
+        return None
+    return struct.unpack("<iiii", result.buffers[0])
+
+
 class Spot:
     """A place on screen that is worked out when it is needed.
 
@@ -205,21 +213,31 @@ class Win(Prop):
     def _find(self, pid: int | None) -> Window:
         deadline = time.monotonic() + FIND_WINDOW_TIMEOUT
         while True:
-            for window in self.guest.windows():
-                if (
-                    window.visible
-                    and (pid is None or window.pid == pid)
-                    and (self.title_text is None
-                         or self.title_text.lower() in window.title.lower())
-                    and (self.class_name is None
-                         or self.class_name.lower() == window.class_name.lower())
-                ):
-                    return window
+            window = self._look(pid)
+            if window is not None:
+                return window
             if time.monotonic() >= deadline:
-                raise BridgeTimeout(
-                    f"no window for {type(self).__name__}: "
-                    f"title={self.title_text!r} class={self.class_name!r} pid={pid}")
+                raise BridgeTimeout(self._not_found(pid))
             time.sleep(0.05)
+
+    def _look(self, pid: int | None) -> Window | None:
+        """One look at the guest's windows: the one wanted, or None. A subclass
+        can raise here to fail early."""
+        for window in self.guest.windows():
+            if (
+                window.visible
+                and (pid is None or window.pid == pid)
+                and (self.title_text is None
+                     or self.title_text.lower() in window.title.lower())
+                and (self.class_name is None
+                     or self.class_name.lower() == window.class_name.lower())
+            ):
+                return window
+        return None
+
+    def _not_found(self, pid: int | None) -> str:
+        return (f"no window for {type(self).__name__}: "
+                f"title={self.title_text!r} class={self.class_name!r} pid={pid}")
 
     def ready(self) -> None:
         """Called once the window exists and has been placed."""
@@ -231,10 +249,10 @@ class Win(Prop):
             return
         if self._sent is not None:
             self.apply()
-        result = self.guest.user32.GetWindowRect(self.hwnd, Out(16))
-        if not result:
+        rect = window_rect(self.guest, self.hwnd)
+        if rect is None:
             return  # the window has gone, so the last known place stands
-        left, top, right, bottom = struct.unpack("<iiii", result.buffers[0])
+        left, top, right, bottom = rect
         self.set_rect(left, top, right - left, bottom - top)
         self._sent = self.rect[0], self.rect[1], *self.size
 

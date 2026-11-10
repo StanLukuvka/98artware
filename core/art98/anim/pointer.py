@@ -22,6 +22,11 @@ BUTTONS = {
 MF_BYPOSITION = 0x0400
 
 
+def cursor_pos(guest) -> tuple[int, int]:
+    """Where the guest's pointer is."""
+    return struct.unpack("<ii", guest.user32.GetCursorPos(Out(8)).buffers[0])
+
+
 class Pointer(Prop):
     """The guest's mouse pointer. Every scene has one, as `self.pointer`."""
 
@@ -33,7 +38,7 @@ class Pointer(Prop):
         self._sent = self.get_center().rounded()
 
     def refresh(self) -> None:
-        self.x, self.y = struct.unpack("<ii", self.guest.user32.GetCursorPos(Out(8)).buffers[0])
+        self.x, self.y = cursor_pos(self.guest)
 
     def apply(self) -> None:
         wanted = self.get_center().rounded()

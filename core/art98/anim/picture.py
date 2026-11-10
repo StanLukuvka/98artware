@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
 from .. import guestfiles
-from ..bridge import BridgeTimeout, Window
-from .props import FIND_WINDOW_TIMEOUT, Win
+from ..bridge import Window
+from .props import Win
 
 DEFAULT_AT = (100, 100)
 DEFAULT_SIZE = (320, 240)
@@ -44,20 +43,19 @@ class Picture(Win):
         self.command = " ".join(args)
         super().attach(scene)
 
-    def _find(self, pid: int | None) -> Window:
-        """Wait for the window, failing at once if VIEW.EXE gave up or crashed."""
-        deadline = time.monotonic() + FIND_WINDOW_TIMEOUT
-        while True:
-            for window in self.guest.windows():
-                if window.pid == pid and window.visible and window.class_name == self.class_name:
-                    return window
-                if window.visible and window.class_name == "#32770" and window.title == "View":
-                    raise RuntimeError(
-                        f"VIEW.EXE crashed opening {self.image or 'its window'}, and Windows 98's"
-                        " crash dialog is on the desktop")
-            if pid not in {p for p, _ in self.guest.processes()}:
-                what = f"the image {self.image}" if self.image else "its window"
-                raise RuntimeError(f"VIEW.EXE closed without a window: Windows 98 couldn't open {what}")
-            if time.monotonic() >= deadline:
-                raise BridgeTimeout(f"no window for Picture {self.title_text!r}")
-            time.sleep(0.05)
+    def _look(self, pid: int | None) -> Window | None:
+        """Look for the window, failing at once if VIEW.EXE gave up or crashed."""
+        for window in self.guest.windows():
+            if window.pid == pid and window.visible and window.class_name == self.class_name:
+                return window
+            if window.visible and window.class_name == "#32770" and window.title == "View":
+                raise RuntimeError(
+                    f"VIEW.EXE crashed opening {self.image or 'its window'}, and Windows 98's"
+                    " crash dialog is on the desktop")
+        if pid not in {p for p, _ in self.guest.processes()}:
+            what = f"the image {self.image}" if self.image else "its window"
+            raise RuntimeError(f"VIEW.EXE closed without a window: Windows 98 couldn't open {what}")
+        return None
+
+    def _not_found(self, pid: int | None) -> str:
+        return f"no window for Picture {self.title_text!r}"

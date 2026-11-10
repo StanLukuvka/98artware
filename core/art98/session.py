@@ -43,6 +43,15 @@ def image_disk(work: Path | str, config: dict) -> Path:
     return disk if disk.exists() or not beside.exists() else beside
 
 
+# The libx264 settings for every MP4 art98 writes.
+H264 = ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-crf", "12"]
+
+# The GIF defaults, here so the command line can read them without loading the
+# animation package.
+GIF_FPS = 15
+GIF_COLORS = 128
+
+
 class FrameRecorder:
     """Encodes captured frames to a video, one explicit frame at a time.
 
@@ -58,7 +67,7 @@ class FrameRecorder:
         self._frame = self._dir / "frame.ppm"
         self.count = 0
         codec = (["-c:v", "ffv1", "-pix_fmt", "bgr0"] if lossless else
-                 ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-crf", "12"])
+                 H264)
         self._ffmpeg = subprocess.Popen(
             ["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-c:v", "ppm",
              "-framerate", str(fps), "-i", "-", *codec, str(path)],

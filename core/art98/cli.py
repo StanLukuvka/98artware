@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .container.host import ContainerError
 from .guestfiles import guest_build
-from .session import BACKENDS, ImageMissing, boot
+from .session import BACKENDS, GIF_COLORS, GIF_FPS, ImageMissing, boot
 
 KEY_SECRET_FILE = Path("/run/secrets/art98_key")
 
@@ -174,8 +174,8 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument("-o", "--output", type=Path, help="output file, .mp4 or .gif")
     command.add_argument("--gif", type=Path, help="write a GIF as well")
     command.add_argument("--work", type=Path, default=Path("work"))
-    command.add_argument("--gif-fps", type=int, default=15)
-    command.add_argument("--gif-colors", type=int, default=128)
+    command.add_argument("--gif-fps", type=int, default=GIF_FPS)
+    command.add_argument("--gif-colors", type=int, default=GIF_COLORS)
     command.add_argument("--gif-scale", type=float, default=1.0)
     command.add_argument("--gif-dither", default="none",
                          help="ffmpeg paletteuse dither: none, bayer, sierra2_4a...")

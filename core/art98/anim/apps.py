@@ -9,14 +9,12 @@ import the classes from `art98.anim.apps`. `PARKED` lists them.
 from __future__ import annotations
 
 import math
-import struct
 import time
 
 from ..bridge import BridgeTimeout
-from ..protocol import Out
 from .keys import Keys, TypeKeys
 from .pointer import Click, Drag, RightClick
-from .props import WM_SETTEXT, Spot, Win
+from .props import WM_SETTEXT, Spot, Win, window_rect
 from .vectors import Vec
 
 EM_SETMODIFY = 0x00B9
@@ -138,7 +136,7 @@ class Paint(Win):
         super().ready()
 
     def _rect_of(self, hwnd: int) -> tuple[int, int, int, int]:
-        return struct.unpack("<iiii", self.guest.user32.GetWindowRect(hwnd, Out(16)).buffers[0])
+        return window_rect(self.guest, hwnd)
 
     def tool(self, name: str) -> Spot:
         """The toolbox button with this name. See `Paint.TOOLS`."""

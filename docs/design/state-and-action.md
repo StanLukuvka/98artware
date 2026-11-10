@@ -512,7 +512,7 @@ Found on the way:
 
 ## After the MVP
 
-1. **Actions and clips.** The recorder below, then `next_section`, one clip per action, capture
+1. **Actions and clips.** The recorder above, then `next_section`, one clip per action, capture
    off and `--section`.
 2. **Programs.** Each program (Paint, Notepad, Minesweeper and others) becomes its own action
    class. Not designed yet.
