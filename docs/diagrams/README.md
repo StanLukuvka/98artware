@@ -4,6 +4,14 @@ Each diagram has an editable `.drawio` file and an exported `.png`. The PNGs hav
 solid white background, so they read the same in GitHub's light and dark modes. Audio
 is left out.
 
+## Architecture
+
+Every part of art98 after the MVP, host and guest, and which link carries what. A second page in
+the same file puts it next to Manim. See [Architecture, and how it compares with
+Manim](../design/architecture.md).
+
+![Architecture](architecture.png)
+
 ## System overview
 
 Host and guest side by side, and which link carries commands and which carries frames.
