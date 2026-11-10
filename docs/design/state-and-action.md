@@ -168,7 +168,7 @@ result is joined with the clips already on disk.
 
 ## Recorder
 
-Status: spec for review. Not built.
+Status: spec decided, 2026-11-10. Not built.
 
 ### Today
 
@@ -209,6 +209,47 @@ Checking ffmpeg's exit code touches one of the host bugs on hold (`FrameRecorder
 needs it to know a clip finished, so the recorder work would include that fix.
 
 Not in this change: pausing capture, cropping or following a window, and real-time capture.
+
+### Recorder decisions
+
+Decided 2026-11-10: the owner took all four recommendations below. Sizes come from re-encoding `hello.mp4` and
+`showcase.mp4`, the two demo videos in the repository: H.264 at CRF 12 is about 10 to 14 KB a
+second, and lossless FFV1 about 1.5 to 2.2 MB a second, 150 times more.
+
+**1. A GIF once a render is cut.** Today a GIF is made from one lossless recording (FFV1), because
+H.264's 4:2:0 colour smears 1-pixel coloured text, and the MP4 is then encoded from that same
+recording.
+
+*Decided:* when a GIF is wanted, every clip is recorded lossless, the clips are joined by
+stream copy into one lossless recording, and the GIF and MP4 are made from it, exactly as today.
+The render still makes one GIF. A GIF per clip isn't made: each would get its own palette, so
+colours would shift from one to the next. `--section` can add per-clip GIFs later, where a
+shifted palette doesn't matter.
+
+**2. Whether clips are kept after the join.**
+
+*Decided:* keep them, since cutting is something a scene asks for and sections will build
+on the clips. They're kept as H.264 MP4, named `<stem>-01.mp4` and so on beside the output, even
+when the output is only a GIF. When the clips were recorded lossless, each is encoded to MP4 at
+the end and the lossless one deleted, so a kept clip costs what the MP4 output costs. A scene that
+never cuts leaves no clips, as today. `render(..., keep_clips=False)` deletes them after the join.
+
+**3. Whether the `close()` exit-code bug is in scope.**
+
+*Decided:* yes. `cut()` can't say a clip is finished without it, and the fix is small:
+`close()` waits for ffmpeg and raises if it failed. One rule goes with it: when the scene itself
+raised, `close()` still closes ffmpeg but doesn't replace the scene's error with its own.
+
+**4. A state that changes the screen size.** Not in the original list. A state's `display` can
+switch the guest to another size partway through a render. Frames reach ffmpeg as PPM images,
+and ffmpeg scales every frame to the first frame's size by default, so today the stretch after the
+change is probably resized without warning. That hasn't been tried. With clips, two clips of
+different sizes can't be joined by stream copy.
+
+*Decided:* the recorder checks the size of each frame. If the size changes inside a clip,
+it raises and suggests `cut()` before the `set_state` that changes it. If clips of different
+sizes are joined, the join fails with the sizes in the message. Scaling is left to the scene's
+author, outside art98.
 
 ## Picture window
 

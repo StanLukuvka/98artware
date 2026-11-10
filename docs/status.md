@@ -73,9 +73,10 @@ In order, from the cleanup review of 2026-11-10. See also
 [After the MVP](design/state-and-action.md#after-the-mvp).
 
 1. **The [recorder](design/state-and-action.md#recorder) with `cut()`.** It moves
-   `FrameRecorder` out of `session.py`. To decide first: how a GIF works once a render is cut
-   into clips, whether clips are kept after they're joined, and whether the `close()` exit-code
-   bug below is in scope.
+   `FrameRecorder` out of `session.py`. Its open questions were
+   [decided](design/state-and-action.md#recorder-decisions) on 2026-11-10: one GIF from joined lossless
+   clips, clips kept as MP4, the `close()` exit-code fix included, and a size change inside a
+   clip raises. Build it after the container branch merges, since both change `session.py`.
 2. **Sections:** `next_section` and `--section`.
 3. **Program classes:** a one-page design, then a Notepad pilot. Settle first what "action"
    means: the design calls a named section of a scene an action, and programs are meant to
