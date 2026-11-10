@@ -47,8 +47,8 @@ uv run art98 up --iso /path/to/win98se.iso
 It asks for the key without echo, or reads `ART98_PRODUCT_KEY`, and takes 25 to 40 minutes,
 depending on how busy the host is.
 `--watch` shows setup over VNC on `127.0.0.1:5998`. Then render with
-`ART98_BACKEND=container` or `--backend container`. Everything for the container is in
-[98artware_container/](98artware_container/README.md); the by-hand commands are in
+`ART98_BACKEND=container` or `--backend container`. How the container code is laid out is in
+[the container design](docs/design/container.md#the-image); the by-hand commands are in
 [the setup guide](docs/setup/README.md#quick-path-in-a-container).
 
 ### On the host
@@ -66,7 +66,7 @@ sudo apt install qemu-system-x86 qemu-utils mtools 7zip ffmpeg make binutils gcc
 ```
 
 ```bash
-make -C windows_handlers
+make -C guest
 ```
 
 ```bash

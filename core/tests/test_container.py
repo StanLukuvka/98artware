@@ -14,9 +14,9 @@ from art98 import session as session_module
 from art98.bridge import Bridge, BridgeError
 from art98.protocol import frame, unframe
 from art98.qemu import QemuError
-from art98_container import host as container
-from art98_container.host import ContainerError, ContainerStage, Engine, RemoteVM, open_channel
-from art98_container.serve import Server
+from art98.container import host as container
+from art98.container.host import ContainerError, ContainerStage, Engine, RemoteVM, open_channel
+from art98.container.serve import Server
 
 TOKEN = "s3cret-token"
 PPM = b"P6\n2 1\n255\n" + bytes(range(6))
@@ -289,19 +289,6 @@ def test_the_stage_publishes_on_loopback_only_and_keeps_secrets_out_of_argv(
     assert argv[-4:] == ["serve", "--work", "/work", "--vnc"]
 
 
-def test_setup_mounts_the_disc_read_only_and_takes_the_key_as_a_secret(tmp_path, monkeypatch):
-    engine = fake_engine(monkeypatch, "podman")
-    monkeypatch.setenv("ART98_PRODUCT_KEY", "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE")
-    iso = tmp_path / "win98.iso"
-    argv = container.setup_argv(engine, tmp_path / "work", iso, "art98:test",
-                                ["--secret", "art98_key,target=art98_key"], watch=True)
-    assert f"{iso.resolve()}:/media/win98.iso:ro" in argv
-    assert "127.0.0.1:5998:5900" in argv
-    assert "ART98_WATCH_DISPLAY=vnc=0.0.0.0:0" in argv
-    assert "AAAAA" not in " ".join(argv)
-    assert argv[argv.index("art98:test") + 1:][:1] == ["setup"]
-
-
 def test_docker_gets_the_secret_as_a_private_file(tmp_path, monkeypatch):
     engine = fake_engine(monkeypatch, "docker")
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
@@ -344,15 +331,6 @@ def test_a_disk_recorded_in_the_container_is_found_beside_image_json(tmp_path):
         assert (stage / "golden.qcow2").read_bytes() == b"disk"
     missing = {"disk": str(tmp_path / "elsewhere" / "other.qcow2")}
     assert session_module.image_disk(tmp_path, missing) == Path(missing["disk"])
-
-
-def test_install_hints_cover_fedora_and_debian():
-    from art98_setup import builder
-
-    hints = dict((system, packages) for system, _, packages in
-                 builder.install_hints(["qemu-img", "i686-w64-mingw32-gcc"]))
-    assert hints["Fedora"] == ["qemu-img", "mingw32-gcc"]
-    assert hints["Debian, Ubuntu"] == ["qemu-utils", "gcc-mingw-w64-i686"]
 
 
 def test_on_a_unix_socket_screenshots_go_through_the_shared_folder(tmp_path):

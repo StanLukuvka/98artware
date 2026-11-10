@@ -13,4 +13,4 @@ work-*/
 **/__pycache__/
 **/.pytest_cache/
 .ruff_cache/
-windows_handlers/build/
+guest/build/

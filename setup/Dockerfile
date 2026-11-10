@@ -1,15 +1,15 @@
 # The art98 stage: QEMU, the setup tools and the art98 packages, with no disk
-# image, disc or key inside. Build from the repo root:
-#   podman build -t localhost/art98:latest -f 98artware_container/Containerfile \
-#       --ignorefile 98artware_container/Containerfile.dockerignore .
-# `art98 up` does this. Docker reads Containerfile.dockerignore by itself.
+# image, disc or key inside. Build from the repo root, where .dockerignore
+# keeps work/ out of the context:
+#   podman build -t localhost/art98:latest -f setup/Dockerfile .
+# `art98 up` does this.
 
 # ---- build: the programs that run on the guest ----
 FROM registry.fedoraproject.org/fedora:44 AS build
 RUN dnf -y install --setopt=install_weak_deps=False mingw32-gcc binutils make \
  && dnf clean all
-COPY windows_handlers /src/windows_handlers
-RUN make -C /src/windows_handlers
+COPY guest /src/guest
+RUN make -C /src/guest
 
 # ---- run ----
 FROM registry.fedoraproject.org/fedora-minimal:44
@@ -22,13 +22,12 @@ RUN microdnf -y install --setopt=install_weak_deps=0 \
         mtools 7zip python3 \
  && microdnf clean all
 
-COPY 98artware_core/art98 /opt/art98/98artware_core/art98
-COPY 98artware_setup/art98_setup /opt/art98/98artware_setup/art98_setup
-COPY 98artware_container/art98_container /opt/art98/98artware_container/art98_container
-COPY --from=build /src/windows_handlers/build /opt/art98/windows_handlers/build
+COPY core/art98 /opt/art98/core/art98
+COPY setup/art98_setup /opt/art98/setup/art98_setup
+COPY --from=build /src/guest/build /opt/art98/guest/build
 RUN printf '#!/bin/sh\nexec python3 -m art98.cli "$@"\n' > /usr/local/bin/art98 \
  && chmod 755 /usr/local/bin/art98
-ENV PYTHONPATH=/opt/art98/98artware_core:/opt/art98/98artware_setup:/opt/art98/98artware_container \
+ENV PYTHONPATH=/opt/art98/core:/opt/art98/setup \
     PYTHONUNBUFFERED=1 \
     XDG_RUNTIME_DIR=/tmp
 

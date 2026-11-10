@@ -170,7 +170,7 @@ def media(setup: Setup) -> None:
         raise SetupError("the media stage needs --key")
     agent = setup.guest_build / "agent.exe"
     if not agent.exists():
-        raise SetupError(f"{agent} missing; run make in windows_handlers/")
+        raise SetupError(f"{agent} missing; run make in guest/")
     pecheck.check_agent(agent)
     extract_setup_files(setup.iso, setup.media)
     setup.floppy.write_bytes(boot_floppy_image(setup.iso))

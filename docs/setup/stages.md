@@ -3,7 +3,7 @@
 `Setup.STAGES` is `vm`, `setup`, `init_api`, `ready`, in that order, named after the
 path from a blank machine to a desktop you can script: a VM to install onto, Windows
 Setup, the agent's first call, and the `ready` snapshot. Each step is a module in
-`98artware_setup/art98_setup/` with a `run` function, and `Setup` in `builder.py`
+`setup/art98_setup/` with a `run` function, and `Setup` in `builder.py`
 runs them.
 
 | Step | Module | What it holds | Old stages |
@@ -70,7 +70,7 @@ and `disk`, and runs them one after the other in `vm.py`.
 
 Checks the agent, unpacks Setup, and makes a boot floppy that starts it.
 
-**Inputs:** `--iso`, a product key, `windows_handlers/build/agent.exe`.
+**Inputs:** `--iso`, a product key, `guest/build/agent.exe`.
 
 **Outputs:**
 
@@ -136,7 +136,7 @@ Checks the agent, unpacks Setup, and makes a boot floppy that starts it.
 |---------|-------|
 | `the media stage needs --iso` | No `--iso` |
 | `the media stage needs --key` | No `--key` and no `ART98_PRODUCT_KEY` |
-| `.../agent.exe missing; run make in windows_handlers/` | The guest was not built |
+| `.../agent.exe missing; run make in guest/` | The guest was not built |
 | `... needs Windows x.y` | `PEError`: the agent's subsystem version is too new. Shows as a traceback |
 | `... imports unreviewed functions from ...` | `PEError`: the agent imports something not in `ALLOWED_IMPORTS`. Shows as a traceback |
 | `... is not a bootable disc` | No El Torito boot record |
@@ -152,8 +152,8 @@ Checks the agent, unpacks Setup, and makes a boot floppy that starts it.
 
 Builds a blank hard disk and copies in what Setup needs.
 
-**Inputs:** a product key, `work/media/win98/`, `windows_handlers/build/mbr.bin`,
-`windows_handlers/build/agent.exe`, `--disk-mb`.
+**Inputs:** a product key, `work/media/win98/`, `guest/build/mbr.bin`,
+`guest/build/agent.exe`, `--disk-mb`.
 
 **Outputs:** `work/install.img`, a raw disk with this layout:
 
@@ -174,7 +174,7 @@ Builds a blank hard disk and copies in what Setup needs.
    signature. The boot code must fit in 440 bytes.
 
    A blank MBR will not boot, and Setup writes only the partition's boot sector, so
-   setup has to supply this. `windows_handlers/boot_record/mbr.S` moves itself to `0x600`, finds the active
+   setup has to supply this. `guest/boot_record/mbr.S` moves itself to `0x600`, finds the active
    partition, reads its first sector to `0x7C00` with INT 13h extensions, checks the
    `AA55` signature and jumps to it. If anything fails it prints
    `art98: no bootable partition` and halts.
@@ -199,7 +199,7 @@ Builds a blank hard disk and copies in what Setup needs.
   full. If it fails on the `MSBATCH.INF` copy, `work/MSBATCH.INF` is left behind
   with your key in it. Delete it.
 - `boot code is N bytes, over the 440 byte limit`
-- A `FileNotFoundError` traceback if `windows_handlers/build/mbr.bin` is missing. `media`
+- A `FileNotFoundError` traceback if `guest/build/mbr.bin` is missing. `media`
   checks only `agent.exe`.
 - A `FileNotFoundError` or `StopIteration` traceback if `work/media` is missing or
   has no `WIN98` folder.

@@ -21,7 +21,7 @@ the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 | Quirk | Why it matters | What setup does | Where |
 |-------|----------------|----------------|-------|
 | `JO.SYS` on the boot floppy | It is the disc's startup menu. `IO.SYS` runs it before `CONFIG.SYS`, and after a timeout it boots the hard disk, so Setup never starts | Deletes it | `patch_floppy` |
-| Setup writes no MBR | Only the partition's boot sector is written, and a blank MBR will not boot | Supplies `windows_handlers/boot_record/mbr.S` | `build_mbr` |
+| Setup writes no MBR | Only the partition's boot sector is written, and a blank MBR will not boot | Supplies `guest/boot_record/mbr.S` | `build_mbr` |
 | mtools rejects the geometry | It refuses images that are not a textbook floppy or disk | Sets `MTOOLS_SKIP_CHECK=1` | `_mtools_env` |
 | OEM first-boot wizard | OEM media ignores the answer file's request to skip it. Four pages: name, licence, product key, finish. Name and key are filled in from the answer file | Presses through it, with `alt+a` on page two for "I accept the Agreement" | `WIZARD_PAGES`, `_answer_setup_wizard` |
 | Logon prompt | Appears once on the first real boot and waits forever | Presses Enter. A blank password means it never comes back | `_answer_setup_prompts` |
@@ -30,7 +30,7 @@ the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 | Warm reboot freeze | Windows hangs on its logo after a reset in the same QEMU process | `-no-reboot`, and a new VM per boot | `VMConfig`, `setup.py` |
 | `ExitWindowsEx` never replies | A plain call would block the bridge until it timed out | Uses `acall`, then waits for QEMU to exit | `_reboot` |
 | Blinking caret | A dialog waiting forever still changes the screen | The stall rule watches the disk instead | `_wait_for_agent` |
-| Modern toolchains | They build files that fail on 98 with a vague error | Links without the mingw CRT, and checks the result on the host | `windows_handlers/Makefile`, `pecheck` |
+| Modern toolchains | They build files that fail on 98 with a vague error | Links without the mingw CRT, and checks the result on the host | `guest/Makefile`, `pecheck` |
 
 ## The stall rule
 
@@ -82,7 +82,7 @@ Common causes:
 |---------|-------|-----|
 | Traceback ending in `QemuError: QEMU exited with status 1` | See `work/qemu.log` | Usually a lock, or a missing file |
 | `Failed to get "write" lock` in `qemu.log` | Another VM has that disk open, possibly left over from a crash | Stop it. Check with `pgrep -a qemu-system`. See [several VMs](cli.md#moving-the-image-and-running-several-vms) |
-| `FileNotFoundError` for `mbr.bin` | The guest was not built | `make -C windows_handlers` |
+| `FileNotFoundError` for `mbr.bin` | The guest was not built | `make -C guest` |
 | `image.json not found` | No finished image in `--work` | Check `--work`, or finish `art98 setup` |
 | `ping` can't open the disk after moving the repository | `image.json` holds an absolute path | [Edit `disk`](cli.md#moving-the-image-and-running-several-vms) |
 | `guest speaks protocol N, host M` | The agent on the image is older or newer than the Python code | Rebuild the agent and redo the install, see below |
@@ -92,7 +92,7 @@ Common causes:
 To put a new `agent.exe` on the image, rebuild it and redo the install:
 
 ```bash
-make -C windows_handlers
+make -C guest
 ```
 
 ```bash
@@ -167,8 +167,8 @@ stops after 20 minutes. To find the new values:
 1. Run with `--watch`, or open the newest PNG in `work/shots/`.
 2. Read the colours at those coordinates from `work/shots/probe.ppm` with the screen on
    show.
-3. Update the checks in `98artware_setup/art98_setup/builder.py`, and the matching test screens in
-   `98artware_setup/tests/test_setup.py`.
+3. Update the checks in `setup/art98_setup/builder.py`, and the matching test screens in
+   `setup/tests/test_setup.py`.
 
 `--from vm` then reruns the install.
 

@@ -168,7 +168,7 @@ def boot(work: Path | str = "work", display: str = "none", ready_timeout: float 
         builder = "art98 up" if backend_name(backend) == "container" else "art98 setup"
         raise ImageMissing(f"{image} not found; run `{builder}` first")
     if backend_name(backend) == "container":
-        from art98_container import host  # 98artware_container/, beside this package
+        from .container import host
 
         return host.boot(work, display=display,
                          ready_timeout=max(ready_timeout, host.START_TIMEOUT))

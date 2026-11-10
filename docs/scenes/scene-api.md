@@ -368,7 +368,7 @@ class Parked(Scene):
 `Picture(title="Picture", *, image=None, at=None, size=None)`
 
 A plain window that shows one BMP at 1:1, centred on grey. Windows 98 has no small image viewer,
-so this is art98's own program, `VIEW.EXE`, built by `make` in `windows_handlers/` and copied to the guest
+so this is art98's own program, `VIEW.EXE`, built by `make` in `guest/` and copied to the guest
 when it's needed. `image` is a BMP on the host, or `None` for an empty window. The window opens at
 `at` (default `(100, 100)`) with the outer `size` (default `(320, 240)`), with no move on screen
 first.

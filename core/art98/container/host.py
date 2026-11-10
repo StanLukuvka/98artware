@@ -29,7 +29,6 @@ from .serve import PORT, VNC_PORT, nodelay, read_line
 IMAGE = "localhost/art98:latest"
 ENGINES = ("podman", "docker")
 TOKEN_TARGET = "art98_token"
-KEY_SECRET = "art98_key"
 CONNECT_TIMEOUT = 5.0
 TRANSPORTS = ("unix", "tcp")
 SOCKET_DIR = "/run/art98"
@@ -40,14 +39,6 @@ START_TIMEOUT = 120.0
 
 class ContainerError(RuntimeError):
     pass
-
-
-CONTAINER_DIR = Path(__file__).resolve().parents[1]
-
-
-def repo_root() -> Path:
-    """The checkout this package runs from: the build context for the image."""
-    return CONTAINER_DIR.parent
 
 
 def image_name() -> str:
@@ -98,18 +89,6 @@ class Engine:
 
     def has_image(self, image: str) -> bool:
         return self("image", "inspect", image, check=False).returncode == 0
-
-    def build(self, image: str, context: Path | None = None) -> None:
-        """Build from the repository root, which the Containerfile copies from."""
-        context = Path(context or repo_root())
-        containerfile = context / CONTAINER_DIR.name / "Containerfile"
-        if not containerfile.exists():
-            raise ContainerError(f"{containerfile} not found; build from an art98 checkout")
-        # Docker finds Containerfile.dockerignore beside the Containerfile by itself.
-        ignore = (["--ignorefile", str(containerfile.with_name("Containerfile.dockerignore"))]
-                  if self.is_podman else [])
-        self("build", "-t", image, "-f", str(containerfile), *ignore, str(context),
-             capture=False)
 
     def port(self, container: str, port: int) -> tuple[str, int]:
         output = self("port", container, f"{port}/tcp").stdout.decode().split()
@@ -435,88 +414,3 @@ def boot(work: Path | str = "work", display: str = "none",
         stage.close()
         raise
     return Session(vm, bridge)
-
-
-def _read_key(engine: Engine) -> bytes | None:
-    """The product key, from ART98_PRODUCT_KEY or a prompt that doesn't echo.
-
-    None means Podman already holds the secret from an earlier, unfinished run.
-    """
-    key = os.environ.get("ART98_PRODUCT_KEY", "").strip()
-    if not key and engine.is_podman and engine(
-            "secret", "exists", KEY_SECRET, check=False).returncode == 0:
-        return None
-    if not key:
-        import getpass
-
-        key = getpass.getpass("Windows 98 product key (not shown): ").strip()
-    if not key:
-        raise ContainerError("setup needs your product key: set ART98_PRODUCT_KEY or type it")
-    return key.encode()
-
-
-def setup_argv(engine: Engine, work: Path, iso: Path, image: str, secret: list[str],
-               watch: bool = False, vnc_port: int = 5998, disk_mb: int = 2047) -> list[str]:
-    watching = (["-p", f"127.0.0.1:{vnc_port}:{VNC_PORT}",
-                 "-e", f"ART98_WATCH_DISPLAY=vnc=0.0.0.0:{VNC_PORT - 5900}"] if watch else [])
-    return [
-        engine.path, "run", "--rm", "--init", *mount_args(work),
-        "-v", f"{iso.resolve()}:/media/win98.iso:ro", *secret, *watching,
-        image, "setup", "--work", "/work", "--iso", "/media/win98.iso",
-        "--disk-mb", str(disk_mb), *(["--watch"] if watch else []),
-    ]
-
-
-def up(work: Path | str = "work", iso: Path | str | None = None, watch: bool = False,
-       rebuild: bool = False, vnc_port: int = 5998, disk_mb: int = 2047,
-       engine: Engine | None = None, log=print) -> int:
-    """`art98 up`: image, key, setup and a first boot, skipping what is done."""
-    engine = engine or Engine()
-    image = image_name()
-    work = Path(work).resolve()
-    if rebuild or not engine.has_image(image):
-        log(f"[up] building {image} with {engine.name}")
-        engine.build(image)
-    else:
-        log(f"[up] image {image} is built")
-
-    guest = repo_root() / "windows_handlers" / "build"
-    if not (guest / "view.exe").exists():
-        # Scenes copy VIEW.EXE to the guest from the host, so the host needs it too.
-        log(f"[up] copying the guest programs out of the image into {guest}")
-        engine.copy_out(image, "/opt/art98/windows_handlers/build", guest)
-
-    if not (work / "image.json").exists():
-        if iso is None:
-            raise ContainerError(f"{work} has no prepared image yet; pass --iso with your disc")
-        iso = Path(iso)
-        if not iso.is_file():
-            raise FileNotFoundError(f"{iso} not found")
-        work.mkdir(parents=True, exist_ok=True)
-        key = _read_key(engine)
-        if key is None:
-            log(f"[up] using the product key already stored as the secret {KEY_SECRET}")
-            secret, cleanup = ["--secret", f"{KEY_SECRET},target={KEY_SECRET}"], lambda: None
-        else:
-            secret, cleanup = engine.secret_args(KEY_SECRET, key, KEY_SECRET, keep=True)
-        if watch:
-            log(f"[up] watch setup with a VNC viewer at 127.0.0.1:{vnc_port}")
-        log("[up] running setup in the container; this takes about 40 minutes")
-        try:
-            code = subprocess.run(setup_argv(engine, work, iso, image, secret, watch,
-                                             vnc_port, disk_mb)).returncode
-        finally:
-            cleanup()
-        if code != 0:
-            log(f"[up] setup stopped with status {code}; run `art98 up` again to resume")
-            return code
-        # The key is in the finished image; the secret store needn't keep a copy.
-        engine.remove_secret(KEY_SECRET)
-    else:
-        log(f"[up] {work / 'image.json'} exists, so setup is done")
-
-    log("[up] booting a stage in the container")
-    with boot(work, engine=engine) as session:
-        log(f"[up] the agent answered: guest tick count {session.bridge.ping()}")
-    log(f"[up] ready. Render with: ART98_BACKEND=container art98 render SCENE.py --work {work}")
-    return 0

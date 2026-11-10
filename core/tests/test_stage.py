@@ -13,10 +13,10 @@ import pytest
 
 from art98.qemu import QEMU_BINARY
 from art98.session import stage
-from art98_container import host as container
+from art98.container import host as container
 
-WORK = Path(os.environ.get("ART98_TEST_WORK") or container.repo_root() / "work")
 HERE = Path(__file__).resolve().parents[2]
+WORK = Path(os.environ.get("ART98_TEST_WORK") or HERE / "work")
 MVP = HERE / "artware_experiments" / "set_state" / "mvp.py"
 
 

@@ -14,7 +14,7 @@ work can pick up from here.
 | Diagrams | Seven diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
 | States and actions | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Named actions aren't built | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
 | Recorder | `FrameRecorder`, one file per render. A `Recorder` with `cut()` is specified, not built | [Recorder](design/state-and-action.md#recorder) |
-| Container | Built in `98artware_container/`. `art98 up` builds the image, runs setup in it and pings; `ART98_BACKEND=container` or `--backend container` runs a stage in it. The default backend is still `local`. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
+| Container | Built: the backend in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image, runs setup in it and pings; `ART98_BACKEND=container` or `--backend container` runs a stage in it. The default backend is still `local`. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
 
 Audio is deferred. art98 is video only.
 
@@ -62,7 +62,7 @@ Audio is deferred. art98 is video only.
     after each revert. The snapshot isn't changed. The older demos are pinned to
     `desktop = "stock"`. See [Blank start](design/blank-start.md).
 13. **Container, 2026-11-10.** QEMU 10.2.2, setup and the guest programs moved into a Podman or
-    Docker image, all in `98artware_container/`. The existing `ready` snapshot restores in it
+    Docker image, then all in `98artware_container/`. The existing `ready` snapshot restores in it
     unchanged. The container relays the agent's protocol to the host and serves screenshots,
     keys and reverts on a JSON channel, over a Unix socket on Linux and loopback TCP elsewhere.
     The host keeps `Bridge`, `FrameRecorder` and ffmpeg. A recorded frame takes 6.8 to 7.0 ms

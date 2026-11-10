@@ -8,6 +8,7 @@ import os
 import sys
 from pathlib import Path
 
+from .container.host import ContainerError
 from .guestfiles import guest_build
 from .session import BACKENDS, ImageMissing, boot
 
@@ -62,13 +63,8 @@ def cmd_setup(args) -> int:
     return 0
 
 
-def _stage_errors() -> tuple[type[Exception], ...]:
-    """Errors from starting a stage that a message explains better than a traceback."""
-    try:
-        from art98_container.host import ContainerError
-    except ImportError:  # the container package isn't installed
-        return (ImageMissing,)
-    return (ImageMissing, ContainerError)
+# Errors from starting a stage that a message explains better than a traceback.
+STAGE_ERRORS = (ImageMissing, ContainerError)
 
 
 def cmd_ping(args) -> int:
@@ -77,7 +73,7 @@ def cmd_ping(args) -> int:
             print(f"guest tick count: {session.bridge.ping()}")
             for pid, name in session.bridge.processes():
                 print(f"{pid:#010x} {name}")
-    except _stage_errors() as error:
+    except STAGE_ERRORS as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return 0
@@ -115,7 +111,7 @@ def cmd_render(args) -> int:
             gif_colors=args.gif_colors, gif_scale=args.gif_scale, gif_dither=args.gif_dither,
             backend=args.backend,
         )
-    except _stage_errors() as error:
+    except STAGE_ERRORS as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     print(f"Wrote {written}" + (f" and {args.gif}" if args.gif else ""))
@@ -123,14 +119,14 @@ def cmd_render(args) -> int:
 
 
 def cmd_serve(args) -> int:
-    from art98_container import serve
+    from .container import serve
 
     return serve.run(args.work, port=args.port, token_file=args.token_file, vnc=args.vnc,
                      ready_timeout=args.ready_timeout, unix=args.unix)
 
 
 def cmd_up(args) -> int:
-    from art98_container.host import ContainerError, up
+    from art98_setup.up import up
 
     try:
         return up(args.work, iso=args.iso, watch=args.watch, rebuild=args.rebuild,

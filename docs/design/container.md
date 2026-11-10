@@ -40,20 +40,29 @@ Why not the other ways:
 - An environment variable at `run` time shows in `podman inspect`. A secret doesn't.
 
 `work/` still holds the finished disk, an installed copy of Windows with the key in it, as it
-does today. It is mounted, never copied, and `Containerfile.dockerignore` lists it so a build can't pick it up by
+does today. It is mounted, never copied, and `.dockerignore` lists it so a build can't pick it up by
 accident.
 
 ## The image
 
-Everything for the container lives in its own folder,
-[98artware_container/](../../98artware_container/README.md): the `Containerfile`, its ignore
-file, the package `art98_container` (`serve.py` for inside, `host.py` for the host) and its
-tests. The rest of art98 reaches it only through `session.boot(backend="container")` and the
-`up` and `serve` commands.
+The container code is split by job:
 
-`98artware_container/Containerfile` is built from the repository root, in two stages:
+| File | Job |
+| --- | --- |
+| [setup/Dockerfile](../../setup/Dockerfile) | The image, built with the repository root as its context |
+| [.dockerignore](../../.dockerignore) | What stays out of that context: `work/` above all |
+| [setup/art98_setup/up.py](../../setup/art98_setup/up.py) | `art98 up`: builds the image, runs setup in it, copies the guest programs out |
+| [core/art98/container/serve.py](../../core/art98/container/serve.py) | `art98 serve`, inside the container: boots `ready` on a run copy and relays the agent and a control channel |
+| [core/art98/container/host.py](../../core/art98/container/host.py) | On the host: `Engine`, `ContainerStage`, `RemoteVM` and `boot` |
+| [core/tests/test_container.py](../../core/tests/test_container.py), [test_stage.py](../../core/tests/test_stage.py) | serve and the host side on a fake VM; the real image on both backends |
+| [setup/tests/test_up.py](../../setup/tests/test_up.py) | `up`'s setup run and the image build, without an engine |
 
-1. **Build.** `fedora:44` with `mingw32-gcc`, `binutils` and `make` runs `make -C windows_handlers`
+Building images is setup's job, and running a stage is core's: `art98.container` is a second
+backend beside the local QEMU, reached through `session.boot(backend="container")`.
+
+`setup/Dockerfile` is built from the repository root, in two stages:
+
+1. **Build.** `fedora:44` with `mingw32-gcc`, `binutils` and `make` runs `make -C guest`
    and produces `agent.exe`, `view.exe` and `mbr.bin`. The host no longer needs a cross-compiler.
 2. **Run.** `fedora-minimal:44` with `qemu-system-x86-core-10.2.2-1.fc44` and `qemu-img` of the
    same version, plus `mtools`, `7zip` and `python3`, then the two art98 packages and the guest
@@ -126,7 +135,7 @@ leave a VM running. Only a SIGKILL of the container leaves its run copy in `work
 
 ### On the host
 
-- `art98_container/host.py`: `Engine` finds `podman`, else `docker`, or `ART98_ENGINE`.
+- `art98/container/host.py`: `Engine` finds `podman`, else `docker`, or `ART98_ENGINE`.
   `ContainerStage` runs the container, finds where serve listens, and connects. `RemoteVM` has
   the methods the scene layer uses on `VM`: `screenshot`, `send_keys`, `load_snapshot`,
   `save_snapshot`, `pause`, `resume`, `close`.
@@ -157,7 +166,7 @@ relabelled.
    `127.0.0.1:5998` (`--vnc-port`), since GTK can't open from inside a container. Setup reads
    `ART98_WATCH_DISPLAY` for that. After a finished setup the secret is deleted, since the key
    is in the image by then. If setup stops early the secret stays, so a rerun doesn't ask again.
-4. Copies the guest programs out of the image into `windows_handlers/build` if they aren't
+4. Copies the guest programs out of the image into `guest/build` if they aren't
    there, since scenes send `VIEW.EXE` to the guest from the host.
 5. Boots one stage and pings the agent, to show it works.
 
@@ -166,7 +175,7 @@ Running `art98 up` again skips what's done. Everything in it can also be run by 
 
 ## Steps
 
-1. **Image.** The Containerfile and its ignore file. Check the QEMU version inside, then
+1. **Image.** The Dockerfile and its ignore file. Check the QEMU version inside, then
    restore `ready` from the existing `work/` in the container and ping the agent. If the snapshot
    doesn't load, stop: making a new one changes the `ready` image and needs the owner's go-ahead.
 2. **Stage.** `art98 serve`, `container.py` and the `boot` backend. Tests against a fake
@@ -221,13 +230,13 @@ Where the build differs from, or adds to, the plan above:
   back to the file of that name beside `image.json` (`session.image_disk`).
 - The image is `localhost/art98:latest` (`ART98_IMAGE`), 385 MB. The guest programs built in it
   are byte for byte the ones built on the host.
-- The ignore file is `98artware_container/Containerfile.dockerignore`, so the container's files
-  stay in one folder. Docker BuildKit finds it beside the Containerfile; Podman gets it with
-  `--ignorefile`. Besides `work/`, `.tools/`, `.venv/`, `*.mp4` and `*.iso` it leaves out
-  `.git/`, `.claude/`, `*.qcow2`, `*.img` and `windows_handlers/build/`. A probe build
+- The ignore file is `.dockerignore` at the repository root, the build context, where Docker
+  and Podman both read it by themselves. Besides `work/`, `.tools/`, `.venv/`, `*.mp4` and `*.iso` it leaves out
+  `.git/`, `.claude/`, `*.qcow2`, `*.img` and `guest/build/`. A probe build
   confirmed a decoy `work/`, `.iso` and `.qcow2` don't reach the build context.
-- The code is its own package, `art98_container` in `98artware_container/`, not modules of
-  `art98`, at the owner's request.
+- The code was first its own package, `art98_container` in `98artware_container/`. On
+  2026-11-11 it was split by job: the backend moved into core as `art98.container`, and `up`
+  and the Dockerfile into setup.
 
 Checked:
 

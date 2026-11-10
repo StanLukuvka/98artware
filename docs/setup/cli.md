@@ -1,7 +1,7 @@
 # Commands and the work directory
 
-The `art98` command is `98artware_core/art98/cli.py`. Run it with `uv run art98`, from a source
-checkout: it finds `windows_handlers/build` relative to the source file, so an installed wheel
+The `art98` command is `core/art98/cli.py`. Run it with `uv run art98`, from a source
+checkout: it finds `guest/build` relative to the source file, so an installed wheel
 would not find it.
 
 This page covers `doctor`, `setup`, `ping`, `up` and `serve`. `setup` was called `prep`, and `art98 prep` still works as an alias. For `art98 render`, see
@@ -39,18 +39,18 @@ Or skip them: `art98 up` runs QEMU and setup in a container, and the host then n
 | 1 | Something is missing. It prints a `dnf` and an `apt` command for it |
 
 It looks up each tool with `shutil.which` and nothing more. It does not check
-versions or whether `windows_handlers/build` exists. The package names come from
+versions or whether `guest/build` exists. The package names come from
 `HOST_TOOLS` and `DEBIAN_PACKAGES` in `builder.py`. On Debian 12 and older, `7z` comes from
 `p7zip-full` rather than `7zip`. A missing Podman or Docker doesn't change the exit code.
 
-`i686-w64-mingw32-gcc`, `make` and `as` are only needed to build `windows_handlers/`. If
-`windows_handlers/build/` already holds `agent.exe` and `mbr.bin`, `setup` runs without them,
+`i686-w64-mingw32-gcc`, `make` and `as` are only needed to build `guest/`. If
+`guest/build/` already holds `agent.exe` and `mbr.bin`, `setup` runs without them,
 though `doctor` still reports them missing.
 
 ## art98 setup
 
 Builds the image in four steps: `vm`, `setup`, `init_api`, `ready`. See
-[stages.md](stages.md) for what each does. The code is `98artware_setup/art98_setup/`,
+[stages.md](stages.md) for what each does. The code is `setup/art98_setup/`,
 which `art98 doctor` and `art98 setup` import when they run.
 
 ```bash
@@ -140,14 +140,14 @@ It prints `error: <message>` to stderr and exits with 1 when the image is missin
 
 From your disc and key to a working desktop, with QEMU and setup in the container. The host
 needs Podman or Docker, Python and ffmpeg. The code is
-[98artware_container/](../../98artware_container/README.md).
+[setup/art98_setup/up.py](../../setup/art98_setup/up.py).
 
 ```bash
 uv run art98 up --iso /path/to/win98se.iso
 ```
 
 1. Builds the image `localhost/art98:latest` if it is missing, or always with `--rebuild`.
-2. Copies `agent.exe`, `view.exe` and `mbr.bin` out of the image into `windows_handlers/build`
+2. Copies `agent.exe`, `view.exe` and `mbr.bin` out of the image into `guest/build`
    if `view.exe` isn't there, since scenes send `VIEW.EXE` to the guest from the host.
 3. If `image.json` is missing from the work directory, takes the key from `ART98_PRODUCT_KEY`
    or asks for it without echo, stores it as the Podman secret `art98_key`, and runs
@@ -191,8 +191,8 @@ running it. The protocol is in [the container design](../design/container.md#art
 |----------|---------|--------|
 | `ART98_PRODUCT_KEY` | `cmd_setup`, `art98 up` | The product key when `--key` is not given. In the container, setup reads `/run/secrets/art98_key` when neither is there |
 | `ART98_BACKEND` | `session.boot`, `render`, `ping` | `local` (the default) or `container` |
-| `ART98_ENGINE` | `art98_container.host.Engine` | `podman` or `docker`. Without it, Podman if it is installed, else Docker |
-| `ART98_IMAGE` | `art98_container.host` | The image name, `localhost/art98:latest` by default |
+| `ART98_ENGINE` | `art98.container.host.Engine` | `podman` or `docker`. Without it, Podman if it is installed, else Docker |
+| `ART98_IMAGE` | `art98.container.host` | The image name, `localhost/art98:latest` by default |
 | `ART98_TRANSPORT` | `ContainerStage` | `unix` (the default on Linux) or `tcp` (the default elsewhere): how the host reaches the container. See [timing](../design/container.md#timing) |
 | `ART98_WATCH_DISPLAY` | `Setup._config` | The QEMU display for `--watch`, `gtk` by default. `art98 up --watch` sets it to VNC |
 | `ART98_TEST_WORK` | `test_stage.py` | The prepared work directory the stage tests boot |

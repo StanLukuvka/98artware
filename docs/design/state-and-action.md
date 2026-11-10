@@ -258,7 +258,7 @@ Status: built, 2026-11-10.
 The MVP's only window. Windows 98 has no small image viewer, and Paint brings its own tools,
 canvas and quirks, so art98 ships a tiny one.
 
-- **Program.** `windows_handlers/picture_viewer/view.c` builds `VIEW.EXE` with the agent's toolchain, using only functions
+- **Program.** `guest/picture_viewer/view.c` builds `VIEW.EXE` with the agent's toolchain, using only functions
   Windows 98 has. It came out at 4 KB.
 - **Command line.** `VIEW.EXE <x> <y> <width> <height> "<title>" ["<image.bmp>"]`. Each window is
   its own process, and it opens where the state wants it, so nothing moves on screen first.

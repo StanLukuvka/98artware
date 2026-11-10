@@ -5,7 +5,7 @@ the same state every time. It runs Setup with no input, cleans up the result, an
 saves a QEMU snapshot called `ready`. Everything else in art98 starts from that
 snapshot.
 
-This part covers the setup tool, `98artware_setup/`. To drive the finished desktop, see
+This part covers the setup tool, `setup/`. To drive the finished desktop, see
 [Part 2](../scenes/README.md).
 
 ![How the host, QEMU and the guest fit together](../diagrams/system-overview.png)
@@ -95,7 +95,7 @@ is still `local`. See [the container design](../design/container.md) for how it 
 `art98 up` runs these. Build the image from the repository root:
 
 ```bash
-podman build -t localhost/art98:latest -f 98artware_container/Containerfile --ignorefile 98artware_container/Containerfile.dockerignore .
+podman build -t localhost/art98:latest -f setup/Dockerfile .
 ```
 
 Store the key as a secret, typed without echo:
@@ -117,8 +117,8 @@ podman secret rm art98_key
 ```
 
 A stage container runs `art98 serve`, which needs a token in `/run/secrets/art98_token` and
-waits for the host to connect. `art98_container.host` starts those for you. Everything for the
-container is in [98artware_container/](../../98artware_container/README.md).
+waits for the host to connect. `art98.container.host` starts those for you. Which file does what is in
+[the container design](../design/container.md#the-image).
 
 With Docker, use `docker` in place of `podman`. `docker run` has no `--secret`, so mount a file
 holding the key instead: `-v /path/to/keyfile:/run/secrets/art98_key:ro`.
@@ -137,11 +137,11 @@ On Debian or Ubuntu:
 sudo apt install qemu-system-x86 qemu-utils mtools 7zip ffmpeg make binutils gcc-mingw-w64-i686
 ```
 
-Build the two files that go on the Windows disk, `windows_handlers/build/agent.exe` and
-`windows_handlers/build/mbr.bin`:
+Build the two files that go on the Windows disk, `guest/build/agent.exe` and
+`guest/build/mbr.bin`:
 
 ```bash
-make -C windows_handlers
+make -C guest
 ```
 
 Check the host:

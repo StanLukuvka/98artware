@@ -1,4 +1,4 @@
-"""Wire format shared with windows_handlers/call_proxy/agent.c. See the header comment there."""
+"""Wire format shared with guest/call_proxy/agent.c. See the header comment there."""
 
 from __future__ import annotations
 

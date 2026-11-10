@@ -4,7 +4,7 @@ A scene starts on a black, empty 800 x 600 screen: no wallpaper colour, icons, t
 pointer. Nothing appears that the scene didn't put there. This page says what can pop up on its
 own, how the blank screen is made, and what is still open.
 
-The code is [`art98/desktop.py`](../../98artware_core/art98/desktop.py). A scene uses it through
+The code is [`art98/desktop.py`](../../core/art98/desktop.py). A scene uses it through
 `Scene.desktop`, described in the [Scene API](../scenes/scene-api.md#scene).
 
 ## What can pop up on its own
