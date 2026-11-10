@@ -87,9 +87,11 @@ What a scene author imports with `from art98.anim import *`.
 - [ ] [animation.py](../98artware_core/art98/anim/animation.py) and
   [rate_functions.py](../98artware_core/art98/anim/rate_functions.py): what changes over a run time.
 - [ ] [props.py](../98artware_core/art98/anim/props.py): host-side handles on windows and controls.
-- [ ] [actions.py](../98artware_core/art98/anim/actions.py): the pointer and keyboard as actors.
+- [ ] [pointer.py](../98artware_core/art98/anim/pointer.py): the pointer, and moves, clicks, drags, strokes and menus.
+- [ ] [keys.py](../98artware_core/art98/anim/keys.py): typing and key presses.
+- [ ] [window.py](../98artware_core/art98/anim/window.py): minimize, maximize, restore, close, and `Teleport`.
 - [ ] [apps.py](../98artware_core/art98/anim/apps.py): the programs on the image, as props.
-- [ ] [picture.py](../98artware_core/art98/anim/picture.py): picture windows, and one-frame moves.
+- [ ] [picture.py](../98artware_core/art98/anim/picture.py): the picture window.
 - [ ] [setstate.py](../98artware_core/art98/anim/setstate.py): applies a state and checks it took.
 - [ ] [renderer.py](../98artware_core/art98/anim/renderer.py): VM, recorder, output file.
 - [ ] [vectors.py](../98artware_core/art98/anim/vectors.py): screen directions, with y running down.
