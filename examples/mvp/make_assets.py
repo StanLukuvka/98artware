@@ -1,6 +1,6 @@
 """Draw the sample's two BMPs and print their hashes for the state files.
 
-    python artware_experiments/set_state/make_assets.py
+    python examples/mvp/make_assets.py
 """
 
 import hashlib

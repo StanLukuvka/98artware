@@ -405,7 +405,7 @@ def test_cli_explains_a_missing_container_image(tmp_path, monkeypatch, capsys):
         raise ContainerError("no image localhost/art98:latest; run `art98 up` to build it")
 
     monkeypatch.setattr(container, "boot", no_image)
-    scene = Path(__file__).resolve().parents[2] / "artware_experiments/set_state/mvp.py"
+    scene = Path(__file__).resolve().parents[2] / "examples/mvp/mvp.py"
     for argv in (["ping"], ["render", str(scene), "-o", str(tmp_path / "x.mp4")]):
         assert main([*argv, "--work", str(tmp_path), "--backend", "container"]) == 1
         assert capsys.readouterr().err == (

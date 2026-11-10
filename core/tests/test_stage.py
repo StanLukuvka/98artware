@@ -17,7 +17,7 @@ from art98.container import host as container
 
 HERE = Path(__file__).resolve().parents[2]
 WORK = Path(os.environ.get("ART98_TEST_WORK") or HERE / "work")
-MVP = HERE / "artware_experiments" / "set_state" / "mvp.py"
+MVP = HERE / "examples" / "mvp" / "mvp.py"
 
 
 def _container_ready() -> bool:

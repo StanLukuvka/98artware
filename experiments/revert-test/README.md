@@ -13,7 +13,7 @@ Every script works on a private copy of the image, under `work/runs` (or `/dev/s
 ```
 
 ```bash
-uv run python -u artware_experiments/revert-test/probe.py out/probe
+uv run python -u experiments/revert-test/probe.py out/probe
 ```
 
 | Script | What it checks |

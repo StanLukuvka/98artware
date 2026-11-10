@@ -85,7 +85,7 @@ desktop and pings the agent.
 Then render through the container:
 
 ```bash
-ART98_BACKEND=container uv run art98 render artware_experiments/set_state/mvp.py
+ART98_BACKEND=container uv run art98 render examples/mvp/mvp.py
 ```
 
 `--backend container` on `render` or `ping` does the same for one command. The default backend

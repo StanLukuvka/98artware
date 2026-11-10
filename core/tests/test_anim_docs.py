@@ -1,4 +1,4 @@
-"""The docs stay true to the code. Rendering the samples is artware_experiments/check_docs.py."""
+"""The docs stay true to the code. Rendering the samples is tools/check_docs.py."""
 
 import re
 from pathlib import Path

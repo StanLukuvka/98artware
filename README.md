@@ -6,7 +6,7 @@ showed. Python draws nothing.
 
 ![Two picture windows are set from a state file, then moved, teleported and closed on camera](docs/assets/gifs/mvp.gif)
 
-That clip is [artware_experiments/set_state/mvp.py](artware_experiments/set_state/mvp.py),
+That clip is [examples/mvp/mvp.py](examples/mvp/mvp.py),
 rendered through the container.
 
 ## The pattern: a state, then actions
@@ -53,7 +53,7 @@ class Mvp(Scene):
 ```
 
 ```bash
-ART98_BACKEND=container uv run art98 render artware_experiments/set_state/mvp.py -o mvp.mp4
+ART98_BACKEND=container uv run art98 render examples/mvp/mvp.py -o mvp.mp4
 ```
 
 What happens when it runs:
@@ -104,7 +104,7 @@ export ART98_BACKEND=container
 ```
 
 ```bash
-uv run art98 render artware_experiments/set_state/mvp.py -o mvp.mp4
+uv run art98 render examples/mvp/mvp.py -o mvp.mp4
 ```
 
 `-o` also takes `.gif`. Each render works on a private copy of the image, so several can run
@@ -177,7 +177,10 @@ changes.
 | [core/](core/art98/) | The `art98` package: the scene layer in `anim/` on top of `base/` and `actions/`, the bridge, QEMU control, states, and the container backend in `container/` |
 | [setup/](setup/art98_setup/) | `art98 setup` and `art98 up`, which turn a disc into `work/golden.qcow2`, and the `Dockerfile` |
 | [guest/](guest/) | The programs that run inside Windows 98: `AGENT.EXE`, the `VIEW.EXE` picture viewer and the install disk's boot record |
-| [artware_experiments/](artware_experiments/) | The MVP scene, the gallery, older demos and throwaway probes |
+| [examples/](examples/) | Maintained scenes: the MVP, the gallery, `hello.py` and `showcase.py`. The docs embed them |
+| [experiments/](experiments/) | Throwaway probes, not part of art98 and with no tests |
+| [tools/](tools/) | `render_all.py` makes the gallery GIFs, `check_docs.py` renders the doc samples |
+| `out/` | Render output from the tools and probes. Gitignored |
 | [docs/](docs/README.md) | Every page, starting from [docs/README.md](docs/README.md) |
 | `work/` | Your prepared image. Gitignored |
 
@@ -239,7 +242,7 @@ uv run --group dev pytest
 
 The QEMU, Wine and container suites skip themselves if those tools are missing, and
 `test_stage` skips without a prepared image. Only `test_stage` runs real Windows 98.
-[artware_experiments/check_docs.py](artware_experiments/check_docs.py) renders every sample in
+[tools/check_docs.py](tools/check_docs.py) renders every sample in
 the scene docs on the real image, on whichever backend `ART98_BACKEND` names.
 
 ## Measured on real Windows 98

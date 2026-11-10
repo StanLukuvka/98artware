@@ -8,3 +8,4 @@ work-*/
 .tools/
 .pytest_cache/
 /*.mp4
+out/

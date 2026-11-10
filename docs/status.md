@@ -10,7 +10,7 @@ work can pick up from here.
 | VM preparation | Built. `art98 setup` (alias `prep`) turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input. Four steps: vm, setup, init_api, ready | [Part 1](setup/README.md) |
 | Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](scenes/bridge.md), [Instruction set](scenes/instruction-set.md) |
 | Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. The program classes are parked, unexported | [Part 2](scenes/README.md) |
-| Examples | `artware_experiments/set_state`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
+| Examples | `examples/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
 | Diagrams | Seven diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
 | States and sections | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Sections aren't built | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
 | Recorder | `FrameRecorder`, one file per render. A `Recorder` with `cut()` is specified, not built | [Recorder](design/state-and-action.md#recorder) |
@@ -35,7 +35,7 @@ Audio is deferred. art98 is video only.
 5. **Revert test.** The first MVP step, run on a private copy. Set repeats and a revert leaves
    nothing behind. A Set takes 1.6 to 2.0 s on a quiet host, and 10 s on a busy one. Details are
    under [Test results](design/state-and-action.md#test-results), and the scripts are in
-   [artware_experiments/revert-test](../artware_experiments/revert-test/README.md).
+   [artware_experiments/revert-test](../experiments/revert-test/README.md).
 6. **Stray pixels explained.** The odd Set out was the clean one. Usually Paint moving away leaves
    the "My Documents" label's pixels in Notepad's frame. Repainting the windows back to front at the
    end of Apply made 20 of 20 Sets identical, from `ready` and from a warm baseline. See

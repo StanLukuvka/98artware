@@ -1,6 +1,6 @@
 """Render every gallery scene to docs/assets/gifs, a few VMs at a time.
 
-    uv run python artware_experiments/gallery/render_all.py [name ...]
+    uv run python tools/render_all.py [name ...]
 """
 
 import subprocess
@@ -8,7 +8,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "assets" / "gifs"
 
 # file, scene, GIF options
@@ -30,9 +30,9 @@ SCENES = {
 def render(name: str) -> str:
     scene, options = SCENES[name]
     output = OUT / f"{name.replace('_', '-')}.gif"
-    folders = ("gallery", ".", "set_state")
+    folders = ("gallery", ".", "mvp")
     source = next(path for folder in folders
-                  if (path := ROOT / "artware_experiments" / folder / f"{name}.py").exists())
+                  if (path := ROOT / "examples" / folder / f"{name}.py").exists())
     subprocess.run(
         [sys.executable, "-m", "art98.cli", "render", str(source), scene, "-o", str(output), "--work", str(ROOT / "work"), *options],
         check=True, cwd=ROOT,

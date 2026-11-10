@@ -34,7 +34,7 @@ class Hello(Scene):
 ```
 
 ```bash
-uv run art98 render artware_experiments/hello.py Hello -o hello.mp4
+uv run art98 render examples/hello.py Hello -o hello.mp4
 ```
 
 ![Notepad types a line and moves](../assets/gifs/hello.gif)

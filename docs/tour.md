@@ -14,7 +14,7 @@ puts them on an image, the core drives that image, and scenes and samples sit on
 | 4 | [Core: VM and bridge](#4-core-vm-and-bridge) | `core/art98/` | Starts the VM and talks to the agent. |
 | 5 | [Core: scene layer](#5-core-scene-layer) | `core/art98/anim/` | The Manim-style API scenes are written in. |
 | 6 | [Tests](#6-tests) | `*/tests/` | What is checked, and what needs a VM. |
-| 7 | [Samples and experiments](#7-samples-and-experiments) | `artware_experiments/` | Scenes to render, and throwaway probes. |
+| 7 | [Samples and experiments](#7-samples-and-experiments) | `examples/`, `tools/`, `experiments/` | Scenes to render, the tools that render them, and throwaway probes. |
 | 8 | [Docs](#8-docs) | `docs/` | Guides, design pages, diagrams, status. |
 | 9 | [Container](#9-container) | `core/art98/container/`, `setup/` | Runs QEMU and setup in Docker. Optional. |
 
@@ -128,15 +128,15 @@ Run everything with `uv run --group dev pytest`. Tests marked `qemu` skip withou
 
 ## 7. Samples and experiments
 
-- [ ] [hello.py](../artware_experiments/hello.py): the smallest scene. Renders to `hello.mp4`.
-- [ ] [showcase.py](../artware_experiments/showcase.py): a longer tour of the desktop.
-- [ ] [set_state/mvp.py](../artware_experiments/set_state/mvp.py): picture windows set from
-  [state files](../artware_experiments/set_state/states/two_windows.json), then moved on camera.
-- [ ] [gallery/](../artware_experiments/gallery/): one short scene per feature;
-  [render_all.py](../artware_experiments/gallery/render_all.py) makes the GIFs in `docs/assets/gifs`.
-- [ ] [check_docs.py](../artware_experiments/check_docs.py): renders every sample in `docs/scenes`
+- [ ] [hello.py](../examples/hello.py): the smallest scene. Renders to `hello.mp4`.
+- [ ] [showcase.py](../examples/showcase.py): a longer tour of the desktop.
+- [ ] [mvp/mvp.py](../examples/mvp/mvp.py): picture windows set from
+  [state files](../examples/mvp/states/two_windows.json), then moved on camera.
+- [ ] [gallery/](../examples/gallery/): one short scene per feature;
+  [render_all.py](../tools/render_all.py) makes the GIFs in `docs/assets/gifs`.
+- [ ] [check_docs.py](../tools/check_docs.py): renders every sample in `docs/scenes`
   on the real image.
-- [ ] [revert-test/](../artware_experiments/revert-test/README.md): throwaway probes behind the
+- [ ] [revert-test/](../experiments/revert-test/README.md): throwaway probes behind the
   state design. Not part of art98, no tests.
 
 Explained in: [Gallery](scenes/gallery.md).

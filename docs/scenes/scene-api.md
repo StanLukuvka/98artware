@@ -97,18 +97,18 @@ from art98.anim import *
 
 
 class TwoStates(Scene):
-    state = "artware_experiments/set_state/states/two_windows.json"
+    state = "examples/mvp/states/two_windows.json"
 
     def construct(self):
         flower = self.prop("flower")
         self.play(flower.animate.shift(200 * RIGHT), run_time=2)
-        self.set_state("artware_experiments/set_state/states/gallery.json")
+        self.set_state("examples/mvp/states/gallery.json")
         self.pause(1)
         self.play(self.prop("picture").animate.shift(100 * DOWN), run_time=2)
 ```
 
 These paths are from the repository's root. The whole sample is
-[artware_experiments/set_state](../../artware_experiments/set_state/mvp.py), with its states beside it.
+[examples/mvp](../../examples/mvp/mvp.py), with its states beside it.
 
 ### Playing
 
@@ -404,7 +404,7 @@ the text as saved first, so no save prompt appears.
 
 ![Typing](../assets/gifs/typing.gif)
 
-Source: [typing.py](../../artware_experiments/gallery/typing.py).
+Source: [typing.py](../../examples/gallery/typing.py).
 
 ## Paint
 
@@ -443,7 +443,7 @@ prompt, which isn't handled.
 
 ![Paint drawing](../assets/gifs/paint-drawing.gif)
 
-Source: [paint_drawing.py](../../artware_experiments/gallery/paint_drawing.py).
+Source: [paint_drawing.py](../../examples/gallery/paint_drawing.py).
 
 ## Minesweeper
 
@@ -470,7 +470,7 @@ takes no video time. No window may cover the top left corner of the screen.
 
 ![Minesweeper win](../assets/gifs/minesweeper-win.gif)
 
-Source: [minesweeper_win.py](../../artware_experiments/gallery/minesweeper_win.py).
+Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py).
 
 ## Screensaver
 
@@ -489,7 +489,7 @@ Channel Screen Saver is on the image but left out, because moving the pointer do
 
 ![Screensaver](../assets/gifs/screensaver.gif)
 
-Source: [screensaver.py](../../artware_experiments/gallery/screensaver.py).
+Source: [screensaver.py](../../examples/gallery/screensaver.py).
 
 ## Dialog
 
@@ -510,7 +510,7 @@ and it waits for the box to close.
 
 ![Hover and dialog](../assets/gifs/hover-dialog.gif)
 
-Source: [hover_dialog.py](../../artware_experiments/gallery/hover_dialog.py).
+Source: [hover_dialog.py](../../examples/gallery/hover_dialog.py).
 
 ```python
 from art98.anim import *

@@ -14,3 +14,4 @@ work-*/
 **/.pytest_cache/
 .ruff_cache/
 guest/build/
+out/

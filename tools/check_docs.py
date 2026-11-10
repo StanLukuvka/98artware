@@ -1,8 +1,8 @@
 """Render every Python sample in docs/scenes on the real image.
 
-    uv run python artware_experiments/check_docs.py [--keep DIR] [word ...]
+    uv run python tools/check_docs.py [--keep DIR] [word ...]
 
-A sample that fails prints its traceback. With --keep, each video stays in DIR
+A sample that fails prints its traceback. With --keep (say out/check), each video stays in DIR
 so its frames can be looked at. Words pick samples by class name.
 """
 

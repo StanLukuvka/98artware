@@ -3,7 +3,7 @@
 Each GIF is a real scene on the real image, cut down to keep the file small. To render them all:
 
 ```bash
-uv run python artware_experiments/gallery/render_all.py
+uv run python tools/render_all.py
 ```
 
 **Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
@@ -21,13 +21,13 @@ desktop, and its window moves down. This one was rendered through the container.
 
 ![The MVP](../assets/gifs/mvp.gif)
 
-Source: [mvp.py](../../artware_experiments/set_state/mvp.py), with its
-[states](../../artware_experiments/set_state/states/two_windows.json) beside it
+Source: [mvp.py](../../examples/mvp/mvp.py), with its
+[states](../../examples/mvp/states/two_windows.json) beside it
 
 ```py
 """The MVP sample: picture windows, set from state files and moved on camera.
 
-    art98 render artware_experiments/set_state/mvp.py
+    art98 render examples/mvp/mvp.py
 """
 
 from pathlib import Path
@@ -64,14 +64,14 @@ Notepad opens, types a line, moves across the desktop and closes.
 
 ![Hello](../assets/gifs/hello.gif)
 
-Source: [hello.py](../../artware_experiments/hello.py)
+Source: [hello.py](../../examples/hello.py)
 
 ```py
 """The Windows 98 equivalent of a triangle on screen.
 
 Notepad opens, types a line, drifts across the desktop and closes.
 
-    uv run art98 render artware_experiments/hello.py Hello -o hello.mp4
+    uv run art98 render examples/hello.py Hello -o hello.mp4
 """
 
 from art98.anim import *
@@ -99,7 +99,7 @@ A double click on the desktop icon opens My Computer. A right click opens the de
 
 ![Pointer and clicks](../assets/gifs/pointer-clicks.gif)
 
-Source: [pointer_clicks.py](../../artware_experiments/gallery/pointer_clicks.py)
+Source: [pointer_clicks.py](../../examples/gallery/pointer_clicks.py)
 
 ```py
 """Pointer and clicks: a double click opens My Computer, a right click a menu."""
@@ -127,7 +127,7 @@ Each letter is a `WM_CHAR` sent to Notepad's Edit control, so the real caret mov
 
 ![Typing](../assets/gifs/typing.gif)
 
-Source: [typing.py](../../artware_experiments/gallery/typing.py)
+Source: [typing.py](../../examples/gallery/typing.py)
 
 ```py
 """Typing: letters reach a real Edit control, and the caret moves with them."""
@@ -157,7 +157,7 @@ A move, a resize, both at once, and a path. Each frame is one `SetWindowPos`.
 
 ![Window motion](../assets/gifs/window-motion.gif)
 
-Source: [window_motion.py](../../artware_experiments/gallery/window_motion.py)
+Source: [window_motion.py](../../examples/gallery/window_motion.py)
 
 ```py
 """Window motion: a move, a resize, and both at once, as one SetWindowPos a frame."""
@@ -188,7 +188,7 @@ The pointer holds the title bar, then the frame corner, and Windows does the mov
 
 ![Dragging](../assets/gifs/drag-window.gif)
 
-Source: [drag_window.py](../../artware_experiments/gallery/drag_window.py)
+Source: [drag_window.py](../../examples/gallery/drag_window.py)
 
 ```py
 """Dragging: Windows moves the window itself, because the pointer holds its title bar."""
@@ -217,7 +217,7 @@ class DragWindow(Scene):
 
 ![Menus and keys](../assets/gifs/menus-keys.gif)
 
-Source: [menus_keys.py](../../artware_experiments/gallery/menus_keys.py)
+Source: [menus_keys.py](../../examples/gallery/menus_keys.py)
 
 ```py
 """Menus and keys: real menu clicks select and stamp, real key presses delete and type."""
@@ -249,7 +249,7 @@ The tray clock's tooltip comes up on the guest's own timer, so `Hover` runs on t
 
 ![Tooltip and dialog](../assets/gifs/hover-dialog.gif)
 
-Source: [hover_dialog.py](../../artware_experiments/gallery/hover_dialog.py)
+Source: [hover_dialog.py](../../examples/gallery/hover_dialog.py)
 
 ```py
 """A tooltip, which the guest times itself, and a real message box."""
@@ -280,7 +280,7 @@ Paint is moved and resized first. The tools, swatches and canvas are then found 
 
 ![Paint](../assets/gifs/paint-drawing.gif)
 
-Source: [paint_drawing.py](../../artware_experiments/gallery/paint_drawing.py)
+Source: [paint_drawing.py](../../examples/gallery/paint_drawing.py)
 
 ```py
 """Paint: real strokes and real fills, with buttons found from the live window.
@@ -331,7 +331,7 @@ class PaintDrawing(Scene):
 
 ![Minesweeper](../assets/gifs/minesweeper-win.gif)
 
-Source: [minesweeper_win.py](../../artware_experiments/gallery/minesweeper_win.py)
+Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py)
 
 ```py
 """Minesweeper: the board is read through the XYZZY cheat, then played by hand."""
@@ -358,7 +358,7 @@ A screensaver is started with `/s` and recorded on the host clock. A pointer nud
 
 ![Screensaver](../assets/gifs/screensaver.gif)
 
-Source: [screensaver.py](../../artware_experiments/gallery/screensaver.py)
+Source: [screensaver.py](../../examples/gallery/screensaver.py)
 
 ```py
 """A screensaver, launched directly and recorded live, then dismissed."""
