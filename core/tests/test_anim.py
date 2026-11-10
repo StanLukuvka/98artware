@@ -1,6 +1,8 @@
 """The scene layer against a stand-in guest: nothing here needs a VM."""
 
+import inspect
 import struct
+from pathlib import Path
 
 import pytest
 
@@ -885,6 +887,18 @@ def test_render_turns_a_class_into_a_scene_and_routes_a_gif(tmp_path, monkeypatc
     written = render_module.render(Tiny, tmp_path / "out.gif")
     assert written == tmp_path / "out.gif"
     assert options["lossless"] is True and gifs[0][1] == tmp_path / "out.gif"
+
+
+def test_cli_scene_named_like_a_stdlib_module_finds_its_own_file(tmp_path):
+    from art98.cli import _load_scene
+    file = tmp_path / "typing.py"
+    file.write_text("from art98.anim import *\nclass T(Scene):\n    pass\n")
+    (tmp_path / "x.json").write_text("{}")
+    scene = _load_scene(file, None)
+    assert Path(inspect.getfile(scene)) == file
+    assert scene()._find_state(Path("x.json")) == tmp_path / "x.json"
+    import typing
+    assert typing.__file__ != str(file)  # stdlib untouched
 
 
 def test_cli_finds_the_scene_in_a_file(tmp_path):

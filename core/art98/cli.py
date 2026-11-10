@@ -85,15 +85,16 @@ def _load_scene(path: Path, name: str | None) -> type:
     """Import a scene file and pick the scene class it defines."""
     from .anim import Scene
 
+    module_name = f"art98_scene_{path.stem}"
     sys.path.insert(0, str(path.resolve().parent))
-    spec = importlib.util.spec_from_file_location(path.stem, path)
+    spec = importlib.util.spec_from_file_location(module_name, path)
     module = importlib.util.module_from_spec(spec)
     # Registered so a scene can find its own file, for state paths beside it.
-    sys.modules.setdefault(path.stem, module)
+    sys.modules[module_name] = module
     spec.loader.exec_module(module)
     scenes = {
         key: value for key, value in vars(module).items()
-        if isinstance(value, type) and issubclass(value, Scene) and value.__module__ == path.stem
+        if isinstance(value, type) and issubclass(value, Scene) and value.__module__ == module_name
     }
     if name is None and len(scenes) == 1:
         return next(iter(scenes.values()))
