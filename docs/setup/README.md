@@ -30,9 +30,10 @@ system sounds and power saving off, and `C:\ART98\AGENT.EXE` already running.
 - **A Windows 98 SE disc image and product key of your own.** The disc must boot
   from an emulated floppy and hold a `WIN98` folder. The tool was run on one OEM
   disc only, see [what a different disc needs](troubleshooting.md#a-different-disc).
-- **Podman or Docker, and ffmpeg**, for the [container path](#quick-path-in-a-container).
+- **Docker and ffmpeg**, for the [container path](#quick-path-in-a-container).
   The container holds QEMU 10.2.2, mtools, 7-Zip and the guest programs, so the host needs
-  nothing else.
+  nothing else. art98 calls only `docker`. On a Podman host, install `podman-docker`, which
+  provides that command.
 - **Or, for the [local path](#quick-path-on-the-host), Linux with these tools.**
   `art98 doctor` checks them.
 
@@ -77,8 +78,8 @@ uv run art98 up --iso /path/to/win98se.iso
 
 It asks for your product key without echoing it, or reads `ART98_PRODUCT_KEY`. Setup takes
 25 to 40 minutes, depending on host load: about 25 on a quiet one. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the screen.
-If setup stops, run the same command again: it resumes, and Podman keeps the key as the secret
-`art98_key` until setup finishes. Running `up` again once everything is done only boots the
+If setup stops, run the same command again: it resumes, and asks for the key again, since
+nothing keeps it between runs. Running `up` again once everything is done only boots the
 desktop and pings the agent.
 
 Then render through the container:
@@ -95,33 +96,33 @@ is still `local`. See [the container design](../design/container.md) for how it 
 `art98 up` runs these. Build the image from the repository root:
 
 ```bash
-podman build -t localhost/art98:latest -f setup/Dockerfile .
+docker build -t localhost/art98:latest -f setup/Dockerfile .
 ```
 
-Store the key as a secret, typed without echo:
+Put the key in a private file, typed without echo. `docker run` has no secrets outside swarm,
+so the file is mounted read-only where setup looks for it:
 
 ```bash
-read -rs KEY && printf %s "$KEY" | podman secret create art98_key - && unset KEY
+read -rs KEY && (umask 077 && printf %s "$KEY" > "$XDG_RUNTIME_DIR/art98_key") && unset KEY
 ```
 
-Run setup, with `work/` and the disc mounted:
+Run setup, with `work/`, the disc and the key mounted. `ART98_HOST_UID` and `ART98_HOST_GID`
+make the files setup writes in `work/` yours on rootful Docker. Rootless engines ignore them,
+since their root is you already:
 
 ```bash
-podman run --rm --init --security-opt label=disable -v "$PWD/work:/work" -v /path/to/win98se.iso:/media/win98.iso:ro --secret art98_key localhost/art98:latest setup --work /work --iso /media/win98.iso
+docker run --rm --init --security-opt label=disable -v "$PWD/work:/work" -e ART98_HOST_UID=$(id -u) -e ART98_HOST_GID=$(id -g) -v /path/to/win98se.iso:/media/win98.iso:ro -v "$XDG_RUNTIME_DIR/art98_key:/run/secrets/art98_key:ro" localhost/art98:latest setup --work /work --iso /media/win98.iso
 ```
 
-Then delete the secret, since the key is in the finished image:
+Then delete the file, since the key is in the finished image:
 
 ```bash
-podman secret rm art98_key
+rm "$XDG_RUNTIME_DIR/art98_key"
 ```
 
 A stage container runs `art98 serve`, which needs a token in `/run/secrets/art98_token` and
 waits for the host to connect. `art98.container.host` starts those for you. Which file does what is in
 [the container design](../design/container.md#the-image).
-
-With Docker, use `docker` in place of `podman`. `docker run` has no `--secret`, so mount a file
-holding the key instead: `-v /path/to/keyfile:/run/secrets/art98_key:ro`.
 
 ## Quick path on the host
 

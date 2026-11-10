@@ -13,6 +13,7 @@ OUT = ROOT / "docs" / "assets" / "gifs"
 
 # file, scene, GIF options
 SCENES = {
+    "mvp": ("Mvp", ["--gif-fps", "15", "--gif-colors", "64"]),
     "hello": ("Hello", ["--gif-fps", "12", "--gif-colors", "32"]),
     "pointer_clicks": ("PointerClicks", ["--gif-fps", "12", "--gif-colors", "64"]),
     "typing": ("Typing", ["--gif-fps", "12", "--gif-colors", "32"]),
@@ -29,9 +30,9 @@ SCENES = {
 def render(name: str) -> str:
     scene, options = SCENES[name]
     output = OUT / f"{name.replace('_', '-')}.gif"
-    source = ROOT / "artware_experiments" / "gallery" / f"{name}.py"
-    if not source.exists():
-        source = ROOT / "artware_experiments" / f"{name}.py"
+    folders = ("gallery", ".", "set_state")
+    source = next(path for folder in folders
+                  if (path := ROOT / "artware_experiments" / folder / f"{name}.py").exists())
     subprocess.run(
         [sys.executable, "-m", "art98.cli", "render", str(source), scene, "-o", str(output), "--work", str(ROOT / "work"), *options],
         check=True, cwd=ROOT,

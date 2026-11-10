@@ -1,4 +1,4 @@
-"""The host end of a stage that runs in a Podman or Docker container.
+"""The host end of a stage that runs in a Docker container.
 
 The container (see serve.py) owns QEMU and the run copy of the disk. The host
 keeps the Bridge, which talks to the agent through the container's relay, and
@@ -27,7 +27,7 @@ from art98.session import ImageMissing
 from .serve import PORT, VNC_PORT, nodelay, read_line
 
 IMAGE = "localhost/art98:latest"
-ENGINES = ("podman", "docker")
+ENGINE = "docker"
 TOKEN_TARGET = "art98_token"
 CONNECT_TIMEOUT = 5.0
 TRANSPORTS = ("unix", "tcp")
@@ -57,23 +57,21 @@ def transport_name(transport: str | None = None) -> str:
 
 
 class Engine:
-    """Podman, or Docker if there is no Podman. ART98_ENGINE picks one by name."""
+    """The `docker` command, or the one ART98_ENGINE names.
+
+    art98 speaks only Docker's command line. Podman serves it through its
+    podman-docker package. ART98_ENGINE only names the binary: nothing else
+    changes with it.
+    """
 
     def __init__(self, name: str | None = None):
-        name = name or os.environ.get("ART98_ENGINE")
-        candidates = [name] if name else list(ENGINES)
-        for candidate in candidates:
-            path = shutil.which(candidate)
-            if path:
-                self.name = Path(candidate).name
-                self.path = path
-                return
-        wanted = name or " or ".join(ENGINES)
-        raise ContainerError(f"{wanted} not found; install Podman or Docker")
-
-    @property
-    def is_podman(self) -> bool:
-        return "podman" in self.name
+        wanted = name or os.environ.get("ART98_ENGINE") or ENGINE
+        path = shutil.which(wanted)
+        if not path:
+            raise ContainerError(
+                f"{wanted} not found; install Docker, or podman-docker on a Podman host")
+        self.name = Path(wanted).name
+        self.path = path
 
     def __call__(self, *args: str, check: bool = True, input: bytes | None = None,
                  capture: bool = True) -> subprocess.CompletedProcess:
@@ -108,22 +106,13 @@ class Engine:
 
     # secrets
 
-    def secret_args(self, name: str, data: bytes, target: str, keep: bool = False,
-                    ) -> tuple[list[str], "callable"]:
-        """Arguments that put data at /run/secrets/<target>, and a cleanup to call
-        once the container has started.
+    def secret_args(self, data: bytes, target: str) -> tuple[list[str], "callable"]:
+        """Arguments that put data at /run/secrets/<target>, and a cleanup.
 
-        Podman keeps it as a secret, so it isn't in `podman inspect`. `docker run`
-        has no secrets outside swarm, so Docker gets a private file mounted
-        read-only instead.
+        `docker run` has no secrets outside swarm, so the data goes in a private
+        file, mode 0600 in a folder of our own, mounted read-only. The cleanup can
+        run once the container exists: its mount keeps the file.
         """
-        if self.is_podman:
-            self("secret", "rm", name, check=False)
-            self("secret", "create", name, "-", input=data)
-            # A secret can go once the container has it: the mounted copy stays.
-            cleanup = (lambda: None) if keep else (
-                lambda: self("secret", "rm", name, check=False))
-            return ["--secret", f"{name},target={target}"], cleanup
         folder = Path(tempfile.mkdtemp(prefix="art98-secret-", dir=os.environ.get("XDG_RUNTIME_DIR")))
         path = folder / target
         path.touch(mode=0o600)
@@ -131,14 +120,19 @@ class Engine:
         return ["-v", f"{path}:/run/secrets/{target}:ro"], (
             lambda: shutil.rmtree(folder, ignore_errors=True))
 
-    def remove_secret(self, name: str) -> None:
-        if self.is_podman:
-            self("secret", "rm", name, check=False)
-
 
 def mount_args(work: Path) -> list[str]:
     # label=disable lets the container use work/ without relabelling the files in it.
-    return ["--security-opt", "label=disable", "-v", f"{Path(work).resolve()}:/work"]
+    return ["--security-opt", "label=disable", "-v", f"{Path(work).resolve()}:/work",
+            *owner_args()]
+
+
+def owner_args() -> list[str]:
+    """Our uid and gid, for the container to drop to on a rootful engine, so what
+    it writes in work/ is ours. See art98.container.entry."""
+    if not hasattr(os, "getuid"):
+        return []
+    return ["-e", f"ART98_HOST_UID={os.getuid()}", "-e", f"ART98_HOST_GID={os.getgid()}"]
 
 
 def open_channel(address: tuple[str, int] | str, token: str, channel: str,
@@ -238,8 +232,7 @@ class ContainerStage:
         self._log = tempfile.NamedTemporaryFile(
             prefix="art98-serve-", suffix=".log", dir=os.environ.get("XDG_RUNTIME_DIR"),
             delete=False)
-        secret, cleanup = self.engine.secret_args(
-            f"art98_token_{self.name}", self._token.encode(), TOKEN_TARGET)
+        secret, cleanup = self.engine.secret_args(self._token.encode(), TOKEN_TARGET)
         try:
             self._process = subprocess.Popen(
                 self.argv(secret), stdin=subprocess.DEVNULL, stdout=self._log,
@@ -258,7 +251,7 @@ class ContainerStage:
         return self
 
     def _wait_for_container(self, deadline: float) -> None:
-        """Wait until the container exists, which is when its secrets are mounted."""
+        """Wait until the container exists, which is when the token file is mounted."""
         while self.engine("container", "inspect", self.name, check=False).returncode != 0:
             self._check_alive()
             if time.monotonic() > deadline:

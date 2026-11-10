@@ -26,8 +26,10 @@ def cmd_doctor(_args) -> int:
         if not path:
             missing.append(tool)
     print(f"{'/dev/kvm':24} not used: Windows 98 runs under software emulation")
-    engine = shutil.which("podman") or shutil.which("docker")
-    print(f"{'podman or docker':24} {engine or 'missing'} (for `art98 up` and the container backend)")
+    name = os.environ.get("ART98_ENGINE") or "docker"
+    engine = shutil.which(name)
+    print(f"{name:24} {engine or 'missing'} (for `art98 up` and the container backend"
+          f"{'' if engine else '; on a Podman host, install podman-docker'})")
     if missing:
         print("\nThe local backend needs the missing tools. Install them with one of:")
         for system, command, packages in builder.install_hints(missing):
@@ -41,7 +43,7 @@ def cmd_doctor(_args) -> int:
 def _product_key(args) -> str | None:
     if args.key or os.environ.get("ART98_PRODUCT_KEY"):
         return args.key or os.environ.get("ART98_PRODUCT_KEY")
-    if KEY_SECRET_FILE.exists():  # passed in as a container secret by `art98 up`
+    if KEY_SECRET_FILE.exists():  # mounted in by `art98 up`
         return KEY_SECRET_FILE.read_text().strip() or None
     return None
 

@@ -9,9 +9,54 @@ uv run python artware_experiments/gallery/render_all.py
 **Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
 `from art98.anim import *` leaves them out until each program returns as its own action
 class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is [`Picture`](scene-api.md#picture).
-Every scene here but `pointer_clicks` uses one.
+Every scene here but the MVP and `pointer_clicks` uses one.
 
 Give scene names to render only those, such as `render_all.py typing`. A GIF's frame rate and colours are set in that file.
+
+## The MVP: states and picture windows
+
+Two picture windows are set from a state file, off camera. The Flower window glides right,
+teleports to the corner and closes, and a Sky window opens. Then a second state replaces the
+desktop, and its window moves down. This one was rendered through the container.
+
+![The MVP](../assets/gifs/mvp.gif)
+
+Source: [mvp.py](../../artware_experiments/set_state/mvp.py), with its
+[states](../../artware_experiments/set_state/states/two_windows.json) beside it
+
+```py
+"""The MVP sample: picture windows, set from state files and moved on camera.
+
+    art98 render artware_experiments/set_state/mvp.py
+"""
+
+from pathlib import Path
+
+from art98.anim import *
+
+HERE = Path(__file__).parent
+
+
+class Mvp(Scene):
+    state = "states/two_windows.json"
+
+    def construct(self):
+        flower = self.prop("flower")
+        self.pause(0.5)
+        self.play(flower.animate.shift(200 * RIGHT), run_time=2)
+        self.pause(0.5)
+        self.play(Teleport(flower, to=(40, 40), aligned_edge=UL))
+        self.pause(0.5)
+        self.play(Close(flower))
+        self.pause(0.5)
+        self.add(Picture("Sky", image=HERE / "assets" / "sky.bmp", at=(100, 260), size=(240, 200)))
+        self.pause(1)
+
+        self.set_state("states/gallery.json")
+        self.pause(1)
+        self.play(self.prop("picture").animate.shift(100 * DOWN), run_time=2)
+        self.pause(0.5)
+```
 
 ## Hello
 

@@ -25,7 +25,7 @@ make                     /usr/bin/make
 as                       /usr/bin/as
 i686-w64-mingw32-gcc     missing
 /dev/kvm                 not used: Windows 98 runs under software emulation
-podman or docker         /usr/bin/podman (for `art98 up` and the container backend)
+docker                   /usr/bin/docker (for `art98 up` and the container backend)
 
 The local backend needs the missing tools. Install them with one of:
   Fedora          sudo dnf install mingw32-gcc
@@ -41,7 +41,8 @@ Or skip them: `art98 up` runs QEMU and setup in a container, and the host then n
 It looks up each tool with `shutil.which` and nothing more. It does not check
 versions or whether `guest/build` exists. The package names come from
 `HOST_TOOLS` and `DEBIAN_PACKAGES` in `builder.py`. On Debian 12 and older, `7z` comes from
-`p7zip-full` rather than `7zip`. A missing Podman or Docker doesn't change the exit code.
+`p7zip-full` rather than `7zip`. A missing `docker` doesn't change the exit code. Its line then
+suggests `podman-docker`, which provides `docker` on a Podman host.
 
 `i686-w64-mingw32-gcc`, `make` and `as` are only needed to build `guest/`. If
 `guest/build/` already holds `agent.exe` and `mbr.bin`, `setup` runs without them,
@@ -139,7 +140,7 @@ It prints `error: <message>` to stderr and exits with 1 when the image is missin
 ## art98 up
 
 From your disc and key to a working desktop, with QEMU and setup in the container. The host
-needs Podman or Docker, Python and ffmpeg. The code is
+needs Docker, Python and ffmpeg. The code is
 [setup/art98_setup/up.py](../../setup/art98_setup/up.py).
 
 ```bash
@@ -150,10 +151,10 @@ uv run art98 up --iso /path/to/win98se.iso
 2. Copies `agent.exe`, `view.exe` and `mbr.bin` out of the image into `guest/build`
    if `view.exe` isn't there, since scenes send `VIEW.EXE` to the guest from the host.
 3. If `image.json` is missing from the work directory, takes the key from `ART98_PRODUCT_KEY`
-   or asks for it without echo, stores it as the Podman secret `art98_key`, and runs
-   `art98 setup` in the container with the disc mounted read-only. When setup finishes the
-   secret is deleted. If it stops early the secret stays, and the next `up` resumes without
-   asking.
+   or asks for it without echo, and runs `art98 setup` in the container with the disc
+   mounted read-only. The key goes in a private file, mode 0600, mounted read-only at
+   `/run/secrets/art98_key`, and the file is deleted when setup ends. A resumed setup asks for
+   the key again.
 4. Boots a stage in the container and pings the agent.
 
 | Flag | Default | Effect |
@@ -165,9 +166,11 @@ uv run art98 up --iso /path/to/win98se.iso
 | `--rebuild` | Off | Build the image even if it exists |
 | `--disk-mb N` | 2047 | As for `setup` |
 
-`ART98_ENGINE` picks `podman` or `docker`. Docker gets the key as a private file mounted at
-`/run/secrets/art98_key`, because `docker run` has no secrets. Files setup writes in `work/`
-belong to you under rootless Podman, and to root under rootful Docker.
+art98 calls only `docker`. On a Podman host, install `podman-docker`, which provides it. Files
+the container writes in `work/` are yours on any engine. On a rootless one the container's root
+is you. On rootful Docker the image's entry point,
+[entry.py](../../core/art98/container/entry.py), sees from `/proc/self/uid_map` that its root is
+the host's, and switches to the uid and gid the host passed before running art98.
 
 ## art98 serve
 
@@ -191,7 +194,8 @@ running it. The protocol is in [the container design](../design/container.md#art
 |----------|---------|--------|
 | `ART98_PRODUCT_KEY` | `cmd_setup`, `art98 up` | The product key when `--key` is not given. In the container, setup reads `/run/secrets/art98_key` when neither is there |
 | `ART98_BACKEND` | `session.boot`, `render`, `ping` | `local` (the default) or `container` |
-| `ART98_ENGINE` | `art98.container.host.Engine` | `podman` or `docker`. Without it, Podman if it is installed, else Docker |
+| `ART98_ENGINE` | `art98.container.host.Engine`, `doctor` | The binary to run instead of `docker`. It only names the command: art98 drives it the same way |
+| `ART98_HOST_UID`, `ART98_HOST_GID` | `art98.container.entry` | Set by the host on every container it runs. On a rootful engine the container switches to them, so `work/` stays yours |
 | `ART98_IMAGE` | `art98.container.host` | The image name, `localhost/art98:latest` by default |
 | `ART98_TRANSPORT` | `ContainerStage` | `unix` (the default on Linux) or `tcp` (the default elsewhere): how the host reaches the container. See [timing](../design/container.md#timing) |
 | `ART98_WATCH_DISPLAY` | `Setup._config` | The QEMU display for `--watch`, `gtk` by default. `art98 up --watch` sets it to VNC |

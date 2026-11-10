@@ -2,6 +2,7 @@
 host client, a fake VM and a fake agent behind a Unix socket like QEMU's COM1."""
 
 import json
+import os
 import socket
 import stat
 import threading
@@ -265,22 +266,24 @@ def fake_engine(monkeypatch, name):
     return Engine(name)
 
 
-def test_engine_prefers_podman_and_honours_art98_engine(monkeypatch):
+def test_the_engine_is_docker_unless_art98_engine_names_another_binary(monkeypatch):
     monkeypatch.delenv("ART98_ENGINE", raising=False)
-    assert fake_engine(monkeypatch, None).name == "podman"
-    monkeypatch.setenv("ART98_ENGINE", "docker")
-    assert Engine().name == "docker"
+    engine = fake_engine(monkeypatch, None)
+    assert (engine.name, engine.path) == ("docker", "/usr/bin/docker")
+    monkeypatch.setenv("ART98_ENGINE", "/opt/bin/docker-ce")
+    assert Engine().name == "docker-ce"
     monkeypatch.setattr(container.shutil, "which", lambda tool: None)
-    with pytest.raises(ContainerError, match="not found"):
+    with pytest.raises(ContainerError, match="podman-docker"):
         Engine()
 
 
 def test_the_stage_publishes_on_loopback_only_and_keeps_secrets_out_of_argv(
         tmp_path, monkeypatch):
-    engine = fake_engine(monkeypatch, "podman")
+    engine = fake_engine(monkeypatch, None)
     stage = ContainerStage(tmp_path, engine, image="art98:test", vnc=True, transport="tcp")
-    argv = stage.argv(["--secret", "art98_token_x,target=art98_token"])
-    assert argv[:4] == ["/usr/bin/podman", "run", "--rm", "--init"]
+    argv = stage.argv(["-v", "/run/user/1/art98-secret-x/art98_token:/run/secrets/art98_token:ro"])
+    assert argv[:4] == ["/usr/bin/docker", "run", "--rm", "--init"]
+    assert f"ART98_HOST_UID={os.getuid()}" in argv and f"ART98_HOST_GID={os.getgid()}" in argv
     published = [argv[i + 1] for i, arg in enumerate(argv) if arg == "-p"]
     assert published == ["127.0.0.1::7598", "127.0.0.1::5900"]
     assert ["--security-opt", "label=disable"] == argv[argv.index("--security-opt"):][:2]
@@ -289,10 +292,10 @@ def test_the_stage_publishes_on_loopback_only_and_keeps_secrets_out_of_argv(
     assert argv[-4:] == ["serve", "--work", "/work", "--vnc"]
 
 
-def test_docker_gets_the_secret_as_a_private_file(tmp_path, monkeypatch):
-    engine = fake_engine(monkeypatch, "docker")
+def test_a_secret_is_a_private_file_mounted_read_only(tmp_path, monkeypatch):
+    engine = fake_engine(monkeypatch, None)
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
-    args, cleanup = engine.secret_args("art98_token_x", b"tok", "art98_token")
+    args, cleanup = engine.secret_args(b"tok", "art98_token")
     source = Path(args[1].split(":")[0])
     assert args[0] == "-v" and args[1].endswith(":/run/secrets/art98_token:ro")
     assert source.read_bytes() == b"tok"
@@ -373,7 +376,7 @@ def test_the_transport_is_a_unix_socket_on_linux_unless_asked(monkeypatch):
 
 
 def test_a_unix_stage_mounts_its_socket_folder_and_publishes_no_port(tmp_path, monkeypatch):
-    engine = fake_engine(monkeypatch, "podman")
+    engine = fake_engine(monkeypatch, None)
     stage = ContainerStage(tmp_path, engine, image="art98:test", transport="unix")
     stage._socket_dir = tmp_path / "sock"
     argv = stage.argv([])
@@ -413,7 +416,7 @@ def test_a_stage_that_cannot_start_leaves_no_files(tmp_path, monkeypatch):
     runtime = tmp_path / "runtime"
     runtime.mkdir()
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime))
-    engine = fake_engine(monkeypatch, "podman")
+    engine = fake_engine(monkeypatch, None)
     monkeypatch.setattr(engine, "has_image", lambda image: False)
     work = tmp_path / "work"
     work.mkdir()
@@ -423,3 +426,37 @@ def test_a_stage_that_cannot_start_leaves_no_files(tmp_path, monkeypatch):
     with pytest.raises(ContainerError, match="no image art98:test"):
         ContainerStage(work, engine, image="art98:test").start()
     assert list(runtime.iterdir()) == []
+
+
+# ---- the image's entry point ----
+
+ROOTLESS = "         0       1000          1\n         1     524288      65536\n"
+ROOTFUL = "         0          0 4294967295\n"
+HOST = {"ART98_HOST_UID": "1000", "ART98_HOST_GID": "1000"}
+
+
+def test_the_entry_point_drops_to_the_host_user_only_on_a_rootful_engine():
+    from art98.container.entry import host_user, is_rootful
+
+    assert is_rootful(ROOTFUL) and not is_rootful(ROOTLESS)
+    assert not is_rootful("0 0 65536\n")  # a namespace that maps part of the range
+    assert host_user(HOST, ROOTFUL, uid=0) == (1000, 1000)
+    assert host_user(HOST, ROOTLESS, uid=0) is None  # root here is the host user already
+    assert host_user(HOST, ROOTFUL, uid=1000) is None  # run with --user: nothing to drop
+    assert host_user({}, ROOTFUL, uid=0) is None  # an old host passes nothing
+    assert host_user({**HOST, "ART98_HOST_UID": "0"}, ROOTFUL, uid=0) is None
+    assert host_user({**HOST, "ART98_HOST_GID": "x"}, ROOTFUL, uid=0) is None
+
+
+def test_the_entry_point_changes_nothing_without_a_uid_map(tmp_path, monkeypatch):
+    from art98.container import entry
+
+    def refuse(*_):
+        raise AssertionError("dropped privileges")
+
+    monkeypatch.setattr(entry.os, "setuid", refuse)
+    environ = dict(HOST)
+    entry.become_host_user(environ, tmp_path / "missing")
+    (tmp_path / "uid_map").write_text(ROOTLESS)
+    entry.become_host_user(environ, tmp_path / "uid_map")
+    assert "HOME" not in environ

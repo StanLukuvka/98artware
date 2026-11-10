@@ -1,7 +1,7 @@
 # The art98 stage: QEMU, the setup tools and the art98 packages, with no disk
 # image, disc or key inside. Build from the repo root, where .dockerignore
 # keeps work/ out of the context:
-#   podman build -t localhost/art98:latest -f setup/Dockerfile .
+#   docker build -t localhost/art98:latest -f setup/Dockerfile .
 # `art98 up` does this.
 
 # ---- build: the programs that run on the guest ----
@@ -25,7 +25,8 @@ RUN microdnf -y install --setopt=install_weak_deps=0 \
 COPY core/art98 /opt/art98/core/art98
 COPY setup/art98_setup /opt/art98/setup/art98_setup
 COPY --from=build /src/guest/build /opt/art98/guest/build
-RUN printf '#!/bin/sh\nexec python3 -m art98.cli "$@"\n' > /usr/local/bin/art98 \
+# art98.container.entry drops to the host's uid on a rootful engine, then runs the CLI.
+RUN printf '#!/bin/sh\nexec python3 -m art98.container.entry "$@"\n' > /usr/local/bin/art98 \
  && chmod 755 /usr/local/bin/art98
 ENV PYTHONPATH=/opt/art98/core:/opt/art98/setup \
     PYTHONUNBUFFERED=1 \

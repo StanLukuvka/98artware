@@ -294,7 +294,7 @@ def read_token(path: Path | str | None = None) -> str:
     try:
         token = path.read_text().strip()
     except FileNotFoundError:
-        raise SystemExit(f"error: no token at {path}; pass one as the secret art98_token") from None
+        raise SystemExit(f"error: no token at {path}; mount one at /run/secrets/art98_token") from None
     if not token:
         raise SystemExit(f"error: the token in {path} is empty")
     return token

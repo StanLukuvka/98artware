@@ -16,7 +16,7 @@ puts them on an image, the core drives that image, and scenes and samples sit on
 | 6 | [Tests](#6-tests) | `*/tests/` | What is checked, and what needs a VM. |
 | 7 | [Samples and experiments](#7-samples-and-experiments) | `artware_experiments/` | Scenes to render, and throwaway probes. |
 | 8 | [Docs](#8-docs) | `docs/` | Guides, design pages, diagrams, status. |
-| 9 | [Container](#9-container) | `core/art98/container/`, `setup/` | Runs QEMU and setup in Podman or Docker. Optional. |
+| 9 | [Container](#9-container) | `core/art98/container/`, `setup/` | Runs QEMU and setup in Docker. Optional. |
 
 Two folders aren't in git: `work/` holds the disk images (installed copies of Windows, so it is never
 committed), and `.tools/` holds the local QEMU build. For the local backend, set up a shell
@@ -148,7 +148,7 @@ Explained in: [Gallery](scenes/gallery.md).
 ## 9. Container
 
 Optional. The same QEMU, setup tool and guest programs, packed into one image, so a host only
-needs Podman or Docker, Python and ffmpeg. The host still runs the bridge, the recorder and
+needs Docker, Python and ffmpeg. The host still runs the bridge, the recorder and
 ffmpeg; only QEMU moves. Building the image is part of setup; running a stage in it is a second
 backend in core.
 
@@ -158,6 +158,8 @@ backend in core.
   pings.
 - [ ] [serve.py](../core/art98/container/serve.py): runs in the container. Boots
   the run copy, relays the agent's serial port and answers screenshot, keys and revert.
+- [ ] [entry.py](../core/art98/container/entry.py): the image's entry point. On a rootful
+  engine it switches to your uid before running art98, so `work/` stays yours.
 - [ ] [host.py](../core/art98/container/host.py): runs on the host. Starts the
   container, and `RemoteVM`, which stands in for the local VM.
 

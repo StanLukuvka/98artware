@@ -93,8 +93,9 @@ In order, from the cleanup review of 2026-11-10. See also
    means: the design calls a named section of a scene an action, and programs are meant to
    return as action classes.
 4. **Port the showcase** and re-render the gallery.
-5. **Container follow-ups.** Try real Docker, then decide whether `container` becomes the
-   default backend.
+5. **Container follow-ups.** Try real Docker, rootful above all: the switch to the host's uid
+   in `entry.py` has only run against a stand-in uid map. Then decide whether `container`
+   becomes the default backend.
 
 Two bugs on hold below sit on the `set_state` path, the failed `load_snapshot` and the pending
 async calls on `! CRASH`. They may be worth taking off hold.

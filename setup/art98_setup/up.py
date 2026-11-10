@@ -20,23 +20,20 @@ DOCKERFILE = ROOT / "setup" / "Dockerfile"
 
 
 def build_image(engine: Engine, image: str, context: Path = ROOT) -> None:
-    """Build the image from setup/Dockerfile. Both engines read .dockerignore at the
-    root of the context, which keeps work/ and its disk images out."""
+    """Build the image from setup/Dockerfile. .dockerignore at the root of the
+    context keeps work/ and its disk images out."""
     dockerfile = Path(context) / "setup" / "Dockerfile"
     if not dockerfile.exists():
         raise ContainerError(f"{dockerfile} not found; build from an art98 checkout")
     engine("build", "-t", image, "-f", str(dockerfile), str(context), capture=False)
 
 
-def _read_key(engine: Engine) -> bytes | None:
+def _read_key() -> bytes:
     """The product key, from ART98_PRODUCT_KEY or a prompt that doesn't echo.
 
-    None means Podman already holds the secret from an earlier, unfinished run.
+    Nothing keeps it between runs, so resuming a setup asks again.
     """
     key = os.environ.get("ART98_PRODUCT_KEY", "").strip()
-    if not key and engine.is_podman and engine(
-            "secret", "exists", KEY_SECRET, check=False).returncode == 0:
-        return None
     if not key:
         import getpass
 
@@ -84,12 +81,7 @@ def up(work: Path | str = "work", iso: Path | str | None = None, watch: bool = F
         if not iso.is_file():
             raise FileNotFoundError(f"{iso} not found")
         work.mkdir(parents=True, exist_ok=True)
-        key = _read_key(engine)
-        if key is None:
-            log(f"[up] using the product key already stored as the secret {KEY_SECRET}")
-            secret, cleanup = ["--secret", f"{KEY_SECRET},target={KEY_SECRET}"], lambda: None
-        else:
-            secret, cleanup = engine.secret_args(KEY_SECRET, key, KEY_SECRET, keep=True)
+        secret, cleanup = engine.secret_args(_read_key(), KEY_SECRET)
         if watch:
             log(f"[up] watch setup with a VNC viewer at 127.0.0.1:{vnc_port}")
         log("[up] running setup in the container; this takes about 40 minutes")
@@ -101,8 +93,6 @@ def up(work: Path | str = "work", iso: Path | str | None = None, watch: bool = F
         if code != 0:
             log(f"[up] setup stopped with status {code}; run `art98 up` again to resume")
             return code
-        # The key is in the finished image; the secret store needn't keep a copy.
-        engine.remove_secret(KEY_SECRET)
     else:
         log(f"[up] {work / 'image.json'} exists, so setup is done")
 

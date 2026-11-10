@@ -1,8 +1,9 @@
 # Container
 
 Built on the `container` branch, 2026-11-10, and tested from scratch.
-The Windows 98 VM moves into a Podman or Docker container. The host keeps Python and ffmpeg and
-needs nothing else. One command goes from your disc image and product key to a desktop ready to
+The Windows 98 VM moves into a Docker container. The host keeps Python and ffmpeg and
+needs nothing else. art98 calls only `docker`; on a Podman host the `podman-docker` package
+provides that command, and art98 never asks which engine is behind it. One command goes from your disc image and product key to a desktop ready to
 render. [What was built](#what-was-built) at the end lists where the build differs from the plan.
 
 ```bash
@@ -14,7 +15,7 @@ uv run art98 up --iso ~/isos/win98se.iso
 Today the VM runs on QEMU 10.2.2 from Fedora 44, unpacked by hand into `.tools/`. Nothing records
 that build, and the `ready` snapshot only loads on the QEMU machine type that saved it
 (`pc-i440fx-10.2`). A container pins QEMU, firmware and tools in one image that anyone can rebuild,
-on any Linux distribution, and later on macOS or Windows through Docker Desktop or Podman machine.
+on any Linux distribution, and later on macOS or Windows through Docker Desktop.
 
 QEMU runs the guest in software (TCG), so the container needs no `/dev/kvm` and no extra
 privileges.
@@ -27,7 +28,7 @@ pushed without leaking anything.
 | What | Size | How it gets in |
 | --- | --- | --- |
 | Disc image (ISO) | about 650 MB | Bind-mounted read-only, for `up` and `setup` only. |
-| Product key | | A Podman secret, read by setup from `/run/secrets/art98_key`. `docker run` has no secrets outside swarm, so Docker gets a private file mounted read-only at the same path. |
+| Product key | | A private file, mode 0600, mounted read-only at `/run/secrets/art98_key`, where setup reads it. `docker run` has no secrets outside swarm. The file is deleted when setup ends, so a resumed setup asks again. |
 | `work/` | about 1.6 GB here | Bind-mounted read-write. It keeps the existing `golden.qcow2` and its `ready` snapshot. |
 | Run copies | 416 MB each, mostly shared | Made inside the mounted `work/runs` with `cp --reflink=auto`, so on btrfs or XFS they cost almost nothing. Elsewhere it is a full copy. |
 
@@ -35,9 +36,9 @@ Why not the other ways:
 
 - `COPY` of the ISO bakes 650 MB into an image layer, and it stays in the layer even if a later
   step deletes it.
-- A build `ARG` or `ENV` with the key is saved in the image history (`podman history`), so anyone
+- A build `ARG` or `ENV` with the key is saved in the image history (`docker history`), so anyone
   with the image can read it.
-- An environment variable at `run` time shows in `podman inspect`. A secret doesn't.
+- An environment variable at `run` time shows in `docker inspect`. A mounted file's contents don't.
 
 `work/` still holds the finished disk, an installed copy of Windows with the key in it, as it
 does today. It is mounted, never copied, and `.dockerignore` lists it so a build can't pick it up by
@@ -53,6 +54,7 @@ The container code is split by job:
 | [.dockerignore](../../.dockerignore) | What stays out of that context: `work/` above all |
 | [setup/art98_setup/up.py](../../setup/art98_setup/up.py) | `art98 up`: builds the image, runs setup in it, copies the guest programs out |
 | [core/art98/container/serve.py](../../core/art98/container/serve.py) | `art98 serve`, inside the container: boots `ready` on a run copy and relays the agent and a control channel |
+| [core/art98/container/entry.py](../../core/art98/container/entry.py) | The image's entry point: on a rootful engine, switch to the host's uid, then run the CLI |
 | [core/art98/container/host.py](../../core/art98/container/host.py) | On the host: `Engine`, `ContainerStage`, `RemoteVM` and `boot` |
 | [core/tests/test_container.py](../../core/tests/test_container.py), [test_stage.py](../../core/tests/test_stage.py) | serve and the host side on a fake VM; the real image on both backends |
 | [setup/tests/test_up.py](../../setup/tests/test_up.py) | `up`'s setup run and the image build, without an engine |
@@ -130,12 +132,12 @@ forward accepts a connection before anything listens behind it and then hangs up
 The first control connection owns the stage, and a second one is refused. When it drops,
 `serve` quits QEMU, deletes the run copy and exits. If no control connection arrives within
 120 s of the guest being ready, it does the same. The container runs with `--rm` and `--init`,
-so it goes too, and the SIGTERM from `podman stop` reaches serve. A crashed host script can't
+so it goes too, and the SIGTERM from `docker stop` reaches serve. A crashed host script can't
 leave a VM running. Only a SIGKILL of the container leaves its run copy in `work/runs`.
 
 ### On the host
 
-- `art98/container/host.py`: `Engine` finds `podman`, else `docker`, or `ART98_ENGINE`.
+- `art98/container/host.py`: `Engine` runs `docker`, or the binary `ART98_ENGINE` names.
   `ContainerStage` runs the container, finds where serve listens, and connects. `RemoteVM` has
   the methods the scene layer uses on `VM`: `screenshot`, `send_keys`, `load_snapshot`,
   `save_snapshot`, `pause`, `resume`, `close`.
@@ -156,22 +158,38 @@ from the network, and the token stops other local users from connecting.
 `work/` is mounted with `--security-opt label=disable`, so SELinux doesn't need the files in it
 relabelled.
 
+### Who owns what the container writes
+
+The container runs as its root, and what that root is depends on the engine. Under a rootless
+one (Podman, rootless Docker) it is you, so files in `work/` come out yours. Under rootful Docker
+it is the host's real root, and they would come out root's. `--user $(id -u)` is no fix: under
+rootless Podman that uid maps to a subordinate id that can't write your files.
+
+So the decision is made inside the container, and the host never asks which engine it has.
+The host passes `-e ART98_HOST_UID=$(id -u) -e ART98_HOST_GID=$(id -g)` on every run. The image's
+entry point, [entry.py](../../core/art98/container/entry.py), reads `/proc/self/uid_map`. The
+identity map, `0 0 4294967295`, means the container shares the host's user namespace, so it
+drops to that uid and gid (`setgroups([])`, `setgid`, `setuid`) and sets `HOME=/tmp` before
+running art98. Any other map means a rootless engine, and nothing changes. It also stays put
+when it isn't root, or when the host passed nothing or root. The secret files are the host
+user's and mode 0600, so they stay readable after the switch.
+
 ### `art98 up`, on the host
 
 1. Builds the image if it isn't there.
-2. Reads the key from `ART98_PRODUCT_KEY`, or asks for it without echo, and stores it as the
-   secret `art98_key`.
+2. Reads the key from `ART98_PRODUCT_KEY`, or asks for it without echo, and writes it to a
+   private file to mount at `/run/secrets/art98_key`.
 3. If `work/image.json` is missing, runs `art98 setup` in the container with the ISO mounted:
    about 40 minutes, resumable like today. `--watch` shows the screen through VNC on
    `127.0.0.1:5998` (`--vnc-port`), since GTK can't open from inside a container. Setup reads
-   `ART98_WATCH_DISPLAY` for that. After a finished setup the secret is deleted, since the key
-   is in the image by then. If setup stops early the secret stays, so a rerun doesn't ask again.
+   `ART98_WATCH_DISPLAY` for that. The key file is deleted when setup ends, finished or not, so
+   a rerun asks for the key again.
 4. Copies the guest programs out of the image into `guest/build` if they aren't
    there, since scenes send `VIEW.EXE` to the guest from the host.
 5. Boots one stage and pings the agent, to show it works.
 
 Running `art98 up` again skips what's done. Everything in it can also be run by hand with
-`podman build` and `podman run`, written out in the setup guide.
+`docker build` and `docker run`, written out in the setup guide.
 
 ## Steps
 
@@ -207,7 +225,7 @@ host, because the agent answers on its own polling period, so a frame that fits 
 costs about one period. Sending the 1.44 MB frame over the socket pushed each frame into a
 second period, and the port forward added a little more. Writing the frame into the shared folder
 brings the container within about 10% of local, so that is the default on Linux. TCP stays for
-Docker Desktop and Podman machine, where a Unix socket can't cross the VM boundary. A boot takes
+Docker Desktop, where a Unix socket can't cross the VM boundary. A boot takes
 about 0.3 s in the container against 0.1 s locally.
 
 ## What was built
@@ -222,16 +240,20 @@ Where the build differs from, or adds to, the plan above:
 - A 120 s limit for the first control connection, so a host that dies before connecting still
   ends the stage.
 - serve handles SIGTERM, and stages run with `--init`. Python as PID 1 ignored SIGTERM, so
-  `podman stop` had to fall back to SIGKILL.
-- The per-stage token is a Podman secret named `art98_token_<stage>`. It is removed as soon as
-  the container exists, and the container keeps its mounted copy.
+  `docker stop` had to fall back to SIGKILL.
+- The per-stage token is a private file mounted read-only at `/run/secrets/art98_token`. It is
+  deleted as soon as the container exists, and the container keeps its mounted copy.
+- On 2026-11-11 the two engine paths became one. art98 calls only `docker`, with Podman behind
+  `podman-docker`. Both secrets are mounted files on every engine, and the container decides who
+  owns what it writes ([above](#who-owns-what-the-container-writes)). Podman secrets, and the
+  resume that reused the stored key, went with it.
 - `image.json` records an absolute disk path. A work folder prepared in the container records
   `/work/golden.qcow2`, one prepared on the host records the host path. Both backends now fall
   back to the file of that name beside `image.json` (`session.image_disk`).
 - The image is `localhost/art98:latest` (`ART98_IMAGE`), 385 MB. The guest programs built in it
   are byte for byte the ones built on the host.
-- The ignore file is `.dockerignore` at the repository root, the build context, where Docker
-  and Podman both read it by themselves. Besides `work/`, `.tools/`, `.venv/`, `*.mp4` and `*.iso` it leaves out
+- The ignore file is `.dockerignore` at the repository root, the build context, where
+  `docker build` reads it by itself. Besides `work/`, `.tools/`, `.venv/`, `*.mp4` and `*.iso` it leaves out
   `.git/`, `.claude/`, `*.qcow2`, `*.img` and `guest/build/`. A probe build
   confirmed a decoy `work/`, `.iso` and `.qcow2` don't reach the build context.
 - The code was first its own package, `art98_container` in `98artware_container/`. On
@@ -256,7 +278,9 @@ Checked:
 - the new image renders the MVP scene frame for frame the same as the old host-built `work/`:
   0 of 257 frames differ.
 
-Not yet checked: real Docker. The `docker` on the build host is Podman's shim.
+Not yet checked: real Docker. The `docker` on the build host is Podman's shim, so the rootful
+switch to the host's uid ran only in the container with a stand-in identity map, where it wrote
+as uid 1000.
 
 ## Not in this design
 

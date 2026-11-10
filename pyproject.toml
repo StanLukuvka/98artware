@@ -23,6 +23,6 @@ testpaths = ["core/tests", "setup/tests"]
 pythonpath = ["core", "setup"]
 markers = [
     "qemu: needs qemu-system-i386 on PATH",
-    "container: needs Podman or Docker and the art98 image",
+    "container: needs docker (or podman-docker) and the art98 image",
     "stage: boots the prepared image in work/ (or ART98_TEST_WORK)",
 ]
