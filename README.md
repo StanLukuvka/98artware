@@ -5,10 +5,24 @@ the style of [Manim](https://www.manim.community/), art98 plays it on Windows 98
 a virtual machine, and the video is what that machine's screen showed. Python draws nothing:
 every window, letter and brush stroke is drawn by Windows itself.
 
-![Two picture windows are set from a state file, then moved, teleported and closed on camera](docs/assets/gifs/mvp.gif)
+![Notepad types a line, Paint draws and fills a heart, Minesweeper opens with one click, a Notepad is dragged by its title bar, and a message box is answered](docs/assets/gifs/hero.gif)
 
-That clip is [examples/mvp/mvp.py](examples/mvp/mvp.py). More are in the
-[gallery](docs/scenes/gallery.md).
+That clip is [examples/readme/hero.py](examples/readme/hero.py): one short scene, played on
+real Windows 98 programs. Each clip below is one scene from the [gallery](docs/scenes/gallery.md),
+which has the source of every one.
+
+<table>
+  <tr>
+    <td align="center"><a href="docs/scenes/gallery.md#typing"><img src="docs/assets/gifs/typing.gif" width="260" alt="Notepad types three lines, deletes a few words and types new ones"></a><br>Typing into Notepad</td>
+    <td align="center"><a href="docs/scenes/gallery.md#dragging"><img src="docs/assets/gifs/drag-window.gif" width="260" alt="The pointer drags a Notepad window by its title bar, then resizes it by a corner"></a><br>Dragging with the pointer</td>
+    <td align="center"><a href="docs/scenes/gallery.md#window-motion"><img src="docs/assets/gifs/window-motion.gif" width="260" alt="A Notepad window moves, resizes and follows a path"></a><br>Moving and resizing windows</td>
+  </tr>
+  <tr>
+    <td align="center"><a href="docs/scenes/gallery.md#paint"><img src="docs/assets/gifs/paint-drawing.gif" width="260" alt="Paint draws a flower outline with the brush and fills it"></a><br>Drawing in Paint</td>
+    <td align="center"><a href="docs/scenes/gallery.md#minesweeper"><img src="docs/assets/gifs/minesweeper-win.gif" width="260" alt="Minesweeper is won click by click and the best time is signed"></a><br>Winning Minesweeper</td>
+    <td align="center"><a href="docs/scenes/gallery.md#dialog-storm"><img src="docs/assets/gifs/dialog-storm.gif" width="260" alt="A cascade of message boxes on a teal desktop that turns dark red"></a><br>Message boxes and desktop colours</td>
+  </tr>
+</table>
 
 ## How it works, in short
 
