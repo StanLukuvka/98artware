@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 CONFIG_NAME = "art98.toml"
@@ -31,6 +31,7 @@ class Settings:
     connect: str | None = None
     transport: str | None = None
     token_file: str | None = None
+    token: str | None = field(default=None, repr=False)  # the token itself; never from art98.toml
     control: int = 7598
     vnc: int = 5900
     setup_vnc: int = 5998

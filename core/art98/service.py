@@ -81,6 +81,11 @@ def _where(address) -> str:
 
 
 def _token(settings: Settings) -> str | None:
+    """The client's token: Settings.token (a host program passing it in), else ART98_TOKEN,
+    else the token file."""
+    given = settings.token or os.environ.get("ART98_TOKEN")
+    if given:
+        return given.strip() or None
     try:
         return settings.token_path.read_text().strip() or None
     except OSError:

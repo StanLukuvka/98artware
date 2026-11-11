@@ -5,6 +5,14 @@ All notable changes to art98 are listed here. The format follows
 [semantic versioning](https://semver.org/). Before 0.1.0 the work was logged in
 [build history](docs/archive/build-history.md).
 
+## [Unreleased]
+
+### Added
+
+- A client can be handed the VM token instead of reading a token file: `Settings.token` (for a
+  program that uses art98 as a library) or the `ART98_TOKEN` environment variable. The token
+  file stays the default.
+
 ## [0.1.0] - 2026-11-11
 
 The first release. It is a git tag and a GitHub release. There is no wheel and no sdist: art98
