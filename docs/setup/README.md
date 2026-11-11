@@ -58,7 +58,7 @@ system sounds and power saving off, and `C:\ART98\AGENT.EXE` already running.
   with one QEMU version may not restore on another. The container pins the version.
 - **Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).** art98 has no
   runtime Python dependencies.
-- **About 3 GB of free disk space during the build**, and 40 minutes. The raw
+- **About 3 GB of free disk space during the build**, and 25 to 40 minutes. The raw
   install disk is 2 GB, and it exists next to the qcow2 until the `ready` step deletes it.
 
 KVM is not used. See [why TCG](image.md#hardware).
@@ -167,7 +167,7 @@ Give setup your key without leaving it in your shell history:
 read -rs ART98_PRODUCT_KEY && export ART98_PRODUCT_KEY
 ```
 
-Build the image. This takes about 40 minutes and needs no input:
+Build the image. This takes 25 to 40 minutes and needs no input:
 
 ```bash
 uv run art98 setup --iso /path/to/win98se.iso

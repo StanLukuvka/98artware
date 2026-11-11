@@ -9,8 +9,8 @@ work-*/
 .pytest_cache/
 /*.mp4
 out/
-.lad/
 .claude/
+CLAUDE.local.md
 dist/
 *.qcow2
 *.img

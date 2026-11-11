@@ -1,8 +1,9 @@
 # Programs
 
 A program is a Windows program art98 can open, drive and film: Notepad, the picture window, the
-message box (`Dialog`), and later Paint or Minesweeper. This page says how one is built and how to
-add the next. It is read from the code of the three that exist, `Picture`, `Notepad` and `Dialog`. The state file itself is described in
+message box (`Dialog`), Paint, Minesweeper and the screensaver. This page says how one is built and
+how to add the next. It is read from the code of `Picture`, `Notepad` and `Dialog`; the others
+follow the same shape. The state file itself is described in
 the [state and action design](state-and-action.md).
 
 ## What a program class is
@@ -19,13 +20,15 @@ The layers are Action, then Window, then programs.
 | --- | --- | --- |
 | Action | `core/art98/actions/` | The base: anything the scene can do on screen. |
 | Window | `core/art98/actions/window/win.py` | `Win`: start a command, find the window, move, size, close. |
-| Programs | `core/art98/actions/programs/` | One file per stock Windows program, such as `notepad.py` and `dialog.py`. |
+| Programs | `core/art98/actions/programs/` | One file per stock Windows program, `notepad.py`, `paint.py`, `minesweeper.py`, `screensaver.py` and `dialog.py`. |
 | art98's own | `core/art98/actions/window/picture.py` | `Picture`, the window for VIEW.EXE. |
 
 A program is one file, or one folder once it needs more than one. Docs, outputs and experiments stay
 out of these folders.
 
-## The three hooks
+## The state hooks
+
+These matter only for a program that can appear in a state file (today `picture` and `notepad`). A scene-only program, such as `Dialog`, needs none of them.
 
 | Hook | Where | What it does |
 | --- | --- | --- |
@@ -86,15 +89,12 @@ the prop is added.
 
 ## Adding a program
 
-1. Write the class in `actions/programs/<name>.py`, based on `Win`. Set `command` and
-   `window_class`. Add `ready()` if you need a child window, and verbs on top.
-2. Add `from_state(cls, window)`. Read `window.open.path`, `at`, `size` and `title`.
-3. In `attach()`, copy any file with `guestfiles.ensure` and put the guest path in `command`.
-4. Add the class to `APPS` in `anim/setstate.py`, and export it from `actions/programs/__init__.py`.
-5. In `state.py`, add the default title and the file check for `open` (the `check_*` call in
-   `_Reader.window`).
-6. Add a test beside `core/tests/test_notepad.py`, using the stand-in guest (no VM), and a real
-   render on the image.
+The steps are in [CONTRIBUTING.md](../../CONTRIBUTING.md#adding-a-program): write the class on
+`Win`, export it from `actions/programs/__init__.py` and `anim/__init__.py`, document it in the
+[Scene API](../scenes/scene-api.md), and test it. `from_state` and `APPS` are optional: add them,
+plus the default title and file check in `state.py`, only if the program should be nameable with
+`app` in a state file. In `attach()`, copy any file with `guestfiles.ensure` and put the guest path
+in `command`.
 
 Does the program need a guest change?
 
@@ -153,8 +153,8 @@ These are checked on the host, before anything is copied.
 
 After the MVP:
 
-- Other programs: Paint, Minesweeper, Calculator, and any bare `command`. Paint and Minesweeper have
-  classes in `core/art98/actions/programs/` but no state app yet.
+- More programs in a state. Paint, Minesweeper and the screensaver have classes in
+  `core/art98/actions/programs/` but no state app yet. Calculator and a bare `command` have no class.
 - `Dialog` in a state (`app: "dialog"`), and a helper that adds a cascade of boxes.
 - Adopting a window the scene did not start.
 - Icons and tray in a state. The desktop colour and wallpaper are built: see the

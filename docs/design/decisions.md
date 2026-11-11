@@ -374,7 +374,7 @@ content hash so a file already there isn't copied again. Anything large goes on 
 ## 16. Run from a checkout, with no runtime dependencies
 
 **Decision.** art98 runs from a git checkout with `uv run`. There is no wheel and no `pip install`.
-The `art98` package has no runtime Python dependencies; pytest and pycdlib are dev tools only.
+The `art98` package has no runtime Python dependencies; pytest, pycdlib and ruff are dev tools only.
 The licence is MIT.
 
 **Why.** The audience is people who clone the repository and follow the README. A checkout keeps

@@ -10,12 +10,12 @@ notes are in the [changelog](../CHANGELOG.md).
 | --- | --- | --- |
 | VM preparation | Built. `art98 setup` turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input. Four steps: vm, setup, init_api, ready | [Part 1](setup/README.md) |
 | Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](scenes/bridge.md), [Instruction set](scenes/instruction-set.md) |
-| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. Every program (Notepad, Dialog, Paint, Minesweeper, Screensaver) is in `actions/programs/`, and `Backdrop` sets the desktop colour. Paint, Minesweeper and Screensaver are there too | [Part 2](scenes/README.md) |
+| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. Every program (Notepad, Dialog, Paint, Minesweeper, Screensaver) is in `actions/programs/`, and `Backdrop` sets the desktop colour | [Part 2](scenes/README.md) |
 | Examples | `examples/blank_start` (the proof scene: a Picture and a Notepad, three sections), `examples/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
 | Diagrams | Seven diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
 | States and sections | The MVP is built: state files, `set_state`, picture windows and `Teleport`. `Scene.next_section(name)` is built, on top of `cut()`. The `--section` option is not | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
 | Recorder | Built: `Recorder`, with `cut()` to start a new clip during a run, `clips` to list them, and a join into the output. Clips are kept beside the output as MP4 | [Recorder](design/state-and-action.md#recorder), [Clips](scenes/scene-api.md#clips) |
-| Programs | Notepad is the first program, in `actions/programs/notepad.py`. It opens a text file or an empty window and checks its title. Windows 98 drops a trailing `.txt` from the title. `Dialog` (`actions/programs/dialog.py`) is a real message box with icons, a size, greyed buttons and changeable text. It is not in a state | [Programs](design/programs.md), [Dialog](scenes/scene-api.md#dialog) |
+| Programs | Programs live in `actions/programs/`: Notepad, Dialog, Paint, Minesweeper and Screensaver. Notepad (`notepad.py`) is the one in a state file. It opens a text file or an empty window and checks its title. Windows 98 drops a trailing `.txt` from the title. `Dialog` (`dialog.py`) is a real message box with icons, a size, greyed buttons and changeable text. Paint, Minesweeper, Screensaver and Dialog are not in a state | [Programs](design/programs.md), [Dialog](scenes/scene-api.md#dialog) |
 | Desktop colour and wallpaper | Built. `Backdrop` and a state's `desktop` (colour, wallpaper, style). A wallpaper reaches the guest on a CD in drive D: | [Colour and wallpaper](design/state-and-action.md#desktop-colour-and-wallpaper) |
 | CLI and checks | Errors from `art98` print one clean line, not a traceback. Warnings say when the image or guest programs are older than the code (`freshness.py`). `art98 doctor` works on a host that has only a container engine and ffmpeg. CI runs the unit tests on each push (`.github/workflows/tests.yml`) | [CLI](setup/cli.md) |
 | Container | Built: the VM service in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image and runs setup, then stops; `art98 vm start` runs one long-lived VM container that `render` and `ping` attach to. Tested on rootful Docker 29.9 and rootless Podman. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
@@ -92,9 +92,9 @@ doesn't: with no timeout it uses the bridge's, 10 s by default, and raises `Brid
 
 ## Working notes
 
-- Host QEMU (`. .tools/env.sh` if you keep a local build) is for `test_qemu.py`, host
+- Host QEMU (on `PATH`, or your local build sourced) is for `test_qemu.py`, host
   `art98 setup` and `boot_local` experiments only. Renders and the VM tests use the VM service
-  and need no `.tools/`.
+  and need no host QEMU.
 - The VM tests boot the real image: point `ART98_TEST_WORK` at a prepared work folder when
   running from a worktree.
 - `work/` is gitignored and holds the images: installed copies of Windows, with the product

@@ -34,7 +34,7 @@ A hand-run list for checking a release. A release is a git tag `vX.Y.Z` and a Gi
 
 - [ ] Unit tests: `uv run python -m pytest core/tests setup/tests -q --ignore=core/tests/test_stage.py --ignore=core/tests/test_stage_scenes.py --ignore=core/tests/test_qemu.py`
 - [ ] VM tests, with `art98 vm start` running: `uv run python -m pytest core/tests/test_stage.py core/tests/test_stage_scenes.py -q`
-- [ ] QEMU tests, with QEMU on `PATH` (`. .tools/env.sh` if you keep a local build): `uv run python -m pytest core/tests/test_qemu.py -q`
+- [ ] QEMU tests, with QEMU on `PATH` (or your local build sourced): `uv run python -m pytest core/tests/test_qemu.py -q`
 - [ ] `uv run ruff check .`
 - [ ] `uv run python tools/check_docs.py`
 
