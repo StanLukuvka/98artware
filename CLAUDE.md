@@ -3,7 +3,8 @@
 Read [AGENTS.md](AGENTS.md) before working here. It has the layout, the shell setup, the test
 and lint commands, and the house rules. The ones most easily broken:
 
-- Never read, copy or commit anything from `work/`.
+- Never copy anything from `work/` into the repo, commit it or upload it. Windows 98 product
+  keys are public, not secrets; `work/` stays out because it holds installed copies of Windows.
 - Don't change prep or the `ready` snapshot without asking.
 - Ask before committing. Never push, switch branches, stash or reset unless asked.
 - No AI attribution in commits, PRs, code or docs.

@@ -22,6 +22,8 @@ runs from a checkout with `uv run`.
   pictures. A blank start gives a black, empty screen.
 - Programs as action classes: Notepad, Paint, Minesweeper, the screensaver and `Dialog`.
 - `art98 doctor`, `art98.toml` for names, ports and the work folder, and clear one-line errors.
+- Setup stops with `Windows rejected the product key` when Windows refuses the key, instead of
+  pressing through the first-boot wizard's Product Key page for hours.
 - Docs for setup, the scene API, the design and the repo. Examples and a gallery of GIFs.
 
 ### What you need

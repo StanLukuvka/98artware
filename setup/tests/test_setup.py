@@ -340,6 +340,23 @@ def test_wizard_that_stops_advancing_is_reported(tmp_path, monkeypatch):
         wizard_tool(tmp_path, monkeypatch)._answer_setup_wizard(WizardVM(stuck_at=1))
 
 
+def test_a_second_wizard_pass_means_the_product_key_was_rejected(tmp_path, monkeypatch):
+    tool = wizard_tool(tmp_path, monkeypatch)
+    tool._answer_setup_prompts(WizardVM())
+    with pytest.raises(builder.SetupError, match="rejected the product key") as seen:
+        tool._answer_setup_prompts(WizardVM())
+    assert "--from vm" in str(seen.value)
+    assert (tool.shots / "product-key.png").exists()
+
+
+def test_one_wizard_pass_is_fine_and_later_screens_do_not_count(tmp_path, monkeypatch):
+    tool = wizard_tool(tmp_path, monkeypatch)
+    vm = WizardVM()
+    tool._answer_setup_prompts(vm)
+    tool._answer_setup_prompts(vm)  # wizard gone: nothing to answer
+    assert tool.wizard_passes == 1
+
+
 class SilentBridge:
     def wait_event(self, name, timeout):
         raise builder.BridgeTimeout("nothing yet")

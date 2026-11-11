@@ -88,9 +88,13 @@ and say in your report if you could not.
 
 ## House rules
 
-- **`work/` is off limits.** It holds installed copies of Windows 98 and the product key in
-  clear text. Never read, copy, list into logs, or commit anything from it, including
-  `work/runs/`. `.gitignore` and `.dockerignore` keep it out; keep them that way.
+- **`work/` stays out of git.** It holds installed copies of Windows 98, which are not ours to
+  share. Never copy anything from it into the repo, commit it, or upload it, including
+  `work/runs/`. `.gitignore` and `.dockerignore` keep it out; keep them that way. Reading
+  setup screenshots and logs there to debug a run is fine.
+- **Windows 98 product keys are not secrets.** They are published online and can be reused
+  without limit, so a key showing up in a screenshot, a log or the image is not a leak and
+  needs no special care. Still don't add one to the repo: the user supplies their own key.
 - **Don't change prep or the `ready` snapshot without asking.** That means `setup/art98_setup/`
   steps that change the image, the answer file, `ready.py`, and anything that would need a new
   `art98 setup` run. Do at run time what can be done at run time (the blank start and the CD

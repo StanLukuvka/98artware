@@ -101,6 +101,23 @@ uv run art98 setup --from vm --iso /path/to/win98se.iso
 
 `--from disk` also copies the new agent, but only the `media` part of `vm` runs `pecheck` on it.
 
+### Windows rejected the product key
+
+You see `Windows rejected the product key`, and the log printed `answering the first-boot
+wizard` a second time. `shots/product-key.png` shows the wizard on its Product Key page with
+the key filled in. A good install answers the wizard once, so setup stops at the second pass
+instead of pressing through it until the 3-hour limit.
+
+The key is written to `MSBATCH.INF` on the disk in the `vm` step, and a resume skips that step,
+so rerunning as it is reuses the bad key. Start again from `vm` with the right key:
+
+```bash
+uv run art98 setup --from vm --iso /path/to/win98se.iso --key XXXXX-XXXXX-XXXXX-XXXXX-XXXXX
+```
+
+`art98 up` has no `--from`. Delete `work/state.json` and run `art98 up --iso ...` again; it asks
+for the key again.
+
 ## QEMU only
 
 art98 works only with QEMU. It depends on QMP for screenshots, keys and snapshots, on a

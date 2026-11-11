@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
 
@@ -183,6 +183,7 @@ class Setup:
     disk_mb: int = 2047
     watch: bool = False
     log: object = print
+    wizard_passes: int = field(default=0, init=False)
 
     STAGES = ("vm", "setup", "init_api", "ready")
 
@@ -337,6 +338,19 @@ class Setup:
             self._answer_setup_wizard(vm)
 
     def _answer_setup_wizard(self, vm: VM) -> None:
+        # A good install shows the wizard once. Showing again means a page did
+        # not take: Windows rejects a bad key and keeps the Product Key page.
+        self.wizard_passes += 1
+        if self.wizard_passes > 1:
+            raise SetupError(
+                "Windows rejected the product key: the first-boot wizard was "
+                "left on its Product Key page; see "
+                f"{vm.screenshot(self.shots / 'product-key.png')}. The bad key is "
+                "already in the disk's MSBATCH.INF, and resuming reuses it. "
+                "Start again from the vm step with the right key: "
+                "`art98 setup --from vm --iso ... --key ...`, or for `art98 up` "
+                "delete work/state.json and run it again"
+            )
         self.log("  answering the first-boot wizard, accepting the license agreement")
         for keys in WIZARD_PAGES:
             heading = self._screen(vm).crop(*WIZARD_HEADING)
