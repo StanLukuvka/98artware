@@ -8,7 +8,7 @@ import pytest
 
 from art98 import anim, session as session_module
 from art98.anim import *
-from art98.anim.apps import PARKED, Dialog, Minesweeper, Notepad, Paint, Screensaver
+from art98.anim.apps import PARKED, Minesweeper, Notepad, Paint, Screensaver
 from art98.anim import keys as keys_module
 from art98.anim.keys import char_chord, key_chord
 from art98.anim.pointer import BUTTONS
@@ -117,6 +117,16 @@ class FakeGuest:
 class FakeVM:
     def __init__(self):
         self.keys = []
+        self.calls = []
+
+    def insert_disc(self, iso):
+        self.calls.append("insert_disc")
+
+    def eject_disc(self):
+        self.calls.append("eject_disc")
+
+    def load_snapshot(self, name):
+        self.calls.append("load_snapshot")
 
     def send_keys(self, *codes, hold_ms=80):
         self.keys.append(codes)
@@ -157,6 +167,27 @@ class FakeSession:
 
     def revert(self, snapshot="ready"):
         self.reverts += 1
+
+
+class QuietBridge:
+    def abandon(self, reason):
+        pass
+
+    def ping(self):
+        return 1
+
+
+def test_revert_ejects_the_disc_before_loadvm_only_when_one_was_inserted():
+    vm = FakeVM()
+    session = session_module.Session(vm, QuietBridge())
+    session.revert()
+    assert vm.calls == ["load_snapshot"]  # no disc: an old container image never sees eject_disc
+    session.attach_disc({"WALL0001.BMP": b"x" * 10})
+    assert vm.calls[-1] == "insert_disc"
+    session.revert()
+    assert vm.calls[1:] == ["insert_disc", "eject_disc", "load_snapshot"]
+    session.revert()
+    assert vm.calls[4:] == ["load_snapshot"]
 
 
 class Stage(Scene):

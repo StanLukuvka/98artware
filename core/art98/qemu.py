@@ -205,6 +205,34 @@ class VM:
     def load_snapshot(self, name: str) -> None:
         self.qmp.human_silent(f"loadvm {name}")
 
+    # The default CD drive. `device` commands take this name; `blockdev-remove-medium`
+    # takes only an id, the qdev path from query-block (it moves with the device list).
+    CD_DEVICE = "ide1-cd0"
+
+    def _cd(self) -> dict | None:
+        return next((d for d in self.qmp.execute("query-block") if d.get("device") == self.CD_DEVICE), None)
+
+    def insert_disc(self, iso: bytes, name: str = "art98.iso") -> None:
+        """Put an ISO image in the CD drive; the file lives in this VM's own folder."""
+        path = self._dir / name
+        path.write_bytes(iso)
+        self.qmp.execute("blockdev-change-medium", device=self.CD_DEVICE, filename=str(path),
+                         format="raw", force=True, **{"read-only-mode": "read-only"})
+
+    def eject_disc(self) -> None:
+        """Open the tray and take the medium out; harmless on an empty drive. Call before loadvm."""
+        cd = self._cd()
+        if cd is None or "inserted" not in cd:
+            return
+        self.qmp.execute("blockdev-open-tray", device=self.CD_DEVICE, force=True)
+        self.qmp.execute("blockdev-remove-medium", id=cd["qdev"])
+        self.qmp.execute("blockdev-close-tray", device=self.CD_DEVICE)
+
+    def disc_state(self) -> dict:
+        cd = self._cd()
+        return {"present": cd is not None, "inserted": bool(cd and "inserted" in cd),
+                "tray_open": bool(cd and cd.get("tray_open"))}
+
     def wait_exit(self, timeout: float) -> bool:
         """Wait for QEMU to end on its own, as it does when the guest reboots."""
         try:

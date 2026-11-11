@@ -69,7 +69,9 @@ script.
 {
   "version": 1,
   "desktop": {
+    "colour": [128, 0, 0],
     "wallpaper": {"file": "assets/clouds.bmp", "sha256": "..."},
+    "style": "tile",
     "icons": {"My Computer": [8, 8], "Recycle Bin": [8, 80]},
     "tray": ["volume"]
   },
@@ -100,8 +102,44 @@ script.
 - States are always written with fixed key order, so diffs stay clean and hashes are stable.
 
 The schema starts small, with display, windows and pointer. Other fields join once they pass
-their tests. `desktop` and `focus` are rejected as "not supported yet" until then. A window has
+their tests. `desktop` has `colour`, `wallpaper` and `style` since 2026-11-11 (below). `icons`,
+`tray` and `focus` are rejected as "not supported yet" until they pass theirs. A window has
 `at` and the outer `size` instead of a rect, the same way `Win(at=..., size=...)` takes them.
+
+### Desktop colour and wallpaper
+
+Built in the dialog-storm milestone. The schema is the one above, and each part is optional:
+
+- `colour` is `[r, g, b]`, 0 to 255. The guest is 16-bit, so it shows the 5-6-5 rounding (128
+  becomes 120, 255 becomes 248). Checks compare with that rounding, never the exact RGB.
+- `wallpaper` is a BMP by `file` and `sha256`, 24-bit or 8-bit. `style` is `center` (the default),
+  `tile` or `stretch`, and needs a wallpaper.
+- A state with no wallpaper never touches the CD drive.
+
+**The disc.** A wallpaper doesn't go through `put_file`, which would take 15 s or more for a 1.4 MB
+file. `Session.attach_disc(files)` builds a small ISO 9660 level 1 disc on the host (`disc.py`,
+names in 8.3 capitals) and the backend puts it in the guest's CD drive, `D:`, with the
+`insert_disc` op. On the container, the disc travels on the serve channel as a header line and
+raw bytes. The guest reads it, and the state sets the wallpaper with `SystemParametersInfo`.
+There is no AutoPlay and no Explorer window. After the insert the scene polls every 50 ms and
+gives up after 2 s; the first read succeeded at once in every run.
+
+**Revert.** `loadvm` brings back the guest's empty tray but not QEMU's medium, so a revert has to
+eject first: open the tray with force, remove the medium, close the tray. `Session.revert` does
+that when it inserted a disc, and only then, so a scene without a disc never sends the op. The
+QEMU id of the drive is read from `query-block` each time, because it was `device[5]` on one
+host and `device[4]` in the plan.
+
+**Checks.** Windows won't report the wallpaper path back (`SPI_GETDESKWALLPAPER` gives an empty
+buffer), so the check reads one known pixel above the taskbar, with a tolerance of 12 per channel.
+`bmp_pixel` decodes 24-bit and 8-bit BMPs only, and the check is skipped for any other depth.
+
+**On a blank desktop.** A colour change makes Windows show the icons again, so the colour call
+hides them again if they were hidden. Setting a wallpaper doesn't bring them or the taskbar
+back, so it needs no such step. Numbers: [README-p2](../../experiments/dialog-storm/README-p2.md)
+and [README-p3](../../experiments/dialog-storm/README-p3.md).
+
+`icons` and `tray` are still later.
 
 ## A scene
 
@@ -343,11 +381,11 @@ Each of these needs a test on the real image before the schema is final.
 | --- | --- |
 | Icon positions | Another program owns them, and Windows 98 has refused some calls that reach into other programs' windows |
 | Tray | Adding icons is likely. Removing another program's icon is unproven |
-| Wallpaper | Likely easy, but the bitmap must reach the guest first |
+| Wallpaper | Built. The bitmap reaches the guest on a CD, not by `put_file`. See "Desktop colour and wallpaper" |
 | Window order and focus | Taskbar order follows the order windows opened, so it may not match the JSON |
 | Opening files in programs | After the MVP. Titles change, and Paint may not show the image at the expected zoom or size |
 | Paint with an opened file | After the MVP. `canvas_size` assumes a blank canvas, so canvas positions and `resize_canvas` would be wrong. `ready()` must also run on an adopted window |
-| Copying files | `put_file` ran at about 90 KB/s on a quiet host and about 12 KB/s on a busy one, so a 1.4 MB wallpaper could take 15 s or far longer on every Set. If that's too slow, assets could go on a read-only disc attached by the backend |
+| Copying files | `put_file` ran at about 90 KB/s on a quiet host and about 12 KB/s on a busy one, so a 1.4 MB wallpaper could take 15 s or far longer on every Set. That was too slow, so a wallpaper goes on a read-only disc attached by the backend: about 1 s for 1.4 MB |
 | Stray pixels | Explained. Moving a window off another one can leave desktop label pixels in the lower window's frame. A repaint at the end of Apply clears them. See "Test results" |
 | Capture off | Some actions depend on real time, so a run with capture off may differ from a recorded one |
 | Clock and randomness | A new Minesweeper board differs each run unless these are fixed |
@@ -488,7 +526,7 @@ class Mvp(Scene):
 ### Out, for now
 
 Every program: Paint, Notepad, Minesweeper and any `command`. Their classes are parked in
-`art98/anim/apps.py`, unexported (Notepad has since returned as `actions/programs/notepad.py`), until each returns as its own action class. Wallpaper, icons and tray.
+`art98/anim/apps.py`, unexported (Notepad has since returned as `actions/programs/notepad.py`, and `Dialog` as `actions/programs/dialog.py`), until each returns as its own action class. Icons and tray. (The desktop colour and wallpaper came later: see "Desktop colour and wallpaper".)
 Sections, clips and `--section`. Holding, Failed with a live VM, the Python prompt and Stop. The
 backend interface, and the agent bug fixes.
 
@@ -549,7 +587,7 @@ Found on the way:
    off and `--section`.
 2. **Programs.** Each program (Paint, Notepad, Minesweeper and others) becomes its own action
    class. Not designed yet.
-3. **More of the desktop.** Wallpaper, icons and tray, each after its test.
+3. **More of the desktop.** The colour and the wallpaper are built. Icons and tray remain, each after its test.
 4. **Backend.** Move start, revert, capture and keys behind one interface.
 5. **Run control.** Holding and Failed with the Python prompt, and Stop. `render()` closes the VM
    on exit today, so this needs restructuring.

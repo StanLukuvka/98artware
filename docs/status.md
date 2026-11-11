@@ -9,12 +9,13 @@ work can pick up from here.
 | --- | --- | --- |
 | VM preparation | Built. `art98 setup` (alias `prep`) turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input. Four steps: vm, setup, init_api, ready | [Part 1](setup/README.md) |
 | Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](scenes/bridge.md), [Instruction set](scenes/instruction-set.md) |
-| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. Notepad is a program in `actions/programs/notepad.py`. The other program classes are parked, unexported | [Part 2](scenes/README.md) |
+| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. Notepad and Dialog are programs in `actions/programs/`, and `Backdrop` sets the desktop colour. Paint, Minesweeper and Screensaver are parked, unexported | [Part 2](scenes/README.md) |
 | Examples | `examples/blank_start` (the proof scene: a Picture and a Notepad, three sections), `examples/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
 | Diagrams | Seven diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
 | States and sections | The MVP is built: state files, `set_state`, picture windows and `Teleport`. `Scene.next_section(name)` is built, on top of `cut()`. The `--section` option is not | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
 | Recorder | Built: `Recorder`, with `cut()` to start a new clip during a run, `clips` to list them, and a join into the output. Clips are kept beside the output as MP4 | [Recorder](design/state-and-action.md#recorder), [Clips](scenes/scene-api.md#clips) |
-| Programs | Notepad is the first program, in `actions/programs/notepad.py`. It opens a text file or an empty window and checks its title. Windows 98 drops a trailing `.txt` from the title | [Programs](design/programs.md) |
+| Programs | Notepad is the first program, in `actions/programs/notepad.py`. It opens a text file or an empty window and checks its title. Windows 98 drops a trailing `.txt` from the title. `Dialog` (`actions/programs/dialog.py`) is a real message box with icons, a size, greyed buttons and changeable text. It is not in a state | [Programs](design/programs.md), [Dialog](scenes/scene-api.md#dialog) |
+| Desktop colour and wallpaper | Built. `Backdrop` and a state's `desktop` (colour, wallpaper, style). A wallpaper reaches the guest on a CD in drive D: | [Colour and wallpaper](design/state-and-action.md#desktop-colour-and-wallpaper) |
 | CLI and checks | Errors from `art98` print one clean line, not a traceback. Warnings say when the image or guest programs are older than the code (`freshness.py`). `art98 doctor` works on a host that has only a container engine and ffmpeg. CI runs the unit tests on each push (`.github/workflows/tests.yml`) | [CLI](setup/cli.md) |
 | Container | Built: the backend in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image, runs setup in it and pings; It is the default backend; `ART98_BACKEND=local` or `--backend local` runs QEMU on the host instead. Tested on rootful Docker 29.9 and rootless Podman. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
 
@@ -57,7 +58,7 @@ Audio is deferred. art98 is video only.
 11. **Program classes parked, 2026-11-10.** `Notepad`, `Paint`, `Minesweeper`, `Screensaver` and
     `Dialog` still work and are tested, but `art98.anim` no longer exports them. Scenes import
     them from `art98.anim.apps`, which lists them in `PARKED`. Each program comes back later as
-    its own action class, starting from that code.
+    its own action class, starting from that code. (`Dialog` came back in item 19.)
 12. **Blank start, 2026-11-10.** An audit found nothing that pops up on its own after a restore.
     Scenes now start on a black screen with no icons, taskbar, Start menu or pointer
     (`Scene.desktop = "blank"`, `pointer_visible`), made at run time by `art98/desktop.py`
@@ -110,6 +111,39 @@ Audio is deferred. art98 is video only.
     ([host-checks](../experiments/host-checks/README.md),
     [On a busy host](setup/troubleshooting.md#on-a-busy-host)). The docs were corrected to match.
 
+19. **Dialog storm, 2026-11-11.** `Dialog` is out of parked: it is in `art98.anim` with `size`,
+    `disabled`, `set_message` and `icon`. `Backdrop` sets the desktop colour, and a state's
+    `desktop` sets a colour and a wallpaper, which goes to the guest on a CD. The scene is
+    `examples/dialog_storm` (GIF in the [gallery](scenes/gallery.md#dialog-storm)); its probes
+    are in [experiments/dialog-storm](../experiments/dialog-storm/README-p0.md). What they found:
+    - **Icons.** `STM_SETICON` on the box's icon slot works and draws 32 x 32. Seven custom
+      icons, each seen in a real box: computer `shell32.dll` 15, printer `shell32.dll` 16, mouse
+      `main.cpl` 0, telephone `modem.cpl` 0, cd `shell32.dll` 11, globe `shell32.dll` 13, flag
+      `user.exe` 0 (all under `C:\WINDOWS\SYSTEM`). The icon static's id is 10, not 20. The
+      static doesn't copy the icon, so it is destroyed only when the box is removed.
+    - **Size and text.** Resizing the frame leaves the children alone, so the buttons and the
+      text are laid out again. A size under the stock box is refused. A text static clips to its
+      rectangle, so `set_message` moves it to fit. Yes/No boxes ignore `WM_CLOSE`.
+    - **Colour.** `SetSysColors(COLOR_DESKTOP)` is right on the stock desktop for teal, dark red,
+      red and white. The 16-bit screen rounds 128 to 120 and 255 to 248, so checks use the
+      rounded colour or a tolerance. On a blank desktop the call shows the icons again, so
+      `Backdrop` hides them again.
+    - **CD.** The guest already has a CD drive, `D:`, empty. A disc goes in in 1 to 8 ms, the
+      guest sees it in 40 to 110 ms, and setting a 1.4 MB wallpaper takes 0.3 to 0.8 s. The
+      first read after the insert always worked (25+ runs); one bounded check (50 ms polls, 2 s)
+      stays. No AutoPlay window. Same on the local backend, rootless Podman and Docker.
+    - **Stretch.** `center`, `tile` and `stretch` all work. The wallpaper call does not bring
+      icons or the taskbar back. The wallpaper path can't be read back, so one pixel is checked.
+    - **Revert-eject rule.** `loadvm` restores the guest's empty tray but not QEMU's medium, so
+      a revert must eject first (open tray with force, remove medium, close tray; 75 to 145 ms
+      on the container). `Session.revert` does it only when it inserted a disc. The drive's qdev
+      id differs between hosts (`device[5]` here), so it is read from `query-block`.
+    - **Timings.** The proof scene renders in 4.8 s local, 6.0 s on Podman and 6.4 s on Docker,
+      126 frames at 24 fps, pixel for pixel the same on every engine. Host CPU pressure was near zero.
+    - **Same-title boxes.** The first version took any visible box whose title matched, so a
+      new `Dialog` could attach to an older one. A `Dialog` now ignores windows that existed
+      before its call.
+
 ## What is open
 
 ### Next
@@ -122,6 +156,20 @@ In order, from the layer review of 2026-11-11. See also
    fixed `APPS` list go when the last one is moved.
 2. **Gallery and showcase port.** Port the showcase and re-render the gallery.
 3. **`--section`.** Render one section of a scene, on top of `next_section`.
+
+### Leftovers from the dialog storm
+
+- `RemoteVM` has no `disc_state()`. Only the local `VM` has it, and no art98 code calls it.
+  Delete it or give `RemoteVM` one.
+- `bmp_pixel` decodes 24-bit and 8-bit BMPs only. For any other depth the wallpaper pixel
+  check is skipped. (A `lazy:` marker in the code.)
+- On this host, `art98 up --rebuild` with Docker CE's CLI pointed at the Podman socket does not
+  refresh the Podman image: the build goes through a buildx `docker-container` builder and its
+  result stays in the build cache. `podman build -t localhost/art98:latest -f setup/Dockerfile .`
+  works (7 s). A fix is `--load`, or detecting the engine.
+- A `Cascade` helper, `Dialog` as a state `app`, and desktop icons and tray in a state are not built.
+- `test_state_with_wallpaper` runs on the local backend only. The container path is covered by
+  rendering a wallpapered state on both engines.
 
 ### Known bugs, on hold
 

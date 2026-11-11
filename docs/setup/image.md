@@ -20,7 +20,7 @@ each one was read back from the guest.
 | Sound | `Sound Blaster 16 or AWE-32 or compatible`, 1 `waveOut` and 1 `midiOut` device |
 | Guest clock at restore | 1998-06-25, 09:01 |
 | Network | No adapter. Windows lists `Dial-Up Adapter` and `TCP/IP`, with nothing to connect to |
-| CD drive | None |
+| CD drive | `D:`, empty. A state with a wallpaper has art98 put a small disc in it (see [the snapshot](#the-snapshot)) |
 
 ![The prepared desktop](../assets/prep/ready-desktop.png)
 
@@ -253,7 +253,7 @@ shown.
 | `AppEvents\Schemes` | default | `.None` | Selects the "No Sounds" scheme | Value set |
 | `AppEvents\Schemes\Apps\.Default\<event>\.Current` | default | empty | Silences each of the 17 `SILENCED_EVENTS` | Value set. Playback untested, audio is deferred |
 | `Software\Microsoft\Windows\CurrentVersion\Explorer\Tips` | `Show` | binary `00 00 00 00` | No Welcome or tips window at logon | No such window appears |
-| `Software\Microsoft\Windows\CurrentVersion\Policies\Explorer` | `NoDriveTypeAutoRun` | binary `FF 00 00 00` | AutoRun off for every drive type | Value set. The VM has no CD drive anyway |
+| `Software\Microsoft\Windows\CurrentVersion\Policies\Explorer` | `NoDriveTypeAutoRun` | binary `FF 00 00 00` | AutoRun off for every drive type | Value set. A disc art98 inserts into the CD drive (D:) opens no AutoPlay window |
 
 `SILENCED_EVENTS` is `.Default`, `AppGPFault`, `Close`, `EmptyRecycleBin`, `Maximize`,
 `MenuCommand`, `MenuPopup`, `Minimize`, `Open`, `RestoreDown`, `RestoreUp`,
@@ -351,6 +351,11 @@ A snapshot only loads on the same machine version and devices. That is why `imag
 exists, and why a change to `VMConfig` means a new image.
 
 There is no setup option for adding files to the image. Only `AGENT.EXE` is copied in.
+
+The CD drive is the way a scene gets a large file into the guest. The backend builds a small
+ISO 9660 disc on the host and puts it in drive `D:`; the image itself doesn't change. QEMU keeps
+the disc in the drive across a `loadvm`, although the guest's own tray is restored empty, so a
+revert ejects the disc first. See [Desktop colour and wallpaper](../design/state-and-action.md#desktop-colour-and-wallpaper).
 
 ## Hardware
 

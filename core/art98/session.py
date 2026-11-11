@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+from . import disc
 from .bridge import Bridge
 from .qemu import VM, VMConfig
 from .recorder import GIF_COLORS, GIF_FPS, H264, Recorder  # noqa: F401  (old names stay importable from here)
@@ -51,6 +52,12 @@ class Session:
     def __init__(self, vm: VM, bridge: Bridge):
         self.vm = vm
         self.bridge = bridge
+        self._disc = False  # True while a disc this session inserted may be in the drive
+
+    def attach_disc(self, files: dict[str, bytes]) -> None:
+        """Put an ISO of `files` (level 1 names, see disc.build_iso) in the CD drive."""
+        self.vm.insert_disc(disc.build_iso(files))
+        self._disc = True
 
     def record(self, path: Path | str, fps: int = 30, lossless: bool = False) -> Recorder:
         return Recorder(self, path, fps, lossless)
@@ -62,6 +69,12 @@ class Session:
         before is gone, and open calls fail at once instead of timing out.
         """
         self.bridge.abandon(f"the desktop was reverted to {snapshot!r}")
+        if self._disc:
+            # loadvm restores the guest's empty tray but not QEMU's medium: eject first.
+            # Only when we inserted one, so a scene without a disc never sends the op
+            # (an older container image would answer "unknown op").
+            self.vm.eject_disc()
+            self._disc = False
         self.vm.load_snapshot(snapshot)
         self.bridge.ping()
 

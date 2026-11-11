@@ -79,8 +79,10 @@ the local backend and the container, and between an image built in the container
 built on the host.
 
 The windows here are [`Picture`](docs/scenes/scene-api.md#picture), art98's own small viewer
-that shows a BMP, and [`Notepad`](docs/scenes/scene-api.md#notepad). Paint, Minesweeper,
-Screensaver and Dialog still work, but they're parked in `art98.anim.apps` until each comes
+that shows a BMP, [`Notepad`](docs/scenes/scene-api.md#notepad) and
+[`Dialog`](docs/scenes/scene-api.md#dialog), a real message box. [`Backdrop`](docs/scenes/scene-api.md#backdrop)
+sets the desktop colour, and a state can set a colour and a wallpaper. Paint, Minesweeper and
+Screensaver still work, but they're parked in `art98.anim.apps` until each comes
 back as its own action class. The recorder is built: `cut()` ends a clip and starts the next,
 and `next_section(name)` does the same with a label. A render with cuts keeps
 `<stem>-01.mp4` and on beside the output and joins them. See the
@@ -275,7 +277,8 @@ baud, so files move well above the line rate. Setup quirks that `art98 setup` ha
 ## Not done yet
 
 - Audio is deferred. art98 is video only for now, though the VM keeps its Sound Blaster.
-- Programs other than Picture and Notepad are parked, and re-recording one section is not built.
+- Programs other than Picture, Notepad and Dialog are parked, and re-recording one section is not built.
+- Desktop icons and the tray in a state, and a `Cascade` helper for boxes, are not built.
 - The Wine suite against the final agent. It needs a Wine prefix on this machine.
 
 [docs/status.md](docs/status.md) has the full list of what's built and what's next.

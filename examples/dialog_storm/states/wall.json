@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "display": [800, 600, 16],
+  "desktop": {"colour": [128, 0, 0], "wallpaper": {"file": "../assets/wall.bmp",
+              "sha256": "4d2f6b22a47c41afabe9566b1697c0e07263368d8ea5de938c168e059c99ce34"},
+              "style": "tile"},
+  "pointer": [400, 540]
+}

@@ -1,6 +1,7 @@
 # Inspiration: a Windows 98 lyric video
 
-Draft, 2026-11-11. Analysis only, nothing here is built.
+Draft, 2026-11-11. The analysis was written first. The dialog-storm milestone then built the parts
+marked built below, and proved them on the real image with `examples/dialog_storm`.
 
 The video that inspired art98 is a lyric video for a song about a computer virus, 154 s long, 1280x720
 at 24 fps, with a soundtrack. This page breaks it into shots, then into the small parts it is made
@@ -45,15 +46,15 @@ visible in nearly all desktop shots. No mouse pointer is ever shown: everything 
 
 | # | Block | What it is, in the video | Today | What is missing |
 | --- | --- | --- | --- | --- |
-| B1 | **Solid desktop colour** | Teal, dark red, red | (a): `self.guest.user32.SetSysColors(...)`, the call `desktop.py` already makes for black | A named action so a scene doesn't write the struct packing by hand |
-| B2 | **Textured or gradient wallpaper** | Mottled blue, red grunge, pink-orange gradient | (c) | Wallpaper in states, designed but untested. See "Wallpaper" below |
-| B3 | **Message box** | `???` title, one line, icon, two greyed buttons, at an exact position | (b): `Dialog` exists but is parked in `art98.anim.apps` | See "Message box gaps" below |
-| B4 | **Cascade** | 5 to 8 boxes appear 2 to 3 frames apart, each offset up and right | (b): a loop of `Dialog(..., at=...)` with `add` and a one-frame `pause` | Needs B3 |
-| B5 | **Pair and jitter** | Two copies of a box a few pixels apart, or side by side | (b): two `Dialog` props | Needs B3 |
-| B6 | **Scatter pile** | About a dozen boxes at random positions (1:58) | (b): a seeded loop of `Dialog`s | Needs B3 |
-| B7 | **Box with typing text** | A box whose text is just "A" (0:56) | (b), partly: `Dialog` text is fixed when it opens | Changing a box's text: `SetDlgItemText` on the static control, not wrapped |
+| B1 | **Solid desktop colour** | Teal, dark red, red | Built: `Backdrop(colour)` (teal, dark red, red, white and any RGB), proved on the stock and the blank desktop | Nothing. The 16-bit screen rounds the colour (128 becomes 120) |
+| B2 | **Textured or gradient wallpaper** | Mottled blue, red grunge, pink-orange gradient | Built for a tiled BMP: `desktop.wallpaper` in a state, sent on a CD | The video's mottled and gradient textures are not tried. See "Wallpaper (B2), as built" |
+| B3 | **Message box** | `???` title, one line, icon, two greyed buttons, at an exact position | Built: `Dialog` with `size`, `disabled` and the custom icons, in `art98.anim` | See "Message box (B3), as built" below |
+| B4 | **Cascade** | 5 to 8 boxes appear 2 to 3 frames apart, each offset up and right | Built, by hand: a loop of `Dialog(..., at=...)` with `add` and a `pause` of two frames. Proved with eight boxes | A `Cascade` helper, only if the loop keeps coming back |
+| B5 | **Pair and jitter** | Two copies of a box a few pixels apart, or side by side | Built: two `Dialog` props with a seeded jitter. Proved with a pair | Nothing |
+| B6 | **Scatter pile** | About a dozen boxes at random positions (1:58) | Likely built: the same loop with random positions. Not proved at a dozen boxes | A run with a dozen boxes |
+| B7 | **Box with typing text** | A box whose text is just "A" (0:56) | Built: `Dialog.set_message(text)`, one letter per frame in the proof | Nothing |
 | B8 | **Address Book with typed big text** | The window, and a huge thin "YOU'VE GOT MAIL!" in its list area | (b): the program is on the image but there is no class. Nothing in the docs says it was ever opened | A `programs/` class for `wab.exe`. The big text is most likely added in editing: see B13 |
-| B9 | **Static desktop icons and taskbar** | My Computer, My Briefcase, Recycle Bin, Internet Explorer, Notepad, two folders, a Start button, quick launch, tray | (a) in part: `desktop = "stock"` gives the stock icons and taskbar | The custom icons ("My Briefcase", the two folders with their labels) need icons in states (c). Animating or recolouring icons is out of scope |
+| B9 | **Static desktop icons and taskbar** | My Computer, My Briefcase, Recycle Bin, Internet Explorer, Notepad, two folders, a Start button, quick launch, tray | Built for stock icons and taskbar: `desktop = "stock"` plus `Backdrop` keeps the taskbar and icons on the new colour (`DialogStormStock`) | The custom icons ("My Briefcase", the two folders with their labels) need icons in states (c). Animating or recolouring icons is out of scope |
 | B10 | **Hard cut and black** | Cuts on the beat, black frames | (a): `cut()` and `next_section()`, and the blank desktop is black | Nothing |
 | B11 | **Fixed frame rate** | 24 fps | (a): `fps = 24` on the scene (the class default is 30) | Nothing |
 | B12 | **Scene layout of the screen** | 16:9 | (c) | art98's guest only offers 4:3 modes. See "Aspect ratio" below |
@@ -64,37 +65,34 @@ visible in nearly all desktop shots. No mouse pointer is ever shown: everything 
 | B17 | **Audio** | The whole song | (c), deferred | Audio is deferred until the user asks. The scene can be timed to beat times by hand in the meantime |
 | B18 | **Fade and white flash** | White to grey gradient at 1:12 | (d) | Post |
 
-### Message box gaps (B3)
+### Message box (B3), as built
 
-`Dialog` is a real `MessageBoxA` on its own guest thread. It is tested and works, but it is parked
-(`art98/anim/apps.py`, listed in `PARKED`). Against what the video needs:
+`Dialog` is a real `MessageBoxA` on its own guest thread, now exported from `art98.anim` (see
+[Dialog](../scenes/scene-api.md#dialog)). The gaps this page listed before it was built came out
+like this, each probed on the image ([experiments/dialog-storm](../../experiments/dialog-storm/README-p1.md)):
 
-- **Icons.** `MessageBoxA` gives only error, question, warning and information. The video uses the red
-  X and the warning triangle, which are stock, but also a computer, a printer, a mouse, a telephone,
-  a CD, a globe and a Windows flag. Those are icons from the shell DLLs. A box with one of them
-  needs `MessageBoxIndirect` with a user icon, or a `STM_SETICON` message to the box's icon control.
-  Neither is wrapped, and neither has been tried on the image. Likely small, but untested.
-- **Greyed buttons.** The video's buttons are disabled. `EnableWindow(button, 0)` does that, and
-  `Dialog.button(label)` already finds the button. So it is one raw guest call today, and a
-  `disabled=True` option later.
-- **Size.** A message box sizes itself to its text. The video's boxes are wider and less tall than
-  the text alone would give. `Win` takes a `size`, but `Dialog.__init__` doesn't pass it on.
-- **Not in a state.** `APPS` in `anim/setstate.py` holds only `picture` and `notepad`, so a box
-  can't be in a starting state. Cascades are built in `construct`, which is fine for this video.
-- **Title.** Any title works, so `???` is no problem.
-- **Window colours.** Title bars here are plain blue. With gradient captions off, which the blank
-  start already does, Windows 98 draws a plain bar, so that probably matches. The exact blue is
-  unchecked.
+- **Icons.** Done, by `STM_SETICON` on the box's icon slot, not `MessageBoxIndirect`. The seven
+  custom icons (computer, printer, mouse, telephone, cd, globe, flag) all exist in the guest's
+  shell DLLs and are in `Dialog.CUSTOM_ICONS`. Any `(dll, index)` pair works too. The red X and
+  the warning triangle are the stock keys.
+- **Greyed buttons.** Done: `disabled=True` runs `EnableWindow` on every button.
+- **Size.** Done: `size=(w, h)` resizes the frame and lays the buttons and text out again. A size
+  smaller than the stock box is refused, because it would clip.
+- **Changing the text (B7).** Done: `set_message(text)` sets the text of the static control. The
+  control clips to its own rectangle, so it is moved to fit the new lines.
+- **Not in a state.** Still true. `APPS` in `anim/setstate.py` holds only `picture` and `notepad`,
+  so a cascade is built in `construct`. That is fine for this video.
+- **Title.** Any title works. Several boxes may share one, such as `???`: each `Dialog` takes only
+  the window that is new since its call.
+- **Window colours.** Not checked against the video's exact blue.
 
-### Wallpaper (B2)
+### Wallpaper (B2), as built
 
-`state-and-action.md` lists wallpaper as "Likely easy, but the bitmap must reach the guest first".
-It has no test. `put_file` runs at about 90 KB/s on a quiet host and about 12 KB/s on a busy one, so a
-full-screen 16-bit BMP at 800x600 (about 940 KB) takes roughly 10 s on a quiet host, once per
-scene, and far longer when the host is busy. The video needs three or four textures. Two ways to
-live with it: put the BMPs on a read-only disc the backend attaches, or accept a one-time cost
-per render. A smaller tiled texture fixes the size for the noise textures but not for the
-gradient.
+A tiled BMP works. The BMP goes to the guest on a CD in drive `D:`, not by `put_file`, so the
+15 s or more that a 1.4 MB file would have taken is about a second (the disc goes in in 1 to 8 ms,
+and setting the wallpaper takes 0.3 to 0.8 s). `center`, `tile` and `stretch` all work. See
+[Desktop colour and wallpaper](state-and-action.md#desktop-colour-and-wallpaper). Not tried: the
+video's mottled and gradient textures themselves. The dialog storm uses a small red lattice tile.
 
 ### Aspect ratio (B12)
 
@@ -107,8 +105,8 @@ which would fit a stretched 4:3 desktop, but that is a guess.
 ## Shot table
 
 Times are from the 2 s contact sheets and the scene-change timestamps, so edges are accurate to
-about 0.5 s. "Dialog" in the How column means the parked `Dialog` action (B3), so every shot with
-boxes is (b) until it is un-parked. Lyrics are described, not copied.
+about 0.5 s. "Dialog" in the How column means the `Dialog` action (B3). The categories in the table below are as first written,
+before `Dialog` and `Backdrop` were built. Lyrics are described, not copied.
 
 | Time | On screen | What moves | Cat. | How |
 | --- | --- | --- | --- | --- |
@@ -160,19 +158,19 @@ than a copy.
 
 Ranked by how much of the video each step unlocks.
 
-1. **Un-park `Dialog`, and add the small options the video needs.** Unlocks B3 to B7: about 60% of
+1. **Built: `Dialog`, and the small options the video needs.** Unlocks B3 to B7: about 60% of
    the running time, about 20 of the 32 rows. Four additions, each tiny: pass `size` through, a `disabled`
    flag for the buttons, a way to change a box's text (`set_text` on the static control, for B7), and
    a custom icon. The icon is the only one with a risk, so test it first on a private image copy.
    Follows the Notepad pilot in `docs/design/programs.md`: its own file in `actions/programs/`,
    exported from `art98.anim`, with a test beside `test_notepad.py`.
-2. **A `Backdrop` action for the desktop colour.** A named action over the `SetSysColors` call in
+2. **Built: a `Backdrop` action for the desktop colour.** A named action over the `SetSysColors` call in
    `desktop.py`, with colours in the video (teal, dark red, red, white). Unlocks B1 and
    the colour of every desktop shot.
-3. **Stock desktop with the taskbar, at the video's colour.** Already possible. Needs only a check that
+3. **Built: stock desktop with the taskbar, at the video's colour.** Needed only a check that
    `desktop = "stock"` plus a colour change looks right, since the stock desktop was last checked for
    a different reason. Gives B9 without the custom icons.
-4. **Wallpaper in states, with the transfer cost measured.** Unlocks B2: the textured and gradient
+4. **Built for a tile: wallpaper in states, with the transfer cost measured.** Unlocks B2: the textured and gradient
    desktops, about a quarter of the rows. This is the biggest gap, and the one with a real unknown
    (the cost of putting a BMP on the guest). Do the test the design asks for first.
 5. **A `Cascade` helper.** A group animation that adds N boxes with an offset and a delay, since
@@ -201,17 +199,17 @@ class Replica(Scene):
 
     def construct(self):
         self.pause(2)  # 0:02 to 0:04, an empty desktop
-        # SetSysColors(1, ...) here, once Backdrop exists, for the video's blue
+        # self.play(Backdrop((0, 60, 160))) here, for the video's blue
         self.next_section("boxes")
-        # the cascade goes here, once Dialog is un-parked:
+        # the cascade goes here:
         #   for i in range(8):
         #       self.add(Dialog("", "???", icon="warning", at=(300 + 14 * i, 380 - 22 * i)))
         #       self.pause(2 / 24)
         self.pause(1)
 ```
 
-This is a sketch and has not been run. With the VM not used for this analysis, nothing here was
-tried on the image.
+This is a sketch and has not been run. The built version, run on the image, is
+[examples/dialog_storm](../../examples/dialog_storm/dialog_storm.py).
 
 ## What was and wasn't checked
 
@@ -219,5 +217,6 @@ tried on the image.
   contact sheets plus the 23 scene-change timestamps; two full-size frames.
 - Checked in code: `Dialog` and its parameters, the `APPS` list, `desktop.py`, the display modes,
   the scene's `fps`, the exports of `art98.anim`.
-- Not checked: any of this on the real image. Whether `MessageBoxIndirect` icons work, whether
-  `wab.exe` opens, how long a wallpaper transfer takes, and the exact blues and reds.
+- Not checked when this was written, since proved: icons (by `STM_SETICON`), the wallpaper transfer
+  time (about 1 s on a CD) and the stock desktop with a colour. Still not checked: whether `wab.exe`
+  opens, the video's textures, and the exact blues and reds.

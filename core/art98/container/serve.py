@@ -8,7 +8,10 @@ starts with two lines, the token and the channel name, and gets `ok` back:
 - `agent` relays bytes both ways between the connection and the guest's COM1,
   untouched, so the host's Bridge speaks the agent protocol as it always has.
 - `control` takes one JSON request per line and answers each with one JSON
-  line, followed by raw bytes for a screenshot. On a Unix socket a screenshot
+  line, followed by raw bytes for a screenshot. `insert_disc` is sent with a
+  `size` and that many raw bytes after its line (an ISO, at most 64 MiB);
+  `eject_disc` takes none. Other ops: send_keys, revert, save_snapshot, pause,
+  resume, quit. On a Unix socket a screenshot
   can instead be written into the mounted folder, so no frame crosses the socket.
 
 The first control connection owns the stage. When it closes, QEMU quits and
@@ -34,6 +37,7 @@ HANDSHAKE_TIMEOUT = 10.0
 OWNER_TIMEOUT = 120.0
 MAX_LINE = 4096
 SCREENSHOT_FORMATS = ("ppm", "png")
+MAX_DISC = 64 * 1024 * 1024
 
 
 def nodelay(sock: socket.socket) -> socket.socket:
@@ -58,6 +62,10 @@ def read_line(sock: socket.socket, limit: int = MAX_LINE) -> bytes:
 
 class ControlError(RuntimeError):
     pass
+
+
+class DesyncError(ControlError):
+    """The request's payload can't be read, so the stream is out of step: reply, then hang up."""
 
 
 class Server:
@@ -237,7 +245,22 @@ class Server:
                     break
                 try:
                     request = json.loads(line)
-                    reply, payload = self.handle(request)
+                    data = b""
+                    if isinstance(request, dict) and request.get("op") == "insert_disc":
+                        size = request.get("size")
+                        if not isinstance(size, int) or isinstance(size, bool) or not 0 < size <= MAX_DISC:
+                            raise DesyncError(f"insert_disc size must be 1 to {MAX_DISC} bytes")
+                        data = reader.read(size)
+                        if len(data) != size:
+                            raise ConnectionError("the connection closed inside a disc image")
+                    reply, payload = self.handle(request, data)
+                except DesyncError as error:
+                    conn.sendall(json.dumps({"ok": False, "error": str(error)}).encode() + b"\n")
+                    self._log(f"{error}; closing the control connection")
+                    break
+                except ConnectionError as error:
+                    self._log(str(error))
+                    break
                 except (ValueError, TypeError, KeyError, ControlError) as error:
                     reply, payload = {"ok": False, "error": str(error)}, b""
                 except Exception as error:  # QEMU errors and the like go back to the host
@@ -252,7 +275,7 @@ class Server:
             conn.close()
             self.stop()
 
-    def handle(self, request: dict) -> tuple[dict, bytes]:
+    def handle(self, request: dict, data: bytes = b"") -> tuple[dict, bytes]:
         if not isinstance(request, dict):
             raise ControlError("a request is a JSON object")
         op = request.get("op")
@@ -276,6 +299,10 @@ class Server:
                 self.vm.send_keys(*keys, hold_ms=int(request.get("hold_ms", 80)))
             elif op == "revert":
                 self.vm.load_snapshot(str(request.get("snapshot", "ready")))
+            elif op == "insert_disc":
+                self.vm.insert_disc(data)
+            elif op == "eject_disc":
+                self.vm.eject_disc()
             elif op == "save_snapshot":
                 self.vm.save_snapshot(str(request["snapshot"]))
             elif op == "pause":

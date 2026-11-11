@@ -5,7 +5,8 @@ probed on the real guest: paths, classes, control ids and quirks. Code blocks us
 [Win32 recipes](win32-recipes.md#setup), and each one ran from the `ready` snapshot.
 
 For the scene props that wrap some of these programs, see the [Scene API](scene-api.md). Notepad is
-the one program that is no longer parked: it is `Notepad` in `art98.anim`, and `"app": "notepad"` in a state.
+the first program that is no longer parked: it is `Notepad` in `art98.anim`, and `"app": "notepad"` in a state.
+`Dialog`, the message box, is the second, and [its own section](#message-box) is below. It is not in a state.
 
 Sound Recorder is not covered, because audio is deferred.
 
@@ -505,6 +506,25 @@ Quirks:
 - The older `C:\WINDOWS\MPLAYER.EXE` opens with a `#32770` prompt, `Media Player settings have been
   changed`, in front of its `MPlayer` window. `WM_CLOSE` does not close it, so end its process.
 - Audio is deferred. No clip with sound was tried.
+
+## Message box
+
+`MessageBoxA` from `user32.dll`, class `#32770`. The scene's `Dialog` calls it on a guest thread
+with `ACALL`, because it blocks. All boxes are windows of the one agent process, so several can
+have the same title.
+
+| Part | Notes |
+| --- | --- |
+| Icon slot | A `Static` with style `& 0x1F == 3` and id 10 (`0xa`). `STM_SETICON` (`0x170`) with a handle from `shell32.ExtractIconA(0, dll, index)` replaces the picture, then repaint. The static doesn't copy the handle: destroy it only after the box is gone. |
+| Text | A `Static` with id `0xffff`. Stock size 111 x 15 at client x 62. It clips to its rectangle, so `MoveWindow` it before `SetWindowTextA` with more lines. |
+| Buttons | `Button`. Stock size 75 x 23, 6 apart, 11 above the bottom edge. `EnableWindow(button, 0)` greys one at once. |
+| Resize | `SetWindowPos(box, 0, 0, 0, w, h, 0x2 \| 0x4)` changes the frame only. The children stay where they were, and the box grows right and down. |
+| Close | Yes/No boxes ignore `WM_CLOSE`. Post `WM_COMMAND` (`0x111`) with 7 (`IDNO`) to close one. |
+
+Icons that were seen in a real box: `shell32.dll` 11 (CD), 13 (globe), 15 (computer), 16 (printer)
+in `C:\WINDOWS\SYSTEM`, `main.cpl` 0 (mouse), `modem.cpl` 0 (telephone) and `user.exe` 0
+(flag). The full table is in the [Scene API](scene-api.md#dialog). The CD drive is `D:`: see
+[Desktop colour and wallpaper](scene-api.md#desktop-colour-and-wallpaper).
 
 ## Screensavers
 

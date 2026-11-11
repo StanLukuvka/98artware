@@ -316,8 +316,10 @@ class RemoteVM:
     def running(self) -> bool:
         return not self._closed and self.stage.running
 
-    def _request(self, op: str, **arguments) -> tuple[dict, bytes]:
-        message = json.dumps({"op": op, **arguments}).encode() + b"\n"
+    def _request(self, op: str, payload: bytes = b"", **arguments) -> tuple[dict, bytes]:
+        # A request with a payload carries `size` and the raw bytes after the JSON line.
+        header = {"op": op, "size": len(payload), **arguments} if payload else {"op": op, **arguments}
+        message = json.dumps(header).encode() + b"\n" + payload
         with self._lock:
             if self._closed:
                 raise QemuError("the stage is closed")
@@ -361,6 +363,12 @@ class RemoteVM:
 
     def load_snapshot(self, name: str) -> None:
         self._request("revert", snapshot=name)
+
+    def insert_disc(self, iso: bytes) -> None:
+        self._request("insert_disc", iso)
+
+    def eject_disc(self) -> None:
+        self._request("eject_disc")
 
     def save_snapshot(self, name: str) -> None:
         """Saves into the container's run copy, which goes when the stage closes."""

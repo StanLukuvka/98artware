@@ -1,7 +1,6 @@
 """A tooltip, which the guest times itself, and a real message box."""
 
 from art98.anim import *
-from art98.anim.apps import Dialog  # parked, see apps.py
 
 
 class HoverDialog(Scene):

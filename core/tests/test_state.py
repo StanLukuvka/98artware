@@ -78,10 +78,10 @@ def test_a_wrong_hash_says_what_it_should_be(folder):
 
 
 def test_unknown_and_later_fields_fail(folder):
-    found = problems(folder, {"version": 1, "desktop": {}, "colour": 1,
+    found = problems(folder, {"version": 1, "desktop": {"icons": []}, "colour": 1,
                               "windows": [flower(folder, focus=True, rect=[0, 0, 1, 1])]})
     assert "colour: unknown field" in found
-    assert any(p.startswith("desktop: not supported yet") for p in found)
+    assert any(p.startswith("desktop.icons: not supported yet") for p in found)
     assert any(p.startswith("windows[0].focus: not supported yet") for p in found)
     assert "windows[0].rect: unknown field" in found
 

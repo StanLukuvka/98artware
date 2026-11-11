@@ -1,8 +1,8 @@
 # Programs
 
-A program is a Windows program art98 can open, drive and film: Notepad, the picture window, and
-later Paint or Minesweeper. This page says how one is built and how to add the next. It is read
-from the code of the two that exist, `Picture` and `Notepad`. The state file itself is described in
+A program is a Windows program art98 can open, drive and film: Notepad, the picture window, the
+message box (`Dialog`), and later Paint or Minesweeper. This page says how one is built and how to
+add the next. It is read from the code of the three that exist, `Picture`, `Notepad` and `Dialog`. The state file itself is described in
 the [state and action design](state-and-action.md).
 
 ## What a program class is
@@ -19,7 +19,7 @@ The layers are Action, then Window, then programs.
 | --- | --- | --- |
 | Action | `core/art98/actions/` | The base: anything the scene can do on screen. |
 | Window | `core/art98/actions/window/win.py` | `Win`: start a command, find the window, move, size, close. |
-| Programs | `core/art98/actions/programs/` | One file per stock Windows program, such as `notepad.py`. |
+| Programs | `core/art98/actions/programs/` | One file per stock Windows program, such as `notepad.py` and `dialog.py`. |
 | art98's own | `core/art98/actions/window/picture.py` | `Picture`, the window for VIEW.EXE. |
 
 A program is one file, or one folder once it needs more than one. Docs, outputs and experiments stay
@@ -42,10 +42,26 @@ When the state gives none, `state.py` fills in a default.
 | --- | --- |
 | `picture` | `Picture` |
 | `notepad` | `<file name without .txt> - Notepad`, or `Untitled - Notepad` with no file |
+| `dialog` | Not in `APPS`, so it is not in a state and has no title rule. Its title is the one you give it |
 
 The Notepad rule is the function `notepad_title(file)` in `notepad.py`. Confirmed on the real image (M4b): Windows 98 Notepad drops a trailing `.txt`
 (any case) and keeps other extensions and the case, so `note.txt` shows as
 `note - Notepad` and `x.log` as `x.log - Notepad`.
+
+## Dialog
+
+`Dialog` (`actions/programs/dialog.py`) is a program of a different kind: Windows draws the box
+itself, from a `MessageBoxA` call on a guest thread of the agent. It has no command line and no
+file, so it has no `from_state`. A scene adds it in `construct`. It takes an `icon` (stock, one of
+seven custom icons, or a `(dll, index)` pair), `buttons`, `size`, `disabled` and `set_message`.
+The options are in the [Scene API](../scenes/scene-api.md#dialog), and the probes behind them are
+in [experiments/dialog-storm](../../experiments/dialog-storm/README-p1.md).
+
+Two things are worth knowing if you build a program like it. Every box is a window of the same
+class (`#32770`) from the same process, so a title can't say which box is yours: `Dialog` notes
+the windows that exist before its call and takes only a new one. And Windows draws the icon
+slot's picture from a handle, which the slot doesn't copy, so the handle is destroyed only when
+the box is removed.
 
 ## What `app` and `open` mean
 
@@ -139,5 +155,7 @@ After the MVP:
 
 - Other programs: Paint, Minesweeper, Calculator, and any bare `command`. Their classes are parked
   in `core/art98/anim/apps.py`.
+- `Dialog` in a state (`app: "dialog"`), and a helper that adds a cascade of boxes.
 - Adopting a window the scene did not start.
-- Wallpaper, icons and tray in a state.
+- Icons and tray in a state. The desktop colour and wallpaper are built: see the
+  [state and action design](state-and-action.md).

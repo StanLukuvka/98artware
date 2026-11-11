@@ -228,6 +228,18 @@ brings the container within about 10% of local, so that is the default on Linux.
 Docker Desktop, where a Unix socket can't cross the VM boundary. A boot takes
 about 0.3 s in the container against 0.1 s locally.
 
+## The CD drive
+
+A scene's wallpaper goes to the guest on a disc, not through `put_file`. The host sends the
+ISO on the serve channel: a JSON header line with the size (`insert_disc`, at most 64 MiB), then the raw bytes. Serve puts it in the guest's CD drive with QMP. `eject_disc` takes no
+bytes. A revert sends `eject_disc` first, because `loadvm` doesn't remove QEMU's medium; a
+session that never inserted a disc never sends it, so an older container image still works. On
+Podman, real Docker and the local backend, an insert took 5 to 8 ms, the guest saw it in 60 to
+110 ms, setting a 1.44 MB wallpaper took 0.5 to 0.8 s and a revert with an eject took 75 to 145 ms
+(CPU pressure avg10 1.3 to 2.0). The drive's QEMU id is read from `query-block` each time.
+`RemoteVM` has no `disc_state()`, which the local `VM` has. See
+[README-p3](../../experiments/dialog-storm/README-p3.md).
+
 ## What was built
 
 Where the build differs from, or adds to, the plan above:

@@ -24,6 +24,7 @@ SCENES = {
     "hover_dialog": ("HoverDialog", ["--gif-fps", "12", "--gif-colors", "64"]),
     "paint_drawing": ("PaintDrawing", ["--gif-fps", "12", "--gif-colors", "48"]),
     "minesweeper_win": ("MinesweeperWin", ["--gif-fps", "10", "--gif-colors", "48"]),
+    "dialog_storm": ("DialogStorm", ["--gif-fps", "12", "--gif-colors", "64"]),
     "screensaver": ("ScreensaverRun", ["--gif-fps", "12", "--gif-colors", "64"]),
 }
 
@@ -31,7 +32,7 @@ SCENES = {
 def render(name: str) -> str:
     scene, options = SCENES[name]
     output = OUT / f"{name.replace('_', '-')}.gif"
-    folders = ("gallery", ".", "mvp", "blank_start")
+    folders = ("gallery", ".", "mvp", "blank_start", "dialog_storm")
     source = next(path for folder in folders
                   if (path := ROOT / "examples" / folder / f"{name}.py").exists())
     subprocess.run(

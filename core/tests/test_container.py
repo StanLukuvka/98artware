@@ -14,10 +14,10 @@ import pytest
 from art98 import session as session_module
 from art98.bridge import Bridge, BridgeError
 from art98.protocol import frame, unframe
-from art98.qemu import QemuError
+from art98.qemu import VM, QemuError, VMConfig
 from art98.container import host as container
 from art98.container.host import ContainerError, ContainerStage, Engine, RemoteVM, open_channel
-from art98.container.serve import Server
+from art98.container.serve import MAX_DISC, Server
 
 TOKEN = "s3cret-token"
 PPM = b"P6\n2 1\n255\n" + bytes(range(6))
@@ -42,6 +42,12 @@ class FakeVM:
 
     def save_snapshot(self, name):
         self.calls.append(("save_snapshot", name))
+
+    def insert_disc(self, iso):
+        self.calls.append(("insert_disc", iso))
+
+    def eject_disc(self):
+        self.calls.append(("eject_disc",))
 
     def pause(self):
         self.calls.append(("pause",))
@@ -460,3 +466,68 @@ def test_the_entry_point_changes_nothing_without_a_uid_map(tmp_path, monkeypatch
     (tmp_path / "uid_map").write_text(ROOTLESS)
     entry.become_host_user(environ, tmp_path / "uid_map")
     assert "HOME" not in environ
+
+
+def test_insert_and_eject_disc_carry_the_bytes(served):
+    vm = served.remote()
+    iso = bytes(range(256)) * 20
+    vm.insert_disc(iso)
+    vm.eject_disc()
+    vm.pause()  # the stream is still in step after the payload
+    assert served.vm.calls == [("insert_disc", iso), ("eject_disc",), ("pause",)]
+    vm.quit()
+
+
+@pytest.mark.parametrize("size", [0, MAX_DISC + 1, "big"])
+def test_a_disc_of_the_wrong_size_is_refused_and_ends_the_connection(served, size):
+    vm = served.remote()
+    with pytest.raises(QemuError, match="insert_disc size"):
+        vm._request("insert_disc", size=size)
+    served.thread.join(5)  # the stream is out of step, so serve hung up and stopped
+    assert not served.thread.is_alive()
+    with pytest.raises(QemuError):
+        vm.pause()
+    assert served.vm.calls == []
+
+
+def test_the_real_vm_methods_run_behind_serve(tmp_path):
+    """serve calls vm.insert_disc(data) / eject_disc() on the real qemu.VM, QMP stubbed."""
+    class StubQMP:
+        def __init__(self):
+            self.calls = []
+            self.medium = False
+
+        def execute(self, command, **arguments):
+            self.calls.append((command, arguments))
+            if command == "query-block":
+                cd = {"device": "ide1-cd0", "qdev": "/machine/unattached/device[9]"}
+                return [{"device": "ide0-hd0"}, dict(cd, inserted={"file": "x"}) if self.medium else cd]
+            if command == "blockdev-change-medium":
+                self.medium = True
+            if command == "blockdev-remove-medium":
+                self.medium = False
+
+    vm = VM(VMConfig(disk=tmp_path / "unused"))
+    vm.qmp = StubQMP()
+    served = Served(tmp_path)
+    served.server.vm = vm
+    try:
+        remote = served.remote()
+        remote.insert_disc(b"ISO-BYTES")
+        change = next(a for c, a in vm.qmp.calls if c == "blockdev-change-medium")
+        assert Path(change["filename"]).read_bytes() == b"ISO-BYTES"
+        assert Path(change["filename"]).parent == vm._dir
+        assert change["device"] == "ide1-cd0" and change["format"] == "raw"
+        remote.eject_disc()
+        names = [c for c, _ in vm.qmp.calls if c != "query-block"]
+        assert names[-3:] == ["blockdev-open-tray", "blockdev-remove-medium", "blockdev-close-tray"]
+        assert ("blockdev-remove-medium", {"id": "/machine/unattached/device[9]"}) in vm.qmp.calls
+        remote.eject_disc()  # empty drive: nothing more is sent
+        assert [c for c, _ in vm.qmp.calls].count("blockdev-open-tray") == 1
+        remote.quit()
+    finally:
+        served.server.stop()
+        served.thread.join(5)
+        served.serial.listener.close()
+        vm.qmp = None
+        vm.close()

@@ -3,10 +3,11 @@
 This takes you from nothing to a scene with a picture, Notepad and the pointer, and then to a GIF.
 The first scene was rendered on the real image.
 
-**Parked.** Paint, Minesweeper, Screensaver and Dialog still work, but
+**Parked.** Paint, Minesweeper and Screensaver still work, but
 `from art98.anim import *` leaves them out until each program returns as its own action
 class. Samples that use them import them from `art98.anim.apps`. The windows you get without that
-are [`Picture`](scene-api.md#picture) and [`Notepad`](scene-api.md#notepad).
+are [`Picture`](scene-api.md#picture), [`Notepad`](scene-api.md#notepad) and
+[`Dialog`](scene-api.md#dialog).
 
 ## Before you start
 

@@ -5,7 +5,7 @@ An animation is one change over time. You pass it to [`Scene.play`](scene-api.md
 Every animation takes `run_time` and `rate_func` as keywords. A value given to `play` overrides
 both.
 
-**Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
+**Parked.** Paint, Minesweeper and Screensaver still work, but
 `from art98.anim import *` leaves them out until each program returns as its own action
 class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is [`Picture`](scene-api.md#picture).
 Most samples here use Notepad as the window to act on.

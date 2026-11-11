@@ -30,12 +30,22 @@ pause. Tested on the `ready` image, November 2026.
 from __future__ import annotations
 
 import struct
+import time
 
 from .protocol import Out
 from .win32 import SM_CXSCREEN, SM_CYSCREEN, SPI_GETWORKAREA, SPI_SETWORKAREA, SW_HIDE, screen_size, work_area  # noqa: F401
 
 COLOR_DESKTOP = 1
 BLACK = 0x000000
+NAMED_COLOURS = {"teal": (0, 128, 128), "dark_red": (128, 0, 0), "red": (255, 0, 0),
+                 "white": (255, 255, 255), "black": (0, 0, 0)}
+
+HKCU, KEY_SET_VALUE, REG_SZ = 0x80000001, 2, 1
+SPI_SETDESKWALLPAPER = 0x14
+SPIF_UPDATEINIFILE, SPIF_SENDWININICHANGE = 1, 2
+# (TileWallpaper, WallpaperStyle). The one place the styles are defined.
+STYLES = {"center": ("0", "0"), "tile": ("1", "0"), "stretch": ("0", "2")}
+DRIVE_CDROM, INVALID_FILE_ATTRIBUTES = 5, 0xFFFFFFFF
 
 # The interface effects as (name, get action, set action). Each set action
 # takes its on/off value in pvParam, so 0 turns it off.
@@ -57,9 +67,9 @@ POINTER_SIZE = 32
 class DesktopError(RuntimeError):
     """The guest didn't end up blank."""
 
-    def __init__(self, problems: list[str]):
+    def __init__(self, problems: list[str], lead: str = "the desktop isn't blank:"):
         self.problems = problems
-        super().__init__("the desktop isn't blank:\n" + "\n".join(f"  {p}" for p in problems))
+        super().__init__(lead + "\n" + "\n".join(f"  {p}" for p in problems))
 
 
 def shell_windows(guest) -> tuple[int, int, int]:
@@ -72,6 +82,75 @@ def shell_windows(guest) -> tuple[int, int, int]:
     return taskbar, desktop, icons
 
 
+def resolve_colour(colour) -> tuple[int, int, int]:
+    """A colour name from NAMED_COLOURS or an (r, g, b) of ints 0..255, as a tuple. Raises ValueError."""
+    if isinstance(colour, str):
+        if colour not in NAMED_COLOURS:
+            raise ValueError(f"unknown colour {colour!r}; use one of {sorted(NAMED_COLOURS)} or (r, g, b)")
+        return NAMED_COLOURS[colour]
+    try:
+        rgb = tuple(colour)
+    except TypeError:
+        raise ValueError(f"colour must be a name or (r, g, b), not {colour!r}") from None
+    if len(rgb) != 3 or not all(type(c) is int and 0 <= c <= 255 for c in rgb):
+        raise ValueError(f"colour must be three ints from 0 to 255, not {colour!r}")
+    return rgb
+
+
+def colourref(rgb) -> int:
+    """The Win32 COLORREF: red in the low byte."""
+    return rgb[0] | rgb[1] << 8 | rgb[2] << 16
+
+
+def set_colour(guest, rgb) -> None:
+    """Set the desktop colour. On a blank desktop the change shows the icons again, so hide them again."""
+    user32 = guest.user32
+    icons = shell_windows(guest)[2]
+    was_hidden = bool(icons) and not user32.IsWindowVisible(icons).value
+    user32.SetSysColors(1, struct.pack("<I", COLOR_DESKTOP), struct.pack("<I", colourref(rgb)))
+    if was_hidden:
+        user32.ShowWindow(shell_windows(guest)[2], SW_HIDE)
+        guest.sync()
+
+
+def set_wallpaper(guest, path: str, style: str) -> None:
+    """Show the BMP at `path` on the desktop. Icons are not re-hidden: the call doesn't bring them back."""
+    tile, mode = STYLES[style]
+    key = guest.advapi32.RegOpenKeyExA(HKCU, r"Control Panel\Desktop", 0, KEY_SET_VALUE, Out(4))
+    hkey = struct.unpack("<I", key.buffers[0])[0]
+    try:
+        for name, value in (("TileWallpaper", tile), ("WallpaperStyle", mode)):
+            data = value.encode() + b"\0"
+            if guest.advapi32.RegSetValueExA(hkey, name, 0, REG_SZ, data, len(data)).value != 0:
+                raise DesktopError([f"could not set {name} in the registry"], "the wallpaper failed:")
+    finally:
+        guest.advapi32.RegCloseKey(hkey)
+    guest.user32.SystemParametersInfoA(SPI_SETDESKWALLPAPER, 0, path, SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE)
+    guest.sync()
+
+
+def cd_drive(guest) -> str | None:
+    """The CD drive as "D:\\", or None if the guest has none."""
+    mask = guest.kernel32.GetLogicalDrives().value
+    for i in range(26):
+        letter = f"{chr(65 + i)}:\\"
+        if mask >> i & 1 and guest.kernel32.GetDriveTypeA(letter).value == DRIVE_CDROM:
+            return letter
+    return None
+
+
+def wait_for_disc(guest, name: str, timeout: float = 2.0) -> str:
+    """Poll every 50 ms until `name` can be read on the CD; return its full path."""
+    deadline = time.monotonic() + timeout
+    while True:
+        letter = cd_drive(guest)
+        if letter and guest.kernel32.GetFileAttributesA(letter + name).value != INVALID_FILE_ATTRIBUTES:
+            return letter + name
+        if time.monotonic() >= deadline:
+            raise DesktopError([f"the CD with {name} did not show up in {timeout:g} s"], "the wallpaper disc failed:")
+        time.sleep(0.05)
+
+
 def blank(guest, pointer: bool = False) -> None:
     """Turn the restored desktop into a black, empty screen, then check it.
 
@@ -80,7 +159,7 @@ def blank(guest, pointer: bool = False) -> None:
     """
     user32 = guest.user32
     taskbar, desk, icons = shell_windows(guest)
-    user32.SetSysColors(1, struct.pack("<I", COLOR_DESKTOP), struct.pack("<I", BLACK))
+    set_colour(guest, (0, 0, 0))
     if icons:
         user32.ShowWindow(icons, SW_HIDE)
     if taskbar:

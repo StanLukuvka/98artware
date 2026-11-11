@@ -16,6 +16,7 @@ import time
 from ..bridge import BridgeTimeout
 from ..actions.keyboard import Keys, TypeKeys
 from ..actions.pointer import Click, Drag, RightClick
+from ..actions.programs.dialog import Dialog  # noqa: F401  (moved; still importable from here)
 from ..actions.programs.notepad import Notepad  # noqa: F401  (moved; still importable from here)
 from ..actions.window.win import Win
 from ..base.props import Spot
@@ -24,42 +25,7 @@ from ..win32 import window_rect
 
 SW_HIDE, SW_SHOWNA = 0, 8
 BLACK = 0
-PARKED = ("Dialog", "Minesweeper", "Paint", "Screensaver")
-
-
-class Dialog(Win):
-    """A real message box, opened by the agent on a guest thread of its own.
-
-    `button` gives a control to click. `answer` is the button pressed, once
-    the box has closed. `icon` is one of Dialog.ICONS and `buttons` one of
-    Dialog.BUTTONS.
-    """
-
-    window_class = "#32770"
-    ICONS = {None: 0, "error": 0x10, "question": 0x20, "warning": 0x30, "info": 0x40}
-    BUTTONS = {"ok": 0, "okcancel": 1, "abortretryignore": 2, "yesnocancel": 3,
-               "yesno": 4, "retrycancel": 5}
-    ANSWERS = {1: "ok", 2: "cancel", 3: "abort", 4: "retry", 5: "ignore", 6: "yes", 7: "no"}
-
-    def __init__(self, text: str, title: str = "art98", *, icon: str | None = None,
-                 buttons: str = "ok", at: tuple[int, int] | None = None):
-        super().__init__(title, at=at)
-        self.message = text
-        self.style = self.ICONS[icon] | self.BUTTONS[buttons]
-        self._call = None
-
-    def attach(self, scene) -> None:
-        self._call = scene.guest.acall(
-            "user32", "MessageBoxA", 0, self.message, self.title_text, self.style)
-        super().attach(scene)
-
-    def button(self, label: str) -> Win:
-        """A button of the box, by its text."""
-        return self.control("Button", label)
-
-    @property
-    def answer(self) -> str:
-        return self.ANSWERS.get(self._call.wait().value, "unknown")
+PARKED = ("Minesweeper", "Paint", "Screensaver")
 
 
 class Paint(Win):

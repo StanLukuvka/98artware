@@ -1,9 +1,10 @@
 # Scene API
 
-**Parked.** Paint, Minesweeper, Screensaver and Dialog still work, but
+**Parked.** Paint, Minesweeper and Screensaver still work, but
 `from art98.anim import *` leaves them out until each program returns as its own action
-class. Samples that use them import them from `art98.anim.apps`. [`Picture`](#picture) and
-[`Notepad`](#notepad) are not parked.
+class. Samples that use them import them from `art98.anim.apps`. [`Picture`](#picture),
+[`Notepad`](#notepad), [`Dialog`](#dialog) and
+[`Backdrop`](#backdrop) are not parked.
 
 Everything here comes from `from art98.anim import *`. For what you pass to `play`, see
 [Animations](animations.md).
@@ -51,7 +52,8 @@ positions back, for when something other than the script moved a window.
 
 ### States
 
-A state file describes the desktop: the display mode, the windows, and where the pointer is.
+A state file describes the desktop: the display mode, its colour and wallpaper, the windows,
+and where the pointer is.
 `set_state(path)` makes the desktop look like it, within one frame, as many times as a scene
 likes. It reverts the guest to the snapshot it booted from, opens the state's windows, and then
 checks that the guest matches. Props from before are gone, and adding one again opens a new
@@ -79,6 +81,7 @@ Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256
 | --- | --- |
 | `version` | `1`. The only field that must be there. |
 | `display` | `[width, height, depth]`, a mode the guest's driver offers. Depth is 8, 16, 24 or 32. |
+| `desktop` | `colour` as `[r, g, b]`, and `wallpaper` as a BMP (`file` and `sha256`) with a `style` of `"center"` (the default), `"tile"` or `"stretch"`. Each part is optional, and `style` needs a `wallpaper`. |
 | `windows` | Listed back to front, so the last one is on top. |
 | `id` | The name for `prop(id)`. Each one is used once. |
 | `app` | `"picture"`, a [`Picture`](#picture), or `"notepad"`, a [`Notepad`](#notepad). |
@@ -92,6 +95,10 @@ Every mistake in the file is listed at once, as a `StateError`, before the deskt
 the guest doesn't match the state afterwards, `StateMismatch` lists each difference. For example,
 Windows won't make a window smaller than 112 x 27, so `"size": [40, 20]` stops with
 `size [40, 20] wanted, the guest has [112, 27]`.
+
+The wallpaper reaches the guest on a CD in drive D:, not through `put_file`, so a 1.4 MB BMP
+costs about a second (see [Desktop colour and wallpaper](#desktop-colour-and-wallpaper)).
+Icons and the tray are not in a state yet. `Dialog` is not an `app` either: add it in `construct`.
 
 A Set with two windows and a 57 KB image took 1.2 to 1.6 s on a quiet host, mostly reverting and
 copying the files again. The revert also winds the guest's clock back to the snapshot's time.
@@ -558,22 +565,92 @@ Channel Screen Saver is on the image but left out, because moving the pointer do
 
 Source: [screensaver.py](../../examples/gallery/screensaver.py).
 
+## Backdrop
+
+`Backdrop(colour)` sets the desktop colour in one frame. `colour` is an `(r, g, b)` tuple of ints
+from 0 to 255, or one of `teal`, `red`, `dark_red`, `white`, `black`. Anything else raises
+`ValueError` when you build it. It claims nothing, so it can run beside other animations.
+
+The screen is 16-bit, so Windows rounds the colour to the nearest 5-6-5 value: 128 becomes 120
+and 255 becomes 248. `dark_red` is the flat colour (120, 0, 0), with no dither. On the stock
+desktop the icon labels stay clear on the new colour and the taskbar doesn't change. On a blank
+desktop the icons stay hidden: Windows shows them again after a colour change, and `Backdrop`
+hides them again.
+
+```python
+from art98.anim import *
+
+
+class Colours(Scene):
+    desktop = "blank"
+
+    def construct(self):
+        self.pause(0.3)
+        self.play(Backdrop("teal"))
+        self.pause(0.3)
+        self.play(Backdrop((40, 0, 90)))
+        self.pause(0.3)
+```
+
+### Desktop colour and wallpaper
+
+A state's `desktop` part sets the same colour, and a wallpaper. The BMP is built into a small
+ISO 9660 disc on the host and put in the guest's CD drive, `D:`, over the control channel. The
+guest reads it from there and sets it with `SystemParametersInfo`. The BMP must be 24-bit or
+8-bit. The three styles are `center`, `tile` and `stretch`. Setting a wallpaper does not bring
+the icons or the taskbar back on a blank desktop.
+
+Timings, on a quiet host: the disc goes in in 1 to 8 ms, the guest sees it after about 40 to
+110 ms (the scene waits for it, up to 2 s, and then fails with a clear error), and setting a
+1.4 MB wallpaper takes 0.3 to 0.8 s.
+
+A revert ejects the disc first, so the next state starts with an empty drive. It does so only
+when the session put a disc in.
+
 ## Dialog
 
-Parked: import it from `art98.anim.apps`.
-
-`Dialog(text, title="art98", *, icon=None, buttons="ok", at=None)`
+`Dialog(text, title="art98", *, icon=None, buttons="ok", at=None, size=None, disabled=False)`
 
 A real `MessageBoxA`. It blocks whoever calls it, so the agent runs it on its own guest thread
-with `ACALL`, and the scene carries on.
+with `ACALL`, and the scene carries on. Each box finds its own window, so several boxes with the
+same title are fine, such as a storm of `???`.
 
 | Parameter | Values |
 | --- | --- |
-| `icon` | `None`, `"error"`, `"question"`, `"warning"`, `"info"` |
+| `icon` | `None`, a stock key, a custom key, or a `(dll, index)` pair. See below. |
 | `buttons` | `"ok"`, `"okcancel"`, `"abortretryignore"`, `"yesnocancel"`, `"yesno"`, `"retrycancel"` |
+| `at` | The top left corner. Default: where Windows puts it. |
+| `size` | The outer `(width, height)`. Must not be smaller than the stock box, or `ValueError`. |
+| `disabled` | `True` greys every button. |
 
-`button(label)` gives a button as a `Win`. `answer` is the lower-case name of the button pressed,
-and it waits for the box to close.
+The stock icon keys are `"error"`, `"question"`, `"warning"` and `"info"`. An unknown key
+raises `ValueError`. The custom keys are icons from the guest's own files, each seen in a real
+box:
+
+| Key | File | Index |
+| --- | --- | --- |
+| `"computer"` | `C:\WINDOWS\SYSTEM\shell32.dll` | 15 |
+| `"printer"` | `C:\WINDOWS\SYSTEM\shell32.dll` | 16 |
+| `"mouse"` | `C:\WINDOWS\SYSTEM\main.cpl` | 0 |
+| `"telephone"` | `C:\WINDOWS\SYSTEM\modem.cpl` | 0 |
+| `"cd"` | `C:\WINDOWS\SYSTEM\shell32.dll` | 11 |
+| `"globe"` | `C:\WINDOWS\SYSTEM\shell32.dll` | 13 |
+| `"flag"` | `C:\WINDOWS\SYSTEM\user.exe` | 0 |
+
+`icon=(r"C:\WINDOWS\SYSTEM\shell32.dll", 15)` names any other icon the same way. A file or index
+with no icon raises `ValueError`. The icon is drawn 32 x 32 in the box's icon slot.
+
+`size` resizes the box from its top left corner, then lays the buttons out again (75 x 23, in a
+row, centred at the bottom) and widens the text. With `at`, the box grows right and down from
+`at`.
+
+`set_message(text)` changes the text at once, with no residue. Newlines make lines of about 15
+pixels each. It raises `ValueError` if the new text would reach the buttons: give the Dialog a
+bigger `size`. `button(label)` gives a button as a `Win`. `answer` is the lower-case name of the
+button pressed, and it waits for the box to close.
+
+A Yes/No box ignores the close that its title bar sends, so `close()` doesn't shut it. Click one of its
+buttons.
 
 ![Hover and dialog](../assets/gifs/hover-dialog.gif)
 
@@ -581,7 +658,6 @@ Source: [hover_dialog.py](../../examples/gallery/hover_dialog.py).
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Dialog, Notepad
 
 
 class Question(Scene):
@@ -597,6 +673,10 @@ class Question(Scene):
         self.play(TypeWithCursor(pad, f"You pressed {box.answer}."))
         self.pause(1)
 ```
+
+A cascade, a jittered pair, typed text and a colour change are in the
+[dialog storm](gallery.md#dialog-storm). Not built yet: a helper that adds a cascade, `Dialog` as
+a state `app`, and icons in a state.
 
 ## Rendering
 
