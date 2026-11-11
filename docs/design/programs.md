@@ -1,0 +1,143 @@
+# Programs
+
+A program is a Windows program art98 can open, drive and film: Notepad, the picture window, and
+later Paint or Minesweeper. This page says how one is built and how to add the next. It is read
+from the code of the two that exist, `Picture` and `Notepad`. The state file itself is described in
+the [state and action design](state-and-action.md).
+
+## What a program class is
+
+One Python class per program. It starts the program on the guest, finds its window, and holds the
+verbs that drive it (`text`, `set_text`, `close`). A scene adds it as a prop, and a state file names
+it with `app`.
+
+## Where it lives
+
+The layers are Action, then Window, then programs.
+
+| Layer | Path | What it is |
+| --- | --- | --- |
+| Action | `core/art98/actions/` | The base: anything the scene can do on screen. |
+| Window | `core/art98/actions/window/win.py` | `Win`: start a command, find the window, move, size, close. |
+| Programs | `core/art98/actions/programs/` | One file per stock Windows program, such as `notepad.py`. |
+| art98's own | `core/art98/actions/window/picture.py` | `Picture`, the window for VIEW.EXE. |
+
+A program is one file, or one folder once it needs more than one. Docs, outputs and experiments stay
+out of these folders.
+
+## The three hooks
+
+| Hook | Where | What it does |
+| --- | --- | --- |
+| `from_state(window)` | the class | Builds the prop from one parsed window of a state file. |
+| `APPS` | `core/art98/anim/setstate.py` | The one list: `{"picture": Picture, "notepad": Notepad}`. A state's `app` must be a key. |
+| title rule | `core/art98/state.py` | The exact title-bar text, used as the default `title` and checked after Set. |
+
+`state.programs()` reads `APPS`, so adding a key there makes the name valid in a state file.
+
+**The title rule.** After Set, the guest's window title must equal the state's `title` exactly.
+When the state gives none, `state.py` fills in a default.
+
+| Program | Default title |
+| --- | --- |
+| `picture` | `Picture` |
+| `notepad` | `<file name without .txt> - Notepad`, or `Untitled - Notepad` with no file |
+
+The Notepad rule is the function `notepad_title(file)` in `notepad.py`. Confirmed on the real image (M4b): Windows 98 Notepad drops a trailing `.txt`
+(any case) and keeps other extensions and the case, so `note.txt` shows as
+`note - Notepad` and `x.log` as `x.log - Notepad`.
+
+## What `app` and `open` mean
+
+| `app` | `open` is | Without `open` |
+| --- | --- | --- |
+| `picture` | a BMP, checked by `check_bmp` | an empty window |
+| `notepad` | a text file, checked by `check_text` | `Untitled - Notepad` |
+
+`open` is `{"file": "...", "sha256": "..."}`. The file sits beside the state and is referenced by
+path and hash. A wrong hash fails the load.
+
+## How files reach the guest
+
+`guestfiles.ensure(guest, data, name)` copies the bytes to `C:\ART98\F<7 hex>\<name>`, where the
+folder name is the start of the content hash. If that path exists already, nothing is copied. A
+revert throws away everything copied since the baseline, so `attach()` calls `ensure` every time
+the prop is added.
+
+- `Notepad.attach` copies the text and starts `notepad.exe "<path>"`.
+- `Picture.attach` copies VIEW.EXE and the BMP, then starts VIEW.EXE with the position, size, title
+  and image path.
+
+## Adding a program
+
+1. Write the class in `actions/programs/<name>.py`, based on `Win`. Set `command` and
+   `window_class`. Add `ready()` if you need a child window, and verbs on top.
+2. Add `from_state(cls, window)`. Read `window.open.path`, `at`, `size` and `title`.
+3. In `attach()`, copy any file with `guestfiles.ensure` and put the guest path in `command`.
+4. Add the class to `APPS` in `anim/setstate.py`, and export it from `actions/programs/__init__.py`.
+5. In `state.py`, add the default title and the file check for `open` (the `check_*` call in
+   `_Reader.window`).
+6. Add a test beside `core/tests/test_notepad.py`, using the stand-in guest (no VM), and a real
+   render on the image.
+
+Does the program need a guest change?
+
+| Program | Guest change | After it |
+| --- | --- | --- |
+| Stock Windows (`notepad.exe`, `mspaint.exe`) | None. | Nothing to rebuild. |
+| art98's own (VIEW.EXE) | Edit the C source in `guest/`. | `make -C guest`, then `art98 up --rebuild` so the container image holds the new build. |
+
+## Worked example: Notepad
+
+A state with one Notepad window:
+
+```json
+{
+  "version": 1,
+  "windows": [
+    {
+      "id": "note",
+      "app": "notepad",
+      "at": [320, 140],
+      "size": [420, 260],
+      "open": {"file": "assets/note.txt", "sha256": "..."}
+    }
+  ]
+}
+```
+
+Set does this:
+
+1. The state loads. `app` is in `APPS`. `check_text` runs on `note.txt`. With no `title`, it becomes
+   `note - Notepad`.
+2. `apply_state` calls `Notepad.from_state(window)` and adds the prop.
+3. `attach` copies the text, with CRLF line ends, to `C:\ART98\F<hash>\note.txt` and runs
+   `notepad.exe "<that path>"`.
+4. `ready` finds the Edit control. The window is moved to `at` and `size`.
+5. `check_state` compares the title, position and size. Any difference raises `StateMismatch`.
+
+In a scene, `note.text` reads the Edit control, `note.set_text("...")` replaces it, and
+`note.close()` closes Notepad without the save prompt. `Notepad()` with no title takes any
+Notepad window on the guest.
+
+## Limits
+
+These are checked on the host, before anything is copied.
+
+| Limit | Value | Why |
+| --- | --- | --- |
+| Text size | 50,000 bytes | Above this, Windows 98 Notepad offers WordPad instead. |
+| Line ends | CRLF | `check_text` rewrites bare LF to CRLF, which Notepad needs. |
+| Encoding | cp1252 | Any other byte fails with its position. NUL bytes fail too. |
+| Title | no `"`, no control character, no trailing `\`, cp1252 only | It goes on a command line: a trailing `\` would escape the closing quote, and anything outside cp1252 becomes `?`. |
+| File name | none of `\ / : * ? " < > |`, no control character, no trailing space or dot, cp1252 only | It goes on a command line and in the guest path; `?` is a wildcard. |
+| BMP | `check_bmp` | Header, depth and pixels must all be there, or Windows 98 can crash loading it. |
+
+## Not yet
+
+After the MVP:
+
+- Other programs: Paint, Minesweeper, Calculator, and any bare `command`. Their classes are parked
+  in `core/art98/anim/apps.py`.
+- Adopting a window the scene did not start.
+- Wallpaper, icons and tray in a state.

@@ -40,7 +40,7 @@ camera (turning state into pixels), and `SceneFileWriter` (partial movies, secti
 art98 has the same jobs in other places:
 
 - The frame loop sits in `Scene.play`, which calls the recorder directly.
-- `FrameRecorder` lives in `session.py` with the VM lifecycle, not in its own module.
+- `Recorder` in `recorder.py` writes the clips and joins them, the job of Manim's partial movies.
 - `render` in `anim/renderer.py` also owns booting and the private copy, which are backend jobs.
 - `anim/` holds the scene, the renderer and the state code as well as animations. `state.py` sits
   at the top level, and `setstate.py` in `anim/`.

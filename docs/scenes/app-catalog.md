@@ -4,7 +4,8 @@ What is on the prepared image, and how each program behaves when driven. Everyth
 probed on the real guest: paths, classes, control ids and quirks. Code blocks use the setup from
 [Win32 recipes](win32-recipes.md#setup), and each one ran from the `ready` snapshot.
 
-For the scene props that wrap some of these programs, see the [Scene API](scene-api.md).
+For the scene props that wrap some of these programs, see the [Scene API](scene-api.md). Notepad is
+the one program that is no longer parked: it is `Notepad` in `art98.anim`, and `"app": "notepad"` in a state.
 
 Sound Recorder is not covered, because audio is deferred.
 

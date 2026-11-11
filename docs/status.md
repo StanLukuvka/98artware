@@ -9,11 +9,13 @@ work can pick up from here.
 | --- | --- | --- |
 | VM preparation | Built. `art98 setup` (alias `prep`) turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input. Four steps: vm, setup, init_api, ready | [Part 1](setup/README.md) |
 | Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](scenes/bridge.md), [Instruction set](scenes/instruction-set.md) |
-| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. The program classes are parked, unexported | [Part 2](scenes/README.md) |
-| Examples | `examples/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
+| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. Notepad is a program in `actions/programs/notepad.py`. The other program classes are parked, unexported | [Part 2](scenes/README.md) |
+| Examples | `examples/blank_start` (the proof scene: a Picture and a Notepad, three sections), `examples/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
 | Diagrams | Seven diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
-| States and sections | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Sections aren't built | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
-| Recorder | `FrameRecorder`, one file per render. A `Recorder` with `cut()` is specified, not built | [Recorder](design/state-and-action.md#recorder) |
+| States and sections | The MVP is built: state files, `set_state`, picture windows and `Teleport`. `Scene.next_section(name)` is built, on top of `cut()`. The `--section` option is not | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
+| Recorder | Built: `Recorder`, with `cut()` to start a new clip during a run, `clips` to list them, and a join into the output. Clips are kept beside the output as MP4 | [Recorder](design/state-and-action.md#recorder), [Clips](scenes/scene-api.md#clips) |
+| Programs | Notepad is the first program, in `actions/programs/notepad.py`. It opens a text file or an empty window and checks its title. Windows 98 drops a trailing `.txt` from the title | [Programs](design/programs.md) |
+| CLI and checks | Errors from `art98` print one clean line, not a traceback. Warnings say when the image or guest programs are older than the code (`freshness.py`). `art98 doctor` works on a host that has only a container engine and ffmpeg. CI runs the unit tests on each push (`.github/workflows/tests.yml`) | [CLI](setup/cli.md) |
 | Container | Built: the backend in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image, runs setup in it and pings; `ART98_BACKEND=container` or `--backend container` runs a stage in it. The default backend is still `local`. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
 
 Audio is deferred. art98 is video only.
@@ -91,6 +93,22 @@ Audio is deferred. art98 is video only.
     the tools in `tools/`, the revert probes in `experiments/`, and render output goes to the
     ignored `out/` (`5579adc`). The lifecycle and architecture diagrams' PNGs were not
     redrawn.
+17. **Recorder with `cut()`, 2026-11-11.** `Recorder` in `recorder.py` replaces `FrameRecorder`.
+    `self.cut()` ends a clip between two frames. `render()` keeps the clips as `<stem>-01.mp4`
+    and on beside the output and joins them into it by stream copy, or into one lossless
+    recording when a GIF is wanted (`keep_clips=False` deletes them). `close()` and `cut()`
+    raise `RecorderError` when ffmpeg failed, without hiding the scene's own error, and a screen
+    size change inside a clip raises and suggests `cut()`. What the build added to the spec is
+    under [As built](design/state-and-action.md#as-built).
+18. **Docs, checks and the proof scene, 2026-11-11.** Notepad became the first program in
+    `actions/programs/`. `next_section` was built; `--section` was not. Errors from the CLI are
+    clean, freshness warnings were added, `art98 doctor` works with only a container engine, and
+    CI runs the unit tests. `examples/blank_start` is the proof scene. Two host checks ran. The
+    first frames of a stock desktop are settled by a pointer nudge, not a revert
+    ([first-frame](../experiments/first-frame/README.md)). A busy host slows a render about 5
+    times with the same frames, and a title-bar Drag no longer leaves stray label pixels
+    ([host-checks](../experiments/host-checks/README.md),
+    [On a busy host](setup/troubleshooting.md#on-a-busy-host)). The docs were corrected to match.
 
 ## What is open
 
@@ -99,29 +117,20 @@ Audio is deferred. art98 is video only.
 In order, from the layer review of 2026-11-11. See also
 [After the MVP](design/state-and-action.md#after-the-mvp).
 
-1. **The [recorder](design/state-and-action.md#recorder) with `cut()`.** It builds
-   on `FrameRecorder` in `recorder.py`. Its open questions were
-   [decided](design/state-and-action.md#recorder-decisions) on 2026-11-10: one GIF from joined lossless
-   clips, clips kept as MP4, the `close()` exit-code fix included, and a size change inside a
-   clip raises.
-2. **Sections:** `next_section` and `--section`.
-3. **Program classes:** a one-page design, then a Notepad pilot. Each program becomes a file
-   in `actions/programs/` that subclasses `Win`, made when its pilot starts. The base is `Prop`,
-   with hooks for a name used in state files, a check of its state entry, and opening or
-   adopting a window from a state. Those replace the fixed `APPS` list and the `"picture"`
-   special case in `state.py`. `apps.py` stays whole until then.
-4. **Port the showcase** and re-render the gallery.
-5. **Container follow-ups.** Try real Docker, rootful above all: the switch to the host's uid
-   in `entry.py` has only run against a stand-in uid map. Then decide whether `container`
-   becomes the default backend.
-
-Two bugs on hold below sit on the `set_state` path, the failed `load_snapshot` and the pending
-async calls on `! CRASH`. They may be worth taking off hold.
+1. **Rootful Docker test.** The switch to the host's uid in `entry.py` has only run against a
+   stand-in uid map.
+2. **Default backend.** Decide whether `container` becomes the default instead of `local`.
+3. **Other programs.** Paint, Minesweeper and the rest return one at a time, each as a file in
+   `actions/programs/` that subclasses `Win`, following the Notepad pilot. `apps.py` and the
+   fixed `APPS` list go when the last one is moved.
+4. **Gallery and showcase port.** Port the showcase and re-render the gallery.
+5. **`--section`.** Render one section of a scene, on top of `next_section`.
 
 ### Known bugs, on hold
 
 These were found while writing the docs. Fixing them was started, then paused for the design
-work. None of them block the MVP.
+work. None of them block the MVP. (`AsyncCall.wait()` was listed here as waiting forever. It
+doesn't: with no timeout it uses the bridge's, 10 s by default, and raises `BridgeTimeout`.)
 
 | Where | Bug |
 | --- | --- |
@@ -130,10 +139,8 @@ work. None of them block the MVP.
 | Agent | An `ERR` sent after an `ACALL`'s `OK` is dropped |
 | Agent | A failed `CreateThread` isn't handled |
 | Host | Pending async calls aren't failed when the agent sends `! CRASH` |
-| Host | `AsyncCall.wait()` waits forever by default |
 | Host | `_read_loop` only catches `OSError` |
 | Host | A failed `load_snapshot` leaves QEMU in its `restore-vm` state |
-| Host | `FrameRecorder.close` doesn't check ffmpeg's exit code |
 | Tests | Each `test_qemu.py` run leaves one `art98-*` socket folder in `$XDG_RUNTIME_DIR`: a test VM isn't closed |
 
 ### Docs that are out of date
@@ -141,10 +148,16 @@ work. None of them block the MVP.
 - `put_file`, `get_file` and app launch times in the README, [bridge.md](scenes/bridge.md),
   [win32-recipes.md](scenes/win32-recipes.md) and the `put_file` docstring are quiet-host
   figures. On a busy host they can be several times slower.
-- On a fresh boot, frames before the first pointer move have no pointer and slightly brighter
-  colours. This affects stock scenes and isn't documented.
-- Moving a window off another one can leave desktop label pixels in the lower window's frame.
-  Today's scenes probably show this. It isn't checked or documented in Part 2.
+- Resolved: on a fresh boot, stock-desktop frames before the first pointer move had no pointer
+  and brighter colours. One `SetCursorPos` nudge in `Pointer.attach` fixes it. See
+  [first-frame](../experiments/first-frame/README.md) and [Blank start](design/blank-start.md#the-first-frame).
+- Resolved: dragging a window by its title bar on the stock desktop left desktop label pixels in
+  its frame. `Win.repaint_if_moved` now repaints the moved window each frame, and the check shows
+  0 stale pixels. See [host-checks](../experiments/host-checks/README.md).
+- Resolved: the busy-host timings are now measured. At CPU pressure about 45 a render takes about
+  5 times as long and `put_file` about 10 times, with the same frames and no timeout. See
+  [On a busy host](setup/troubleshooting.md#on-a-busy-host). The quiet-host figures in the other
+  pages are still quiet-host figures.
 
 ### Smaller decisions
 

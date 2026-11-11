@@ -22,11 +22,13 @@ after that is **actions**, which are free Python on top: animations, Win32 calls
   "windows": [
     {"id": "album", "app": "picture", "title": "Album", "at": [380, 220], "size": [360, 280]},
     {"id": "flower", "app": "picture", "title": "Flower", "at": [60, 60], "size": [240, 200],
-     "open": {"file": "../assets/flower.bmp", "sha256": "2357680...a619"}}
+     "open": {"file": "../assets/flower.bmp", "sha256": "<sha256 of the file>"}}
   ],
   "pointer": [400, 500]
 }
 ```
+
+Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256sum examples/mvp/assets/flower.bmp`.
 
 This is the scene, without its pauses:
 
@@ -76,18 +78,21 @@ renders the same frames on any host. The MVP scene gives 0 of 257 frames differe
 the local backend and the container, and between an image built in the container and one
 built on the host.
 
-The MVP's one window is [`Picture`](docs/scenes/scene-api.md#picture), art98's own small
-viewer that shows a BMP. Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
-they're parked in `art98.anim.apps` until each comes back as its own action class. Sections
-(`next_section`), re-recording one section, and a recorder that cuts clips are designed
-but not built: see the [state and action design](docs/design/state-and-action.md) and
-[status](docs/status.md).
+The windows here are [`Picture`](docs/scenes/scene-api.md#picture), art98's own small viewer
+that shows a BMP, and [`Notepad`](docs/scenes/scene-api.md#notepad). Paint, Minesweeper,
+Screensaver and Dialog still work, but they're parked in `art98.anim.apps` until each comes
+back as its own action class. The recorder is built: `cut()` ends a clip and starts the next,
+and `next_section(name)` does the same with a label. A render with cuts keeps
+`<stem>-01.mp4` and on beside the output and joins them. See the
+[state and action design](docs/design/state-and-action.md) and [status](docs/status.md).
+A scene that uses all of this is
+[examples/blank_start/blank_start.py](examples/blank_start/blank_start.py).
 
 ## Quick start, in a container
 
 You need Docker, Python 3.11 or newer with [uv](https://docs.astral.sh/uv/), ffmpeg,
 and your own Windows 98 SE disc image and product key. Nothing here supplies them. art98
-calls only `docker`. On a Podman host, install `podman-docker`, which provides that command.
+runs from a checkout with `uv run`: there is no wheel and no `pip install`. It calls only `docker`. On a Podman host, install `podman-docker`, which provides that command.
 
 ```bash
 uv run art98 up --iso /path/to/win98se.iso
@@ -123,7 +128,7 @@ product key in clear text, which matters less for a 1998 key; see
 
 ## Or on the host
 
-The `local` backend, still the default, runs QEMU on the host instead. Install the tools. On
+The `local` backend, still the default for now, runs QEMU on the host instead. Install the tools. On
 Fedora:
 
 ```bash
@@ -232,7 +237,10 @@ uv run --group dev pytest
 | Suite | Runs against |
 |-------|--------------|
 | `test_protocol`, `test_bridge` | Python alone |
-| `test_anim`, `test_picture`, `test_desktop`, `test_state` | The scene layer, the blank start and state files, on a fake guest |
+| `test_anim`, `test_picture`, `test_notepad`, `test_desktop`, `test_state` | The scene layer, the blank start, state files, Picture and Notepad, on a fake guest |
+| `test_recorder` | The recorder: clips, `cut()`, join, the temp file, ffmpeg errors. Needs ffmpeg |
+| `test_cli` | The command line, including clean `error:` messages and `art98 doctor` |
+| `test_freshness` | The warnings about an image or build that is out of date |
 | `test_anim_docs` | The documented API against the code |
 | `test_setup`, `test_up` | The setup tool, with mtools for the disk tests, and `art98 up` without an engine |
 | `test_qemu` | Real QEMU with no Windows: boot chain, QMP, snapshots |
@@ -271,8 +279,11 @@ baud, so files move well above the line rate. Setup quirks that `art98 setup` ha
 ## Not done yet
 
 - Audio is deferred. art98 is video only for now, though the VM keeps its Sound Blaster.
-- The container is tested through Podman's `docker` command, not with real Docker. Rootful
-  Docker's switch to your uid ran only against a stand-in uid map.
+- The container is tested through Podman's `docker` command, not with real Docker. The real
+  rootful Docker test is still open: Docker's switch to your uid ran only against a stand-in
+  uid map.
+- The default backend is still `local`. Switching it to the container is open.
+- Programs other than Picture and Notepad are parked, and re-recording one section is not built.
 - The Wine suite against the final agent. It needs a Wine prefix on this machine.
 
 [docs/status.md](docs/status.md) has the full list of what's built and what's next.

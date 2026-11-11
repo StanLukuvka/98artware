@@ -67,6 +67,10 @@ A scene run on a private copy, 2026-11-10, CPU pressure `some avg10` 0.00 to 0.3
   closes;
 - with `pointer_visible = True`, only the arrow shows, before and after `set_state`.
 
+## The first frame
+
+On a stock desktop, a fresh boot shows brighter, pointerless frames until the first pointer move. The blank desktop hides this. It is settled by one `SetCursorPos` nudge in `Pointer.attach`, not by a revert after boot. See [first-frame](../../experiments/first-frame/README.md).
+
 ## Prep changes not made
 
 These would make the snapshot itself start closer to blank. Each changes the `ready` step and

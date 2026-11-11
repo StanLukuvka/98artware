@@ -82,7 +82,7 @@ host                                  container (one per stage)
 scene.py, art98.anim                  art98 serve
 Bridge (client half, unchanged)  ──▶  relay  ──▶ COM1 socket ──▶ QEMU ──▶ agent.exe
 RemoteVM: screenshot, keys, revert ─▶ control ─▶ QMP
-FrameRecorder + ffmpeg  ◀── PPM frames ──┘
+Recorder + ffmpeg       ◀── PPM frames ──┘
 ```
 
 On Linux the two channels run over a Unix socket in a folder the host mounts into the container,
@@ -146,7 +146,7 @@ leave a VM running. Only a SIGKILL of the container leaves its run copy in `work
   switching is the owner's call.
 - `session.stage(work, backend=...)` boots on a throwaway copy. The local backend copies the
   disk under `work/runs` itself; the container makes its own. `render` uses it.
-- `revert`, `FrameRecorder` and every scene are unchanged: they only see `Session.vm` and
+- `revert`, the recorder and every scene are unchanged: they only see `Session.vm` and
   `Session.bridge`.
 
 On Linux the host makes a private folder under `$XDG_RUNTIME_DIR` (mode 0700) and mounts it at
@@ -287,7 +287,7 @@ as uid 1000.
 - VMs on another machine. Only a published port on loopback is covered; across a network the
   link would need TLS.
 - Audio, which is still deferred.
-- Moving `FrameRecorder` into the container. It stays on the host, where the planned recorder
-  changes will happen.
+- Moving the recorder into the container. It stays on the host; `Recorder`, which replaced
+  `FrameRecorder`, was built there.
 - Switching the default backend to `container`. The suite passes on both, so it can be done
   whenever the owner wants.

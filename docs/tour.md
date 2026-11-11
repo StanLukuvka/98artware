@@ -71,7 +71,7 @@ The plumbing under every scene. Read in this order, bottom up:
 - [ ] [bridge.py](../core/art98/bridge.py): the link to the agent, as `guest.user32.X(...)`.
 - [ ] [guestfiles.py](../core/art98/guestfiles.py): files copied to the guest, named by content.
 - [ ] [session.py](../core/art98/session.py): a running stage, `boot`, `private_stage`, revert.
-- [ ] [recorder.py](../core/art98/recorder.py): `FrameRecorder`, one video per render, and the GIF defaults.
+- [ ] [recorder.py](../core/art98/recorder.py): `Recorder`, frames to clips with `cut()`, and the GIF defaults.
 - [ ] [state.py](../core/art98/state.py): the JSON state files for a starting desktop.
 - [ ] [desktop.py](../core/art98/desktop.py): the blank start, a black, empty screen after each revert.
 - [ ] [cli.py](../core/art98/cli.py): the `art98` command.
@@ -95,8 +95,11 @@ What a scene author imports with `from art98.anim import *`.
 - [ ] [commands.py](../core/art98/actions/window/commands.py): minimize, maximize, restore, close, and `Teleport`.
 - [ ] [menu.py](../core/art98/actions/window/menu.py): open a window's menu and pick an item.
 - [ ] [picture.py](../core/art98/actions/window/picture.py): the picture window.
-- [ ] [apps.py](../core/art98/anim/apps.py): the programs on the image, as props.
+- [ ] [notepad.py](../core/art98/actions/programs/notepad.py): Notepad as a program. Programs live in
+  `actions/programs/`, one file each, and subclass `Win`.
+- [ ] [apps.py](../core/art98/anim/apps.py): the parked programs (Paint, Minesweeper and the rest), unexported.
 - [ ] [timeline.py](../core/art98/anim/timeline.py): `play`, `wait`, `pause`, `live` as functions `Scene` calls.
+- [ ] [freshness.py](../core/art98/freshness.py): warns when the image or guest programs are older than the code.
 - [ ] [setstate.py](../core/art98/anim/setstate.py): applies a state and checks it took.
 - [ ] [renderer.py](../core/art98/anim/renderer.py): VM, recorder, output file.
 
@@ -130,6 +133,8 @@ Run everything with `uv run --group dev pytest`. Tests marked `qemu` skip withou
 
 - [ ] [hello.py](../examples/hello.py): the smallest scene. Renders to `hello.mp4`.
 - [ ] [showcase.py](../examples/showcase.py): a longer tour of the desktop.
+- [ ] [blank_start/blank_start.py](../examples/blank_start/blank_start.py): the proof scene: a Picture and a
+  Notepad on the blank desktop, three sections.
 - [ ] [mvp/mvp.py](../examples/mvp/mvp.py): picture windows set from
   [state files](../examples/mvp/states/two_windows.json), then moved on camera.
 - [ ] [gallery/](../examples/gallery/): one short scene per feature;

@@ -6,10 +6,11 @@ Each GIF is a real scene on the real image, cut down to keep the file small. To 
 uv run python tools/render_all.py
 ```
 
-**Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
+**Parked.** Paint, Minesweeper, Screensaver and Dialog still work, but
 `from art98.anim import *` leaves them out until each program returns as its own action
-class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is [`Picture`](scene-api.md#picture).
-Every scene here but the MVP and `pointer_clicks` uses one.
+class. Samples that use them import them from `art98.anim.apps`. [`Picture`](scene-api.md#picture) and
+[`Notepad`](scene-api.md#notepad) are not parked.
+Most scenes here were written before the MVP, so their samples still import Notepad from `art98.anim.apps`. That works, and `from art98.anim import *` now gives the same `Notepad`.
 
 Give scene names to render only those, such as `render_all.py typing`. A GIF's frame rate and colours are set in that file.
 

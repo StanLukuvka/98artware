@@ -1,8 +1,9 @@
 # Scene API
 
-**Parked.** Notepad, Paint, Minesweeper, Screensaver and Dialog still work, but
+**Parked.** Paint, Minesweeper, Screensaver and Dialog still work, but
 `from art98.anim import *` leaves them out until each program returns as its own action
-class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is [`Picture`](#picture).
+class. Samples that use them import them from `art98.anim.apps`. [`Picture`](#picture) and
+[`Notepad`](#notepad) are not parked.
 
 Everything here comes from `from art98.anim import *`. For what you pass to `play`, see
 [Animations](animations.md).
@@ -30,7 +31,8 @@ Subclass it and write `construct`. One scene is one recording.
 | `props` | The props on stage. |
 | `work_area` | `(left, top, right, bottom)` of the work area: the whole screen when blank, above the taskbar when stock. |
 | `screen` | The same area as a `Box`, to measure against. |
-| `time` | Video time in seconds: frames written over `fps`. It never reads a clock. |
+| `recorder` | The [`Recorder`](bridge.md#recorder) the frames go to. `video` is another name for it. |
+| `time` | Video time in seconds: frames written over `fps`, across every [clip](#clips). It never reads a clock. |
 
 | Hook | Runs |
 | --- | --- |
@@ -65,11 +67,13 @@ path inside a state is relative to the state file.
   "windows": [
     {"id": "album", "app": "picture", "title": "Album", "at": [380, 220], "size": [360, 280]},
     {"id": "flower", "app": "picture", "title": "Flower", "at": [60, 60], "size": [240, 200],
-     "open": {"file": "../assets/flower.bmp", "sha256": "2357680...a619"}}
+     "open": {"file": "../assets/flower.bmp", "sha256": "<sha256 of the file>"}}
   ],
   "pointer": [400, 500]
 }
 ```
+
+Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256sum examples/mvp/assets/flower.bmp`.
 
 | Field | Meaning |
 | --- | --- |
@@ -77,11 +81,11 @@ path inside a state is relative to the state file.
 | `display` | `[width, height, depth]`, a mode the guest's driver offers. Depth is 8, 16, 24 or 32. |
 | `windows` | Listed back to front, so the last one is on top. |
 | `id` | The name for `prop(id)`. Each one is used once. |
-| `app` | `"picture"`, a [`Picture`](#picture). The only kind so far. |
-| `title` | Default `"Picture"`. No double quotes. |
+| `app` | `"picture"`, a [`Picture`](#picture), or `"notepad"`, a [`Notepad`](#notepad). |
+| `title` | Default `"Picture"` for a picture. A Notepad takes the Windows 98 title for its file. No double quotes. |
 | `at`, `size` | The top left corner, and the outer size. |
 | `show` | `"normal"` (the default), `"minimized"` or `"maximized"`. |
-| `open` | A BMP to show: its `file`, and its `sha256` so a changed file is caught. |
+| `open` | A BMP to show (or a text file for Notepad): its `file`, and its `sha256` (compute it with `sha256sum`) so a changed file is caught. |
 | `pointer` | `[x, y]`, placed last. |
 
 Every mistake in the file is listed at once, as a `StateError`, before the desktop is touched. If
@@ -154,7 +158,7 @@ class Together(Scene):
 
 Use `pause` for a beat, `wait` to let a caret blink, and `live` for something that moves by
 itself. `wait(frozen_frame=True)` is `pause`. `wait` and `live` are the same call today. `live`
-wraps `FrameRecorder.live`.
+wraps `Recorder.live`.
 
 `stop_condition` is a function, tried before each capture. `wait_until` warns if it gives up.
 
@@ -168,6 +172,59 @@ class WaitForCalculator(Scene):
         self.wait_until(lambda: any(w.class_name == "SciCalc" for w in self.guest.windows()))
         self.pause(0.5)
 ```
+
+### Clips
+
+`cut(path=None)` ends the current clip and starts a new one. The cut falls between two frames, so
+no frame is lost or repeated, and `time` carries on across it. It returns the path of the clip it
+closed.
+
+- A scene that never cuts writes one file, the output, as before.
+- After a cut, `render` keeps each clip beside the output as H.264 MP4, named `<stem>-01.mp4`,
+  `<stem>-02.mp4` and so on, and joins them into the output. That holds when the output is a GIF
+  too: the render still makes one GIF, from the joined clips. `render(..., keep_clips=False)`
+  deletes the clips after the join. `art98 render` always keeps them.
+- `path` names the next clip instead. Numbered clips count it too: if the first cut is
+  `self.cut("intro.mp4")`, the clips are `<stem>-01.mp4`, `intro.mp4`, then `<stem>-03.mp4`.
+- A cut with nothing recorded since the last one makes no empty clip. It returns `None`, and a
+  `path` given then names the clip to come.
+- `next_section(name)` is `cut()` with a label. It adds `(name, time)` to `sections`, a list of
+  the sections so far, and returns what `cut()` returns. The name is only a label: clips stay
+  numbered. An empty name raises `ValueError`.
+- `set_state` doesn't cut. For one clip per state, call `cut()` after it.
+- The screen size can't change inside a clip. If a frame has another size from the one before,
+  the recorder raises `RecorderError`. Call `cut()` before the `set_state` that switches the
+  display. Clips of different sizes are kept, but can't be joined: the join fails and names each
+  clip's size, so render to MP4 clips with `keep_clips=True` and scale them yourself.
+
+#### Temp files and old clips
+
+- Every clip and every output is written to a temporary `.part` file beside it, such as
+  `out-01.part.mp4`, and all of them are renamed to their final names only once the whole render
+  has worked, the output last. A render that fails at any step, whether the scene raises, the
+  join fails or an encode fails, leaves nothing under a real name that it made, and the output
+  and clips of an earlier render are left exactly as they were.
+- If ffmpeg fails, `RecorderError` carries ffmpeg's own message.
+- A render that fails deletes the `.part` files it made, and only those.
+- A render never deletes clips from an earlier one. If `<stem>-NN.mp4` files are left beside the
+  output that this render did not write, say because the earlier scene cut more often, `render`
+  prints a warning on stderr that names them. Delete them yourself.
+- `keep_clips` is a Python argument of `render` only. `art98 render` has no flag for it and keeps
+  the clips.
+
+```python
+from art98.anim import *
+
+
+class TwoClips(Scene):
+    def construct(self):
+        self.pause(0.5)
+        self.cut()
+        self.pause(0.5)
+```
+
+`art98 render scene.py -o out.mp4` writes `out-01.mp4` and `out-02.mp4`, 15 frames each, and
+`out.mp4` with all 30.
 
 ## Box
 
@@ -395,12 +452,22 @@ class OnePicture(Scene):
 
 ## Notepad
 
-Parked: import it from `art98.anim.apps`.
+`Notepad(title=None, *, open=None, at=None, size=None)`
 
-`Notepad(at=None, size=None)`
+Starts `notepad.exe`. `open` is a text file on the host, or `None` for an empty "Untitled" window.
+It is copied to the guest and opened by Notepad. `title` is the title bar text it waits for. When
+it's left out, Notepad's own rule gives it: a trailing `.txt` is dropped, so `note.txt` gives
+"note - Notepad", and no file gives "Untitled - Notepad". `edit_hwnd`, `text` and `set_text` work on
+its Edit control. `close` marks the text as saved first, so no save prompt appears.
 
-Starts `notepad.exe`. `edit_hwnd`, `text` and `set_text` work on its Edit control. `close` marks
-the text as saved first, so no save prompt appears.
+In a state, it is `"app": "notepad"`:
+
+```json
+{"id": "note", "app": "notepad", "at": [320, 180], "size": [320, 200],
+ "open": {"file": "../assets/note.txt", "sha256": "<sha256 of the file>"}}
+```
+
+The file must be plain text. `title` is optional there too. Fill in `sha256` with the output of `sha256sum` on the file.
 
 ![Typing](../assets/gifs/typing.gif)
 
@@ -555,10 +622,11 @@ art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
 ### Python
 
 `render(scene, output=None, *, gif=None, work="work", gif_fps=15, gif_colors=128, gif_scale=1.0,
-gif_dither="none", display="none")`
+gif_dither="none", display="none", backend=None, keep_clips=True)`
 
 `scene` is a class or an instance. `display` is passed to QEMU's `-display`. Returns the path
-written.
+written. `keep_clips` is for scenes that [cut](#clips). A scene that records no frames raises
+`RecorderError`.
 
 The prepared image is only copied, as a reflink, into `work/runs/render-*`, and the copy is
 deleted afterwards. Several renders can run at once.
@@ -567,4 +635,6 @@ deleted afterwards. Several renders can run at once.
 GIF with `palettegen` and `paletteuse`.
 
 A video goes through 4:2:0 H.264, which smears 1-pixel coloured text. A GIF comes from a lossless
-FFV1 recording instead, so its pixels stay sharp.
+FFV1 recording instead, so its pixels stay sharp. With cuts, every clip is recorded lossless,
+the clips are joined into one lossless recording, and the GIF and MP4 are made from it. Each kept
+clip is then encoded to MP4 and its lossless file deleted.

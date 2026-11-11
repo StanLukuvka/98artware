@@ -1167,8 +1167,8 @@ time.sleep(0.6)
 assert not u.IsWindow(saver.hwnd)
 ```
 
-Keep it recording with `FrameRecorder.live`, because a screensaver moves by itself and `sync` does
-not wait for it. See [`FrameRecorder`](bridge.md#framerecorder).
+Keep it recording with `Recorder.live`, because a screensaver moves by itself and `sync` does
+not wait for it. See [`Recorder`](bridge.md#recorder).
 
 `/c` opens the settings dialog, and `/p <hwnd>` previews inside a window of yours.
 

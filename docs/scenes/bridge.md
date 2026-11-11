@@ -23,7 +23,7 @@ with boot() as session:
 ```
 
 The top-level names are `boot`, `Session`, `Bridge`, `CallResult`, `Window`, `Out`, `VM`, `VMConfig`,
-`BridgeError`, `BridgeTimeout` and `GuestCrashed`. `FrameRecorder` and `private_stage` are in
+`BridgeError`, `BridgeTimeout`, `GuestCrashed`, `Recorder` and `RecorderError`. `private_stage` is in
 `art98.session`. `QemuError` and `QMP` are in `art98.qemu`.
 
 ## Sessions
@@ -72,28 +72,37 @@ One running stage. `with` closes it on exit.
 | --- | --- |
 | `vm` | The [`VM`](#vm). |
 | `bridge` | The [`Bridge`](#bridge-1). |
-| `record(path, fps=30, lossless=False)` | Opens a [`FrameRecorder`](#framerecorder). |
+| `record(path, fps=30, lossless=False)` | Opens a [`Recorder`](#recorder). |
 | `close()` | Closes the bridge, then the VM. |
 
-### FrameRecorder
+### Recorder
 
-`class FrameRecorder(session, path, fps=30, lossless=False)`
+`class Recorder(session, path, fps=30, lossless=False)`, in `art98.recorder`
 
-Encodes frames to a video. Frames are taken when the script asks, so a slow host makes the same
-video as a fast one. Use it as a context manager, because the video is only complete after `close`.
+Encodes frames to video clips. Frames are taken when the script asks, so a slow host makes the same
+video as a fast one. Use it as a context manager, because a clip is only complete after `close`.
+It replaced `FrameRecorder` on 2026-11-11.
 
 ![Frame loop](../diagrams/frame-loop.png)
 
 By default ffmpeg writes H.264 with `-preset veryfast -crf 12 -pix_fmt yuv420p`. With
-`lossless=True` it writes FFV1 in `bgr0`, which needs a container such as `.mkv`. `ffmpeg` must be on
-`PATH`.
+`lossless=True` it writes FFV1 in `bgr0`, in Matroska: every clip's suffix becomes `.mkv`. `ffmpeg`
+must be on `PATH`. Each clip's ffmpeg starts at the clip's first frame.
 
 | Member | Meaning |
 | --- | --- |
 | `frame(hold=1)` | Runs `sync`, captures one frame and writes it `hold` times. |
 | `live(seconds, stop_condition=None)` | Captures `round(seconds * fps)` frames on the host's clock, with no `sync`. |
-| `count` | Frames written so far. |
-| `close()` | Finishes the video. |
+| `cut(path=None)` | Closes the current clip, raising `RecorderError` if its ffmpeg failed, and starts the next one at `path`, or at `<stem>-02<suffix>` and on. The first cut renames the clip so far from `path` to `<stem>-01<suffix>`. Returns the closed clip's path, or `None` if nothing was recorded since the last cut. |
+| `path` | The clip being written now. |
+| `clips` | Finished clips, in order. A run with no cut has one, at the `path` it was opened with. |
+| `count`, `total` | Frames in this clip, and in all clips so far. |
+| `close()` | Closes the last clip, and raises `RecorderError` if its ffmpeg exited with an error, with ffmpeg's message. Closing twice does nothing. |
+| `join(output)` | Joins `clips` into `output` by stream copy. Raises `RecorderError` if the clips have different sizes, naming each. |
+
+Every frame of a clip must have the same size. A frame of another size raises `RecorderError`
+and suggests `cut()`. When the code in the `with` block raises, the recorder still closes ffmpeg,
+but a failure there doesn't replace the error: it is added to it as a note.
 
 `frame` is for what the script drives. `hold` is cheap: 30 held copies take 45 ms, against about
 340 ms for 30 separate frames.
@@ -110,7 +119,8 @@ with session.record("demo.mp4", fps=30) as video:
     video.live(3.0)
 ```
 
-Calling `frame` after `close` raises `QemuError`, because the capture folder has gone.
+Calling `frame` after `close` raises `QemuError`, because the capture folder has gone, and
+`cut` raises `RecorderError`.
 
 ## Bridge
 
@@ -483,7 +493,7 @@ one host, so treat them as a guide.
 | `screenshot`, PPM | 1.4 ms | 1.6 ms | 4.8 ms |
 | `screenshot`, PNG | 5.1 ms | 6.6 ms | 8.8 ms |
 | `sync` and PPM capture | 5.0 ms | | |
-| `FrameRecorder.frame` | 11 ms | | |
+| `Recorder.frame` | 11 ms | | |
 
 | Other | Time |
 | --- | --- |

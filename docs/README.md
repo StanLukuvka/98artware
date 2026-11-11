@@ -54,6 +54,8 @@ Audio is deferred, so everything here is video only.
 | [Architecture](design/architecture.md) | Every part of art98, and how it compares with Manim. |
 | [Blank start](design/blank-start.md) | Why nothing pops up, and how a scene gets its black, empty screen. |
 | [Container](design/container.md) | QEMU and setup in a Docker container, `art98 up`, the relay protocol and its timings. Built and tested from scratch. |
+| [Programs](design/programs.md) | What a program class is, how a state opens one, and how to add the next. |
+| [Release checklist](release-checklist.md) | A hand-run list for checking a release: clean clone, renders, frames, backends, tests, tree hygiene. |
 
 Archived, kept for their reasoning: [PLAN.md](archive/PLAN.md), the original creative
 direction, the [Manim mapping plan](archive/MANIM_MAPPING_PLAN.md) and its

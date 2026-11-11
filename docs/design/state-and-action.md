@@ -41,8 +41,8 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
 Manim users may read "state" as `save_state`, so the docs should say early that a state here is
 a desktop. Until 2026-11-11 this design called a named part of a scene an action. That word now
 means action classes, and the parts are sections, which is Manim's word for them. The pointer and
-keyboard animations, once in `anim/actions.py`, are in `anim/pointer.py`, `anim/keys.py` and
-`anim/window.py`.
+keyboard animations, once in `anim/actions.py`, are in `actions/pointer.py`, `actions/keyboard.py`
+and `actions/window/`. Programs now live in `actions/programs/`, one file each (Notepad first).
 
 ## Decisions
 
@@ -57,6 +57,7 @@ keyboard animations, once in `anim/actions.py`, are in `anim/pointer.py`, `anim/
 | A finished run holds the desktop | You can try more sections without a restart |
 | A failed run holds the desktop too | The most useful evidence is the live desktop where it failed |
 | Every restart takes the same path | A run never continues from a half-finished desktop |
+| ~~Revert once after boot, so the first frame matches~~ | Replaced by one `SetCursorPos` nudge in `Pointer.attach`. It gives the same frame without a second boot step. See [first-frame](../../experiments/first-frame/README.md) |
 
 An animation is a Python script, so it's arbitrary code. As with Manim, art98 doesn't decide how
 many states or output files one script uses. Set is an ordinary call, and the rest is up to the
@@ -95,7 +96,7 @@ script.
 - Files sit beside the state and are referenced by path and hash, never embedded in the JSON.
 - One Python schema defines the fields, and a state is validated on load. Unknown fields fail.
 - `app` maps to a prop class through a small registry. The MVP has one, `picture` (see Picture
-  window).
+  window). How to add a program: [Programs](programs.md).
 - States are always written with fixed key order, so diffs stay clean and hashes are stable.
 
 The schema starts small, with display, windows and pointer. Other fields join once they pass
@@ -170,11 +171,13 @@ result is joined with the clips already on disk.
 
 ## Recorder
 
-Status: spec decided, 2026-11-10. Not built.
+Status: spec decided 2026-11-10, built 2026-11-11 in `core/art98/recorder.py`. See
+[As built](#as-built) for what the build added to the spec. The API is in
+[bridge.md](../scenes/bridge.md#recorder) and [scene-api.md](../scenes/scene-api.md#clips).
 
-### Today
+### Before
 
-`FrameRecorder` in `session.py` writes one file per render. `render()` opens it around
+`FrameRecorder` in `session.py` wrote one file per render. `render()` opens it around
 `scene.run()`, and a scene sees it as `self.video`. Frames are taken when the script asks, never
 on a timer:
 
@@ -252,6 +255,32 @@ different sizes can't be joined by stream copy.
 it raises and suggests `cut()` before the `set_state` that changes it. If clips of different
 sizes are joined, the join fails with the sizes in the message. Scaling is left to the scene's
 author, outside art98.
+
+### As built
+
+Built 2026-11-11 as specified, with these additions:
+
+- `Scene.cut(path=None)` wraps `self.recorder.cut`, so a script writes `self.cut()`.
+- Each clip's ffmpeg starts at the clip's first frame. A cut with nothing recorded since the last
+  one closes nothing, makes no empty file, and returns `None`. So `set_state` then `cut()` at the
+  very start of a scene is harmless. A `path` given to such a cut names the clip to come.
+- The first clip is written at the output's name and renamed to `<stem>-01` by the first cut,
+  so a scene that never cuts is unchanged. A clip the scene named still takes a number, so
+  `cut()`, `cut("intro.mp4")`, `cut()` gives `-01`, `-02`, `intro.mp4`, `-04`.
+- A lossless recorder writes every clip as `.mkv`, whatever suffix it was given, since FFV1
+  doesn't go in MP4. In a GIF render the kept MP4 of a clip the scene named is that name with
+  `.mp4`.
+- ffmpeg's error output goes to a log per clip, and the `RecorderError` quotes it. When the
+  scene raised, a recorder failure is added to the scene's error as a note.
+- `render()` raises `RecorderError` if the scene recorded no frames. `keep_clips` is a Python
+  argument only: `art98 render` has no flag for it.
+- `Recorder` and `RecorderError` are exported from `art98`. The name `FrameRecorder` is gone.
+
+Checked with a copy of `examples/mvp/mvp.py` that calls `self.cut()` right after
+`set_state("states/gallery.json")`, rendered with `-o mvpcut.mp4 --gif mvpcut.gif` on both
+backends: `mvpcut-01.mp4` has 152 frames, `mvpcut-02.mp4` 105, and the joined `mvpcut.mp4` 257,
+the same count as the uncut scene. The GIF has 128 frames at 15 fps. Both backends wrote files of
+the same sizes. `/proc/pressure/cpu` some avg10 was 0.00.
 
 ## Picture window
 
@@ -369,7 +398,9 @@ traces. That is untested.
   like QEMU switching how it draws, though that cause is inferred. It already affects today's
   scenes, in the frames before the first pointer move. After a revert it's always in the second
   form, so Sets are consistent with each other. Reverting once right after boot would make every
-  frame consistent.
+  frame consistent. That revert was dropped. A `SetCursorPos` nudge in `Pointer.attach`
+  (`actions/pointer.py`) now settles the first frame instead; see
+  [first-frame](../../experiments/first-frame/README.md).
 - **Stray pixels.** In one run, 1 Set in 4 differed by 8 pixels at Notepad's left edge, on the end
   of the "My Documents" label. Run 2's stall wasn't real: the watchdog fired during normal slow work
   and it didn't happen again. The pixels are explained below.
@@ -457,7 +488,7 @@ class Mvp(Scene):
 ### Out, for now
 
 Every program: Paint, Notepad, Minesweeper and any `command`. Their classes are parked in
-`art98/anim/apps.py`, unexported, until each returns as its own action class. Wallpaper, icons and tray.
+`art98/anim/apps.py`, unexported (Notepad has since returned as `actions/programs/notepad.py`), until each returns as its own action class. Wallpaper, icons and tray.
 Sections, clips and `--section`. Holding, Failed with a live VM, the Python prompt and Stop. The
 backend interface, and the agent bug fixes.
 
@@ -523,6 +554,6 @@ Found on the way:
 5. **Run control.** Holding and Failed with the Python prompt, and Stop. `render()` closes the VM
    on exit today, so this needs restructuring.
 6. **Docs.** Update Part 2 and port the showcase as the proof. (`anim/actions.py` is already
-   split.)
+   split into `actions/`.)
 
 The agent bug fixes are separate work. Nothing here depends on them.

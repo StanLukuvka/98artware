@@ -140,6 +140,35 @@ A guest reboot ends the QEMU process. This is on purpose, see
   the `ready` step does it, on a private copy of the image.
 - Call `ExitWindowsEx` with `acall`, since it never replies.
 
+## On a busy host
+
+When the host is under CPU pressure, a render is slower but gives the same video. Measured on a
+20-CPU host with 28 busy loops running, local backend, with `examples/blank_start/blank_start.py`
+(3 clips, 263 frames). The pressure column is `some avg10` from `/proc/pressure/cpu`, before, during
+(min to max) and after the render.
+
+| Run | Pressure before / during / after | Wall time | Frames | `put_file` total | `BridgeTimeout` |
+| --- | --- | --- | --- | --- | --- |
+| quiet | 0.01 / 0.01 / 0.00 | 3.8 s | 263 | 0.46 s | none |
+| quiet again | 4.4 / 3.6 / 2.95 | 3.6 s | 263 | 0.42 s | none |
+| busy 1 | 40.8 / 42.1 to 45.1 / 45.1 | 20.9 s | 263 | 6.04 s | none |
+| busy 2 | 45.1 / 45.8 to 47.3 / 46.9 | 17.9 s | 263 | 4.07 s | none |
+
+What to expect:
+
+- At pressure about 45, a render takes about 5 times as long, and `put_file` about 10 times
+  (the 57 KB picture went from 0.43 s to 3.7 to 5.7 s).
+- The frame and clip counts are the same as on a quiet host. The recorder is driven by frames, not
+  by the clock.
+- No `BridgeTimeout` fired. The guest's `sync` gives up on a window after 500 ms without saying so,
+  so a slow window can show up only as a longer call (0.80 s at worst here).
+- Frames are not bit for bit equal, but two quiet renders differ the same way. The causes are
+  Notepad's blinking caret and the encoder, not the load.
+- Note `/proc/pressure/cpu` next to any timing you quote. The figures in other docs are quiet-host
+  figures.
+
+Details: [host-checks](../../experiments/host-checks/README.md).
+
 ## A different disc
 
 Setup has run on one Windows 98 SE OEM disc. Anything else may need changes. Look at
