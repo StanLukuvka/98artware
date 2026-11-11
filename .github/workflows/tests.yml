@@ -3,13 +3,19 @@ on: [push, pull_request]
 jobs:
   unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         python: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg mtools
+      - name: Install ffmpeg and mtools
+        timeout-minutes: 8
+        run: |
+          apt_opts="-o Acquire::Retries=1 -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10"
+          sudo apt-get $apt_opts update
+          sudo apt-get $apt_opts install -y ffmpeg mtools
       - run: uv sync --group dev --python ${{ matrix.python }}
       - run: uv run ruff check .
       - run: uv run ruff format --check core setup tools
