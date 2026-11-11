@@ -37,7 +37,7 @@ undoes it all. None of it needs Explorer restarted. It takes about 0.4 s.
 | No taskbar | `ShowWindow(Shell_TrayWnd, SW_HIDE)` | The tray and Quick Launch go with it. It stays hidden through a settings change and the mouse at the bottom edge. |
 | No Start menu | `EnableWindow(Shell_TrayWnd, FALSE)` | Without this, the Windows key and Ctrl+Esc open the Start menu over the black. |
 | No desktop menu | `EnableWindow(Progman, FALSE)` | Without this, a right-click on the black opens the desktop menu. |
-| Full work area | `SPI_SETWORKAREA` to the whole screen | A maximized window covers all 800 x 600. `scene.screen` measures the whole screen. |
+| Full work area | `SPI_SETWORKAREA` to the whole screen | A maximized window covers all 800 x 600. `scene.screen` measures the whole screen. The desktop space is read after this step, so `scene.space` has the whole screen too. |
 | No interface effects | `SPI_SETMENUANIMATION`, `SPI_SETCOMBOBOXANIMATION`, `SPI_SETLISTBOXSMOOTHSCROLLING`, `SPI_SETGRADIENTCAPTIONS`, `SPI_SETHOTTRACKING`, all off | Their timing comes from the guest's clock. Prep was meant to turn them off; see [below](#prep-changes-not-made). |
 | No pointer | Every system pointer shape swapped for an empty one with `SetSystemCursor` | `ShowCursor(FALSE)` doesn't hide it on Windows 98. Skipped when `pointer_visible` is True. |
 

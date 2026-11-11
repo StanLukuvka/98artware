@@ -17,7 +17,7 @@ work can pick up from here.
 | Programs | Notepad is the first program, in `actions/programs/notepad.py`. It opens a text file or an empty window and checks its title. Windows 98 drops a trailing `.txt` from the title. `Dialog` (`actions/programs/dialog.py`) is a real message box with icons, a size, greyed buttons and changeable text. It is not in a state | [Programs](design/programs.md), [Dialog](scenes/scene-api.md#dialog) |
 | Desktop colour and wallpaper | Built. `Backdrop` and a state's `desktop` (colour, wallpaper, style). A wallpaper reaches the guest on a CD in drive D: | [Colour and wallpaper](design/state-and-action.md#desktop-colour-and-wallpaper) |
 | CLI and checks | Errors from `art98` print one clean line, not a traceback. Warnings say when the image or guest programs are older than the code (`freshness.py`). `art98 doctor` works on a host that has only a container engine and ffmpeg. CI runs the unit tests on each push (`.github/workflows/tests.yml`) | [CLI](setup/cli.md) |
-| Container | Built: the backend in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image, runs setup in it and pings; It is the default backend; `ART98_BACKEND=local` or `--backend local` runs QEMU on the host instead. Tested on rootful Docker 29.9 and rootless Podman. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
+| Container | Built: the backend in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image and runs setup, then stops; `art98 vm start` runs the VM in the container. Tested on rootful Docker 29.9 and rootless Podman. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
 
 Audio is deferred. art98 is video only.
 
@@ -146,6 +146,48 @@ Audio is deferred. art98 is video only.
 20. **Programs unparked, 2026-11-11.** `Paint`, `Minesweeper` and `Screensaver` are action
     classes in `actions/programs/` (`paint.py`, `minesweeper.py`, `screensaver.py`), exported
     from `art98.anim`. `anim/apps.py` and `PARKED` are gone, with no old import path left.
+21. **Drift audit, 2026-11-11.** Does the host's model of the screen drift from the guest? Position
+    (the host's window rects and pointer against `GetWindowRect` and `GetCursorPos`) and pixels
+    (the frame against a forced full repaint), on local, Podman and Docker, 5 runs of 6 scenes,
+    1210 frames per backend: no drift in either, once three fixes were in. `set_colour` ends with
+    a back-to-front `repaint_all` (before: 60 of 60 runs left 380 to 395 stray pixels in the box
+    area; after: 0 of 60), `Minimize`, `Maximize` and `RestoreWindow` refresh the rect, and a
+    resize-corner Spot carries its window so a Drag reads the size back. The dialog storm renders
+    frame for frame identical on all three backends (`framemd5`), and its GIF was regenerated. A
+    per-frame read-back (3 to 5 ms per prop) or forced repaint (25 to 67 ms) was measured and is
+    not recommended. See [experiments/drift](../experiments/drift/README.md).
+
+22. **VM service, 2026-11-11.** The VM is no longer booted for each render. `art98 vm start` runs
+    one long-lived container, paused at `ready`. `art98 render` and `art98 ping` attach to it, and
+    `art98 up` stops after setup and prints `art98 vm start`. The control connection is the lock: a
+    second render gets `busy`, or waits with `--wait`. Release drops the relay, ejects the disc and
+    pauses the VM, and frees the lock last, which fixes a release race the VM tests found. VM tests
+    11 of 11 on Podman and on real Docker. Probes in `experiments/vm-service`: the run copy stayed at
+    414 to 415 MiB over 30 renders (512 KiB written per render in one series); a render killed with `kill -9`
+    recovered in about 0.05 s; a view-only VNC viewer gave the same frames as none. Removed:
+    the backend switch (its flag and its environment variable), and the `quit` and `save_snapshot`
+    wire ops.
+    Over TCP a vanished client now frees the lock within about a minute (TCP keepalive, item 26).
+    See [Container](design/container.md#the-vm-service) and [Configuration](setup/config.md).
+23. **Desktop space, 2026-11-11.** Screen, work area, taskbar and metrics are read once per
+    `prepare_desktop` into `scene.space`. Placement is checked before a size is sent. See
+    [Desktop space](scenes/scene-api.md#desktop-space).
+24. **Fresh desktop per scene, 2026-11-11.** Every scene now starts from `ready`, also when
+    several scenes render in one attach. `Session.fresh` is set by `revert()`; `Scene.run` reverts
+    unless the session is fresh, forgets the last run's props, and clears the flag before it
+    touches the guest. A state scene right after attach reverts once, not twice; a mid-scene
+    `set_state` still reverts. VM test: `core/tests/test_stage_scenes.py` (Paint, Minesweeper,
+    then a state scene in one attach).
+25. **Scene line in render errors, 2026-11-11.** A guarded render error raised from the scene
+    file now ends with `(scene.py:LINE, in func)`, from the innermost frame in that file.
+    `ART98_TRACE=1` still prints the full traceback.
+26. **Clients in another container, 2026-11-11.** Three `art98.toml` keys: `[vm] transport`
+    (`tcp`/`unix`; `ART98_TRANSPORT` still wins), `[vm] token_file` (default `<work>/vm.token`;
+    outside `work/` it is mounted read-only into the VM container) and `[ports] connect` (the host
+    a client dials; default `bind`, or `127.0.0.1` for a wildcard `bind`). A client needs only its
+    `art98.toml` and the token file, never `work/`. TCP keepalive on both ends (idle 20 s, 3 probes
+    10 s apart). Checked from a second Docker container over the docker0 gateway: `art98 ping` and
+    an attach with revert. Probe: `experiments/vm-service/probe_container_client.sh`.
 
 ## What is open
 

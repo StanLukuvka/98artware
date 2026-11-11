@@ -18,6 +18,13 @@ Host and guest side by side, and which link carries commands and which carries f
 
 ![System overview](system-overview.png)
 
+## VM service
+
+The long-lived `art98-vm` container: `art98 up` once, `art98 vm start` runs it, `render` and `ping`
+attach and release on each call, and `art98 vm stop` removes it.
+
+![VM service](vm-service-flow.png)
+
 ## Setup pipeline
 
 The four `art98 setup` steps (vm, setup, init_api, ready), what each needs and leaves in `work/`, ending at
@@ -47,7 +54,8 @@ Who waits for what on `CALL`, on `ACALL` with `! DONE`, and on `! CRASH`.
 ## Frame loop
 
 One video frame: apply state, `SYNC`, QMP `screendump`, PPM, ffmpeg. `live()` is the
-alternate path that skips the sync and follows the host clock.
+alternate path that skips the sync and follows the host clock. Each render starts with
+`attach` (check, lock, resume, revert) and ends with `release` (pause).
 
 ![Frame loop](frame-loop.png)
 

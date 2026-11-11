@@ -1,9 +1,15 @@
 # Part 1: preparing the VM
 
 `art98 setup` turns your Windows 98 SE disc image into a desktop that restores to
-the same state every time. It runs Setup with no input, cleans up the result, and
-saves a QEMU snapshot called `ready`. Everything else in art98 starts from that
-snapshot.
+the same state every time. It runs Windows Setup with no input, cleans up the result, and
+saves a QEMU snapshot called `ready`: a saved moment of the running machine, with Windows
+booted, settings applied and art98's agent running. Everything else in art98 starts from that
+snapshot, and restoring it takes about a second.
+
+Most people run setup through `art98 up`, which does it inside a container and also builds the
+container image the renders need. Then `art98 vm start` starts the **VM service**: the VM kept
+running in that container, paused between renders. Unfamiliar words are in the
+[glossary](../glossary.md).
 
 This part covers the setup tool, `setup/`. To drive the finished desktop, see
 [Part 2](../scenes/README.md).
@@ -15,7 +21,7 @@ This part covers the setup tool, `setup/`. To drive the finished desktop, see
 | File | What it is |
 |------|------------|
 | `work/golden.qcow2` | The installed disk, with the snapshot `ready` inside it. About 415 MB on disk, 2 GB virtual |
-| `work/image.json` | The `VMConfig` that created the snapshot. `boot()` reads it, and the snapshot only loads on the same hardware |
+| `work/image.json` | The `VMConfig` that created the snapshot. The VM service and `boot_local()` read it, and the snapshot only loads on the same hardware |
 | `work/state.json` | The steps that have finished |
 | `work/shots/ready.png` | What the desktop looked like when the snapshot was saved |
 
@@ -34,7 +40,8 @@ system sounds and power saving off, and `C:\ART98\AGENT.EXE` already running.
   The container holds QEMU 10.2.2, mtools, 7-Zip and the guest programs, so the host needs
   nothing else. art98 calls only `docker`. On a Podman host, install `podman-docker`, which
   provides that command.
-- **Or, for the [local path](#quick-path-on-the-host), Linux with these tools.**
+- **Or, for [setup on the host](#quick-path-on-the-host), Linux with these tools.** Rendering
+  still runs the VM in the container, so the host path also needs the image from `art98 up`.
   `art98 doctor` checks them.
 
   | Tool | Fedora package | Debian and Ubuntu package | Used for |
@@ -79,16 +86,19 @@ uv run art98 up --iso /path/to/win98se.iso
 It asks for your product key without echoing it, or reads `ART98_PRODUCT_KEY`. Setup takes
 25 to 40 minutes, depending on host load: about 25 on a quiet one. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the screen.
 If setup stops, run the same command again: it resumes, and asks for the key again, since
-nothing keeps it between runs. Running `up` again once everything is done only boots the
-desktop and pings the agent.
+nothing keeps it between runs. Running `up` again once setup is done skips setup and prints
+`art98 vm start`.
 
-Then render. The container is the default backend:
+Then start the VM and render. The VM stays up, paused between renders, until you stop it:
 
 ```bash
+uv run art98 vm start
 uv run art98 render examples/mvp/mvp.py
+uv run art98 vm stop
 ```
 
-`--backend local` on `render` or `ping`, or `ART98_BACKEND=local`, runs QEMU on the host instead. See [the container design](../design/container.md) for how it works.
+The VM runs in the container. See [the VM service](../design/container.md#the-vm-service) for
+how it works, and [configuration](config.md) for the ports and the work folder.
 
 ### By hand
 
@@ -119,8 +129,9 @@ Then delete the file, since the key is in the finished image:
 rm "$XDG_RUNTIME_DIR/art98_key"
 ```
 
-A stage container runs `art98 serve`, which needs a token in `/run/secrets/art98_token` and
-waits for the host to connect. `art98.container.host` starts those for you. Which file does what is in
+The VM's container runs `art98 serve`, which reads the token from `work/vm.token` (or the
+file `[vm] token_file` names) and waits for a client to connect. A client can also be another
+container: see [attach from another container](config.md#attach-from-another-container). `art98 vm start` starts it for you. Which file does what is in
 [the container design](../design/container.md#the-image).
 
 ## Quick path on the host
@@ -162,13 +173,16 @@ Build the image. This takes about 40 minutes and needs no input:
 uv run art98 setup --iso /path/to/win98se.iso
 ```
 
-Check that it works:
+Renders and `ping` run the VM in the container, so build the container image too. `art98 up`
+does that and skips setup, since `work/image.json` now exists:
 
 ```bash
+uv run art98 up
+uv run art98 vm start
 uv run art98 ping
 ```
 
-`ping` restores the snapshot and prints what is running in the guest:
+`ping` prints what is running in the guest:
 
 ```
 guest tick count: 54390
@@ -213,7 +227,8 @@ few minutes:
 | Page | Covers |
 |------|--------|
 | [stages.md](stages.md) | Each step: inputs, outputs, what happens inside, how it fails, what `--from` redoes |
-| [cli.md](cli.md) | `art98 doctor`, `setup`, `ping`, `up` and `serve`, every flag, environment variables, the work directory |
+| [cli.md](cli.md) | `art98 doctor`, `setup`, `vm`, `render`, `ping`, `up` and `serve`, every flag, environment variables, the work directory |
+| [config.md](config.md) | `art98.toml`: the container name, the image, the work folder and the ports |
 | [image.md](image.md) | What is on the finished image, every setting and why, the snapshot, the VM hardware |
 | [troubleshooting.md](troubleshooting.md) | Setup quirks, the stall rule, recovery, other discs |
 

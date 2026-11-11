@@ -1,7 +1,7 @@
 # Bridge
 
 The bridge is the host's side of the link to the guest. It lets Python call any Win32 function
-inside Windows 98. Scenes reach it as `self.guest`. This page is the full reference, from `boot`
+inside Windows 98. Scenes reach it as `self.guest`. This page is the full reference, from `attach`
 down to `VM` and QMP. Audio is deferred, so only picture is covered.
 
 The scene layer sits on top of this and has its own page, the [Scene API](scene-api.md). The wire
@@ -11,9 +11,9 @@ format is in the [Instruction set](instruction-set.md). Tested calls are in
 ![Action stack](../diagrams/action-stack.png)
 
 ```python
-from art98 import boot
+from art98 import attach
 
-with boot() as session:
+with attach() as session:
     guest = session.bridge
     guest.spawn("notepad.exe")
     pad = guest.find_window(class_name="Notepad")
@@ -22,43 +22,53 @@ with boot() as session:
     session.vm.screenshot("notepad.png")
 ```
 
-The top-level names are `boot`, `Session`, `Bridge`, `CallResult`, `Window`, `Out`, `VM`, `VMConfig`,
+The top-level names are `attach`, `Session`, `Bridge`, `CallResult`, `Window`, `Out`, `VM`, `VMConfig`,
 `BridgeError`, `BridgeTimeout`, `GuestCrashed`, `Recorder` and `RecorderError`. `private_stage` is in
 `art98.session`. `QemuError` and `QMP` are in `art98.qemu`.
 
 ## Sessions
 
-### boot
+### attach
 
-`boot(work="work", display="none", ready_timeout=30.0) -> Session`
+`attach(settings=None, *, revert=True, wait=0.0) -> Session`
 
-Restores the `ready` snapshot of the prepared image, connects to the agent and waits for it to
-answer. It takes about 0.1 s.
+Takes the running VM for one run. The VM is started with `art98 vm start`. `attach` checks that
+the VM is free, resumes it, restores the `ready` snapshot and pings the agent. Leaving the `with`
+block releases the VM: the disc is ejected and the VM is paused again. The VM keeps running.
 
 | Parameter | Meaning |
 | --- | --- |
-| `work` | Folder with `image.json`. The QEMU log goes to `<work>/qemu.log`. |
-| `display` | QEMU's `-display` value. `"none"` runs headless. |
-| `ready_timeout` | Seconds to wait for the agent. |
+| `settings` | Where the VM is, from `art98.toml`. See [configuration](../setup/config.md). Default: found from the current folder |
+| `revert` | Restore `ready` before the first call. `False` only pings, as `art98 ping` does |
+| `wait` | Seconds to retry while another run holds the VM. Only "busy" is retried |
 
-Raises `ImageMissing`, a `FileNotFoundError`, when `image.json` is missing, which means setup has not run. If the agent
-never answers, the VM is closed and the `BridgeTimeout` is raised.
+Raises `NotRunning` when no VM answers, `Busy` when another run holds it, and `Unhealthy` when the
+VM has no `ready` snapshot or the agent does not answer. These are `ServiceError`s from
+`art98.service`.
 
-Each boot starts from the same moment, so nothing from an earlier run survives. But two VMs can't
-share one disk, and a run writes to it. Use `private_stage` for anything other than a single run.
+Each attach starts from the same moment: the revert brings back what an earlier run changed. Two
+attaches can't run at once.
+
+### boot_local
+
+`art98.session.boot_local(work="work", display="none", ready_timeout=30.0) -> Session`
+
+For experiments only. It starts QEMU on this host from the image in `work` and connects to the
+agent. Pass it a private copy of the work folder, never the golden one. Raises `ImageMissing` when
+`image.json` is missing. The restore and the agent wait are the same as for `attach`.
 
 ### private_stage
 
 `art98.session.private_stage(work="work")`
 
 A context manager that gives a throwaway copy-on-write copy of the image in `work/runs/`, and
-deletes it afterwards. Pass the path it gives to `boot`. Several can run at once.
+deletes it afterwards. `art98 vm start` uses it with the prefix `vm-` for the VM's own copy. Pass
+the path it gives to `boot_local` (experiments only).
 
 ```python
-from art98 import boot
-from art98.session import private_stage
+from art98.session import boot_local, private_stage
 
-with private_stage("work") as stage, boot(stage) as session:
+with private_stage("work") as stage, boot_local(stage) as session:
     print(session.bridge.ping())
 ```
 

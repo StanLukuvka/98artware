@@ -1,19 +1,113 @@
 # 98artware
 
-Script animations with a real Windows 98 desktop as the medium, in the style of Manim. You
-write a Python scene, Windows draws it inside a VM, and the video is what the guest's screen
-showed. Python draws nothing.
+art98 makes animations out of a real Windows 98 desktop. You write a short Python script in
+the style of [Manim](https://www.manim.community/), art98 plays it on Windows 98 SE running in
+a virtual machine, and the video is what that machine's screen showed. Python draws nothing:
+every window, letter and brush stroke is drawn by Windows itself.
 
 ![Two picture windows are set from a state file, then moved, teleported and closed on camera](docs/assets/gifs/mvp.gif)
 
-That clip is [examples/mvp/mvp.py](examples/mvp/mvp.py),
-rendered through the container.
+That clip is [examples/mvp/mvp.py](examples/mvp/mvp.py). More are in the
+[gallery](docs/scenes/gallery.md).
 
-## The pattern: a state, then actions
+## How it works, in short
 
-A scene starts from a **state**, a hand-written JSON file that describes a still desktop:
-which windows are open, where they sit, what they show, and where the pointer is. Everything
-after that is **actions**, which are free Python on top: animations, Win32 calls, anything.
+- Windows 98 SE runs inside **QEMU**, an emulator, in a **Docker container**. You supply the
+  Windows disc and product key; nothing here includes them.
+- `art98 up` installs Windows once, with no input, and saves the **`ready` snapshot**: a saved
+  moment of the running machine, with Windows booted and art98's helper program running.
+- `art98 vm start` starts the **VM service**: that machine, kept running in the background and
+  paused between renders.
+- `art98 render scene.py` takes the VM, restores `ready` (about a second), plays your scene,
+  records the screen frame by frame, and writes an MP4 or GIF with ffmpeg. The next render
+  starts from `ready` again, so nothing carries over.
+
+Inside the guest, a small program called the **agent** (`AGENT.EXE`) makes any Win32 call the
+script asks for. Every frame waits until Windows has finished drawing, and QEMU emulates the CPU
+in software, so a scene gives the same frames on any machine.
+
+New words are in the [glossary](docs/glossary.md).
+
+## What you need
+
+- Linux. Other systems may work through Docker Desktop but have not been tried.
+- Docker, or Podman with the `podman-docker` package. art98 only ever runs the `docker` command.
+- Python 3.11 or newer, and [uv](https://docs.astral.sh/uv/).
+- ffmpeg.
+- Your own Windows 98 SE disc image (an `.iso`) and its product key. The disc must boot from
+  an emulated floppy and hold a `WIN98` folder; see [other discs](docs/setup/troubleshooting.md#a-different-disc).
+- About 3 GB of free disk space, and 25 to 40 minutes for the one-time install.
+
+art98 runs from a checkout with `uv run`. There is no package to install and no `pip install`.
+
+## From nothing to a video
+
+**1. Get the code and check your machine.**
+
+```bash
+git clone <repo-url> 98artware && cd 98artware
+```
+
+```bash
+uv run art98 doctor
+```
+
+`doctor` lists each tool it looks for. On a machine with only Docker and ffmpeg it says the VM
+is usable once you have run `art98 up`; the other tools are only for installing on the host.
+
+**2. Build the prepared image, once.**
+
+```bash
+uv run art98 up --iso /path/to/win98se.iso
+```
+
+This builds the container image, asks for your product key without showing it (or reads
+`ART98_PRODUCT_KEY`), installs Windows into `work/` with no further input, and stops. It takes
+25 to 40 minutes. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the install.
+If it stops part way, run the same command again: it resumes.
+
+**3. Start the VM.**
+
+```bash
+uv run art98 vm start
+```
+
+It stays up, paused, until `art98 vm stop`. `uv run art98 vm status` says how it is.
+
+**4. Render a scene.**
+
+```bash
+uv run art98 render examples/mvp/mvp.py -o mvp.mp4
+```
+
+You get `mvp.mp4`. Give `-o` a `.gif` name for a GIF instead, or add `--gif mvp.gif` for both.
+
+**5. Stop the VM when you are done.**
+
+```bash
+uv run art98 vm stop
+```
+
+Next, follow the [tutorial](docs/scenes/tutorial.md) to write your own scene.
+
+Renders take turns: while one runs, another fails with `busy`, unless you give it `--wait S`
+to wait up to S seconds. If something goes wrong, [troubleshooting](docs/setup/troubleshooting.md)
+covers the install. art98's own errors are one line starting with `error:`.
+
+### Before you share anything
+
+Running `art98 up` (or `art98 setup`) accepts the Windows 98 licence agreement on your behalf:
+the answer file asks to skip it, and OEM discs that show it anyway get "I accept" by keystroke.
+Only run it with a disc and key you are licensed to use.
+
+**Don't publish `work/`.** It holds an installed copy of Windows 98 and your product key in
+clear text. `work/` is gitignored for that reason. See
+[the key on the image](docs/setup/image.md#your-product-key-is-on-the-image).
+
+## A scene: a state, then actions
+
+A scene starts from a **state**: a JSON file you write by hand that describes a still desktop.
+It says which windows are open, where they sit, what they show, and where the pointer is.
 
 ```json
 {
@@ -28,9 +122,11 @@ after that is **actions**, which are free Python on top: animations, Win32 calls
 }
 ```
 
-Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256sum examples/mvp/assets/flower.bmp`.
+A file a state opens is named by path and by its hash, so a changed file is caught. Fill in
+`sha256` with the output of `sha256sum`, for example `sha256sum examples/mvp/assets/flower.bmp`.
 
-This is the scene, without its pauses:
+Everything after that is **actions**: free Python that moves windows, types, clicks or makes
+any Win32 call. This is the MVP scene, without its pauses:
 
 ```python
 from pathlib import Path
@@ -58,108 +154,58 @@ class Mvp(Scene):
         self.play(self.prop("picture").animate.shift(100 * DOWN), run_time=2)
 ```
 
-```bash
-uv run art98 render examples/mvp/mvp.py -o mvp.mp4
-```
+`self.prop("flower")` is a **prop**: a Python handle on the real window. `self.play` runs
+**animations** on props, one frame at a time. Positions are screen pixels with y running down,
+so `DOWN` is `(0, 1)`.
 
 What happens when it runs:
 
 1. **Set.** The guest reverts to the `ready` snapshot, the state's windows open, and art98
    reads the desktop back to check that it matches. A mistake in the file is listed before the
-   desktop is touched, and a mismatch stops with each difference. A Set takes about 1.5 s,
-   and none of it is filmed.
-2. **A blank start.** Each Set and boot clears the desktop to plain black, with no icons,
-   taskbar or pointer, so only what the scene puts there shows. `desktop = "stock"` keeps the
-   normal Windows desktop. See [Blank start](docs/design/blank-start.md).
-3. **Actions.** `play` moves real windows, and each frame waits for the guest to repaint
-   before it is captured. `self.guest` is the raw bridge, so any Win32 call can sit between
+   desktop is touched, and a mismatch stops with each difference. A Set takes about 1.5 s, and
+   none of it is filmed.
+2. **A blank start.** The desktop is cleared to plain black, with no icons, taskbar or pointer,
+   so only what the scene puts there shows. `desktop = "stock"` keeps the normal Windows
+   desktop. See [Blank start](docs/design/blank-start.md).
+3. **Actions.** `play` moves real windows, and each frame waits for the guest to repaint before
+   it is captured. `self.guest` is the raw link to the agent, so any Win32 call can sit between
    two animations.
 4. **Again.** `set_state` can run as often as a scene likes, and each time it gives the same
-   desktop.
+   desktop. Every scene also starts from a fresh `ready` desktop, even when several scenes are
+   rendered one after another from Python.
 
-Because every frame is synced to the guest and QEMU emulates the CPU in software, a scene
-renders the same frames on any host. The MVP scene gives 0 of 257 frames different between
-the local backend and the container, and between an image built in the container and one
-built on the host.
+When art98 raises one of its own errors during a scene, such as a state that doesn't match or
+a guest call that fails, `art98 render` prints one line that ends with where it happened in
+your file, such as `error: ... (mvp.py:21, in construct)`. Set `ART98_TRACE=1` for the full
+traceback. Other Python errors in a scene show the usual traceback.
 
-The windows here are [`Picture`](docs/scenes/scene-api.md#picture), art98's own small viewer
-that shows a BMP, [`Notepad`](docs/scenes/scene-api.md#notepad) and
-[`Dialog`](docs/scenes/scene-api.md#dialog), a real message box. [`Backdrop`](docs/scenes/scene-api.md#backdrop)
-sets the desktop colour, and a state can set a colour and a wallpaper. Paint, Minesweeper and
-Screensaver still work, but they're parked in `art98.anim.apps` until each comes
-back as its own action class. The recorder is built: `cut()` ends a clip and starts the next,
-and `next_section(name)` does the same with a label. A render with cuts keeps
-`<stem>-01.mp4` and on beside the output and joins them. See the
-[state and action design](docs/design/state-and-action.md) and [status](docs/status.md).
-A scene that uses all of this is
-[examples/blank_start/blank_start.py](examples/blank_start/blank_start.py).
+The windows a scene can use: [`Picture`](docs/scenes/scene-api.md#picture), art98's own small
+viewer for a BMP; [`Notepad`](docs/scenes/scene-api.md#notepad);
+[`Dialog`](docs/scenes/scene-api.md#dialog), a real message box;
+[`Paint`](docs/scenes/scene-api.md#paint), [`Minesweeper`](docs/scenes/scene-api.md#minesweeper)
+and [`Screensaver`](docs/scenes/scene-api.md#screensaver). A state can open `picture` and
+`notepad` windows; the others are added in `construct`. [`Backdrop`](docs/scenes/scene-api.md#backdrop)
+sets the desktop colour, and a state can set a colour and a wallpaper. `self.cut()` ends one
+video clip and starts the next, and `self.next_section(name)` does the same with a label; the
+clips are kept as `<stem>-01.mp4` and on, and joined into the output.
 
-## Quick start, in a container
+## Where to go next
 
-You need Docker, Python 3.11 or newer with [uv](https://docs.astral.sh/uv/), ffmpeg,
-and your own Windows 98 SE disc image and product key. Nothing here supplies them. art98
-runs from a checkout with `uv run`: there is no wheel and no `pip install`. It calls only `docker`. On a Podman host, install `podman-docker`, which provides that command.
+| You want to | Read |
+| --- | --- |
+| Write your first scene | [Tutorial](docs/scenes/tutorial.md) |
+| Look up a class or option | [Scene API](docs/scenes/scene-api.md), [Animations](docs/scenes/animations.md) |
+| Copy from working examples | [Gallery](docs/scenes/gallery.md), [examples/](examples/) |
+| Call Win32 directly | [Bridge](docs/scenes/bridge.md), [Win32 recipes](docs/scenes/win32-recipes.md) |
+| Understand the install | [Part 1: preparing the VM](docs/setup/README.md) |
+| Look up a command or setting | [CLI](docs/setup/cli.md), [Configuration](docs/setup/config.md) |
+| Render from another container | [Attach from another container](docs/setup/config.md#attach-from-another-container) |
+| Understand why it is built this way | [Design decisions](docs/design/decisions.md), [Architecture](docs/design/architecture.md) |
+| Find your way round the code | [Repo tour](docs/tour.md) |
+| Change art98 | [Contributing](CONTRIBUTING.md), and [AGENTS.md](AGENTS.md) for coding agents |
+| See what is built and what is next | [Status](docs/status.md) |
 
-```bash
-uv run art98 up --iso /path/to/win98se.iso
-```
-
-`art98 up` builds the container image, asks for the key without echo (or reads
-`ART98_PRODUCT_KEY`), installs Windows into `work/` with no further input, then boots the
-result and checks the agent answers. It takes 25 to 40 minutes, once. `--watch` shows setup
-over VNC on `127.0.0.1:5998`. After that, every render restores the snapshot in about a
-second. The container is the default backend:
-
-```bash
-uv run art98 render examples/mvp/mvp.py -o mvp.mp4
-```
-
-`-o` also takes `.gif`. Each render works on a private copy of the image, so several can run
-side by side. The by-hand `docker` commands are in
-[the setup guide](docs/setup/README.md#quick-path-in-a-container), and how the container code
-is laid out is in [the container design](docs/design/container.md#the-image).
-
-Running `art98 up` or `art98 setup` accepts the Windows 98 licence agreement on your behalf:
-the answer file asks to skip it, and OEM discs that show it anyway get "I accept" selected by
-keystroke.
-
-**Don't publish `work/`.** The finished image is an installed copy of Windows 98, so never
-share `golden.qcow2` or a copy of it. `work/` is gitignored for that reason. It also holds your
-product key in clear text, which matters less for a 1998 key; see
-[the key on the image](docs/setup/image.md#your-product-key-is-on-the-image).
-
-## Or on the host
-
-The `local` backend runs QEMU on the host instead (`--backend local`, or `ART98_BACKEND=local`). Install the tools. On
-Fedora:
-
-```bash
-sudo dnf install qemu-system-x86 qemu-img mtools 7zip ffmpeg make binutils mingw32-gcc
-```
-
-On Debian or Ubuntu:
-
-```bash
-sudo apt install qemu-system-x86 qemu-utils mtools 7zip ffmpeg make binutils gcc-mingw-w64-i686
-```
-
-Then build the guest programs, check the tools, and prepare the image:
-
-```bash
-make -C guest
-```
-
-```bash
-uv run art98 doctor
-```
-
-```bash
-uv run art98 setup --iso /path/to/win98se.iso
-```
-
-Setup runs four steps, `vm`, `setup`, `init_api` and `ready`, saving progress after each, so
-rerunning resumes. [Part 1](docs/setup/README.md) explains each one. Render as above, without
-`ART98_BACKEND`.
+Every page is listed in [docs/README.md](docs/README.md).
 
 ## How it fits together
 
@@ -168,45 +214,37 @@ Host: Python                          Container: art98 serve       Guest: Window
   your scene, art98.anim
   art98.Bridge ---- agent channel ---> relayed to COM1 ----------> AGENT.EXE: Win32 call proxy
   RemoteVM -------- control channel -> QEMU: keys, revert -------> the desktop
-  FrameRecorder, ffmpeg <---------- frames ----------------------- QEMU's screenshots
+  Recorder, ffmpeg <--------------- frames ----------------------- QEMU's screenshots
 ```
 
-The host keeps the scene, the bridge, the recorder and ffmpeg, and only QEMU moves. On Linux
-the two channels are a Unix socket in a mounted folder, and frames are written into that
-folder. Elsewhere the channels are a loopback TCP port and frames come over the control
-channel. On the `local` backend `art98.VM` drives QEMU over QMP directly, and nothing else
-changes.
+Your machine keeps the scene, the bridge, the recorder and ffmpeg. Only QEMU runs in the
+container. On Linux the two channels are a Unix socket in a mounted folder, and QEMU writes
+frames straight into that folder; elsewhere they are a loopback TCP port. The details are in
+[the container design](docs/design/container.md).
 
 ![System overview](docs/diagrams/system-overview.png)
 
 | Folder | What it holds |
 | --- | --- |
-| [core/](core/art98/) | The `art98` package: the scene layer in `anim/` on top of `base/` and `actions/`, the bridge, QEMU control, states, and the container backend in `container/` |
+| [core/](core/art98/) | The `art98` package. `anim/` is what scenes import; it sits on `base/` (animations, props, vectors, the desktop space) and `actions/` (the pointer, the keyboard, windows and programs). Beside them: the bridge, QEMU control, state files, and the VM service in `service.py` and `container/` |
 | [setup/](setup/art98_setup/) | `art98 setup` and `art98 up`, which turn a disc into `work/golden.qcow2`, and the `Dockerfile` |
 | [guest/](guest/) | The programs that run inside Windows 98: `AGENT.EXE`, the `VIEW.EXE` picture viewer and the install disk's boot record |
-| [examples/](examples/) | Maintained scenes: the MVP, the gallery, `hello.py` and `showcase.py`. The docs embed them |
-| [experiments/](experiments/) | Throwaway probes, not part of art98 and with no tests |
+| [examples/](examples/) | Maintained scenes: the MVP, the dialog storm, the blank-start proof scene, the gallery, `hello.py` and `showcase.py`. The docs embed them |
 | [tools/](tools/) | `render_all.py` makes the gallery GIFs, `check_docs.py` renders the doc samples |
-| `out/` | Render output from the tools and probes. Gitignored |
+| [experiments/](experiments/) | Throwaway probes behind design decisions. Not part of art98, with no tests |
 | [docs/](docs/README.md) | Every page, starting from [docs/README.md](docs/README.md) |
-| `work/` | Your prepared image. Gitignored |
+| `work/` | Your prepared image. Gitignored, never shared |
+| `out/` | Render output from the tools and probes. Gitignored |
 
-The [repo tour](docs/tour.md) walks through every file in reading order.
+## Under the scene layer
 
-## Writing scenes
-
-Start with the [tutorial](docs/scenes/tutorial.md). The [Scene API](docs/scenes/scene-api.md)
-covers props, [states](docs/scenes/scene-api.md#states) and rendering, and
-[Animations](docs/scenes/animations.md) lists everything you pass to `play`. The
-[gallery](docs/scenes/gallery.md) has one short scene per feature, most of them written before
-the MVP with the parked programs.
-
-Below the scene layer, any exported Win32 function from any DLL is one call away:
+Any exported Win32 function from any DLL is one call away. Outside a scene, `art98.attach()`
+takes the running VM for one script and restores `ready`:
 
 ```python
-from art98 import Out, boot
+from art98 import Out, attach
 
-with boot("work", backend="container") as stage:
+with attach() as stage:
     guest = stage.bridge
     guest.spawn("notepad.exe")
     notepad = guest.find_window(class_name="Notepad")
@@ -221,43 +259,63 @@ with boot("work", backend="container") as stage:
     stage.vm.screenshot("frame.png")
 ```
 
-Every `boot()` restores the same snapshot, so nothing carries over between runs. In a scene
-the same object is `self.guest`. See the [bridge](docs/scenes/bridge.md), the
+In a scene the same bridge is `self.guest`. See the [bridge](docs/scenes/bridge.md), the
 [instruction set](docs/scenes/instruction-set.md) and the
 [Win32 recipes](docs/scenes/win32-recipes.md).
 
 A guest reboot ends the VM, because Windows freezes on its logo after a warm reset in the same
-QEMU process. Start a new one with `boot()` afterwards. `ExitWindowsEx` never replies, so call
-it with `acall`.
+QEMU process. Run `art98 vm stop` and `art98 vm start` to get it back. `ExitWindowsEx` never
+replies, so call it with `acall`.
+
+## Installing on the host instead
+
+`art98 setup` can install Windows with QEMU on your own machine instead of in the container.
+Renders still use the container, so you need `art98 up` afterwards either way. On Fedora:
+
+```bash
+sudo dnf install qemu-system-x86 qemu-img mtools 7zip ffmpeg make binutils mingw32-gcc
+```
+
+On Debian or Ubuntu:
+
+```bash
+sudo apt install qemu-system-x86 qemu-utils mtools 7zip ffmpeg make binutils gcc-mingw-w64-i686
+```
+
+Then build the guest programs, check the tools, and install:
+
+```bash
+make -C guest
+```
+
+```bash
+uv run art98 doctor
+```
+
+```bash
+uv run art98 setup --iso /path/to/win98se.iso
+```
+
+Setup runs four steps, `vm`, `setup`, `init_api` and `ready`, saving progress after each, so
+rerunning resumes. [Part 1](docs/setup/README.md) explains each one. Then run `uv run art98 up`,
+which builds the container image and skips the install, and `uv run art98 vm start`. The
+`ready` snapshot only loads on the QEMU machine type that saved it, so an image made with
+another QEMU version may not load in the container, which pins QEMU 10.2.2.
 
 ## Tests
 
 ```bash
-uv run --group dev pytest
+uv run python -m pytest core/tests setup/tests -q --ignore=core/tests/test_stage.py --ignore=core/tests/test_stage_scenes.py --ignore=core/tests/test_qemu.py
 ```
 
-| Suite | Runs against |
-|-------|--------------|
-| `test_protocol`, `test_bridge` | Python alone |
-| `test_anim`, `test_picture`, `test_notepad`, `test_desktop`, `test_state` | The scene layer, the blank start, state files, Picture and Notepad, on a fake guest |
-| `test_recorder` | The recorder: clips, `cut()`, join, the temp file, ffmpeg errors. Needs ffmpeg |
-| `test_cli` | The command line, including clean `error:` messages and `art98 doctor` |
-| `test_freshness` | The warnings about an image or build that is out of date |
-| `test_anim_docs` | The documented API against the code |
-| `test_setup`, `test_up` | The setup tool, with mtools for the disk tests, and `art98 up` without an engine |
-| `test_qemu` | Real QEMU with no Windows: boot chain, QMP, snapshots |
-| `test_agent_wine` | The real `agent.exe` under Wine, with a pty as COM1 |
-| `test_container` | The container's server and the host's end of it, on a fake VM and agent. No container needed |
-| `test_stage` | The prepared image in `work/` (or `ART98_TEST_WORK`), on the local and the container backend, including a render |
-
-The QEMU, Wine and container suites skip themselves if those tools are missing, and
-`test_stage` skips without a prepared image. Only `test_stage` runs real Windows 98.
-[tools/check_docs.py](tools/check_docs.py) renders every sample in
-the scene docs on the real image, on whichever backend `ART98_BACKEND` names.
+That is the unit suite. It needs no VM and runs in CI on every push. The tests that drive the
+real image need `art98 vm start` first. [Contributing](CONTRIBUTING.md#tests) says which suite
+covers what and when each is needed.
 
 ## Measured on real Windows 98
 
-From a Windows 98 SE OEM disc, on QEMU 10.2.2 with software emulation:
+From a Windows 98 SE OEM disc, on QEMU 10.2.2 with software emulation. "Host QEMU" figures
+were taken before the VM service, when a render could still run QEMU on the host.
 
 | What | Result |
 |------|--------|
@@ -265,25 +323,27 @@ From a Windows 98 SE OEM disc, on QEMU 10.2.2 with software emulation:
 | Full `art98 setup` on the host | About 40 min |
 | Snapshot restore to a working agent | About 1 s |
 | A Set with two windows and an image | 1.2 to 1.6 s |
-| The MVP scene, 257 frames | 5.5 s local, 6.2 s through the container |
-| Frames of the MVP scene that differ, local against container, and host-built image against container-built | 0 of 257 |
+| The MVP scene, 257 frames | 5.5 s on host QEMU, 6.2 s through the container |
+| Frames of the MVP scene that differ, host QEMU against container, and host-built image against container-built | 0 of 257 |
 | All 32 scene-docs samples through the container, three at a time | 38 s |
-| One recorded frame, local and through the container on Linux | 5.6 to 6.3 ms and 6.8 to 7.0 ms ([timing](docs/design/container.md#timing)) |
+| One recorded frame, host QEMU and through the container on Linux | 5.6 to 6.3 ms and 6.8 to 7.0 ms ([timing](docs/design/container.md#timing)) |
 | `PING` round trip | About 5 ms |
 | `put_file` | 100 to 190 KB/s |
 | `get_file` | About 325 KB/s |
 | Guest clock against host | 5004 ms over 5 s |
 
-Times depend on host load. The serial port is emulated and QEMU doesn't pace it to 115200
-baud, so files move well above the line rate. Setup quirks that `art98 setup` handles are in
-[troubleshooting](docs/setup/troubleshooting.md).
+Times depend on how busy your machine is; [on a busy host](docs/setup/troubleshooting.md#on-a-busy-host)
+a render can take about 5 times as long, with the same frames. The serial port is emulated and
+QEMU doesn't pace it to 115200 baud, so files move well above the line rate.
 
 ## Not done yet
 
-- Audio is deferred. art98 is video only for now, though the VM keeps its Sound Blaster.
-- Programs other than Picture, Notepad and Dialog are parked, and re-recording one section is not built.
-- Desktop icons and the tray in a state, and a `Cascade` helper for boxes, are not built.
-- The Wine suite against the final agent. It needs a Wine prefix on this machine.
+- Audio. art98 is video only for now, though the VM keeps its Sound Blaster.
+- Re-recording one section of a scene (`--section`).
+- Paint, Minesweeper and `Dialog` in a state file, desktop icons and the tray in a state, and a
+  `Cascade` helper for message boxes.
+- Programs that don't ship with Windows 98 SE, and any plugin system for them. These are out of
+  scope.
 
 [docs/status.md](docs/status.md) has the full list of what's built and what's next.
 [PLAN.md](docs/archive/PLAN.md), now archived, has the original creative direction.

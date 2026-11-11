@@ -8,8 +8,8 @@ A hand-run list for checking a release. Tick a box only with evidence: command o
 
 ## Setup
 
-- [ ] `uv run art98 doctor` reports the backend you will use as usable.
-- [ ] `uv run art98 up` (container) or `uv run art98 setup` (local), on a machine with the Windows 98 SE disc image (`--iso` gives its path).
+- [ ] `uv run art98 doctor` reports the tools you need as usable.
+- [ ] `uv run art98 up --iso <path>` (installs in the container), or `uv run art98 setup --iso <path>` (installs on the host) followed by `uv run art98 up`, on a machine with the Windows 98 SE disc image.
 
 ## Renders
 
@@ -24,15 +24,17 @@ A hand-run list for checking a release. Tick a box only with evidence: command o
 - [ ] GIF palette: colours match the mp4 with no banding or dither noise.
 - [ ] Clips: when the scene cuts, the numbered clips `-01..` are kept beside the output.
 
-## Backends
+## VM service
 
-- [ ] `uv run art98 render examples/mvp/mvp.py -o out/mvp.mp4 --backend local`
-- [ ] `uv run art98 render examples/mvp/mvp.py -o out/mvp.mp4 --backend container`
+- [ ] `uv run art98 vm start`, then `uv run art98 vm status` prints `up since` and `ready snapshot: yes`.
+- [ ] `uv run art98 render examples/mvp/mvp.py -o out/mvp.mp4`, then `uv run art98 vm stop`.
 
 ## Tests
 
-- [ ] `.venv/bin/python -m pytest core/tests setup/tests -q --ignore=core/tests/test_stage.py --ignore=core/tests/test_qemu.py`
-- [ ] `. .tools/env.sh && .venv/bin/python -m pytest core/tests/test_stage.py core/tests/test_qemu.py -q`
+- [ ] Unit tests: `uv run python -m pytest core/tests setup/tests -q --ignore=core/tests/test_stage.py --ignore=core/tests/test_stage_scenes.py --ignore=core/tests/test_qemu.py`
+- [ ] VM tests, with `art98 vm start` running: `uv run python -m pytest core/tests/test_stage.py core/tests/test_stage_scenes.py -q`
+- [ ] QEMU tests, with QEMU on `PATH` (`. .tools/env.sh` if you keep a local build): `uv run python -m pytest core/tests/test_qemu.py -q`
+- [ ] `uv run ruff check --exclude work .`
 - [ ] `uv run python tools/check_docs.py`
 
 ## Tree hygiene

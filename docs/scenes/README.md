@@ -1,13 +1,27 @@
 # Part 2: scenes
 
-[Part 1](../setup/) builds the prepared Windows 98 image. Part 2 runs it. A Python script on the
-host drives the real desktop inside QEMU and records the screen.
+[Part 1](../setup/) builds the prepared Windows 98 image. Part 2 runs it. A Python script on
+your machine drives the real desktop inside the VM and records the screen. Start the VM once
+with `art98 vm start`; each `art98 render` then uses it for one scene.
 
 Python draws nothing. Each window, letter and brush stroke is made by Windows, and the video is
 what the guest's screen showed. That is the whole idea of art98, and it decides what the API can
 and cannot do.
 
 ![System overview](../diagrams/system-overview.png)
+
+The words you will meet:
+
+- A **scene** is a Python class with a `construct` method. One scene makes one video.
+- A **prop** is a handle on something real in the guest: a window, or the pointer.
+  `Notepad()` is a prop; `self.add(pad)` starts Notepad and finds its window.
+- An **animation** is what you pass to `self.play`. It changes props frame by frame.
+- A **state** is a JSON file that describes a still starting desktop. A scene can start from
+  one, and the windows it opens become props.
+- An **action** is anything the scene does from there: free Python, animations and raw Win32
+  calls. The code for it lives in action classes, one per kind of thing on screen.
+
+The [glossary](../glossary.md) has the rest.
 
 Programs are action classes in `core/art98/actions/programs/`, one file each, and
 `from art98.anim import *` gives them all: [`Notepad`](scene-api.md#notepad),
@@ -87,8 +101,9 @@ So a `play` is repeatable to the frame, but the guest's own animations depend on
 host renders. `self.wait` and `self.live` record at host speed for that reason, and `self.pause`
 holds a single capture. See [`Scene`](scene-api.md#time).
 
-A scene never touches the prepared image. `art98 render` boots a private copy, and deletes it
-afterwards.
+A scene never touches the prepared image. `art98 render` attaches to the running VM and reverts
+it to the `ready` snapshot first. Every scene starts from a fresh `ready` desktop, even when
+several scenes are rendered one after another in one attach from Python.
 
 ## How it differs from Manim
 
@@ -116,6 +131,8 @@ nothing needs them yet.
   agent. `Close` is the honest exit for now.
 - Batched calls. Each frame sends its Win32 calls one by one, except that a move and a resize of
   one window become a single `SetWindowPos`.
-- `add_updater`, sections, `Write`, `Scroll` and shape drawing on Paint's canvas.
+- `add_updater`, `Write`, `Scroll` and shape drawing on Paint's canvas.
+- Rendering one section of a scene on its own (`--section`). `next_section(name)` and `cut()`
+  are built; see [Clips](scene-api.md#clips).
 
 Audio is left out on purpose. art98 is video only for now.

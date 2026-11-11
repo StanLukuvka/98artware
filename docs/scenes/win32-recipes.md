@@ -15,8 +15,7 @@ All recipes share this setup.
 import struct
 import time
 
-from art98 import Out, boot
-from art98.session import private_stage
+from art98 import Out, attach
 
 WM_CLOSE, WM_SETTEXT, WM_GETTEXT, WM_COMMAND, WM_CHAR = 0x10, 0x0C, 0x0D, 0x111, 0x102
 WM_SYSCOMMAND, WM_LBUTTONDOWN, WM_LBUTTONUP = 0x112, 0x201, 0x202
@@ -44,16 +43,16 @@ def client_origin(hwnd):
     return struct.unpack("<ii", u.ClientToScreen(hwnd, bytes(8)).buffers[0])
 ```
 
-Each recipe then runs inside this block, on a throwaway copy of the prepared image.
+Each recipe then runs inside this block, on the running VM.
 
 ```python
-with private_stage("work") as stage, boot(stage) as session:
+with attach() as session:
     g, vm = session.bridge, session.vm
     u, k, gdi = g.user32, g.kernel32, g.gdi32
     ...
 ```
 
-`boot` restores the same desktop every time, so nothing a recipe does survives the next run. The
+`attach` restores the same desktop every time, so nothing a recipe does survives the next run. The
 desktop is 800 x 600 in 16-bit colour.
 
 Three rules cover most surprises:
@@ -1578,17 +1577,24 @@ vm.close()
 
 ### Save and restore a moment
 
-A snapshot saves all guest state. Saving takes under 2 s and loading under 0.1 s. The bridge stays
-connected through both.
+The VM service only reverts to `ready`. It refuses `save_snapshot`, so the `ready` snapshot can't
+be changed by accident. To get back to a known point, end the run and attach again, or replay the
+steps after the revert.
+
+To try saving a moment, use `boot_local` on a private copy. This is for experiments only. It runs
+QEMU on this host, and the copy is deleted afterwards.
 
 ```python
-vm.save_snapshot("mine")
-g.spawn("notepad.exe")
-g.find_window(class_name="Notepad")
-vm.load_snapshot("mine")
-assert g.ping(timeout=2) > 0
-assert not any(w.class_name == "Notepad" for w in g.windows())
-vm.qmp.human_silent("delvm mine")
+from art98.session import boot_local, private_stage
+
+with private_stage("work") as copy, boot_local(copy) as local:
+    g, vm = local.bridge, local.vm
+    vm.save_snapshot("mine")
+    g.spawn("notepad.exe")
+    g.find_window(class_name="Notepad")
+    vm.load_snapshot("mine")
+    assert g.ping(timeout=2) > 0
+    assert not any(w.class_name == "Notepad" for w in g.windows())
 ```
 
 ### Freeze the guest

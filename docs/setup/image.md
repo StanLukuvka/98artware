@@ -34,7 +34,7 @@ background is the plain teal.
 ### Processes
 
 Eight processes run in the snapshot, all listed in the
-[`ping` output](README.md#quick-path). Only `AGENT.EXE` is added by art98.
+[`ping` output](README.md#quick-path-on-the-host). Only `AGENT.EXE` is added by art98.
 `SYSTRAY.EXE` is kept on purpose.
 
 ### Your product key is on the image
@@ -196,7 +196,7 @@ Eleven are in `C:\WINDOWS\SYSTEM`, and one is in `C:\WINDOWS`. All have long nam
 `FindFirstFileA` fills a `WIN32_FIND_DATA`, which holds the file name at offset 44:
 
 ```python
-from art98 import Out, boot
+from art98 import Out, attach
 
 
 def listing(guest, pattern):
@@ -214,7 +214,7 @@ def listing(guest, pattern):
         data = more.buffers[0]
 
 
-with boot("work") as stage:
+with attach() as stage:
     print(listing(stage.bridge, r"C:\WINDOWS\SYSTEM\*.SCR"))
 ```
 
@@ -345,8 +345,8 @@ Setup only sets 800x600x16.
 | Restore to a working agent | About 1 second |
 
 The snapshot holds memory, device state and the disk as they were, with the agent
-running and connected to COM1. `boot()` starts QEMU with `-loadvm ready`, so nothing a
-run does carries over. The agent does not send `HELLO` after a restore, so `boot()`
+running and connected to COM1. `art98 vm start` starts QEMU with `-loadvm ready`, so nothing a
+run does carries over. The agent does not send `HELLO` after a restore, so the VM service
 uses `wait_ready`, which sends `PING`.
 
 A snapshot only loads on the same machine version and devices. That is why `image.json`
@@ -354,7 +354,7 @@ exists, and why a change to `VMConfig` means a new image.
 
 There is no setup option for adding files to the image. Only `AGENT.EXE` is copied in.
 
-The CD drive is the way a scene gets a large file into the guest. The backend builds a small
+The CD drive is the way a scene gets a large file into the guest. The host builds a small
 ISO 9660 disc on the host and puts it in drive `D:`; the image itself doesn't change. QEMU keeps
 the disc in the drive across a `loadvm`, although the guest's own tray is restored empty, so a
 revert ejects the disc first. See [Desktop colour and wallpaper](../design/state-and-action.md#desktop-colour-and-wallpaper).
@@ -378,12 +378,12 @@ the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 | | | `-boot order=c` | Boots the disk. `boot_once="a"` adds `once=a` for the first install boot |
 | | | `-no-reboot` | See below |
 | | | `-nic none` | No network adapter, so nothing to configure or wait for. The bridge uses COM1 |
-| `display` | `none` | `-display none` | `gtk` with `--watch`, or if `boot()` is asked for it |
+| `display` | `none` | `-display none` | `gtk` with `--watch`, or `vnc` with `art98 vm start --vnc` |
 | | | `-serial chardev:guest` | COM1 is a Unix socket on the host. It carries the bridge |
 | | | `-mon chardev=qmp,mode=control` | QMP is a second Unix socket. It handles screenshots, keys and snapshots |
-| `icount_shift` | `None` | `-icount shift=N,sleep=off,align=off` when set | Off. Setup and `boot()` do not set it |
+| `icount_shift` | `None` | `-icount shift=N,sleep=off,align=off` when set | Off. Setup and the VM service do not set it |
 | `floppy` | `None` | `-drive ...,if=floppy` when set | Only the first install boot |
-| `loadvm` | `None` in `image.json` | `-loadvm ready` | `boot()` sets it |
+| `loadvm` | `None` in `image.json` | `-loadvm ready` | The VM service sets it |
 | `audio_wav` | `None` | `-audiodev wav,...` when set | Deferred |
 | `extra_args` | `[]` | Appended | For extra QEMU options |
 

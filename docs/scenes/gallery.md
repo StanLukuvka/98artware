@@ -286,7 +286,7 @@ class HoverDialog(Scene):
 A cascade of eight `???` boxes on a teal desktop, a jittered pair of greyed boxes with a custom
 icon, a box that types its own text, then the colour changes to dark red. A state then adds a
 tiled wallpaper, and one more box. The wallpaper comes from a CD in the guest's drive D:. The
-frames are the same on the local backend, Podman and Docker. The file also holds a second scene,
+frames are the same on host QEMU, Podman and Docker (measured before the VM service, when a render could still run QEMU on the host). The file also holds a second scene,
 `DialogStormStock`, for the stock desktop.
 
 ![Dialog storm](../assets/gifs/dialog-storm.gif)

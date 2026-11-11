@@ -387,9 +387,9 @@ such as a blinking caret, `ready` waits forever. A taskbar clock is not a proble
 since it changes once a minute. Run with `--watch` to see what is moving.
 
 **`--from ready`** cold-boots whatever is on `golden.qcow2` now, and `savevm`
-replaces the old `ready`. The catch: `art98 ping` and `boot("work")` write to that
-file. `boot()` restores the snapshot at the start of each run, but what the last run
+replaces the old `ready`. The catch: `boot_local("work")` writes to that
+file. It restores the snapshot at the start of each run, but what the last run
 left on disk stays there until the next restore, and a cold boot skips the restore. So
-`--from ready` can bake those leftovers into the new snapshot. `art98 render` is not
-a problem, because it runs on a copy. `--from ready` is safe right after a failed
+`--from ready` can bake those leftovers into the new snapshot. `art98 ping` and
+`art98 render` are not a problem, because the VM service runs on a copy. `--from ready` is safe right after a failed
 `ready`. For a clean result on an image you have used directly, use `--from vm`.

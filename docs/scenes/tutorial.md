@@ -9,8 +9,8 @@ Every program on the image is an action class in `core/art98/actions/programs/`,
 
 ## Before you start
 
-The easy way is the container. Run `art98 up` once, as the [README](../../README.md) says, then
-check the host. The container is the default backend:
+Run `art98 up` once, as the [README](../../README.md) says. Then start the VM with
+`art98 vm start`, and check the host:
 
 ```bash
 uv run art98 doctor
@@ -19,12 +19,8 @@ uv run art98 doctor
 `doctor` passes on a host that has only Docker and ffmpeg. Run everything from a checkout with
 `uv run`.
 
-The other way is the `local` backend. It needs the prepared image from [Part 1](../setup/),
-and `qemu-system-i386` and `ffmpeg` on your `PATH`. A missing `i686-w64-mingw32-gcc` doesn't
-matter here. That compiler only builds the image.
-
-A scene is a Python file. It does not run by itself: `art98 render` boots a private copy of the
-image, plays the scene on it, and writes a video.
+A scene is a Python file. It does not run by itself: `art98 render` restores the `ready` snapshot
+on the running VM, plays the scene on it, and writes a video.
 
 ## Your first scene
 
@@ -74,7 +70,7 @@ Render it:
 uv run art98 render first.py First -o first.mp4
 ```
 
-Starting the VM takes a few seconds. What the lines do:
+The restore takes about a second before the scene starts. What the lines do:
 
 - `state` is read before the scene starts. The windows open off camera, and the video begins
   with them in place.

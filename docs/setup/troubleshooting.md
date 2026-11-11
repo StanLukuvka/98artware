@@ -134,8 +134,8 @@ A guest reboot ends the QEMU process. This is on purpose, see
 [`-no-reboot`](image.md#hardware). During setup it is handled. In your own scripts:
 
 - The bridge reports the link closing, and the session is over.
-- Start a new VM. `boot()` restores the snapshot, so a reboot does not keep anything
-  from the session.
+- Stop the VM with `art98 vm stop`, then start it with `art98 vm start`. It restores the
+  snapshot, so a reboot does not keep anything from the session.
 - To keep changes across a reboot, you need a cold boot without `-loadvm`, the way
   the `ready` step does it, on a private copy of the image.
 - Call `ExitWindowsEx` with `acall`, since it never replies.
@@ -143,7 +143,7 @@ A guest reboot ends the QEMU process. This is on purpose, see
 ## On a busy host
 
 When the host is under CPU pressure, a render is slower but gives the same video. Measured on a
-20-CPU host with 28 busy loops running, local backend, with `examples/blank_start/blank_start.py`
+20-CPU host with 28 busy loops running, on host QEMU (before the VM service), with `examples/blank_start/blank_start.py`
 (3 clips, 263 frames). The pressure column is `some avg10` from `/proc/pressure/cpu`, before, during
 (min to max) and after the render.
 

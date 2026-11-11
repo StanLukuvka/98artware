@@ -8,8 +8,10 @@ Everything here comes from `from art98.anim import *`. For what you pass to `pla
 [Animations](animations.md).
 
 Positions are screen pixels, with `(0, 0)` at the top left and y running down. The screen is
-800 x 600. A scene starts on a black screen with no icons, taskbar or pointer, so the whole
-screen is the work area. On the stock desktop the taskbar takes the bottom 28 pixels.
+800 x 600 unless the desktop is set to another [display mode](../setup/image.md#display). A scene
+starts on a black screen with no icons, taskbar or pointer, so the whole screen is the work area.
+On the stock desktop the taskbar takes the bottom of the screen. Its height is read from the
+guest, not assumed.
 
 ## Scene
 
@@ -28,8 +30,10 @@ Subclass it and write `construct`. One scene is one recording.
 | `vm` | The QEMU `VM`, for real key presses and captures. |
 | `pointer` | The [`Pointer`](#pointer). |
 | `props` | The props on stage. |
-| `work_area` | `(left, top, right, bottom)` of the work area: the whole screen when blank, above the taskbar when stock. |
+| `work_area` | `(left, top, right, bottom)` of the work area: the whole screen when blank, above the taskbar when stock. Read from `space`. |
 | `screen` | The same area as a `Box`, to measure against. |
+| `space` | The [desktop space](#desktop-space): screen, work area, taskbar and metrics, as read from the guest. |
+| `strict_placement` | `False` by default. `True` makes a clamped size or a lost window raise `PlacementError` instead of warning. |
 | `recorder` | The [`Recorder`](bridge.md#recorder) the frames go to. `video` is another name for it. |
 | `time` | Video time in seconds: frames written over `fps`, across every [clip](#clips). It never reads a clock. |
 
@@ -39,14 +43,53 @@ Subclass it and write `construct`. One scene is one recording.
 | `construct()` | The scene. |
 | `tear_down()` | After `construct`. |
 
-`Scene.render(output=None, **options)` boots a VM and renders from Python. The options are those
-of [`render`](#rendering).
+`Scene.render(output=None, *, session, **options)` plays the scene on a session from
+`art98.attach()` and renders from Python. The options are those of [`render`](#rendering).
 
 ### Stage
 
 `add(*props)` brings props on stage. For a window this starts the program, finds its window, and
 places it. `remove(*props)` takes them off, which closes a window. `refresh_props()` reads
 positions back, for when something other than the script moved a window.
+
+### Desktop space
+
+`scene.space` is the desktop as the guest has it. It holds the screen size, the work area, the
+taskbar (the strip of screen outside the work area, worked out from those two) and the system
+metrics that window sizes need. It is read once per `prepare_desktop`, which runs after every
+revert and again when a state switches the display mode. Props read it through the scene, so
+`center()`, `to_corner()` and `title_bar` all use the same numbers.
+
+A scene that changes the desktop with a raw guest call, such as `SPI_SETWORKAREA`,
+`set_display_mode` or a moved taskbar, must call `scene.calibrate()` afterwards. art98 doesn't
+notice those changes by itself.
+
+#### Placement check
+
+Each size is checked before it is sent to the guest.
+
+- A resizable top-level window asked for a size outside Windows' track limits is clamped to the
+  limit. A `PlacementWarning` is raised once per prop and reason, naming the requested and the
+  sent size.
+- With `strict_placement = True`, the same case raises `PlacementError`, and nothing is sent.
+- A window entirely off the screen warns. A window partly off the screen is fine: sliding one in
+  from the edge is a normal animation.
+- Fixed-frame windows, such as dialogs, are not clamped to the track limits.
+- Maximized windows are not checked.
+
+#### Read-back
+
+Read-back happens once at the end of each animation, not per frame. If Windows put a window
+somewhere other than the rect it was asked for, for example because an app sets its own minimum
+size, a `PlacementWarning` names both rects. The prop then takes the rect Windows gave.
+
+#### Display modes
+
+Changing the display mode keeps each window's pixel rect. Windows already on stage are not moved
+to suit the new screen. The next move of one warns if its rect is then entirely off the screen.
+The modes the Cirrus driver offers are listed under [Display](../setup/image.md#display).
+1280x720 and 1920x1080 are not offered, so they are not supported. They would need another
+display adapter in the image.
 
 ### States
 
@@ -347,14 +390,14 @@ of a window that exists.
 | `hwnd` | A window handle you already have. |
 | `command` | A command line. The window must belong to the program it starts. |
 | `at` | Top left corner, applied when added. |
-| `size` | Outer size, applied when added. |
+| `size` | Outer size, applied when added. Checked as in [Placement check](#placement-check). |
 
 Each frame, a changed position becomes one `SetWindowPos`, followed by a `RedrawWindow`. Without
 the redraw Windows 98 leaves stale pixels on the frame.
 
 | Member | Meaning |
 | --- | --- |
-| `title_bar` | `Spot` in the middle of the title bar. Drag from here. |
+| `title_bar` | `Spot` in the middle of the title bar. Drag from here. Its offset comes from `space`, not a guest read. |
 | `corner(direction=DR, inset=2)` | `Spot` on a corner or edge of the frame. Resize from here. |
 | `client(x, y)` | `Spot` at client coordinates. |
 | `client_size()` | Client area as `(width, height)`. |
@@ -683,7 +726,7 @@ a state `app`, and icons in a state.
 
 ```text
 art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
-             [--gif-fps N] [--gif-colors N] [--gif-scale X] [--gif-dither NAME]
+             [--gif-fps N] [--gif-colors N] [--gif-scale X] [--gif-dither NAME] [--wait S]
 ```
 
 | Option | Default | Meaning |
@@ -692,23 +735,24 @@ art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
 | `SCENE` | | The scene class. Needed if the file has several. |
 | `-o`, `--output` | `<Scene>.mp4` | `.mp4`, or `.gif` for a GIF alone. |
 | `--gif` | | Write a GIF as well as the video. |
-| `--work` | `work` | Where the prepared image is. |
+| `--work` | `[vm] work` | The work folder. See [configuration](../setup/config.md). |
 | `--gif-fps` | 15 | GIF frame rate. |
 | `--gif-colors` | 128 | Palette size. |
 | `--gif-scale` | 1.0 | Size factor, with nearest-neighbour scaling. |
 | `--gif-dither` | `none` | A dither of ffmpeg's `paletteuse`. |
+| `--wait` | 0 | If the VM is busy, retry for up to this many seconds, then fail. See [the CLI](../setup/cli.md#art98-render). |
 
 ### Python
 
-`render(scene, output=None, *, gif=None, work="work", gif_fps=15, gif_colors=128, gif_scale=1.0,
-gif_dither="none", display="none", backend=None, keep_clips=True)`
+`render(scene, output=None, *, session, gif=None, gif_fps=15, gif_colors=128, gif_scale=1.0,
+gif_dither="none", keep_clips=True)`
 
-`scene` is a class or an instance. `display` is passed to QEMU's `-display`. Returns the path
-written. `keep_clips` is for scenes that [cut](#clips). A scene that records no frames raises
+`scene` is a class or an instance. `session` is required: take one with `art98.attach()`. Render
+never boots or closes it. Returns the path written. `keep_clips` is for scenes that [cut](#clips). A scene that records no frames raises
 `RecorderError`.
 
-The prepared image is only copied, as a reflink, into `work/runs/render-*`, and the copy is
-deleted afterwards. Several renders can run at once.
+A render does not copy the image. It plays on the VM that `art98 vm start` runs, from its copy
+under `work/runs/vm-*`, and restores `ready` first. One render runs at a time.
 
 `write_gif(source, output, fps=15, colors=128, scale=1.0, dither="none")` converts a video to a
 GIF with `palettegen` and `paletteuse`.
