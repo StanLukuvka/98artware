@@ -93,6 +93,7 @@ def test_patch_floppy_replaces_boot_files(tmp_path):
     assert "JO.SYS" not in listing.upper()
 
 
+@needs_mtools
 def test_patch_floppy_accepts_a_disc_without_the_menu(tmp_path):
     floppy = tmp_path / "boot.img"
     floppy.write_bytes(bytes(1474560))
