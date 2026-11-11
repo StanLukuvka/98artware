@@ -28,7 +28,7 @@ pushed without leaking anything.
 | What | Size | How it gets in |
 | --- | --- | --- |
 | Disc image (ISO) | about 650 MB | Bind-mounted read-only, for `up` and `setup` only. |
-| Product key | | A private file, mode 0600, mounted read-only at `/run/secrets/art98_key`, where setup reads it. `docker run` has no secrets outside swarm. The file is deleted when setup ends, so a resumed setup asks again. |
+| Product key | | A file mounted read-only at `/run/secrets/art98_key`, where setup reads it. The file is deleted when setup ends, so a resumed setup asks again. |
 | `work/` | about 1.6 GB here | Bind-mounted read-write. It keeps the existing `golden.qcow2` and its `ready` snapshot. |
 | Run copies | 416 MB each, mostly shared | Made inside the mounted `work/runs` with `cp --reflink=auto`, so on btrfs or XFS they cost almost nothing. Elsewhere it is a full copy. |
 
@@ -192,8 +192,8 @@ user's and mode 0600, so they stay readable after the switch.
 ### `art98 up`, on the host
 
 1. Builds the image if it isn't there (or with `--rebuild`). It passes `--load` when `docker build` has it, since Docker CE's CLI against a Podman socket otherwise leaves the result in a buildx cache, and it fails if the engine's image isn't the ID the build reported.
-2. Reads the key from `ART98_PRODUCT_KEY`, or asks for it without echo, and writes it to a
-   private file to mount at `/run/secrets/art98_key`.
+2. Reads the key from `ART98_PRODUCT_KEY`, or asks for it at a visible prompt, and writes it to a
+   file to mount at `/run/secrets/art98_key`.
 3. If `work/image.json` is missing, runs `art98 setup` in the container with the ISO mounted:
    about 40 minutes, resumable like today. `--watch` shows the screen through VNC on
    `127.0.0.1:5998` (`[ports] setup_vnc`, or `--vnc-port`), since GTK can't open from inside a container. Setup reads

@@ -115,8 +115,8 @@ so rerunning as it is reuses the bad key. Start again from `vm` with the right k
 uv run art98 setup --from vm --iso /path/to/win98se.iso --key XXXXX-XXXXX-XXXXX-XXXXX-XXXXX
 ```
 
-`art98 up` has no `--from`. Delete `work/state.json` and run `art98 up --iso ...` again; it asks
-for the key again.
+`art98 up` has no `--from`, and running it again as it is reuses the bad key. Delete
+`work/state.json`, run `art98 up --iso ...` again and type the right key at the prompt.
 
 ## QEMU only
 

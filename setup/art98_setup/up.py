@@ -66,15 +66,13 @@ def _bare(image_id: str) -> str:
 
 
 def _read_key() -> bytes:
-    """The product key, from ART98_PRODUCT_KEY or a prompt that doesn't echo.
+    """The product key, from ART98_PRODUCT_KEY or a visible prompt.
 
     Nothing keeps it between runs, so resuming a setup asks again.
     """
     key = os.environ.get("ART98_PRODUCT_KEY", "").strip()
     if not key:
-        import getpass
-
-        key = getpass.getpass("Windows 98 product key (not shown): ").strip()
+        key = input("Windows 98 product key: ").strip()
     if not key:
         raise ContainerError(
             "setup needs your product key: set ART98_PRODUCT_KEY or type it"
@@ -178,7 +176,8 @@ def up(
             cleanup()
         if code != 0:
             log(
-                f"[up] setup stopped with status {code}; run `art98 up` again to resume"
+                f"[up] setup stopped with status {code}; see the error above, then run "
+                "`art98 up` again"
             )
             return code
     else:

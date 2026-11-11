@@ -73,9 +73,6 @@ uv run art98 setup --iso /path/to/win98se.iso
 Steps that are already done don't need their flags. Resuming at `setup` needs
 neither `--iso` nor a key.
 
-`--key` on the command line is visible in your shell history and to other users in
-`ps`. Prefer the variable.
-
 `--watch` is stored as `"display": "gtk"` in `image.json`. It has no effect later,
 because `art98 vm start` always sets the display itself.
 
@@ -244,8 +241,8 @@ uv run art98 up --iso /path/to/win98se.iso
 2. Copies `agent.exe`, `view.exe` and `mbr.bin` out of the image into `guest/build`
    if `view.exe` isn't there, since scenes send `VIEW.EXE` to the guest from the host.
 3. If `image.json` is missing from the work directory, takes the key from `ART98_PRODUCT_KEY`
-   or asks for it without echo, and runs `art98 setup` in the container with the disc
-   mounted read-only. The key goes in a private file, mode 0600, mounted read-only at
+   or asks for it at a visible prompt, and runs `art98 setup` in the container with the disc
+   mounted read-only. The key goes in a file mounted read-only at
    `/run/secrets/art98_key`, and the file is deleted when setup ends. A resumed setup asks for
    the key again.
 4. Stops here and prints `art98 vm start`. Start the VM with that command.

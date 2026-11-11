@@ -143,3 +143,33 @@ def test_watch_publishes_vnc_on_the_configured_bind(tmp_path, monkeypatch):
     argv = up.setup_argv(engine, tmp_path, tmp_path / "x.iso", "art98:test", [], True)
     assert "0.0.0.0:5999:5900" in argv
     assert not any(a.startswith("127.0.0.1") for a in argv)
+
+
+def test_the_key_prompt_is_visible_and_stripped(monkeypatch):
+    monkeypatch.delenv("ART98_PRODUCT_KEY", raising=False)
+    prompts = []
+    monkeypatch.setattr(
+        "builtins.input", lambda p="": prompts.append(p) or " AAAAA-BBBBB \n"
+    )
+    assert up._read_key() == b"AAAAA-BBBBB"
+    assert prompts == ["Windows 98 product key: "]
+
+
+def test_a_failed_setup_hint_does_not_promise_a_clean_resume(tmp_path, monkeypatch):
+    engine = fake_engine(monkeypatch, "docker")
+    monkeypatch.setattr(up, "inspect_created", lambda eng, image: (True, 1.0))
+    monkeypatch.setattr(up, "container_warning", lambda created, image: [])
+    monkeypatch.setattr(up, "ROOT", tmp_path)
+    (tmp_path / "guest" / "build").mkdir(parents=True)
+    (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")
+    iso = tmp_path / "win98.iso"
+    iso.write_bytes(b"x")
+    monkeypatch.setenv("ART98_PRODUCT_KEY", "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE")
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        up.subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, 3)
+    )
+    lines = []
+    assert up.up(tmp_path / "work", iso, engine=engine, log=lines.append) == 3
+    assert "see the error above" in lines[-1]
+    assert "to resume" not in lines[-1]

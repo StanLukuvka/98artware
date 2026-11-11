@@ -83,10 +83,11 @@ One command builds the image, runs setup in the container and checks the result:
 uv run art98 up --iso /path/to/win98se.iso
 ```
 
-It asks for your product key without echoing it, or reads `ART98_PRODUCT_KEY`. Setup takes
+Give it your product key at the prompt, or set `ART98_PRODUCT_KEY` first. Setup takes
 25 to 40 minutes, depending on host load: about 25 on a quiet one. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the screen.
-If setup stops, run the same command again: it resumes, and asks for the key again, since
-nothing keeps it between runs. Running `up` again once setup is done skips setup and prints
+If setup stops, read the error, then run the same command again: it resumes, and asks for the key again, since
+nothing keeps it between runs. If the error is `Windows rejected the product key`, delete
+`work/state.json` first and type the right key. Running `up` again once setup is done skips setup and prints
 `art98 vm start`.
 
 Then start the VM and render. The VM stays up, paused between renders, until you stop it:
@@ -108,11 +109,11 @@ how it works, and [configuration](config.md) for the ports and the work folder.
 docker build -t localhost/art98:latest -f setup/Dockerfile .
 ```
 
-Put the key in a private file, typed without echo. `docker run` has no secrets outside swarm,
-so the file is mounted read-only where setup looks for it:
+Put the key in a file. The container reads it from `/run/secrets/art98_key`, so the file is
+mounted read-only there:
 
 ```bash
-read -rs KEY && (umask 077 && printf %s "$KEY" > "$XDG_RUNTIME_DIR/art98_key") && unset KEY
+printf %s "XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" > "$XDG_RUNTIME_DIR/art98_key"
 ```
 
 Run setup, with `work/`, the disc and the key mounted. `ART98_HOST_UID` and `ART98_HOST_GID`
@@ -123,7 +124,7 @@ since their root is you already:
 docker run --rm --init --security-opt label=disable -v "$PWD/work:/work" -e ART98_HOST_UID=$(id -u) -e ART98_HOST_GID=$(id -g) -v /path/to/win98se.iso:/media/win98.iso:ro -v "$XDG_RUNTIME_DIR/art98_key:/run/secrets/art98_key:ro" localhost/art98:latest setup --work /work --iso /media/win98.iso
 ```
 
-Then delete the file, since the key is in the finished image:
+Then delete the file; it is only a copy of the key:
 
 ```bash
 rm "$XDG_RUNTIME_DIR/art98_key"
@@ -161,10 +162,10 @@ Check the host:
 uv run art98 doctor
 ```
 
-Give setup your key without leaving it in your shell history:
+Give setup your key in `ART98_PRODUCT_KEY`, or pass it with `--key`. `art98 setup` does not prompt for it:
 
 ```bash
-read -rs ART98_PRODUCT_KEY && export ART98_PRODUCT_KEY
+export ART98_PRODUCT_KEY=XXXXX-XXXXX-XXXXX-XXXXX-XXXXX
 ```
 
 Build the image. This takes 25 to 40 minutes and needs no input:

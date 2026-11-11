@@ -347,9 +347,10 @@ class Setup:
                 "left on its Product Key page; see "
                 f"{vm.screenshot(self.shots / 'product-key.png')}. The bad key is "
                 "already in the disk's MSBATCH.INF, and resuming reuses it. "
-                "Start again from the vm step with the right key: "
-                "`art98 setup --from vm --iso ... --key ...`, or for `art98 up` "
-                "delete work/state.json and run it again"
+                "Start again from the vm step with the right key. With `art98 up`: "
+                "delete work/state.json, then run `art98 up --iso ...` again and "
+                "type the right key. With `art98 setup`: "
+                "`art98 setup --from vm --iso ... --key ...`"
             )
         self.log("  answering the first-boot wizard, accepting the license agreement")
         for keys in WIZARD_PAGES:
