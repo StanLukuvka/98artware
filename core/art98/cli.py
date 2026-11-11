@@ -8,11 +8,20 @@ import os
 import sys
 from pathlib import Path
 
+from . import freshness
+from .bridge import BridgeError
 from .container.host import ContainerError
-from .guestfiles import guest_build
-from .session import BACKENDS, GIF_COLORS, GIF_FPS, ImageMissing, boot
+from .desktop import DesktopError
+from .guestfiles import GuestBuildMissing, guest_build
+from .qemu import QemuError
+from .recorder import RecorderError
+from .session import BACKENDS, BackendError, GIF_COLORS, GIF_FPS, ImageMissing, boot
+from .state import StateError
 
 KEY_SECRET_FILE = Path("/run/secrets/art98_key")
+
+
+CONTAINER_NEEDS = {"ffmpeg"}  # what a host needs when QEMU and setup run in the container
 
 
 def cmd_doctor(_args) -> int:
@@ -20,24 +29,36 @@ def cmd_doctor(_args) -> int:
 
     from art98_setup import builder
 
-    missing = []
-    for tool, path, package in builder.doctor():
-        print(f"{tool:24} {path or 'missing'}")
-        if not path:
-            missing.append(tool)
-    print(f"{'/dev/kvm':24} not used: Windows 98 runs under software emulation")
+    rows = builder.doctor()
     name = os.environ.get("ART98_ENGINE") or "docker"
     engine = shutil.which(name)
+    missing = [tool for tool, path, _ in rows if not path]
+    local_only = [tool for tool in missing if tool not in CONTAINER_NEEDS]
+    local_ok = not missing
+    container_ok = bool(engine) and not (CONTAINER_NEEDS & set(missing))
+    for tool, path, _ in rows:
+        note = " (only the local backend needs it)" if not path and tool in local_only and container_ok else ""
+        print(f"{tool:24} {path or 'missing'}{note}")
+    print(f"{'/dev/kvm':24} not used: Windows 98 runs under software emulation")
     print(f"{name:24} {engine or 'missing'} (for `art98 up` and the container backend"
           f"{'' if engine else '; on a Podman host, install podman-docker'})")
-    if missing:
-        print("\nThe local backend needs the missing tools. Install them with one of:")
+    if local_ok and container_ok:
+        print("\nBoth backends are usable.")
+    elif local_ok:
+        print("\nThe local backend is usable. For the container backend install docker "
+              "or podman-docker.")
+    elif container_ok:
+        print("\nThe container backend is usable (`art98 up`, then `--backend container`). "
+              f"The local backend needs: {', '.join(local_only)}")
+    else:
+        blockers = sorted(CONTAINER_NEEDS & set(missing)) + ([] if engine else [name])
+        print(f"\nNothing is usable yet. Both backends need ffmpeg; the container backend also "
+              f"needs {name}, the local one {', '.join(local_only) or 'nothing else'}.")
+        print(f"Missing for the container backend: {', '.join(blockers)}")
+        print("Install the missing tools with one of:")
         for system, command, packages in builder.install_hints(missing):
             print(f"  {system:15} {command} {' '.join(packages)}")
-        print("Or skip them: `art98 up` runs QEMU and setup in a container, "
-              "and the host then needs only ffmpeg.")
-        return 1
-    return 0
+    return 0 if (local_ok or container_ok) else 1
 
 
 def _product_key(args) -> str | None:
@@ -65,19 +86,32 @@ def cmd_setup(args) -> int:
     return 0
 
 
-# Errors from starting a stage that a message explains better than a traceback.
-STAGE_ERRORS = (ImageMissing, ContainerError)
+RUN_ERRORS = (ImageMissing, ContainerError, RecorderError, StateError, DesktopError,
+              BridgeError, QemuError, GuestBuildMissing, BackendError)
+
+
+def _guarded(run, extra: tuple = ()):
+    """Turn a known failure into `error: ...` and exit 1; ART98_TRACE=1 keeps the traceback."""
+    def wrapper(args) -> int:
+        try:
+            return run(args)
+        except KeyboardInterrupt:
+            print("interrupted", file=sys.stderr)
+            return 130
+        except (*RUN_ERRORS, *extra) as error:
+            if os.environ.get("ART98_TRACE"):
+                raise
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+    return wrapper
 
 
 def cmd_ping(args) -> int:
-    try:
-        with boot(args.work, backend=args.backend) as session:
-            print(f"guest tick count: {session.bridge.ping()}")
-            for pid, name in session.bridge.processes():
-                print(f"{pid:#010x} {name}")
-    except STAGE_ERRORS as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
+    freshness.warn(args.work, args.backend)
+    with boot(args.work, backend=args.backend) as session:
+        print(f"guest tick count: {session.bridge.ping()}")
+        for pid, name in session.bridge.processes():
+            print(f"{pid:#010x} {name}")
     return 0
 
 
@@ -85,6 +119,8 @@ def _load_scene(path: Path, name: str | None) -> type:
     """Import a scene file and pick the scene class it defines."""
     from .anim import Scene
 
+    if not path.is_file():
+        raise SystemExit(f"error: {path} not found")
     module_name = f"art98_scene_{path.stem}"
     sys.path.insert(0, str(path.resolve().parent))
     spec = importlib.util.spec_from_file_location(module_name, path)
@@ -108,15 +144,12 @@ def cmd_render(args) -> int:
     from .anim import render
 
     scene = _load_scene(args.file, args.scene)
-    try:
-        written = render(
-            scene, args.output, gif=args.gif, work=args.work, gif_fps=args.gif_fps,
-            gif_colors=args.gif_colors, gif_scale=args.gif_scale, gif_dither=args.gif_dither,
-            backend=args.backend,
-        )
-    except STAGE_ERRORS as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
+    freshness.warn(args.work, args.backend)
+    written = render(
+        scene, args.output, gif=args.gif, work=args.work, gif_fps=args.gif_fps,
+        gif_colors=args.gif_colors, gif_scale=args.gif_scale, gif_dither=args.gif_dither,
+        backend=args.backend,
+    )
     print(f"Wrote {written}" + (f" and {args.gif}" if args.gif else ""))
     return 0
 
@@ -131,12 +164,8 @@ def cmd_serve(args) -> int:
 def cmd_up(args) -> int:
     from art98_setup.up import up
 
-    try:
-        return up(args.work, iso=args.iso, watch=args.watch, rebuild=args.rebuild,
-                  vnc_port=args.vnc_port, disk_mb=args.disk_mb)
-    except (ContainerError, FileNotFoundError) as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
+    return up(args.work, iso=args.iso, watch=args.watch, rebuild=args.rebuild,
+              vnc_port=args.vnc_port, disk_mb=args.disk_mb)
 
 
 def _backend_option(command) -> None:
@@ -167,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
     command = commands.add_parser("ping", help="boot the image and talk to the agent")
     command.add_argument("--work", type=Path, default=Path("work"))
     _backend_option(command)
-    command.set_defaults(run=cmd_ping)
+    command.set_defaults(run=_guarded(cmd_ping))
 
     command = commands.add_parser("render", help="play a scene and write a video")
     command.add_argument("file", type=Path, help="Python file holding the scene")
@@ -181,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument("--gif-dither", default="none",
                          help="ffmpeg paletteuse dither: none, bayer, sierra2_4a...")
     _backend_option(command)
-    command.set_defaults(run=cmd_render)
+    command.set_defaults(run=_guarded(cmd_render))
 
     command = commands.add_parser(
         "up", help="from your disc and key to a working desktop, in the art98 container")
@@ -192,7 +221,7 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument("--vnc-port", type=int, default=5998)
     command.add_argument("--rebuild", action="store_true", help="rebuild the container image")
     command.add_argument("--disk-mb", type=int, default=2047)
-    command.set_defaults(run=cmd_up)
+    command.set_defaults(run=_guarded(cmd_up, extra=(FileNotFoundError,)))
 
     command = commands.add_parser(
         "serve", help="inside the container: boot a stage and serve it to the host")

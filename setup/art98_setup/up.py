@@ -13,6 +13,7 @@ from pathlib import Path
 
 from art98.container.host import ContainerError, Engine, boot, image_name, mount_args
 from art98.container.serve import VNC_PORT
+from art98.freshness import container_warning, inspect_created
 
 KEY_SECRET = "art98_key"
 ROOT = Path(__file__).resolve().parents[2]
@@ -62,11 +63,14 @@ def up(work: Path | str = "work", iso: Path | str | None = None, watch: bool = F
     engine = engine or Engine()
     image = image_name()
     work = Path(work).resolve()
-    if rebuild or not engine.has_image(image):
+    exists, created = inspect_created(engine, image)  # one inspect: has_image would be a second
+    if rebuild or not exists:
         log(f"[up] building {image} with {engine.name}")
         build_image(engine, image)
     else:
         log(f"[up] image {image} is built")
+        for line in container_warning(created, image):
+            log(f"[up] warning: {line}")
 
     guest = ROOT / "guest" / "build"
     if not (guest / "view.exe").exists():

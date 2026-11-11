@@ -2,7 +2,9 @@
 
 import os
 
-from art98.container.host import Engine
+import pytest
+
+from art98.container.host import ContainerError, Engine
 from art98_setup import builder, up
 
 
@@ -42,3 +44,15 @@ def test_the_image_builds_from_setup_dockerfile_at_the_repo_root(monkeypatch):
     up.build_image(engine, "art98:test")
     assert calls == [("build", "-t", "art98:test", "-f", str(up.DOCKERFILE), str(up.ROOT))]
     assert (up.ROOT / ".dockerignore").read_text().splitlines()[1] == "work/"
+
+
+def test_up_warns_when_it_reuses_an_old_image(tmp_path, monkeypatch):
+    engine = fake_engine(monkeypatch, "docker")
+    monkeypatch.setattr(up, "inspect_created", lambda eng, image: (True, 1.0))
+    monkeypatch.setattr(up, "container_warning", lambda created, image: ["old image"])
+    (tmp_path / "image.json").write_text("{}")
+    lines = []
+    monkeypatch.setattr(up, "boot", lambda *a, **k: (_ for _ in ()).throw(ContainerError("stop")))
+    with pytest.raises(ContainerError):
+        up.up(tmp_path, engine=engine, log=lines.append)
+    assert "[up] warning: old image" in lines
