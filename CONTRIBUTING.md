@@ -28,7 +28,7 @@ You need what the [README](README.md#what-you-need) lists: Linux, Docker (or Pod
 `podman-docker`), Python 3.11+, uv, ffmpeg, and your own Windows 98 SE disc and key.
 
 ```bash
-git clone <repo-url> 98artware && cd 98artware
+git clone https://github.com/StanLukuvka/98artware 98artware && cd 98artware
 ```
 
 ```bash
@@ -108,14 +108,14 @@ documented scene does.
 
 ## Lint
 
-art98 uses [ruff](https://docs.astral.sh/ruff/), installed as a separate tool
-(`uv tool install ruff`):
+art98 uses [ruff](https://docs.astral.sh/ruff/), pinned in the `dev` group, so `uv sync`
+installs it:
 
 ```bash
-uv run ruff check --exclude work .
+uv run ruff check .
 ```
 
-It must pass. `uvx ruff check --exclude work .` works without installing it.
+It must pass.
 
 ## Adding a program
 

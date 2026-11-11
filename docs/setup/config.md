@@ -2,7 +2,7 @@
 
 `art98.toml` at the repository root holds the names, the work folder and the ports that
 `art98 vm`, `render` and `ping` use. Every key is optional. The file in the repository shows
-the everyday keys with their defaults. Three more, `[vm] transport`, `[vm] token_file` and
+the everyday keys with their defaults, and nothing else. Three more, `[vm] transport`, `[vm] token_file` and
 `[ports] connect`, are left out of it: they are for
 [attaching from another container](#attach-from-another-container).
 
@@ -33,7 +33,7 @@ From lowest to highest:
 
 1. The built-in defaults.
 2. `art98.toml`.
-3. `ART98_IMAGE`, which sets `[vm] image` only.
+3. `ART98_IMAGE`, which sets `[vm] image` only, and `ART98_TRANSPORT`, which sets `[vm] transport` only.
 4. The `--work DIR` flag of the command.
 
 A relative `work` in the file is taken from the folder that holds the file. A relative

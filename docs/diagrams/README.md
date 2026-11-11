@@ -59,6 +59,14 @@ alternate path that skips the sync and follows the host clock. Each render start
 
 ![Frame loop](frame-loop.png)
 
+## Function tree
+
+The functions behind one frame, from `renderer.render()` down to the agent in the guest. It has
+more pages in the `.drawio` file: the scene API, animations and input. Grey boxes are private
+helpers.
+
+![Function tree](function-tree.png)
+
 ## Colour key
 
 | Look | Means |
@@ -84,7 +92,7 @@ Edit the `.drawio` file in draw.io, then export it over the PNG. Run this from
 drawio -x -f png -e -b 16 -s 2 -o frame-loop.png frame-loop.drawio
 ```
 
-To export all six:
+To export all of them:
 
 ```bash
 for f in *.drawio; do drawio -x -f png -e -b 16 -s 2 -o "${f%.drawio}.png" "$f"; done

@@ -33,7 +33,7 @@ committed), and `.tools/`, if you have one, holds a local QEMU build. Load it in
 - [ ] [CONTRIBUTING.md](../CONTRIBUTING.md): setup, tests, lint, and how to add a program or a
   state feature. [AGENTS.md](../AGENTS.md) is the same for coding agents.
 - [ ] [art98.toml](../art98.toml): the settings, every key shown with its default.
-- [ ] [status.md](status.md): what exists and what is still open. Read this before picking work up.
+- [ ] [status.md](status.md): what works and what is still open. Read this before picking work up.
 
 ## 2. Guest programs
 

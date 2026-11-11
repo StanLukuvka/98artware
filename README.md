@@ -36,6 +36,7 @@ New words are in the [glossary](docs/glossary.md).
 - ffmpeg.
 - Your own Windows 98 SE disc image (an `.iso`) and its product key. The disc must boot from
   an emulated floppy and hold a `WIN98` folder; see [other discs](docs/setup/troubleshooting.md#a-different-disc).
+  Setup has been run on one OEM disc only, so another disc may fail.
 - About 3 GB of free disk space, and 25 to 40 minutes for the one-time install.
 
 art98 runs from a checkout with `uv run`. There is no package to install and no `pip install`.
@@ -45,7 +46,7 @@ art98 runs from a checkout with `uv run`. There is no package to install and no 
 **1. Get the code and check your machine.**
 
 ```bash
-git clone <repo-url> 98artware && cd 98artware
+git clone https://github.com/StanLukuvka/98artware 98artware && cd 98artware
 ```
 
 ```bash
@@ -203,7 +204,7 @@ clips are kept as `<stem>-01.mp4` and on, and joined into the output.
 | Understand why it is built this way | [Design decisions](docs/design/decisions.md), [Architecture](docs/design/architecture.md) |
 | Find your way round the code | [Repo tour](docs/tour.md) |
 | Change art98 | [Contributing](CONTRIBUTING.md), and [AGENTS.md](AGENTS.md) for coding agents |
-| See what is built and what is next | [Status](docs/status.md) |
+| See what is built and what is next | [Status](docs/status.md), [Changelog](CHANGELOG.md) |
 
 Every page is listed in [docs/README.md](docs/README.md).
 
@@ -345,7 +346,7 @@ QEMU doesn't pace it to 115200 baud, so files move well above the line rate.
 - Programs that don't ship with Windows 98 SE, and any plugin system for them. These are out of
   scope.
 
-[docs/status.md](docs/status.md) has the full list of what's built and what's next.
+[docs/status.md](docs/status.md) has the full list of what is built and what is next, and the [changelog](CHANGELOG.md) has the release notes and known limits.
 [PLAN.md](docs/archive/PLAN.md), now archived, has the original creative direction.
 
 ## Licence

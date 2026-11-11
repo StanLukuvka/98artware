@@ -148,8 +148,8 @@ On Debian or Ubuntu:
 sudo apt install qemu-system-x86 qemu-utils mtools 7zip ffmpeg make binutils gcc-mingw-w64-i686
 ```
 
-Build the two files that go on the Windows disk, `guest/build/agent.exe` and
-`guest/build/mbr.bin`:
+Build the three files that go on the Windows disk and into scenes, `guest/build/agent.exe`,
+`guest/build/mbr.bin` and `guest/build/view.exe`:
 
 ```bash
 make -C guest

@@ -39,7 +39,7 @@ file, so what you can redo depends on how far setup got.
 | `--from` | Needs | Before `ready` has finished | After `ready` has finished |
 |----------|-------|-----------------------------|----------------------------|
 | `vm` (or `media`, `disk`) | `--iso`, a key | New disk, then a new install | New disk, then a new install. Use this one to rebuild |
-| `setup` (or `install`) | `work/install.img`, `work/boot.img` | Runs Setup again over whatever is on the disk, see the warning under [setup](#setup) | **Fails.** QEMU can't find `install.img`, which ends in a `QemuError` traceback |
+| `setup` (or `install`) | `work/install.img`, `work/boot.img` | Runs Setup again over whatever is on the disk, see the warning under [setup](#setup) | **Fails.** QEMU can't find `install.img`, which ends in a `QemuError` and an `error:` line |
 | `init_api` (or `patch`) | `work/install.img` | Redoes `init_api` and `ready` | **Fails** with `mtype failed: ...` |
 | `ready` (or `harden`) | `work/golden.qcow2` | Redoes `ready` | Works, with a catch, see [ready](#ready) |
 
@@ -378,9 +378,9 @@ exists.
 | `unexpected windows on the desktop: [...]` | A window other than `Program Manager` is visible and has a title. Setup will not snapshot it. See `shots/ready.png` |
 | `the taskbar is missing` | No `Shell_TrayWnd` window |
 | `Windows did not shut down; see ...` | As in `setup` |
-| `cannot open ...` or `cannot set ...` | `BridgeError` from a registry call. Shows as a traceback |
-| `guest has no 800x600x16 display mode` | `BridgeError`: the driver lists no such mode. Shows as a traceback |
-| `guest speaks protocol N, host M` | `BridgeError`: `agent.exe` and the Python code are from different versions. Shows as a traceback |
+| `cannot open ...` or `cannot set ...` | `BridgeError` from a registry call. Shows as an `error:` line |
+| `guest has no 800x600x16 display mode` | `BridgeError`: the driver lists no such mode. Shows as an `error:` line |
+| `guest speaks protocol N, host M` | `BridgeError`: `agent.exe` and the Python code are from different versions. Shows as an `error:` line |
 
 **`_wait_for_quiet_screen` has no time limit.** If something on screen keeps moving,
 such as a blinking caret, `ready` waits forever. A taskbar clock is not a problem,

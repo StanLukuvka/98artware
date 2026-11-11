@@ -4,8 +4,8 @@ The `art98` command is `core/art98/cli.py`. Run it with `uv run art98`, from a s
 checkout: it finds `guest/build` relative to the source file, so an installed wheel
 would not find it.
 
-This page covers `doctor`, `setup`, `vm`, `ping`, `up` and `serve`. For `art98 render`, see
-[the scene API](../scenes/scene-api.md#command-line). Settings for these commands live in
+This page covers `doctor`, `setup`, `vm`, `ping`, `up`, `serve` and a short `render` section. For
+the GIF options of `art98 render`, see [the scene API](../scenes/scene-api.md#command-line). Settings for these commands live in
 [art98.toml](config.md).
 
 ## art98 doctor
@@ -17,33 +17,35 @@ uv run art98 doctor
 ```
 
 ```
-qemu-system-i386         /usr/bin/qemu-system-i386
-qemu-img                 /usr/bin/qemu-img
+qemu-system-i386         missing (only `art98 setup` on the host needs it)
+qemu-img                 missing (only `art98 setup` on the host needs it)
 mcopy                    /usr/bin/mcopy
 7z                       /usr/bin/7z
 ffmpeg                   /usr/bin/ffmpeg
 make                     /usr/bin/make
 as                       /usr/bin/as
-i686-w64-mingw32-gcc     missing
+i686-w64-mingw32-gcc     /usr/bin/i686-w64-mingw32-gcc
 /dev/kvm                 not used: Windows 98 runs under software emulation
 docker                   /usr/bin/docker (for `art98 up` and `art98 vm`)
 
-`art98 setup` on the host needs the missing tools. Install them with one of:
-  Fedora          sudo dnf install mingw32-gcc
-  Debian, Ubuntu  sudo apt install gcc-mingw-w64-i686
-Or skip them: `art98 up` runs QEMU and setup in a container, and the host then needs only ffmpeg.
+The VM is usable (run `art98 up` first). `art98 setup` on the host needs: qemu-system-i386, qemu-img
 ```
+
+This is a host that has `docker` and `ffmpeg` but no host QEMU. The last line is one of four
+summaries: everything usable, only the host path usable, only the container path usable, or
+nothing usable. When nothing is usable it also prints an install command per system.
 
 | Exit code | Meaning |
 |-----------|---------|
-| 0 | Everything in `HOST_TOOLS` was found |
-| 1 | Something is missing. It prints a `dnf` and an `apt` command for it |
+| 0 | At least one path works: every tool in `HOST_TOOLS` is found (host `setup`), or `ffmpeg` and the engine are found (`art98 up`, `art98 vm`) |
+| 1 | Neither path works. It prints a `dnf` and an `apt` command for the missing tools |
 
 It looks up each tool with `shutil.which` and nothing more. It does not check
 versions or whether `guest/build` exists. The package names come from
 `HOST_TOOLS` and `DEBIAN_PACKAGES` in `builder.py`. On Debian 12 and older, `7z` comes from
-`p7zip-full` rather than `7zip`. A missing `docker` doesn't change the exit code. Its line then
-suggests `podman-docker`, which provides `docker` on a Podman host.
+`p7zip-full` rather than `7zip`. The engine is `docker`, or the command `ART98_ENGINE` names. If it is missing, its line
+suggests `podman-docker`, which provides `docker` on a Podman host, and the exit code can
+become 1.
 
 `i686-w64-mingw32-gcc`, `make` and `as` are only needed to build `guest/`. If
 `guest/build/` already holds `agent.exe` and `mbr.bin`, `setup` runs without them,
@@ -101,8 +103,8 @@ Ready: /home/you/98artware/work
 | Exit code | Meaning |
 |-----------|---------|
 | 0 | All steps are done. It prints `Ready: <work directory>` |
-| 1 | It failed. A `SetupError` prints `error: <message>` to stderr |
-| 1 | Any other exception prints a Python traceback. This is what happens with `PEError`, `QemuError`, `BridgeError` and `FileNotFoundError`, which `cmd_setup` does not catch |
+| 1 | It failed. `SetupError`, `QemuError` and `BridgeError` print one `error: <message>` line to stderr. `ART98_TRACE=1` adds the traceback |
+| 1 | `PEError` and a plain `FileNotFoundError` are not caught: they print a Python traceback |
 
 [stages.md](stages.md) lists the messages for each step.
 
@@ -291,6 +293,8 @@ it. The protocol is in [the container design](../design/container.md#art98-serve
 | `ART98_WATCH_DISPLAY` | `Setup._config` | The QEMU display for `--watch`, `gtk` by default. `art98 up --watch` sets it to VNC |
 | `ART98_TRACE` | `art98.cli` | Set to `1` to get the full Python traceback instead of the one-line `error:` message |
 | `ART98_TEST_WORK` | `test_stage.py` | The prepared work directory the stage tests boot |
+| `ART98_TEST_WINEPREFIX` | `test_agent_wine.py` | A Wine prefix to reuse, so the Wine tests skip creating a new one |
+| `ART98_TOKEN_FILE` | `art98 serve` (`read_token`) | The token file, when `--token-file` is not given. The default is `/run/secrets/art98_token` |
 | `XDG_RUNTIME_DIR` | `VM.__init__`, `art98.service` | Where each VM's temporary folder for its QMP and serial sockets goes, and the VM service's socket folder. If unset, Python's default temp directory is used |
 
 `MTOOLS_SKIP_CHECK=1` is not yours to set. Setup sets it for its own mtools calls.

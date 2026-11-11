@@ -33,7 +33,6 @@ before changing it.
 | `tools/` | `render_all.py` (gallery GIFs), `check_docs.py` (renders doc samples on the real VM) |
 | `experiments/` | Throwaway probes. No tests, not imported by art98 |
 | `docs/` | Every page; index in `docs/README.md`. `docs/status.md` is the pick-up point |
-| `.lad/plans/` | Plans from earlier multi-agent work. History, not instructions |
 | `work/` | The prepared image. **Never read, copy or commit anything from it** |
 
 The [repo tour](docs/tour.md) walks every file in reading order.
@@ -68,17 +67,17 @@ VM tests, on the real prepared image. `art98 vm start` must be running, and they
 uv run python -m pytest core/tests/test_stage.py core/tests/test_stage_scenes.py -q
 ```
 
-On a host where `DOCKER_HOST` points at Podman but the VM runs on real Docker, run them under
-the `docker` group with `DOCKER_HOST` unset:
+If your shell's `DOCKER_HOST` points at a different engine than the one running the VM, unset
+it for these commands:
 
 ```bash
-env -u DOCKER_HOST sg docker -c '. .tools/env.sh && uv run python -m pytest core/tests/test_stage.py -q'
+env -u DOCKER_HOST uv run python -m pytest core/tests/test_stage.py -q
 ```
 
-Lint (ruff is a separate tool: `uv tool install ruff`, or use `uvx ruff`):
+Lint (ruff is pinned in the `dev` group):
 
 ```bash
-uv run ruff check --exclude work .
+uv run ruff check .
 ```
 
 Doc samples on the real VM: `uv run python tools/check_docs.py`.

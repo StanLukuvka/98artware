@@ -276,6 +276,10 @@ the VM keeps its Sound Blaster only because removing it would change the image.
 Two more things are out for now: animated desktop icons, and widescreen output. The Cirrus card
 offers no 1280 x 720 or 1920 x 1080 mode, and another display adapter would change the image;
 scenes are 4:3, 800 x 600 by default (see [Display modes](../scenes/scene-api.md#display-modes)).
+The set of resolutions stays fixed to the Cirrus modes (640 x 480, 800 x 600, 1024 x 768,
+1280 x 1024). Arbitrary or custom resolutions, upscaling to 720p or 1080p, and a different display
+driver are deferred (decided 2026-11-11): a fixed set means nothing has to check or adapt to an
+unknown resolution.
 
 **For new work.** Don't plan install steps or extension points for non-base programs, and don't
 add audio capture, sound in scenes, or audio tracks in the output.

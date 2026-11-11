@@ -34,7 +34,7 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
 | **Action** | A class for one kind of thing on screen and the verbs that drive it, such as `Win` and `Teleport`. Programs come back as action classes. |
 | **Clip** | The video file one section writes. |
 | **Scene** | A state plus the sections that run on it, recorded. |
-| **Backend** | Whatever provides revert and capture. Today that's QEMU. |
+| **Backend** | Whatever provides revert and capture. Today that's the VM service, which runs QEMU in a container. |
 
 "Stage" keeps its meaning in the setup tool only (its steps were stages before). "Snapshot" only means the VM feature behind the baseline.
 
@@ -356,6 +356,11 @@ On camera, a picture window does what any window does:
 | Open | `self.add(Picture(...))`, as today |
 
 ## Backend
+
+> **Superseded.** This section describes the design before the VM service: a per-render boot with
+> `start()` and `-loadvm ready`. Now one long-lived VM container serves each render, which
+> attaches, reverts and releases. See [decision 6](decisions.md#6-the-vm-service-one-long-lived-vm-one-render-at-a-time)
+> and [Container](container.md#the-vm-service). The table is kept as the original design.
 
 | Call | QEMU today |
 | --- | --- |
