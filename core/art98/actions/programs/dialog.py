@@ -190,6 +190,8 @@ class Dialog(Win):
                 rect[3] - rect[1],
                 1,
             )
+        # Moving the buttons can leave a stale copy of one over another (a Yes drawn on No).
+        win32.repaint_window(self.guest, self.hwnd)
 
     def set_message(self, text: str) -> None:
         """Change the box's text. The text area grows to its lines; it must stay clear of the buttons."""

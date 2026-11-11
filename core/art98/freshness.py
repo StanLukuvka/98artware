@@ -35,7 +35,7 @@ def parse_created(text: str) -> float | None:
     clock = parts[1].rstrip("Z")
     seconds, _, fraction = clock.partition(".")
     try:
-        stamp = datetime.strptime(f"{parts[0]} {seconds}", "%Y-%m-%d %H:%M:%S")  # noqa: DTZ007
+        stamp = datetime.strptime(f"{parts[0]} {seconds}", "%Y-%m-%d %H:%M:%S")
     except ValueError:
         return None
     return stamp.replace(tzinfo=UTC).timestamp() + (

@@ -9,3 +9,10 @@ work-*/
 .pytest_cache/
 /*.mp4
 out/
+.lad/
+.claude/
+dist/
+*.qcow2
+*.img
+.ruff_cache/
+examples/inspiration/

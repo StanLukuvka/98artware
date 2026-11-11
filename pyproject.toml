@@ -5,13 +5,26 @@ description = "Script animations with a real Windows 98 desktop inside a VM"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
+readme = "README.md"
+keywords = ["windows-98", "animation", "video", "qemu", "screen-capture", "retro"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Multimedia :: Video",
+]
 dependencies = []
+
+[project.urls]
+Repository = "https://github.com/StanLukuvka/98artware"
 
 [project.scripts]
 art98 = "art98.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "pycdlib>=1.14"]
+dev = ["pytest>=8", "pycdlib>=1.14", "ruff==0.17.4"]
 
 [build-system]
 requires = ["hatchling"]
@@ -28,3 +41,6 @@ markers = [
     "container: needs docker (or podman-docker) and the art98 image",
     "stage: boots the prepared image in work/ (or ART98_TEST_WORK)",
 ]
+
+[tool.ruff]
+extend-exclude = ["work"]

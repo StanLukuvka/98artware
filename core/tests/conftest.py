@@ -17,3 +17,13 @@ def quiet_freshness(request, monkeypatch):
     if request.node.path.name == "test_freshness.py":
         return
     monkeypatch.setattr(freshness, "warn", lambda *a, **k: None)
+
+
+@pytest.fixture(autouse=True)
+def no_repo_settings(request, tmp_path_factory, monkeypatch):
+    """settings.find() walks up from the cwd, so a unit test run from the repo
+    would read the repo's or the user's art98.toml (and could reach a live VM).
+    Run every test from an empty directory; test_stage*.py keep the real config."""
+    if request.node.path.name.startswith("test_stage"):
+        return
+    monkeypatch.chdir(tmp_path_factory.mktemp("cwd"))

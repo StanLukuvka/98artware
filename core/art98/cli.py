@@ -270,6 +270,9 @@ def cmd_vm_status(args) -> int:
     return 0 if "ready" in snapshots else 1
 
 
+WORK_HELP = "folder holding the prepared image (default: [vm] work from art98.toml)"
+
+
 def _wait_option(command) -> None:
     command.add_argument(
         "--wait",
@@ -292,8 +295,15 @@ def main(argv: list[str] | None = None) -> int:
     command = commands.add_parser("setup", help="build the prepared Windows 98 image")
     command.add_argument("--iso", type=Path, help="your Windows 98 SE disc image")
     command.add_argument("--key", help="product key, or set ART98_PRODUCT_KEY")
-    command.add_argument("--work", type=Path, default=None)
-    command.add_argument("--disk-mb", type=int, default=2047)
+    command.add_argument(
+        "--work",
+        type=Path,
+        default=None,
+        help="folder for the prepared image (default: [vm] work from art98.toml)",
+    )
+    command.add_argument(
+        "--disk-mb", type=int, default=2047, help="virtual disk size in MB"
+    )
     command.add_argument(
         "--from",
         dest="from_stage",
@@ -303,7 +313,7 @@ def main(argv: list[str] | None = None) -> int:
     command.set_defaults(run=_guarded(cmd_setup))
 
     command = commands.add_parser("ping", help="talk to the agent on the running VM")
-    command.add_argument("--work", type=Path, default=None)
+    command.add_argument("--work", type=Path, default=None, help=WORK_HELP)
     _wait_option(command)
     command.set_defaults(run=_guarded(cmd_ping))
 
@@ -314,10 +324,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     command.add_argument("-o", "--output", type=Path, help="output file, .mp4 or .gif")
     command.add_argument("--gif", type=Path, help="write a GIF as well")
-    command.add_argument("--work", type=Path, default=None)
-    command.add_argument("--gif-fps", type=int, default=GIF_FPS)
-    command.add_argument("--gif-colors", type=int, default=GIF_COLORS)
-    command.add_argument("--gif-scale", type=float, default=1.0)
+    command.add_argument("--work", type=Path, default=None, help=WORK_HELP)
+    command.add_argument(
+        "--gif-fps", type=int, default=GIF_FPS, help="GIF frames per second"
+    )
+    command.add_argument(
+        "--gif-colors", type=int, default=GIF_COLORS, help="GIF palette size"
+    )
+    command.add_argument(
+        "--gif-scale",
+        type=float,
+        default=1.0,
+        help="GIF size relative to the video (0.5 = half width and height)",
+    )
     command.add_argument(
         "--gif-dither",
         default="none",
@@ -338,7 +357,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
     ):
         sub = vm.add_parser(name, help=text, description=text)
-        sub.add_argument("--work", type=Path, default=None)
+        sub.add_argument("--work", type=Path, default=None, help=WORK_HELP)
         if name == "start":
             sub.add_argument(
                 "--vnc",
@@ -348,30 +367,45 @@ def main(argv: list[str] | None = None) -> int:
             )
         sub.set_defaults(run=_guarded(run))
 
-    command = commands.add_parser(
-        "up", help="from your disc and key to a working desktop, in the art98 container"
-    )
+    text = "from your disc and key to a working desktop, in the art98 container"
+    command = commands.add_parser("up", help=text, description=text)
     command.add_argument(
         "--iso", type=Path, help="your Windows 98 SE disc image, for setup"
     )
-    command.add_argument("--work", type=Path, default=None)
+    command.add_argument("--work", type=Path, default=None, help=WORK_HELP)
     command.add_argument(
         "--watch",
         action="store_true",
         help="show setup's screen over VNC on a loopback port",
     )
-    command.add_argument("--vnc-port", type=int, default=None)
+    command.add_argument(
+        "--vnc-port",
+        type=int,
+        default=None,
+        help="host port for --watch (default: [ports] setup_vnc from art98.toml)",
+    )
     command.add_argument(
         "--rebuild", action="store_true", help="rebuild the container image"
     )
-    command.add_argument("--disk-mb", type=int, default=2047)
+    command.add_argument(
+        "--disk-mb", type=int, default=2047, help="virtual disk size in MB"
+    )
     command.set_defaults(run=_guarded(cmd_up, extra=(FileNotFoundError,)))
 
-    command = commands.add_parser(
-        "serve", help="inside the container: boot a stage and serve it to the host"
+    text = "inside the container: boot a stage and serve it to the host"
+    command = commands.add_parser("serve", help=text, description=text)
+    command.add_argument(
+        "--work",
+        type=Path,
+        default=Path("/work"),
+        help="folder holding the prepared image (default /work)",
     )
-    command.add_argument("--work", type=Path, default=Path("/work"))
-    command.add_argument("--port", type=int, default=CONTAINER_CONTROL_PORT)
+    command.add_argument(
+        "--port",
+        type=int,
+        default=CONTAINER_CONTROL_PORT,
+        help=f"TCP port to listen on (default {CONTAINER_CONTROL_PORT})",
+    )
     command.add_argument(
         "--unix", type=Path, help="listen on this Unix socket instead of TCP"
     )
@@ -381,7 +415,12 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument(
         "--vnc", action="store_true", help="show the screen on VNC port 5900"
     )
-    command.add_argument("--ready-timeout", type=float, default=60.0)
+    command.add_argument(
+        "--ready-timeout",
+        type=float,
+        default=60.0,
+        help="seconds to wait for the guest agent after boot (default 60)",
+    )
     command.set_defaults(run=cmd_serve)
 
     args = parser.parse_args(argv)
