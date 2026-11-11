@@ -2,6 +2,7 @@
 
 import importlib.util
 import inspect
+import shutil
 import struct
 from pathlib import Path
 
@@ -14,6 +15,8 @@ from art98.actions.keyboard import char_chord, key_chord
 from art98.actions.pointer import BUTTONS
 from art98.anim import *
 from art98.bridge import CallResult, Window
+
+needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
 
 WM_CHAR, WM_CLOSE, WM_SYSCOMMAND = 0x0102, 0x0010, 0x0112
 SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOACTIVATE = 1, 2, 4, 0x10
@@ -951,6 +954,7 @@ def test_private_stage_copies_and_cleans_up(tmp_path):
     assert not stage.exists()
 
 
+@needs_ffmpeg
 def test_render_turns_a_class_into_a_scene_and_routes_a_gif(
     tmp_path, monkeypatch, guest
 ):
@@ -1151,6 +1155,7 @@ def test_a_title_bar_drag_repaints_the_window_only_when_it_moved(guest, scene):
     assert guest.named("RedrawWindow") == []
 
 
+@needs_ffmpeg
 def test_render_uses_a_given_session_and_never_closes_it(tmp_path, monkeypatch, guest):
     from art98.anim import renderer as render_module
 

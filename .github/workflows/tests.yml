@@ -12,6 +12,8 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Install ffmpeg and mtools
         timeout-minutes: 8
+        # When Ubuntu's mirrors are unreachable, the tests that need these tools skip themselves.
+        continue-on-error: true
         run: |
           apt_opts="-o Acquire::Retries=1 -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10"
           sudo apt-get $apt_opts update

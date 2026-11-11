@@ -375,6 +375,7 @@ def test_render_without_cuts_is_unchanged(staged, tmp_path):
     assert frames(tmp_path / "out.mp4") == 4
 
 
+@needs_ffmpeg
 def test_render_of_a_scene_with_no_frames_says_so(staged, tmp_path):
     class Empty:
         fps = 10
