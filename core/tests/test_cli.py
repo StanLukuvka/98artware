@@ -1,6 +1,8 @@
 """The CLI turns known failures into one `error:` line, and doctor reads a container-only host."""
 
+import contextlib
 import os
+from pathlib import Path
 
 import pytest
 from art98 import cli, freshness
@@ -10,6 +12,7 @@ from art98.desktop import DesktopError
 from art98.guestfiles import GuestBuildMissing
 from art98.qemu import QemuError
 from art98.recorder import RecorderError
+from art98.service import NotRunning, ServiceError
 from art98.session import ImageMissing
 from art98.state import StateError
 
@@ -19,9 +22,15 @@ REAL_STALE = freshness.stale_warnings
 SCENE = "from art98.anim import Scene\n\n\nclass Demo(Scene):\n    def play(self):\n        pass\n"
 
 
+@contextlib.contextmanager
+def fake_attach(*args, **kwargs):
+    yield object()  # a session the patched render never touches
+
+
 @pytest.fixture(autouse=True)
 def quiet(monkeypatch):
     monkeypatch.setattr(cli.freshness, "warn", lambda *a: None)
+    monkeypatch.setattr(cli.service, "attach", fake_attach)
     monkeypatch.delenv("ART98_TRACE", raising=False)
 
 
@@ -59,6 +68,38 @@ def test_known_failures_are_one_error_line(monkeypatch, capsys, scene, error):
     assert err.startswith("error: ") and "Traceback" not in err
 
 
+RAISING_SCENE = (
+    "from art98.anim import Scene\n"
+    "from art98.bridge import BridgeTimeout\n\n\n"
+    "def helper():\n"
+    '    raise BridgeTimeout("no window for Notepad")\n\n\n'
+    "class Demo(Scene):\n"
+    "    def construct(self):\n"
+    "        helper()\n"
+)
+
+
+def test_error_names_the_scene_line(monkeypatch, capsys, tmp_path):
+    path = tmp_path / "scene.py"
+    path.write_text(RAISING_SCENE)
+
+    def render(scene, *args, **kwargs):
+        scene().construct()
+
+    monkeypatch.setattr("art98.anim.render", render)
+    assert cli.main(["render", str(path)]) == 1
+    # innermost scene frame is the raise in helper(), not the construct call
+    assert capsys.readouterr().err == (
+        "error: no window for Notepad (scene.py:6, in helper)\n"
+    )
+
+
+def test_error_outside_the_scene_is_unchanged(monkeypatch, capsys, scene):
+    fail_with(monkeypatch, BridgeTimeout("slow"))
+    assert cli.main(["render", str(scene)]) == 1
+    assert capsys.readouterr().err == "error: slow\n"
+
+
 def test_trace_keeps_the_traceback(monkeypatch, scene):
     fail_with(monkeypatch, RecorderError("ffmpeg died"))
     monkeypatch.setenv("ART98_TRACE", "1")
@@ -79,12 +120,90 @@ def test_a_scenes_own_bug_keeps_its_traceback(monkeypatch, scene):
 
 
 def test_ping_is_guarded(monkeypatch, capsys, tmp_path):
-    def boot(*args, **kwargs):
-        raise ImageMissing("no image")
+    def attach(*args, **kwargs):
+        raise ServiceError("no VM")
 
-    monkeypatch.setattr(cli, "boot", boot)
+    monkeypatch.setattr(cli.service, "attach", attach)
     assert cli.main(["ping", "--work", str(tmp_path)]) == 1
-    assert capsys.readouterr().err.startswith("error: ")
+    assert capsys.readouterr().err == "error: no VM\n"
+
+
+def test_render_and_ping_pass_wait_and_revert(monkeypatch, tmp_path, scene):
+    seen = []
+
+    def attach(settings, **kwargs):
+        seen.append(kwargs)
+        raise NotRunning("down")
+
+    monkeypatch.setattr(cli.service, "attach", attach)
+    cli.main(["ping", "--work", str(tmp_path), "--wait", "2.5"])
+    cli.main(["render", str(scene), "--work", str(tmp_path)])
+    assert seen == [{"revert": False, "wait": 2.5}, {"wait": 0.0}]
+
+
+def test_render_hands_the_attached_session_to_the_renderer(
+    monkeypatch, tmp_path, scene
+):
+    sentinel, attach_kwargs, got = object(), [], {}
+
+    @contextlib.contextmanager
+    def attach(settings, **kwargs):
+        attach_kwargs.append(kwargs)
+        yield sentinel
+
+    def render(scene_class, output, **kwargs):
+        got.update(kwargs)
+        return tmp_path / "x.mp4"
+
+    monkeypatch.setattr(cli.service, "attach", attach)
+    monkeypatch.setattr("art98.anim.render", render)
+    assert cli.main(["render", str(scene), "--work", str(tmp_path)]) == 0
+    assert got["session"] is sentinel
+    assert "revert" not in attach_kwargs[0]
+
+
+def test_a_bad_art98_toml_is_one_error_line(monkeypatch, capsys, tmp_path):
+    (tmp_path / "art98.toml").write_text("[vm]\nbogus = 1\n")
+    monkeypatch.chdir(tmp_path)
+    assert cli.main(["vm", "status"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error: ") and "bogus" in err and "Traceback" not in err
+
+
+def test_vm_and_wait_parse_and_help(capsys):
+    for argv in (["vm", "--help"], ["vm", "start", "--help"], ["render", "--help"]):
+        with pytest.raises(SystemExit) as stop:
+            cli.main(argv)
+        assert stop.value.code == 0
+    out = capsys.readouterr().out
+    assert "--vnc" in out and "--wait S" in out and "status" in out
+    with pytest.raises(SystemExit) as stop:
+        cli.main(["vm"])
+    assert stop.value.code == 2
+
+
+def test_vm_status_exit_codes(monkeypatch, capsys, tmp_path):
+    info = {"running": True, "busy": False, "paused": True, "snapshots": ["ready"],
+            "started_at": "t", "vnc": None, "image_stale": False}  # fmt: skip
+    monkeypatch.setattr(cli.service, "status", lambda settings: info)
+    assert cli.main(["vm", "status", "--work", str(tmp_path)]) == 0
+    assert "paused" in capsys.readouterr().out
+    info["snapshots"] = []
+    assert cli.main(["vm", "status", "--work", str(tmp_path)]) == 1
+    info["running"] = False
+    assert cli.main(["vm", "status", "--work", str(tmp_path)]) == 1
+    assert "art98 vm start" in capsys.readouterr().out
+
+
+def test_vm_start_and_stop_call_the_service(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(
+        cli.service, "start", lambda s, vnc: calls.append(("start", vnc))
+    )
+    monkeypatch.setattr(cli.service, "stop", lambda s: calls.append(("stop",)))
+    assert cli.main(["vm", "start", "--vnc", "--work", str(tmp_path)]) == 0
+    assert cli.main(["vm", "stop", "--work", str(tmp_path)]) == 0
+    assert calls == [("start", True), ("stop",)]
 
 
 def test_a_missing_scene_file(tmp_path):
@@ -142,13 +261,13 @@ def doctor(monkeypatch, capsys, have):
 
 def test_doctor_everything(monkeypatch, capsys):
     code, out = doctor(monkeypatch, capsys, {"ffmpeg", "docker", *LOCAL})
-    assert code == 0 and "Both backends are usable" in out
+    assert code == 0 and "Everything is usable" in out
 
 
 def test_doctor_container_only_host_passes(monkeypatch, capsys):
     code, out = doctor(monkeypatch, capsys, {"ffmpeg", "docker"})
-    assert code == 0 and "container backend is usable" in out
-    assert "only the local backend needs it" in out
+    assert code == 0 and "VM is usable" in out
+    assert "only `art98 setup` on the host needs it" in out
 
 
 def test_doctor_without_ffmpeg_fails(monkeypatch, capsys):
@@ -162,19 +281,12 @@ def test_doctor_nothing_fails(monkeypatch, capsys):
 
 def test_doctor_local_only(monkeypatch, capsys):
     code, out = doctor(monkeypatch, capsys, {"ffmpeg", *LOCAL})
-    assert code == 0 and "local backend is usable" in out
+    assert code == 0 and "`art98 setup` is usable here" in out
 
 
-def test_bad_backend_env_is_one_error_line(monkeypatch, capsys):
-    monkeypatch.setenv("ART98_BACKEND", "bogus")
-    assert cli.main(["ping"]) == 1
-    err = capsys.readouterr().err
-    assert err.startswith("error: ") and "bogus" in err and err.count("\n") == 1
-
-
-def test_bad_backend_flag_is_rejected_by_argparse(capsys):
+def test_the_backend_flag_is_gone(capsys):
     with pytest.raises(SystemExit) as stop:
-        cli.main(["ping", "--backend", "bogus"])
+        cli.main(["ping", "--backend", "local"])
     assert stop.value.code == 2 and "Traceback" not in capsys.readouterr().err
 
 
@@ -195,13 +307,39 @@ def test_ping_warns_about_stale_programs_before_the_error(
     monkeypatch.setattr(
         freshness,
         "stale_warnings",
-        lambda work, backend: REAL_STALE(work, backend, root=root),
+        lambda work: REAL_STALE(work, root=root),
     )
 
-    def boot(*args, **kwargs):
-        raise ImageMissing("no image")
+    def attach(*args, **kwargs):
+        raise NotRunning("down")
 
-    monkeypatch.setattr(cli, "boot", boot)
+    monkeypatch.setattr(cli.service, "attach", attach)
     assert cli.main(["ping", "--work", str(tmp_path / "work")]) == 1
     lines = capsys.readouterr().err.splitlines()
     assert lines[0].startswith("warning: ") and lines[-1].startswith("error: ")
+
+
+def test_setup_takes_the_work_folder_from_art98_toml(monkeypatch, tmp_path):
+    (tmp_path / "art98.toml").write_text('[vm]\nwork = "elsewhere"\n')
+    monkeypatch.chdir(tmp_path)
+    seen = []
+
+    class Setup:
+        def __init__(self, work, **kwargs):
+            seen.append(work)
+
+        def run(self, from_stage):
+            pass
+
+    monkeypatch.setattr("art98_setup.builder.Setup", Setup)
+    assert cli.main(["setup"]) == 0
+    assert cli.main(["setup", "--work", "flag"]) == 0
+    assert seen == [(tmp_path / "elsewhere").resolve(), (tmp_path / "flag").resolve()]
+
+
+def test_up_leaves_work_to_art98_toml_unless_the_flag_is_given(monkeypatch):
+    seen = []
+    monkeypatch.setattr("art98_setup.up.up", lambda work, **kw: seen.append(work) or 0)
+    assert cli.main(["up"]) == 0
+    assert cli.main(["up", "--work", "flag"]) == 0
+    assert seen == [None, Path("flag")]

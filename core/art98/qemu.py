@@ -158,6 +158,18 @@ class QMP:
         self._sock.close()
 
 
+def parse_snapshots(text: str) -> list[str]:
+    """Tags from `info snapshots`: the second column of the rows under the ID/TAG header."""
+    tags, rows = [], False
+    for line in text.splitlines():
+        words = line.split()
+        if rows and len(words) >= 2:
+            tags.append(words[1])
+        elif words[:2] == ["ID", "TAG"]:
+            rows = True
+    return tags
+
+
 class VM:
     """A running QEMU process and its control sockets."""
 
@@ -224,6 +236,10 @@ class VM:
 
     def load_snapshot(self, name: str) -> None:
         self.qmp.human_silent(f"loadvm {name}")
+
+    def snapshots(self) -> list[str]:
+        """Tags of the saved snapshots, from the monitor's `info snapshots`."""
+        return parse_snapshots(self.qmp.human("info snapshots"))
 
     # The default CD drive. `device` commands take this name; `blockdev-remove-medium`
     # takes only an id, the qdev path from query-block (it moves with the device list).

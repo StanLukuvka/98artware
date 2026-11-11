@@ -1,7 +1,8 @@
 """Warnings when the image or the guest programs are older than the code.
 
 Warnings only: nothing here stops a render. Mtimes are compared, and an
-installed package (no guest/ or setup/Dockerfile beside it) gets none.
+installed package (no guest/ or setup/Dockerfile beside it) gets none. The
+engine image check (`container_warning`) is for `vm status` and `up`.
 """
 
 from __future__ import annotations
@@ -69,9 +70,7 @@ def container_warning(
     return []
 
 
-def stale_warnings(
-    work: Path | str, backend: str, engine=None, root: Path = ROOT
-) -> list[str]:
+def stale_warnings(work: Path | str, root: Path = ROOT) -> list[str]:
     """What is out of date, one line each. [] when all is current or unknowable."""
     guest = root / "guest"
     if not guest.is_dir():
@@ -98,20 +97,9 @@ def stale_warnings(
             "the prepared image was built before the agent changed; scenes run the old "
             "AGENT.EXE. Rebuilding it means a full reinstall: `art98 setup --from vm`"
         )
-    if backend == "container":
-        try:
-            from art98.container.host import ContainerError, Engine, image_name
-
-            engine = engine or Engine()
-            name = image_name()
-            out += container_warning(inspect_created(engine, name)[1], name, root)
-        except ContainerError:
-            pass  # no engine: the render says so itself
     return out
 
 
-def warn(work, backend: str | None) -> None:
-    from .session import backend_name
-
-    for line in stale_warnings(work, backend_name(backend)):
+def warn(work) -> None:
+    for line in stale_warnings(work):
         print(f"warning: {line}", file=sys.stderr)

@@ -1,16 +1,14 @@
-"""The host end of a stage that runs in a Docker container.
+"""The host end of the VM service: Engine, channels, and RemoteVM.
 
 The container (see serve.py) owns QEMU and the run copy of the disk. The host
 keeps the Bridge, which talks to the agent through the container's relay, and
-a RemoteVM, which asks the container for screenshots, keys and reverts. The
-scene layer sees the same Session either way.
+a RemoteVM, which asks the container for screenshots, keys and reverts.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import secrets
 import shutil
 import socket
 import subprocess
@@ -20,18 +18,17 @@ import threading
 import time
 from pathlib import Path
 
-from art98.bridge import DEFAULT_TIMEOUT, Bridge
 from art98.qemu import QemuError
-from art98.session import ImageMissing
+from art98.settings import load
 
-from .serve import PORT, VNC_PORT, nodelay, read_line
+from .serve import keepalive, nodelay, read_line
 
-IMAGE = "localhost/art98:latest"
 ENGINE = "docker"
 TOKEN_TARGET = "art98_token"
 CONNECT_TIMEOUT = 5.0
 TRANSPORTS = ("unix", "tcp")
 SOCKET_DIR = "/run/art98"
+RELEASE_TIMEOUT = 15.0  # pause and eject are QMP calls; seconds under load
 # A stage boots in under a second on an idle host; a busy one, or the first
 # run copy off btrfs and XFS, takes longer.
 START_TIMEOUT = 120.0
@@ -42,16 +39,17 @@ class ContainerError(RuntimeError):
 
 
 def image_name() -> str:
-    return os.environ.get("ART98_IMAGE", IMAGE)
+    return load().image
 
 
-def transport_name(transport: str | None = None) -> str:
+def transport_name(transport: str | None = None, default: str | None = None) -> str:
     """How the host reaches serve: a Unix socket in a mounted folder on Linux,
     which skips the rootless port forward, and loopback TCP everywhere else.
-    ART98_TRANSPORT overrides it."""
+    ART98_TRANSPORT overrides `default` (the [vm] transport setting)."""
     name = (
         transport
         or os.environ.get("ART98_TRANSPORT")
+        or default
         or ("unix" if sys.platform == "linux" else "tcp")
     )
     if name not in TRANSPORTS:
@@ -188,7 +186,9 @@ def open_channel(
                 sock.settimeout(CONNECT_TIMEOUT)
                 sock.connect(str(address))
             else:
-                sock = nodelay(socket.create_connection(address, CONNECT_TIMEOUT))
+                sock = keepalive(
+                    nodelay(socket.create_connection(address, CONNECT_TIMEOUT))
+                )
             sock.settimeout(CONNECT_TIMEOUT)
             sock.sendall(f"{token}\n{channel}\n".encode())
             answer = read_line(sock).decode(errors="replace")
@@ -209,174 +209,20 @@ def open_channel(
         return sock
 
 
-class ContainerStage:
-    """One running container, from `run` until the control connection closes."""
-
-    def __init__(
-        self,
-        work: Path | str = "work",
-        engine: Engine | None = None,
-        image: str | None = None,
-        vnc: bool = False,
-        transport: str | None = None,
-    ):
-        self.work = Path(work).resolve()
-        self.engine = engine or Engine()
-        self.image = image or image_name()
-        self.vnc = vnc
-        self.transport = transport_name(transport)
-        self.name = f"art98-stage-{secrets.token_hex(4)}"
-        self.address: tuple[str, int] | str | None = None
-        self._socket_dir: Path | None = None
-        self.vnc_address: tuple[str, int] | None = None
-        self._token = secrets.token_hex(32)
-        self._process: subprocess.Popen | None = None
-        self._log = None  # the container's output, made by start()
-
-    def argv(self, secret: list[str]) -> list[str]:
-        if self.transport == "unix":
-            # A private folder of ours, mounted in, holds serve's socket.
-            listen = ["-v", f"{self._socket_dir}:{SOCKET_DIR}"]
-            serve = ["--unix", f"{SOCKET_DIR}/serve.sock"]
-        else:
-            listen, serve = ["-p", f"127.0.0.1::{PORT}"], []
-        if self.vnc:
-            listen += ["-p", f"127.0.0.1::{VNC_PORT}"]
-        return [
-            self.engine.path,
-            "run",
-            "--rm",
-            "--init",
-            "--name",
-            self.name,
-            *mount_args(self.work),
-            *listen,
-            *secret,
-            self.image,
-            "serve",
-            "--work",
-            "/work",
-            *serve,
-            *(["--vnc"] if self.vnc else []),
-        ]
-
-    def log_tail(self, lines: int = 20) -> str:
-        if self._log is None:
-            return ""
-        try:
-            text = Path(self._log.name).read_text(errors="replace")
-        except OSError:
-            return ""
-        return "\n".join(text.splitlines()[-lines:])
-
-    def _fail(self, message: str) -> ContainerError:
-        tail = self.log_tail()
-        return ContainerError(message + (f"\n{tail}" if tail else ""))
-
-    def start(self, timeout: float = START_TIMEOUT) -> ContainerStage:
-        if not (self.work / "image.json").exists():
-            raise ImageMissing(
-                f"{self.work / 'image.json'} not found; run `art98 up` first"
-            )
-        if not self.engine.has_image(self.image):
-            raise ContainerError(f"no image {self.image}; run `art98 up` to build it")
-        if self.transport == "unix":
-            self._socket_dir = Path(
-                tempfile.mkdtemp(
-                    prefix="art98-stage-", dir=os.environ.get("XDG_RUNTIME_DIR")
-                )
-            )
-            self.address = str(self._socket_dir / "serve.sock")
-        self._log = tempfile.NamedTemporaryFile(  # noqa: SIM115
-            prefix="art98-serve-",
-            suffix=".log",
-            dir=os.environ.get("XDG_RUNTIME_DIR"),
-            delete=False,
-        )
-        secret, cleanup = self.engine.secret_args(self._token.encode(), TOKEN_TARGET)
-        try:
-            self._process = subprocess.Popen(
-                self.argv(secret),
-                stdin=subprocess.DEVNULL,
-                stdout=self._log,
-                stderr=subprocess.STDOUT,
-            )
-            deadline = time.monotonic() + timeout
-            self._wait_for_container(deadline)
-            if self.transport == "tcp":
-                self.address = self._wait_for_port(PORT, deadline)
-            if self.vnc:
-                self.vnc_address = self._wait_for_port(VNC_PORT, deadline)
-        except BaseException:
-            cleanup()
-            self.close()
-            raise
-        cleanup()
-        return self
-
-    def _wait_for_container(self, deadline: float) -> None:
-        """Wait until the container exists, which is when the token file is mounted."""
-        while (
-            self.engine("container", "inspect", self.name, check=False).returncode != 0
-        ):
-            self._check_alive()
-            if time.monotonic() > deadline:
-                raise self._fail(f"{self.name} did not start")
-            time.sleep(0.05)
-
-    def _wait_for_port(self, port: int, deadline: float) -> tuple[str, int]:
-        while True:
-            self._check_alive()
-            try:
-                return self.engine.port(self.name, port)
-            except ContainerError:
-                if time.monotonic() > deadline:
-                    raise self._fail(
-                        f"{self.name} did not publish port {port}"
-                    ) from None
-                time.sleep(0.1)
-
-    @property
-    def running(self) -> bool:
-        return self._process is not None and self._process.poll() is None
-
-    @property
-    def shared_dir(self) -> Path | None:
-        """The folder shared with serve, for screenshots, when on a Unix socket."""
-        return self._socket_dir
-
-    def _check_alive(self) -> None:
-        if not self.running:
-            code = self._process.returncode if self._process else None
-            raise self._fail(f"the stage container exited with status {code}")
-
-    def connect(self, channel: str, timeout: float = START_TIMEOUT) -> socket.socket:
-        try:
-            return open_channel(
-                self.address, self._token, channel, timeout, self._check_alive
-            )
-        except TimeoutError:
-            raise self._fail(f"{self.name} did not answer on {self.address}") from None
-
-    def close(self, timeout: float = 20.0) -> None:
-        if self._process and self._process.poll() is None:
-            try:
-                self._process.wait(timeout)
-            except subprocess.TimeoutExpired:
-                self.engine("stop", "-t", "5", self.name, check=False)
-                self._process.wait()
-        if self._log is not None:
-            self._log.close()
-            Path(self._log.name).unlink(missing_ok=True)
-        if self._socket_dir:
-            shutil.rmtree(self._socket_dir, ignore_errors=True)
-
-
 class RemoteVM:
     """The VM methods the scene layer uses, carried out by the container."""
 
-    def __init__(self, stage: ContainerStage, sock: socket.socket):
-        self.stage = stage
+    def __init__(
+        self,
+        sock: socket.socket,
+        *,
+        shared_dir: Path | None = None,
+        running=None,
+    ):
+        # The VM belongs to the long-lived container (art98.service): close()
+        # only releases, and `running` is an optional callable.
+        self._shared_dir = shared_dir
+        self._running = running
         self._sock = sock
         self._reader = sock.makefile("rb")
         self._lock = threading.Lock()
@@ -384,7 +230,9 @@ class RemoteVM:
 
     @property
     def running(self) -> bool:
-        return not self._closed and self.stage.running
+        if self._closed:
+            return False
+        return self._running() if self._running else True
 
     def _request(
         self, op: str, payload: bytes = b"", **arguments
@@ -423,7 +271,7 @@ class RemoteVM:
         return data
 
     def screenshot(self, path: Path | str, format: str = "png") -> Path:
-        shared = self.stage.shared_dir
+        shared = self._shared_dir
         reply, data = self._request(
             "screenshot", format=format, shared=shared is not None
         )
@@ -452,52 +300,19 @@ class RemoteVM:
     def eject_disc(self) -> None:
         self._request("eject_disc")
 
-    def save_snapshot(self, name: str) -> None:
-        """Saves into the container's run copy, which goes when the stage closes."""
-        self._request("save_snapshot", snapshot=name)
-
-    def quit(self) -> None:
+    def close(self) -> None:
+        """Close the control connection and wait for the container to finish
+        cleaning up (relay, eject, pause, free slot); it closes its end last."""
         if self._closed:
             return
-        try:
-            self._request("quit")
-        except QemuError:
-            pass
         self._closed = True
-        self._reader.close()
-        self._sock.close()
-
-    def close(self) -> None:
-        self.quit()
-        self.stage.close()
-
-
-def boot(
-    work: Path | str = "work",
-    display: str = "none",
-    ready_timeout: float = START_TIMEOUT,
-    engine: Engine | None = None,
-):
-    """Start a stage container and connect a Session to it.
-
-    Any display other than "none" shows the screen over VNC on a loopback
-    port, since a window can't open from inside the container.
-    """
-    from art98.session import Session
-
-    stage = ContainerStage(work, engine, vnc=display != "none").start(ready_timeout)
-    try:
-        if stage.vnc_address:
-            host, port = stage.vnc_address
-            print(f"art98: the stage's screen is on VNC at {host}:{port}", flush=True)
-        vm = RemoteVM(stage, stage.connect("control", ready_timeout))
         try:
-            bridge = Bridge(stage.connect("agent", ready_timeout), DEFAULT_TIMEOUT)
-            bridge.wait_ready(30)
-        except BaseException:
-            vm.close()
-            raise
-    except BaseException:
-        stage.close()
-        raise
-    return Session(vm, bridge)
+            self._sock.shutdown(socket.SHUT_WR)
+            self._sock.settimeout(RELEASE_TIMEOUT)
+            while self._reader.read(65536):  # stray reply bytes are discarded
+                pass
+        except OSError:  # includes timeout; just close
+            pass
+        finally:
+            self._reader.close()
+            self._sock.close()

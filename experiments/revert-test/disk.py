@@ -17,7 +17,7 @@ from pathlib import Path
 faulthandler.dump_traceback_later(100, exit=True)
 
 from art98 import qemu
-from art98.session import boot
+from art98.session import boot_local as boot
 
 where, cache = sys.argv[1], sys.argv[2]
 PAINT = r'"C:\Program Files\Accessories\MSPAINT.EXE"'

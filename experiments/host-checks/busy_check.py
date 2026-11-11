@@ -3,6 +3,8 @@
     . .tools/env.sh
     .venv/bin/python experiments/host-checks/busy_check.py OUT_DIR [BUSY_RUNS]
 
+`art98 vm start` must be running: the renders go to the VM service, not a local QEMU.
+
 Hogs are `python3 -c "while True: pass"`, started here by PID and killed by PID
 in the `finally` (never pkill). Output goes to OUT_DIR (not the repo).
 """
@@ -47,8 +49,6 @@ def render(name: str) -> dict:
             "--",
             "render",
             SCENE,
-            "--backend",
-            "local",
             "--work",
             "work",
             "-o",

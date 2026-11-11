@@ -6,7 +6,8 @@ import time
 from pathlib import Path
 
 faulthandler.dump_traceback_later(80, exit=True)
-from art98.session import boot, private_stage
+from art98.session import boot_local as boot
+from art98.session import private_stage
 from PIL import Image
 
 OUT = Path(sys.argv[1])

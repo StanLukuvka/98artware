@@ -1,10 +1,15 @@
-"""Render every gallery scene to docs/assets/gifs, a few VMs at a time.
+"""Render every gallery scene to docs/assets/gifs, one at a time on the VM service.
 
 uv run python tools/render_all.py [name ...]
+
+`art98 vm start` must be running. Each render goes into a temporary folder, and only the
+final GIF is moved into docs/assets/gifs, so the per-section -NN.mp4 clips never land there.
 """
 
+import shutil
 import subprocess
 import sys
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -31,35 +36,67 @@ SCENES = {
 
 def render(name: str) -> str:
     scene, options = SCENES[name]
-    output = OUT / f"{name.replace('_', '-')}.gif"
+    final = OUT / f"{name.replace('_', '-')}.gif"
     folders = ("gallery", ".", "mvp", "blank_start", "dialog_storm")
     source = next(
         path
         for folder in folders
         if (path := ROOT / "examples" / folder / f"{name}.py").exists()
     )
-    subprocess.run(
+    # The clips cut() writes beside the output stay in this folder.
+    folder = Path(tempfile.mkdtemp(prefix=f"render-{name}-"))
+    try:
+        made = folder / final.name
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "art98.cli",
+                "render",
+                str(source),
+                scene,
+                "-o",
+                str(made),
+                "--work",
+                str(ROOT / "work"),
+                "--wait",
+                "900",
+                *options,
+            ],
+            check=True,
+            cwd=ROOT,
+        )
+        shutil.move(made, final)
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    return f"{final.name}: {final.stat().st_size / 1e6:.2f} MB"
+
+
+def check_service() -> None:
+    """Stop with the service's own message unless `art98 vm status` says it is up."""
+    done = subprocess.run(  # noqa: PLW1510
         [
             sys.executable,
             "-m",
             "art98.cli",
-            "render",
-            str(source),
-            scene,
-            "-o",
-            str(output),
+            "vm",
+            "status",
             "--work",
             str(ROOT / "work"),
-            *options,
         ],
-        check=True,
         cwd=ROOT,
+        capture_output=True,
+        text=True,
     )
-    return f"{output.name}: {output.stat().st_size / 1e6:.2f} MB"
+    if done.returncode != 0:
+        message = (done.stdout + done.stderr).strip()
+        raise SystemExit(message or "art98 vm status failed")
+    print(done.stdout, end="")
 
 
 if __name__ == "__main__":
+    check_service()
     OUT.mkdir(parents=True, exist_ok=True)
-    with ThreadPoolExecutor(3) as pool:
+    with ThreadPoolExecutor(1) as pool:  # one VM service: one render at a time
         for line in pool.map(render, sys.argv[1:] or SCENES):
             print(line)

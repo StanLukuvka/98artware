@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -310,17 +309,13 @@ class Cutting:
 
 
 @pytest.fixture
-def staged(session, monkeypatch):
-    @contextmanager
-    def stage(work, display, backend):
-        yield session
-
-    monkeypatch.setattr(render_module, "stage", stage)
+def staged(session):
+    return session
 
 
 @needs_ffmpeg
 def test_render_joins_the_clips_and_keeps_them_beside_the_output(staged, tmp_path):
-    out = render_module.render(Cutting(), tmp_path / "out.mp4")
+    out = render_module.render(Cutting(), tmp_path / "out.mp4", session=staged)
     assert frames(out) == 6
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         "out-01.mp4",
@@ -332,14 +327,16 @@ def test_render_joins_the_clips_and_keeps_them_beside_the_output(staged, tmp_pat
 
 @needs_ffmpeg
 def test_render_keep_clips_false_leaves_only_the_output(staged, tmp_path):
-    render_module.render(Cutting(), tmp_path / "out.mp4", keep_clips=False)
+    render_module.render(
+        Cutting(), tmp_path / "out.mp4", keep_clips=False, session=staged
+    )
     assert sorted(p.name for p in tmp_path.iterdir()) == ["out.mp4"]
 
 
 @needs_ffmpeg
 def test_a_gif_render_makes_one_gif_and_keeps_the_clips_as_mp4(staged, tmp_path):
     named = tmp_path / "named.mp4"
-    out = render_module.render(Cutting(named), tmp_path / "out.gif")
+    out = render_module.render(Cutting(named), tmp_path / "out.gif", session=staged)
     assert out == tmp_path / "out.gif"
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         "named.mp4",
@@ -355,7 +352,11 @@ def test_a_gif_render_makes_one_gif_and_keeps_the_clips_as_mp4(staged, tmp_path)
 @needs_ffmpeg
 def test_a_gif_and_mp4_render_with_keep_clips_false(staged, tmp_path):
     render_module.render(
-        Cutting(), tmp_path / "out.mp4", gif=tmp_path / "out.gif", keep_clips=False
+        Cutting(),
+        tmp_path / "out.mp4",
+        gif=tmp_path / "out.gif",
+        keep_clips=False,
+        session=staged,
     )
     assert sorted(p.name for p in tmp_path.iterdir()) == ["out.gif", "out.mp4"]
     assert frames(tmp_path / "out.mp4") == 6
@@ -369,7 +370,7 @@ def test_render_without_cuts_is_unchanged(staged, tmp_path):
         def run(self, session, video):
             video.frame(hold=4)
 
-    render_module.render(Plain(), tmp_path / "out.mp4")
+    render_module.render(Plain(), tmp_path / "out.mp4", session=staged)
     assert sorted(p.name for p in tmp_path.iterdir()) == ["out.mp4"]
     assert frames(tmp_path / "out.mp4") == 4
 
@@ -382,7 +383,7 @@ def test_render_of_a_scene_with_no_frames_says_so(staged, tmp_path):
             pass
 
     with pytest.raises(RecorderError, match="recorded no frames"):
-        render_module.render(Empty(), tmp_path / "out.mp4")
+        render_module.render(Empty(), tmp_path / "out.mp4", session=staged)
 
 
 # ---- hardening: part files, abort, ffmpeg errors, stale clips ----
@@ -410,7 +411,7 @@ class Failing(Cutting):
 @needs_ffmpeg
 def test_render_deletes_its_clips_when_the_scene_fails(staged, tmp_path):
     with pytest.raises(KeyError):
-        render_module.render(Failing(), tmp_path / "out.mp4")
+        render_module.render(Failing(), tmp_path / "out.mp4", session=staged)
     assert list(tmp_path.iterdir()) == []
 
 
@@ -431,7 +432,7 @@ def untouched(tmp_path, old):
 def test_a_scene_that_cuts_then_fails_leaves_the_earlier_render_alone(staged, tmp_path):
     old = earlier(tmp_path)
     with pytest.raises(KeyError):
-        render_module.render(Failing(), tmp_path / "out.mp4")
+        render_module.render(Failing(), tmp_path / "out.mp4", session=staged)
     untouched(tmp_path, old)
 
 
@@ -447,7 +448,7 @@ def test_a_failed_join_leaves_the_earlier_render_alone(staged, tmp_path, monkeyp
 
     monkeypatch.setattr(recorder_module.subprocess, "run", run)
     with pytest.raises(RecorderError, match="join boom"):
-        render_module.render(Cutting(), tmp_path / "out.mp4")
+        render_module.render(Cutting(), tmp_path / "out.mp4", session=staged)
     untouched(tmp_path, old)
 
 
@@ -466,7 +467,7 @@ def test_a_failed_clip_encode_leaves_the_earlier_render_alone(
 
     monkeypatch.setattr(render_module, "_encode", encode)
     with pytest.raises(RecorderError, match="encode boom"):
-        render_module.render(Cutting(), tmp_path / "out.gif")
+        render_module.render(Cutting(), tmp_path / "out.gif", session=staged)
     assert len(calls) == 2
     untouched(tmp_path, old)
 
@@ -476,7 +477,7 @@ def test_a_successful_render_replaces_the_earlier_files_with_final_names(
     staged, tmp_path
 ):
     earlier(tmp_path)
-    render_module.render(Cutting(), tmp_path / "out.mp4")
+    render_module.render(Cutting(), tmp_path / "out.mp4", session=staged)
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         "out-01.mp4",
         "out-02.mp4",
@@ -484,19 +485,6 @@ def test_a_successful_render_replaces_the_earlier_files_with_final_names(
         "out.mp4",
     ]
     assert frames(tmp_path / "out-01.mp4") == 2 and frames(tmp_path / "out.mp4") == 6
-
-
-@needs_ffmpeg
-def test_a_stage_that_fails_on_exit_leaves_no_part_file(session, tmp_path, monkeypatch):
-    @contextmanager
-    def stage(work, display, backend):
-        yield session
-        raise OSError("vm.close failed")
-
-    monkeypatch.setattr(render_module, "stage", stage)
-    with pytest.raises(OSError, match="vm.close"):
-        render_module.render(Cutting(), tmp_path / "out.mp4")
-    assert list(tmp_path.iterdir()) == []
 
 
 def failing_run(monkeypatch):
@@ -527,7 +515,7 @@ def test_gif_encode_and_join_failures_raise_recorder_error_with_ffmpegs_message(
 def test_missing_ffmpeg_raises_recorder_error(session, tmp_path, monkeypatch):
     monkeypatch.setattr(recorder_module.shutil, "which", lambda name: None)
     with pytest.raises(RecorderError, match="ffmpeg isn't on PATH"):
-        render_module.render(Cutting(), tmp_path / "out.mp4")
+        render_module.render(Cutting(), tmp_path / "out.mp4", session=session)
 
     def missing(*args, **kwargs):
         raise FileNotFoundError("ffmpeg")
@@ -543,7 +531,14 @@ def test_missing_ffmpeg_raises_recorder_error(session, tmp_path, monkeypatch):
 def test_stale_clips_are_reported_not_deleted(staged, tmp_path, capsys):
     (tmp_path / "out-05.mp4").write_bytes(b"old")
     (tmp_path / "other-01.mp4").write_bytes(b"mine")
-    render_module.render(Cutting(), tmp_path / "out.mp4")
+    render_module.render(Cutting(), tmp_path / "out.mp4", session=staged)
     assert (tmp_path / "out-05.mp4").read_bytes() == b"old"
     err = capsys.readouterr().err
     assert "out-05.mp4" in err and "other-01" not in err and "out-01" not in err
+
+
+@needs_ffmpeg
+def test_render_records_on_a_given_session_and_does_not_close_it(session, tmp_path):
+    out = render_module.render(Cutting(), tmp_path / "out.mp4", session=session)
+    assert frames(out) == 6
+    assert not getattr(session, "closed", False)

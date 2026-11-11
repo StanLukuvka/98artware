@@ -1,4 +1,4 @@
-"""P2: CD drive, medium change after loadvm, wallpaper (local backend).
+"""P2: CD drive, medium change after loadvm, wallpaper (local QEMU).
 
     . .tools/env.sh && .venv/bin/python experiments/dialog-storm/probe_cd.py OUTDIR [section ...]
 
@@ -617,7 +617,7 @@ SECTIONS = {
     "revert": sec_revert,
 }
 
-with stage(work="work", backend="local") as s:
+with stage(work="work") as s:
     rec("env", "psi_at_start", psi())
     rec(
         "env",

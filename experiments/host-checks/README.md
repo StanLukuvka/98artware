@@ -1,14 +1,16 @@
 # Host checks (M7a busy host, M7b stray label pixels)
 
-Numbers for the docs task (D3). Run on the VM host (20 CPUs, local backend, `--work work`), one run at
-a time. Videos and frames stay in a scratch dir, none are in the repo. Every timing has
+Numbers for the docs task (D3). Run on the VM host (20 CPUs, `--work work`), one run at a time.
+`art98 vm start` must be running. The numbers below were taken on the local backend (a local QEMU
+per render), not the VM service, so they are not directly comparable with service renders.
+Videos and frames stay in a scratch dir, none are in the repo. Every timing has
 `/proc/pressure/cpu` `some avg10` ("psi") next to it.
 
 ```bash
 . .tools/env.sh
 .venv/bin/python experiments/host-checks/busy_check.py OUT_DIR 2        # M7a: quiet, then 2 busy renders
 STRAY_OUT=DIR .venv/bin/art98 render experiments/host-checks/stray_labels.py \
-    --backend local --work work -o DIR/stray.mp4                         # M7b (STRAY_NO_REPAINT=1: repaint off)
+    --work work -o DIR/stray.mp4                                         # M7b (STRAY_NO_REPAINT=1: repaint off)
 ```
 
 - `timed_render.py` runs `art98 render` with `Bridge.sync` and `put_file` timed (JSON out).

@@ -52,7 +52,7 @@ Raw frames: no `blank`, no window. A0 right after boot, A1 after `bridge.sync()`
 
 ## Result 3: what a real no-state scene records
 
-`Scene.run` -> `_start_desktop()` -> `prepare_desktop()` (`blank()` only for `desktop="blank"`) -> `read_work_area()`,
+`Scene.run` -> `_start_desktop()` -> `prepare_desktop()` (`blank()` only for `desktop="blank"`) -> `calibrate()`,
 then `Pointer.attach`. `Pointer.attach` only reads the position (`cursor_pos`); `Pointer.apply` sends
 `SetCursorPos` only when the wanted position differs from the read one. So nothing moves the pointer
 before the first frame, and a scene that never moves it never does. The renderer only opens the recorder

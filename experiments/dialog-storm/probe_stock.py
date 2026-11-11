@@ -1,7 +1,7 @@
 """P0: does a stock desktop plus SetSysColors(COLOR_DESKTOP) look right?
 
 Run: . .tools/env.sh; .venv/bin/python experiments/dialog-storm/probe_stock.py OUTDIR
-Local backend only, private stage, no snapshot saved. Screenshots go to OUTDIR
+Local QEMU only, private stage, no snapshot saved. Screenshots go to OUTDIR
 (keep it outside the repo). Per colour and per desktop (stock, blank) it saves:
   <desk>-<colour>-a.png  right after SetSysColors + guest.sync()
   <desk>-<colour>-b.png  after RedrawWindow(Progman, REPAINT_ALL) + sync
@@ -105,6 +105,6 @@ if __name__ == "__main__":
     out = Path(sys.argv[1])
     out.mkdir(parents=True, exist_ok=True)
     print("start pressure", pressure())
-    with stage("work", backend="local") as session:
+    with stage("work") as session:
         for desk in ("stock", "blank"):
             run(session, out, desk)

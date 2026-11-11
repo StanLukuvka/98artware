@@ -7,15 +7,20 @@ starts with two lines, the token and the channel name, and gets `ok` back:
 
 - `agent` relays bytes both ways between the connection and the guest's COM1,
   untouched, so the host's Bridge speaks the agent protocol as it always has.
+  It needs a control connection to be open.
 - `control` takes one JSON request per line and answers each with one JSON
   line, followed by raw bytes for a screenshot. `insert_disc` is sent with a
   `size` and that many raw bytes after its line (an ISO, at most 64 MiB);
-  `eject_disc` takes none. Other ops: send_keys, revert, save_snapshot, pause,
-  resume, quit. On a Unix socket a screenshot
-  can instead be written into the mounted folder, so no frame crosses the socket.
+  `eject_disc` takes none. Other ops: send_keys, revert (ejects the disc
+  first), pause, resume. On a Unix socket a screenshot can instead be written
+  into the mounted folder, so no frame crosses the socket.
+- `status` answers one JSON line and closes. It takes no lock and asks QEMU
+  nothing: it reports server state only.
 
-The first control connection owns the stage. When it closes, QEMU quits and
-`serve` exits, so a host script that dies can't leave a VM running.
+One control connection at a time owns the stage; others are refused as busy.
+When the owner goes away the stage is cleaned up (relay dropped, disc ejected,
+VM paused) and only then offered to the next one. `serve` keeps running until
+it is stopped or QEMU dies.
 """
 
 from __future__ import annotations
@@ -30,11 +35,12 @@ import threading
 import time
 from pathlib import Path
 
-PORT = 7598
-VNC_PORT = 5900
+from art98.settings import CONTAINER_CONTROL_PORT, CONTAINER_VNC_PORT
+
+PORT = CONTAINER_CONTROL_PORT
+VNC_PORT = CONTAINER_VNC_PORT
 TOKEN_FILE = Path("/run/secrets/art98_token")
 HANDSHAKE_TIMEOUT = 10.0
-OWNER_TIMEOUT = 120.0
 MAX_LINE = 4096
 SCREENSHOT_FORMATS = ("ppm", "png")
 MAX_DISC = 64 * 1024 * 1024
@@ -44,6 +50,18 @@ def nodelay(sock: socket.socket) -> socket.socket:
     """Send small messages at once: every sync and key press is a round trip."""
     if sock.family in (socket.AF_INET, socket.AF_INET6):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    return sock
+
+
+def keepalive(sock: socket.socket) -> socket.socket:
+    """Make a vanished TCP peer error out in about a minute (20 + 3 x 10 s), so
+    serve frees the lock a dead client held. Each knob only where the platform has it."""
+    if sock.family in (socket.AF_INET, socket.AF_INET6):
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        for name, value in (("IDLE", 20), ("INTVL", 10), ("CNT", 3)):
+            option = getattr(socket, f"TCP_KEEP{name}", None)
+            if option is not None:
+                sock.setsockopt(socket.IPPROTO_TCP, option, value)
     return sock
 
 
@@ -69,7 +87,7 @@ class DesyncError(ControlError):
 
 
 class Server:
-    """Answers the host on one listening socket until the owner goes away.
+    """Answers the host on one listening socket until stopped or the VM dies.
 
     vm is anything with the VM methods used here (a real art98.qemu.VM in the
     container, a fake in tests); serial_path is the guest's COM1 socket.
@@ -82,14 +100,23 @@ class Server:
         token: str,
         listener: socket.socket,
         log=print,
+        snapshots=(),
+        started_at: str | None = None,
     ):
         self.vm = vm
+        self._snapshots = list(snapshots)
+        self._started_at = started_at
         self.serial_path = str(serial_path)
         self._token = token.encode()
         self._listener = listener
         self._log = log
         self._stop = threading.Event()
-        self._owner_seen = threading.Event()
+        self._owner_lock = threading.Lock()
+        self._owner = False
+        self._agent_ok = (
+            False  # guarded by _relay_lock: true only while an owner is live
+        )
+        self._paused = False  # guarded by _vm_lock
         self._relay_lock = threading.Lock()
         self._relay: tuple[socket.socket, socket.socket] | None = None
         self._vm_lock = threading.Lock()
@@ -116,6 +143,8 @@ class Server:
         port: int = PORT,
         unix: Path | str | None = None,
         log=print,
+        snapshots=(),
+        started_at: str | None = None,
     ) -> Server:
         """Listen on TCP, or on the Unix socket `unix` if given."""
         if unix:
@@ -129,7 +158,7 @@ class Server:
             listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind((host, port))
         listener.listen(8)
-        return cls(vm, serial_path, token, listener, log)
+        return cls(vm, serial_path, token, listener, log, snapshots, started_at)
 
     @property
     def address(self) -> tuple[str, int] | str:
@@ -143,19 +172,13 @@ class Server:
         except OSError:
             pass
 
-    def serve(self, owner_timeout: float = OWNER_TIMEOUT) -> None:
-        """Accept connections until the owner's control connection ends or quit is asked."""
+    def serve(self) -> None:
+        """Accept connections until stop() or until the VM dies."""
         self._listener.settimeout(0.5)
-        started = time.monotonic()
         try:
             while not self._stop.is_set():
-                if (
-                    not self._owner_seen.is_set()
-                    and time.monotonic() - started > owner_timeout
-                ):
-                    self._log(
-                        f"no control connection within {owner_timeout:.0f}s; quitting"
-                    )
+                if not self.vm.running:
+                    self._log("the VM is gone; quitting")
                     break
                 try:
                     conn, _ = self._listener.accept()
@@ -180,7 +203,7 @@ class Server:
     # ---- connections ----
 
     def _handshake(self, conn: socket.socket) -> None:
-        nodelay(conn)
+        keepalive(nodelay(conn))
         conn.settimeout(HANDSHAKE_TIMEOUT)
         try:
             token = read_line(conn)
@@ -195,15 +218,69 @@ class Server:
         conn.settimeout(None)
         if channel == "agent":
             self._start_relay(conn)
+        elif channel == "status":
+            self._status(conn)
         elif channel == "control":
-            if self._owner_seen.is_set():
-                self._refuse(conn, "the stage already has a control connection")
+            with self._owner_lock:
+                if self._owner:
+                    busy = True
+                else:
+                    busy = False
+                    self._owner = True
+            if busy:
+                self._refuse(
+                    conn, "busy: the control channel is held by another client"
+                )
                 return
-            self._owner_seen.set()
-            conn.sendall(b"ok\n")
-            self._control(conn)
+            with self._relay_lock:
+                self._agent_ok = True
+            try:
+                conn.sendall(b"ok\n")
+                self._control(conn)
+            finally:
+                try:
+                    self._release()
+                finally:
+                    conn.close()  # EOF tells the client the slot is free
         else:
             self._refuse(conn, f"unknown channel {channel!r}")
+
+    def _status(self, conn: socket.socket) -> None:
+        """One JSON line of server state, then close. No lock, no QMP."""
+        reply = {
+            "ok": True,
+            "busy": self._owner,
+            "paused": self._paused,
+            "snapshots": self._snapshots,
+            "started_at": self._started_at,
+        }
+        try:
+            conn.sendall(json.dumps(reply).encode() + b"\n")
+        except OSError:
+            pass
+        conn.close()
+
+    def _release(self) -> None:
+        """Clean up after the owner. The slot is freed last, always, so a waiter
+        never has its relay dropped or its disc ejected by the previous owner."""
+        try:
+            with self._relay_lock:
+                self._agent_ok = False
+            with self._vm_lock:
+                self._drop_relay()
+                try:
+                    self.vm.eject_disc()
+                except Exception as error:  # noqa: BLE001
+                    self._log(f"eject on release failed: {error}")
+                try:
+                    self.vm.pause()
+                    self._paused = True
+                except Exception as error:  # noqa: BLE001
+                    self._log(f"pause on release failed: {error}")
+            self._log("the control connection was released")
+        finally:
+            with self._owner_lock:
+                self._owner = False
 
     @staticmethod
     def _refuse(conn: socket.socket, reason: str) -> None:
@@ -216,6 +293,9 @@ class Server:
     # agent: a byte relay to COM1, one client at a time
 
     def _start_relay(self, conn: socket.socket) -> None:
+        if not self._agent_ok:
+            self._refuse(conn, "no control connection")
+            return
         self._drop_relay()  # QEMU's serial socket takes one client; the newest wins
         serial = socket.socket(socket.AF_UNIX)
         deadline = time.monotonic() + 5
@@ -230,6 +310,10 @@ class Server:
                     return
                 time.sleep(0.05)
         with self._relay_lock:
+            if not self._agent_ok:  # the owner left while we connected
+                self._refuse(conn, "no control connection")
+                serial.close()
+                return
             self._relay = (conn, serial)
         conn.sendall(b"ok\n")
         threading.Thread(target=self._pump, args=(conn, serial), daemon=True).start()
@@ -269,7 +353,7 @@ class Server:
             while not self._stop.is_set():
                 line = reader.readline(MAX_LINE)
                 if not line:
-                    self._log("the control connection closed; quitting")
+                    self._log("the control connection closed")
                     break
                 try:
                     request = json.loads(line)
@@ -307,14 +391,10 @@ class Server:
                         b"",
                     )
                 conn.sendall(json.dumps(reply).encode() + b"\n" + payload)
-                if reply.get("ok") and request.get("op") == "quit":
-                    break
         except OSError:
-            self._log("the control connection failed; quitting")
+            self._log("the control connection failed")
         finally:
-            reader.close()
-            conn.close()
-            self.stop()
+            reader.close()  # conn stays open: the handshake closes it after release
 
     def handle(self, request: dict, data: bytes = b"") -> tuple[dict, bytes]:
         if not isinstance(request, dict):
@@ -343,19 +423,21 @@ class Server:
                     raise ControlError("keys is a list of QEMU key names")
                 self.vm.send_keys(*keys, hold_ms=int(request.get("hold_ms", 80)))
             elif op == "revert":
+                self.vm.eject_disc()  # the CD medium is host state; loadvm does not restore it
                 self.vm.load_snapshot(str(request.get("snapshot", "ready")))
             elif op == "insert_disc":
                 self.vm.insert_disc(data)
             elif op == "eject_disc":
                 self.vm.eject_disc()
             elif op == "save_snapshot":
-                self.vm.save_snapshot(str(request["snapshot"]))
+                # prep saves `ready` on its own VM; a long-lived VM must not overwrite it
+                raise ControlError("save_snapshot is not served")
             elif op == "pause":
                 self.vm.pause()
+                self._paused = True
             elif op == "resume":
                 self.vm.resume()
-            elif op == "quit":
-                pass
+                self._paused = False
             else:
                 raise ControlError(f"unknown op {op!r}")
         return {"ok": True}, b""
@@ -396,7 +478,7 @@ def run(
         raise SystemExit(128 + signum)
 
     signal.signal(signal.SIGTERM, on_term)
-    with private_stage(work) as stage:
+    with private_stage(work, prefix="vm-") as stage:
         config = VMConfig.from_json(json.loads((stage / IMAGE_FILE).read_text()))
         config.loadvm = SNAPSHOT
         config.display = f"vnc=0.0.0.0:{VNC_PORT - 5900}" if vnc else "none"
@@ -408,7 +490,14 @@ def run(
             finally:
                 probe.close()
             server = Server.listen(
-                vm, vm.serial_path, token, port=port, unix=unix, log=log
+                vm,
+                vm.serial_path,
+                token,
+                port=port,
+                unix=unix,
+                log=log,
+                snapshots=vm.snapshots(),
+                started_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             )
             where = unix or f"port {port}"
             log(

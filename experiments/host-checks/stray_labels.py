@@ -2,7 +2,8 @@
 
     . .tools/env.sh
     STRAY_OUT=DIR [STRAY_NO_REPAINT=1] .venv/bin/art98 render experiments/host-checks/stray_labels.py \
-        --backend local --work work -o DIR/stray.mp4
+        --work work -o DIR/stray.mp4
+`art98 vm start` must be running (the render attaches to the VM service).
 
 After every move a `Snap` shoots the screen three ways: A0 right away, A1 after
 `guest.sync()`, R after a full RedrawWindow of the desktop and every top-level

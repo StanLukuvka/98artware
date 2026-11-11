@@ -5,6 +5,8 @@ state by hand, quickly and the same way every time? The results and what they me
 [the design](../../docs/design/state-and-action.md#test-results). These are kept so the test can be
 run again. They aren't part of art98 and have no tests.
 
+Since the VM service these run on local QEMU, not the container; findings above are from the container backend.
+
 Every script works on a private copy of the image, under `work/runs` (or `/dev/shm` for
 `disk.py`), and deletes it on exit. Run them from the repository root:
 

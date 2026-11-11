@@ -6,16 +6,19 @@ import argparse
 import importlib.util
 import os
 import sys
+import traceback
 from pathlib import Path
 
-from . import freshness
+from . import freshness, service
 from .bridge import BridgeError
 from .container.host import ContainerError
 from .desktop import DesktopError
 from .guestfiles import GuestBuildMissing, guest_build
 from .qemu import QemuError
 from .recorder import GIF_COLORS, GIF_FPS, RecorderError
-from .session import BACKENDS, BackendError, ImageMissing, boot
+from .service import ServiceError
+from .session import ImageMissing
+from .settings import CONTAINER_CONTROL_PORT, SettingsError, load
 from .state import StateError
 
 KEY_SECRET_FILE = Path("/run/secrets/art98_key")
@@ -40,35 +43,35 @@ def cmd_doctor(_args) -> int:
     container_ok = bool(engine) and not (CONTAINER_NEEDS & set(missing))
     for tool, path, _ in rows:
         note = (
-            " (only the local backend needs it)"
+            " (only `art98 setup` on the host needs it)"
             if not path and tool in local_only and container_ok
             else ""
         )
         print(f"{tool:24} {path or 'missing'}{note}")
     print(f"{'/dev/kvm':24} not used: Windows 98 runs under software emulation")
     print(
-        f"{name:24} {engine or 'missing'} (for `art98 up` and the container backend"
+        f"{name:24} {engine or 'missing'} (for `art98 up` and `art98 vm`"
         f"{'' if engine else '; on a Podman host, install podman-docker'})"
     )
     if local_ok and container_ok:
-        print("\nBoth backends are usable.")
+        print("\nEverything is usable, here and in the container.")
     elif local_ok:
         print(
-            "\nThe local backend is usable (`--backend local`). For the default container "
-            "backend install docker, or podman-docker on a Podman host."
+            "\n`art98 setup` is usable here. For `art98 up` and `art98 vm` install docker, "
+            "or podman-docker on a Podman host."
         )
     elif container_ok:
         print(
-            "\nThe container backend is usable (run `art98 up` first). "
-            f"The local backend needs: {', '.join(local_only)}"
+            "\nThe VM is usable (run `art98 up` first). "
+            f"`art98 setup` on the host needs: {', '.join(local_only)}"
         )
     else:
         blockers = sorted(CONTAINER_NEEDS & set(missing)) + ([] if engine else [name])
         print(
-            f"\nNothing is usable yet. Both backends need ffmpeg; the container backend also "
-            f"needs {name}, the local one {', '.join(local_only) or 'nothing else'}."
+            f"\nNothing is usable yet. Rendering needs ffmpeg and {name}; "
+            f"`art98 setup` on the host needs {', '.join(local_only) or 'nothing else'}."
         )
-        print(f"Missing for the container backend: {', '.join(blockers)}")
+        print(f"Missing for `art98 vm`: {', '.join(blockers)}")
         print("Install the missing tools with one of:")
         for system, command, packages in builder.install_hints(missing):
             print(f"  {system:15} {command} {' '.join(packages)}")
@@ -87,8 +90,9 @@ def cmd_setup(args) -> int:
     from art98_setup.builder import Setup, SetupError
 
     key = _product_key(args)
+    work = load(work=args.work).work_dir
     tool = Setup(
-        work=args.work,
+        work=work,
         guest_build=guest_build(),
         iso=args.iso,
         product_key=key,
@@ -100,7 +104,7 @@ def cmd_setup(args) -> int:
     except SetupError as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
-    print(f"Ready: {Path(args.work).resolve()}")
+    print(f"Ready: {work}")
     return 0
 
 
@@ -113,8 +117,20 @@ RUN_ERRORS = (
     BridgeError,
     QemuError,
     GuestBuildMissing,
-    BackendError,
+    ServiceError,
+    SettingsError,
 )
+
+
+def _scene_frame(error: BaseException, path: Path) -> str:
+    """` (file:LINE, in func)` for the innermost traceback frame in the scene file, else ''."""
+    mine = path.resolve()
+    hits = [
+        f
+        for f in traceback.extract_tb(error.__traceback__)
+        if Path(f.filename).resolve() == mine
+    ]
+    return f" ({path.name}:{hits[-1].lineno}, in {hits[-1].name})" if hits else ""
 
 
 def _guarded(run, extra: tuple = ()):
@@ -129,15 +145,17 @@ def _guarded(run, extra: tuple = ()):
         except (*RUN_ERRORS, *extra) as error:
             if os.environ.get("ART98_TRACE"):
                 raise
-            print(f"error: {error}", file=sys.stderr)
+            where = getattr(error, "art98_where", "")
+            print(f"error: {error}{where}", file=sys.stderr)
             return 1
 
     return wrapper
 
 
 def cmd_ping(args) -> int:
-    freshness.warn(args.work, args.backend)
-    with boot(args.work, backend=args.backend) as session:
+    settings = load(args.work)
+    freshness.warn(settings.work_dir)
+    with service.attach(settings, revert=False, wait=args.wait) as session:
         print(f"guest tick count: {session.bridge.ping()}")
         for pid, name in session.bridge.processes():
             print(f"{pid:#010x} {name}")
@@ -176,18 +194,23 @@ def cmd_render(args) -> int:
     from .anim import render
 
     scene = _load_scene(args.file, args.scene)
-    freshness.warn(args.work, args.backend)
-    written = render(
-        scene,
-        args.output,
-        gif=args.gif,
-        work=args.work,
-        gif_fps=args.gif_fps,
-        gif_colors=args.gif_colors,
-        gif_scale=args.gif_scale,
-        gif_dither=args.gif_dither,
-        backend=args.backend,
-    )
+    settings = load(args.work)
+    freshness.warn(settings.work_dir)
+    try:
+        with service.attach(settings, wait=args.wait) as session:
+            written = render(
+                scene,
+                args.output,
+                gif=args.gif,
+                gif_fps=args.gif_fps,
+                gif_colors=args.gif_colors,
+                gif_scale=args.gif_scale,
+                gif_dither=args.gif_dither,
+                session=session,
+            )
+    except RUN_ERRORS as error:
+        error.art98_where = _scene_frame(error, args.file)
+        raise
     print(f"Wrote {written}" + (f" and {args.gif}" if args.gif else ""))
     return 0
 
@@ -218,12 +241,43 @@ def cmd_up(args) -> int:
     )
 
 
-def _backend_option(command) -> None:
+def cmd_vm_start(args) -> int:
+    service.start(load(args.work), vnc=args.vnc)
+    return 0
+
+
+def cmd_vm_stop(args) -> int:
+    service.stop(load(args.work))
+    return 0
+
+
+def cmd_vm_status(args) -> int:
+    info = service.status(load(args.work))
+    if not info["running"]:
+        print("down: the VM is not running; run `art98 vm start`")
+        return 1
+    snapshots = info["snapshots"] or []
+    print(f"up since {info['started_at']}")
+    print(
+        f"state: {'busy' if info['busy'] else 'paused' if info['paused'] else 'running'}"
+    )
+    print(f"ready snapshot: {'yes' if 'ready' in snapshots else 'MISSING'}")
+    print(f"vnc: {info['vnc'] or 'off'}")
+    if info["image_stale"]:
+        print(
+            "warning: the container image is older than the code: `art98 up --rebuild`"
+        )
+    return 0 if "ready" in snapshots else 1
+
+
+def _wait_option(command) -> None:
     command.add_argument(
-        "--backend",
-        choices=BACKENDS,
-        help="run QEMU here (local) or in the art98 container; "
-        "default from ART98_BACKEND, else container",
+        "--wait",
+        type=float,
+        default=0.0,
+        metavar="S",
+        help="if the VM is busy, retry for up to S seconds (default 0: fail at once); "
+        "only Busy is retried",
     )
 
 
@@ -238,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
     command = commands.add_parser("setup", help="build the prepared Windows 98 image")
     command.add_argument("--iso", type=Path, help="your Windows 98 SE disc image")
     command.add_argument("--key", help="product key, or set ART98_PRODUCT_KEY")
-    command.add_argument("--work", type=Path, default=Path("work"))
+    command.add_argument("--work", type=Path, default=None)
     command.add_argument("--disk-mb", type=int, default=2047)
     command.add_argument(
         "--from",
@@ -246,11 +300,11 @@ def main(argv: list[str] | None = None) -> int:
         help="redo this step and everything after it: vm, setup, init_api or ready",
     )
     command.add_argument("--watch", action="store_true", help="show the VM's screen")
-    command.set_defaults(run=cmd_setup)
+    command.set_defaults(run=_guarded(cmd_setup))
 
-    command = commands.add_parser("ping", help="boot the image and talk to the agent")
-    command.add_argument("--work", type=Path, default=Path("work"))
-    _backend_option(command)
+    command = commands.add_parser("ping", help="talk to the agent on the running VM")
+    command.add_argument("--work", type=Path, default=None)
+    _wait_option(command)
     command.set_defaults(run=_guarded(cmd_ping))
 
     command = commands.add_parser("render", help="play a scene and write a video")
@@ -260,7 +314,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     command.add_argument("-o", "--output", type=Path, help="output file, .mp4 or .gif")
     command.add_argument("--gif", type=Path, help="write a GIF as well")
-    command.add_argument("--work", type=Path, default=Path("work"))
+    command.add_argument("--work", type=Path, default=None)
     command.add_argument("--gif-fps", type=int, default=GIF_FPS)
     command.add_argument("--gif-colors", type=int, default=GIF_COLORS)
     command.add_argument("--gif-scale", type=float, default=1.0)
@@ -269,8 +323,30 @@ def main(argv: list[str] | None = None) -> int:
         default="none",
         help="ffmpeg paletteuse dither: none, bayer, sierra2_4a...",
     )
-    _backend_option(command)
+    _wait_option(command)
     command.set_defaults(run=_guarded(cmd_render))
+
+    command = commands.add_parser("vm", help="start, stop or check the long-lived VM")
+    vm = command.add_subparsers(dest="vm_command", required=True)
+    for name, run, text in (
+        ("start", cmd_vm_start, "boot the VM in a container and leave it paused"),
+        ("stop", cmd_vm_stop, "stop and remove the VM's container"),
+        (
+            "status",
+            cmd_vm_status,
+            "up or down, busy or paused; exit 1 when not healthy",
+        ),
+    ):
+        sub = vm.add_parser(name, help=text, description=text)
+        sub.add_argument("--work", type=Path, default=None)
+        if name == "start":
+            sub.add_argument(
+                "--vnc",
+                action="store_true",
+                help="show the screen on VNC at [ports] bind:vnc from art98.toml; "
+                "view only, fixed at start",
+            )
+        sub.set_defaults(run=_guarded(run))
 
     command = commands.add_parser(
         "up", help="from your disc and key to a working desktop, in the art98 container"
@@ -278,13 +354,13 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument(
         "--iso", type=Path, help="your Windows 98 SE disc image, for setup"
     )
-    command.add_argument("--work", type=Path, default=Path("work"))
+    command.add_argument("--work", type=Path, default=None)
     command.add_argument(
         "--watch",
         action="store_true",
         help="show setup's screen over VNC on a loopback port",
     )
-    command.add_argument("--vnc-port", type=int, default=5998)
+    command.add_argument("--vnc-port", type=int, default=None)
     command.add_argument(
         "--rebuild", action="store_true", help="rebuild the container image"
     )
@@ -295,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
         "serve", help="inside the container: boot a stage and serve it to the host"
     )
     command.add_argument("--work", type=Path, default=Path("/work"))
-    command.add_argument("--port", type=int, default=7598)
+    command.add_argument("--port", type=int, default=CONTAINER_CONTROL_PORT)
     command.add_argument(
         "--unix", type=Path, help="listen on this Unix socket instead of TCP"
     )

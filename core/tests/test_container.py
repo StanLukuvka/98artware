@@ -2,7 +2,6 @@
 host client, a fake VM and a fake agent behind a Unix socket like QEMU's COM1."""
 
 import json
-import os
 import socket
 import stat
 import threading
@@ -15,129 +14,20 @@ from art98.bridge import Bridge, BridgeError
 from art98.container import host as container
 from art98.container.host import (
     ContainerError,
-    ContainerStage,
     Engine,
     RemoteVM,
     open_channel,
 )
 from art98.container.serve import MAX_DISC, Server
-from art98.protocol import frame, unframe
 from art98.qemu import VM, QemuError, VMConfig
-
-TOKEN = "s3cret-token"
-PPM = b"P6\n2 1\n255\n" + bytes(range(6))
-
-
-class FakeVM:
-    def __init__(self):
-        self.calls = []
-
-    def screenshot(self, path, format="png"):
-        self.calls.append(("screenshot", format))
-        Path(path).write_bytes(PPM if format == "ppm" else b"\x89PNG fake")
-        return Path(path)
-
-    def send_keys(self, *keys, hold_ms=80):
-        self.calls.append(("send_keys", keys, hold_ms))
-
-    def load_snapshot(self, name):
-        if name == "missing":
-            raise QemuError(f"loadvm {name}: no such snapshot")
-        self.calls.append(("load_snapshot", name))
-
-    def save_snapshot(self, name):
-        self.calls.append(("save_snapshot", name))
-
-    def insert_disc(self, iso):
-        self.calls.append(("insert_disc", iso))
-
-    def eject_disc(self):
-        self.calls.append(("eject_disc",))
-
-    def pause(self):
-        self.calls.append(("pause",))
-
-    def resume(self):
-        self.calls.append(("resume",))
-
-
-class FakeSerial:
-    """QEMU's COM1 socket: one client at a time, answering PING like the agent."""
-
-    def __init__(self, path: Path):
-        self.path = path
-        self.clients = 0
-        self.listener = socket.socket(socket.AF_UNIX)
-        self.listener.bind(str(path))
-        self.listener.listen(1)
-        threading.Thread(target=self._accept, daemon=True).start()
-
-    def _accept(self):
-        while True:
-            try:
-                conn, _ = self.listener.accept()
-            except OSError:
-                return
-            self.clients += 1
-            self._serve(conn, self.clients)
-
-    def _serve(self, conn, client):
-        buffer = b""
-        try:
-            while chunk := conn.recv(65536):
-                buffer += chunk
-                *lines, buffer = buffer.split(b"\n")
-                for line in lines:
-                    request_id, verb, *_ = unframe(line).split(b" ", 2)
-                    if verb == b"PING":
-                        # The tick count says which client this is.
-                        conn.sendall(frame(b"%s OK %d 1" % (request_id, client)))
-        except OSError:
-            pass
-        conn.close()
-
-
-class Served:
-    def __init__(self, tmp_path, owner_timeout=10.0):
-        self.vm = FakeVM()
-        self.serial = FakeSerial(tmp_path / "serial")
-        self.logs = []
-        self.server = Server.listen(
-            self.vm,
-            self.serial.path,
-            TOKEN,
-            host="127.0.0.1",
-            port=0,
-            log=self.logs.append,
-        )
-        self.address = self.server.address
-        self.thread = threading.Thread(
-            target=self.server.serve, args=(owner_timeout,), daemon=True
-        )
-        self.thread.start()
-
-    def channel(self, name, token=TOKEN):
-        return open_channel(self.address, token, name, timeout=2)
-
-    def remote(self):
-        return RemoteVM(StubStage(), self.channel("control"))
-
-
-class StubStage:
-    running = True
-    shared_dir = None
-
-    def close(self):
-        self.closed = True
+from serve_harness import PPM, TOKEN, FakeSerial, FakeVM, Served
 
 
 @pytest.fixture
 def served(tmp_path):
     served = Served(tmp_path)
     yield served
-    served.server.stop()
-    served.thread.join(5)
-    served.serial.listener.close()
+    served.close()
 
 
 def test_wrong_token_is_refused(served):
@@ -151,16 +41,24 @@ def test_unknown_channel_is_refused(served):
         served.channel("shell")
 
 
+def test_the_agent_channel_needs_a_control_connection(served):
+    with pytest.raises(ContainerError, match="no control connection"):
+        served.channel("agent")
+
+
 def test_the_agent_channel_relays_the_protocol_untouched(served):
+    owner = served.channel("control")
     bridge = Bridge(served.channel("agent"), timeout=2)
     try:
         bridge.wait_ready(2)
         assert bridge.ping() == 1
     finally:
         bridge.close()
+        owner.close()
 
 
 def test_a_new_agent_connection_replaces_the_old(served):
+    owner = served.channel("control")
     first = Bridge(served.channel("agent"), timeout=2)
     assert first.ping() == 1
     second = Bridge(served.channel("agent"), timeout=2)
@@ -171,6 +69,7 @@ def test_a_new_agent_connection_replaces_the_old(served):
     finally:
         first.close()
         second.close()
+        owner.close()
 
 
 def test_control_screenshot_keys_revert_pause_resume(served, tmp_path):
@@ -180,19 +79,18 @@ def test_control_screenshot_keys_revert_pause_resume(served, tmp_path):
     assert vm.screenshot(tmp_path / "shot.png").read_bytes() == b"\x89PNG fake"
     vm.send_keys("alt", "f", hold_ms=50)
     vm.load_snapshot("ready")
-    vm.save_snapshot("warm")
     vm.pause()
     vm.resume()
     assert served.vm.calls == [
         ("screenshot", "ppm"),
         ("screenshot", "png"),
         ("send_keys", ("alt", "f"), 50),
+        ("eject_disc",),
         ("load_snapshot", "ready"),
-        ("save_snapshot", "warm"),
         ("pause",),
         ("resume",),
     ]
-    vm.quit()
+    vm.close()
 
 
 def test_errors_come_back_as_qemu_errors_and_the_link_stays_up(served, tmp_path):
@@ -206,7 +104,7 @@ def test_errors_come_back_as_qemu_errors_and_the_link_stays_up(served, tmp_path)
     with pytest.raises(QemuError, match="list of QEMU key names"):
         vm._request("send_keys", keys="alt")
     vm.pause()  # still answering
-    vm.quit()
+    vm.close()
 
 
 def test_a_session_reverts_through_the_container(served):
@@ -219,34 +117,21 @@ def test_a_session_reverts_through_the_container(served):
 
 def test_only_one_control_connection_owns_the_stage(served):
     vm = served.remote()
-    with pytest.raises(ContainerError, match="already has a control connection"):
+    with pytest.raises(ContainerError, match="busy"):
         served.channel("control")
-    vm.quit()
+    vm.close()
+    served.remote_when_free().close()  # accepted again once the first is released
 
 
-def test_dropping_the_control_connection_stops_the_server(served):
+def test_dropping_the_control_connection_releases_the_stage(served):
     sock = served.channel("control")
     sock.close()
-    served.thread.join(5)
-    assert not served.thread.is_alive()
-    assert "the control connection closed; quitting" in served.logs
-
-
-def test_quit_stops_the_server(served):
-    vm = served.remote()
-    vm.quit()
-    served.thread.join(5)
-    assert not served.thread.is_alive()
-    with pytest.raises(QemuError, match="closed"):
-        vm.pause()
-
-
-def test_a_stage_nobody_connects_to_stops_by_itself(tmp_path):
-    served = Served(tmp_path, owner_timeout=0.5)
-    served.thread.join(5)
-    assert not served.thread.is_alive()
-    assert any("no control connection" in line for line in served.logs)
-    served.serial.listener.close()
+    deadline = time.monotonic() + 5
+    while "the control connection was released" not in served.logs:
+        assert time.monotonic() < deadline
+        time.sleep(0.02)
+    assert served.thread.is_alive()
+    served.channel("control").close()
 
 
 def test_open_channel_waits_for_a_forward_that_hangs_up_first(tmp_path):
@@ -300,31 +185,6 @@ def test_the_engine_is_docker_unless_art98_engine_names_another_binary(monkeypat
         Engine()
 
 
-def test_the_stage_publishes_on_loopback_only_and_keeps_secrets_out_of_argv(
-    tmp_path, monkeypatch
-):
-    engine = fake_engine(monkeypatch, None)
-    stage = ContainerStage(
-        tmp_path, engine, image="art98:test", vnc=True, transport="tcp"
-    )
-    argv = stage.argv(
-        ["-v", "/run/user/1/art98-secret-x/art98_token:/run/secrets/art98_token:ro"]
-    )
-    assert argv[:4] == ["/usr/bin/docker", "run", "--rm", "--init"]
-    assert (
-        f"ART98_HOST_UID={os.getuid()}" in argv
-        and f"ART98_HOST_GID={os.getgid()}" in argv
-    )
-    published = [argv[i + 1] for i, arg in enumerate(argv) if arg == "-p"]
-    assert published == ["127.0.0.1::7598", "127.0.0.1::5900"]
-    assert ["--security-opt", "label=disable"] == argv[argv.index("--security-opt") :][
-        :2
-    ]
-    assert f"{tmp_path.resolve()}:/work" in argv
-    assert stage._token not in " ".join(argv)
-    assert argv[-4:] == ["serve", "--work", "/work", "--vnc"]
-
-
 def test_a_secret_is_a_private_file_mounted_read_only(tmp_path, monkeypatch):
     engine = fake_engine(monkeypatch, None)
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
@@ -338,26 +198,6 @@ def test_a_secret_is_a_private_file_mounted_read_only(tmp_path, monkeypatch):
 
 
 # ---- session ----
-
-
-def test_backend_comes_from_the_argument_then_the_environment(monkeypatch):
-    monkeypatch.delenv("ART98_BACKEND", raising=False)
-    assert session_module.backend_name() == "container"
-    monkeypatch.setenv("ART98_BACKEND", "local")
-    assert session_module.backend_name() == "local"
-    assert session_module.backend_name("container") == "container"
-    with pytest.raises(ValueError, match="unknown backend"):
-        session_module.backend_name("kvm")
-
-
-def test_boot_hands_the_container_backend_to_the_container(tmp_path, monkeypatch):
-    (tmp_path / "image.json").write_text(json.dumps({"disk": "/work/golden.qcow2"}))
-    seen = {}
-    monkeypatch.setattr(
-        container, "boot", lambda work, **kw: seen.update(work=work, **kw)
-    )
-    session_module.boot(tmp_path, backend="container")
-    assert seen["work"] == tmp_path and seen["display"] == "none"
 
 
 def test_a_disk_recorded_in_the_container_is_found_beside_image_json(tmp_path):
@@ -385,10 +225,9 @@ def test_on_a_unix_socket_screenshots_go_through_the_shared_folder(tmp_path):
     thread = threading.Thread(target=server.serve, daemon=True)
     thread.start()
     try:
-        stage = StubStage()
-        stage.shared_dir = shared
         remote = RemoteVM(
-            stage, open_channel(str(shared / "serve.sock"), TOKEN, "control", 2)
+            open_channel(str(shared / "serve.sock"), TOKEN, "control", 2),
+            shared_dir=shared,
         )
         assert remote.screenshot(tmp_path / "f.ppm", format="ppm").read_bytes() == PPM
         bridge = Bridge(
@@ -396,7 +235,8 @@ def test_on_a_unix_socket_screenshots_go_through_the_shared_folder(tmp_path):
         )
         assert bridge.ping() == 1
         bridge.close()
-        remote.quit()
+        remote.close()
+        server.stop()
         thread.join(5)
         assert not thread.is_alive()
         assert list(shared.iterdir()) == []  # the socket and the frame are gone
@@ -418,62 +258,15 @@ def test_the_transport_is_a_unix_socket_on_linux_unless_asked(monkeypatch):
         container.transport_name("pipe")
 
 
-def test_a_unix_stage_mounts_its_socket_folder_and_publishes_no_port(
-    tmp_path, monkeypatch
-):
-    engine = fake_engine(monkeypatch, None)
-    stage = ContainerStage(tmp_path, engine, image="art98:test", transport="unix")
-    stage._socket_dir = tmp_path / "sock"
-    argv = stage.argv([])
-    assert f"{tmp_path / 'sock'}:/run/art98" in argv and "-p" not in argv
-    assert argv[-2:] == ["--unix", "/run/art98/serve.sock"]
-
-
-def test_cli_explains_a_missing_disk_image_without_a_traceback(tmp_path, capsys):
+def test_cli_says_the_vm_is_not_running_without_a_traceback(tmp_path, capsys):
     from art98.cli import main
 
-    assert main(["ping", "--work", str(tmp_path), "--backend", "local"]) == 1
-    error = capsys.readouterr().err
-    assert error.startswith("error: ") and "run `art98 setup` first" in error
-    assert "Traceback" not in error
-
-    assert main(["ping", "--work", str(tmp_path), "--backend", "container"]) == 1
-    assert "run `art98 up` first" in capsys.readouterr().err
-
-
-def test_cli_explains_a_missing_container_image(tmp_path, monkeypatch, capsys):
-    from art98.cli import main
-
-    (tmp_path / "image.json").write_text("{}")
-
-    def no_image(*args, **kwargs):
-        raise ContainerError(
-            "no image localhost/art98:latest; run `art98 up` to build it"
-        )
-
-    monkeypatch.setattr(container, "boot", no_image)
     scene = Path(__file__).resolve().parents[2] / "examples/mvp/mvp.py"
     for argv in (["ping"], ["render", str(scene), "-o", str(tmp_path / "x.mp4")]):
-        assert main([*argv, "--work", str(tmp_path), "--backend", "container"]) == 1
-        assert capsys.readouterr().err == (
-            "error: no image localhost/art98:latest; run `art98 up` to build it\n"
-        )
-
-
-def test_a_stage_that_cannot_start_leaves_no_files(tmp_path, monkeypatch):
-    runtime = tmp_path / "runtime"
-    runtime.mkdir()
-    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime))
-    engine = fake_engine(monkeypatch, None)
-    monkeypatch.setattr(engine, "has_image", lambda image: False)
-    work = tmp_path / "work"
-    work.mkdir()
-    with pytest.raises(container.ImageMissing):
-        ContainerStage(work, engine, image="art98:test").start()
-    (work / "image.json").write_text("{}")
-    with pytest.raises(ContainerError, match="no image art98:test"):
-        ContainerStage(work, engine, image="art98:test").start()
-    assert list(runtime.iterdir()) == []
+        assert main([*argv, "--work", str(tmp_path)]) == 1
+        error = capsys.readouterr().err
+        assert error.startswith("error: the VM is not running")
+        assert "run `art98 vm start`" in error and "Traceback" not in error
 
 
 # ---- the image's entry point ----
@@ -521,7 +314,7 @@ def test_insert_and_eject_disc_carry_the_bytes(served):
     vm.eject_disc()
     vm.pause()  # the stream is still in step after the payload
     assert served.vm.calls == [("insert_disc", iso), ("eject_disc",), ("pause",)]
-    vm.quit()
+    vm.close()
 
 
 @pytest.mark.parametrize("size", [0, MAX_DISC + 1, "big"])
@@ -529,11 +322,13 @@ def test_a_disc_of_the_wrong_size_is_refused_and_ends_the_connection(served, siz
     vm = served.remote()
     with pytest.raises(QemuError, match="insert_disc size"):
         vm._request("insert_disc", size=size)
-    served.thread.join(5)  # the stream is out of step, so serve hung up and stopped
-    assert not served.thread.is_alive()
     with pytest.raises(QemuError):
-        vm.pause()
-    assert served.vm.calls == []
+        vm.pause()  # serve hung up: the stream was out of step
+    again = served.remote_when_free()  # the slot is free once the release is done
+    assert served.thread.is_alive()
+    # the bad request ran nothing; only the release's cleanup shows
+    assert served.vm.calls == [("eject_disc",), ("pause",)]
+    again.close()
 
 
 def test_the_real_vm_methods_run_behind_serve(tmp_path):
@@ -559,6 +354,7 @@ def test_the_real_vm_methods_run_behind_serve(tmp_path):
 
     vm = VM(VMConfig(disk=tmp_path / "unused"))
     vm.qmp = StubQMP()
+    vm._process = type("Alive", (), {"poll": lambda self: None})()
     served = Served(tmp_path)
     served.server.vm = vm
     try:
@@ -581,10 +377,17 @@ def test_the_real_vm_methods_run_behind_serve(tmp_path):
         ) in vm.qmp.calls
         remote.eject_disc()  # empty drive: nothing more is sent
         assert [c for c, _ in vm.qmp.calls].count("blockdev-open-tray") == 1
-        remote.quit()
+        remote.close()
     finally:
-        served.server.stop()
-        served.thread.join(5)
-        served.serial.listener.close()
+        served.close()
         vm.qmp = None
+        vm._process = None
         vm.close()
+
+
+def test_the_settings_transport_beats_the_platform_but_not_the_env(monkeypatch):
+    monkeypatch.delenv("ART98_TRANSPORT", raising=False)
+    monkeypatch.setattr(container.sys, "platform", "linux")
+    assert container.transport_name(default="tcp") == "tcp"
+    monkeypatch.setenv("ART98_TRANSPORT", "unix")
+    assert container.transport_name(default="tcp") == "unix"

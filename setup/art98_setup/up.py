@@ -12,9 +12,10 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from art98.container.host import ContainerError, Engine, boot, image_name, mount_args
+from art98.container.host import ContainerError, Engine, image_name, mount_args
 from art98.container.serve import VNC_PORT
 from art98.freshness import container_warning, inspect_created
+from art98.settings import load
 
 KEY_SECRET = "art98_key"
 ROOT = Path(__file__).resolve().parents[2]
@@ -88,13 +89,14 @@ def setup_argv(
     image: str,
     secret: list[str],
     watch: bool = False,
-    vnc_port: int = 5998,
+    vnc_port: int | None = None,
     disk_mb: int = 2047,
 ) -> list[str]:
+    vnc_port = vnc_port or load().setup_vnc
     watching = (
         [
             "-p",
-            f"127.0.0.1:{vnc_port}:{VNC_PORT}",
+            f"{load().bind}:{vnc_port}:{VNC_PORT}",
             "-e",
             f"ART98_WATCH_DISPLAY=vnc=0.0.0.0:{VNC_PORT - 5900}",
         ]
@@ -124,19 +126,20 @@ def setup_argv(
 
 
 def up(
-    work: Path | str = "work",
+    work: Path | str | None = None,
     iso: Path | str | None = None,
     watch: bool = False,
     rebuild: bool = False,
-    vnc_port: int = 5998,
+    vnc_port: int | None = None,
     disk_mb: int = 2047,
     engine: Engine | None = None,
     log=print,
 ) -> int:
-    """`art98 up`: image, key, setup and a first boot, skipping what is done."""
+    """`art98 up`: image, key and setup, skipping what is done."""
     engine = engine or Engine()
     image = image_name()
-    work = Path(work).resolve()
+    vnc_port = vnc_port or load().setup_vnc
+    work = load(work=work).work_dir  # None: [vm] work from art98.toml
     exists, created = inspect_created(
         engine, image
     )  # one inspect: has_image would be a second
@@ -165,7 +168,7 @@ def up(
         work.mkdir(parents=True, exist_ok=True)
         secret, cleanup = engine.secret_args(_read_key(), KEY_SECRET)
         if watch:
-            log(f"[up] watch setup with a VNC viewer at 127.0.0.1:{vnc_port}")
+            log(f"[up] watch setup with a VNC viewer at {load().bind}:{vnc_port}")
         log("[up] running setup in the container; this takes about 40 minutes")
         try:
             code = subprocess.run(  # noqa: PLW1510
@@ -181,8 +184,5 @@ def up(
     else:
         log(f"[up] {work / 'image.json'} exists, so setup is done")
 
-    log("[up] booting a stage in the container")
-    with boot(work, engine=engine) as session:
-        log(f"[up] the agent answered: guest tick count {session.bridge.ping()}")
-    log(f"[up] ready. Render with: art98 render SCENE.py --work {work}")
+    log(f"[up] ready. Start the VM with: art98 vm start --work {work}")
     return 0

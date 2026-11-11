@@ -105,9 +105,41 @@ def test_up_warns_when_it_reuses_an_old_image(tmp_path, monkeypatch):
     monkeypatch.setattr(up, "container_warning", lambda created, image: ["old image"])
     (tmp_path / "image.json").write_text("{}")
     lines = []
-    monkeypatch.setattr(
-        up, "boot", lambda *a, **k: (_ for _ in ()).throw(ContainerError("stop"))
-    )
-    with pytest.raises(ContainerError):
-        up.up(tmp_path, engine=engine, log=lines.append)
+    monkeypatch.setattr(up, "ROOT", tmp_path)  # the guest programs are "there"
+    (tmp_path / "guest" / "build").mkdir(parents=True)
+    (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")
+    calls = []
+    monkeypatch.setattr(Engine, "__call__", lambda self, *a, **k: calls.append(a))
+    monkeypatch.setattr(up.subprocess, "run", lambda *a, **k: calls.append(a))
+    assert up.up(tmp_path, engine=engine, log=lines.append) == 0
+    assert calls == []  # setup is done: no run/start/snapshot of any VM
+    assert not hasattr(up, "boot")
     assert "[up] warning: old image" in lines
+    assert "art98 vm start" in lines[-1]
+
+
+def test_up_resolves_a_missing_work_through_art98_toml(tmp_path, monkeypatch):
+    (tmp_path / "art98.toml").write_text('[vm]\nwork = "elsewhere"\n')
+    monkeypatch.chdir(tmp_path)
+    engine = fake_engine(monkeypatch, "docker")
+    monkeypatch.setattr(up, "inspect_created", lambda eng, image: (True, 1.0))
+    monkeypatch.setattr(up, "container_warning", lambda created, image: [])
+    monkeypatch.setattr(up, "ROOT", tmp_path)
+    (tmp_path / "guest" / "build").mkdir(parents=True)
+    (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")
+    (tmp_path / "elsewhere").mkdir()
+    (tmp_path / "elsewhere" / "image.json").write_text("{}")
+    lines = []
+    assert up.up(engine=engine, log=lines.append) == 0
+    assert f"{tmp_path / 'elsewhere'}/image.json exists" in lines[-2]
+
+
+def test_watch_publishes_vnc_on_the_configured_bind(tmp_path, monkeypatch):
+    (tmp_path / "art98.toml").write_text(
+        '[ports]\nbind = "0.0.0.0"\nsetup_vnc = 5999\n'
+    )
+    monkeypatch.chdir(tmp_path)
+    engine = fake_engine(monkeypatch, "docker")
+    argv = up.setup_argv(engine, tmp_path, tmp_path / "x.iso", "art98:test", [], True)
+    assert "0.0.0.0:5999:5900" in argv
+    assert not any(a.startswith("127.0.0.1") for a in argv)

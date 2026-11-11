@@ -5,7 +5,7 @@ Run from the repo root:
 parts: sheets (icon contact sheets, one boot per file), icons (the 7 named icons in real boxes),
        struct (children of a box, hInst 0 vs agent, DestroyIcon), layout (size / MoveWindow),
        misc (EnableWindow, SetWindowTextA). No part given = all but sheets.
-Runs on a private copy of work/ (art98.session.stage, backend local); never writes the base image,
+Runs on a private copy of work/ (art98.session.stage, local QEMU); never writes the base image,
 never savevm. Screenshots go to OUT_DIR (default: a fresh mktemp dir), never the repo.
 lazy: talks to the bridge directly, not through Dialog/Scene (Dialog is still the parked apps.py
 class and P1 only needs the raw calls). Upgrade: none, throwaway.
@@ -150,7 +150,7 @@ def dump(g, hwnd, label):
 
 def part_sheets(out):
     for name, path in DLLS.items():
-        with stage("work", backend="local") as s:
+        with stage("work") as s:
             g = s.bridge
             n = g.shell32.ExtractIconA(0, path, 0xFFFFFFFF).value
             hdc = g.user32.GetDC(0).value
@@ -389,7 +389,7 @@ for part in ("icons", "struct", "layout", "misc"):
     if part in PARTS:
         print(f"=== {part}  psi {psi()}")
         t0 = time.perf_counter()
-        with stage("work", backend="local") as s:
+        with stage("work") as s:
             print(f"boot {1000 * (time.perf_counter() - t0):.0f} ms  psi {psi()}")
             t1 = time.perf_counter()
             globals()["part_" + part](s)

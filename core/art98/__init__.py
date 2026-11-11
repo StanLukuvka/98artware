@@ -4,7 +4,8 @@ from .bridge import Bridge, BridgeError, BridgeTimeout, CallResult, GuestCrashed
 from .protocol import Out
 from .qemu import VM, VMConfig
 from .recorder import Recorder, RecorderError
-from .session import Session, boot
+from .service import attach
+from .session import Session
 
 __all__ = [
     "VM",
@@ -19,5 +20,5 @@ __all__ = [
     "Session",
     "VMConfig",
     "Window",
-    "boot",
+    "attach",
 ]

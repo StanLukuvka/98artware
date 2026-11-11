@@ -1,11 +1,12 @@
-"""P3: CD wallpaper route on the container (and local) backend.
+"""P3: CD wallpaper route on the VM service (`container` or `service`) and on local QEMU (`local`).
 
     . .tools/env.sh
-    .venv/bin/python experiments/dialog-storm/probe_cd_container.py OUTDIR container   # Podman (default DOCKER_HOST)
-    env -u DOCKER_HOST sg docker -c '... OUTDIR container'                            # real Docker
+    .venv/bin/python experiments/dialog-storm/probe_cd_container.py OUTDIR service    # `art98 vm start` must be running
+    env -u DOCKER_HOST sg docker -c '... OUTDIR service'                              # real Docker
     .venv/bin/python experiments/dialog-storm/probe_cd_container.py OUTDIR local
 
-Throwaway probe: no source edits, no savevm, private copy only. Exit 1 if any check fails.
+`local` uses a private stage. `service` attaches to the running VM (reverts first, runs on its
+disk), not a private copy. Throwaway probe: no source edits, no savevm. Exit 1 if any check fails.
 """
 
 import json
@@ -15,6 +16,7 @@ import time
 from pathlib import Path
 
 from art98.desktop import cd_drive, set_wallpaper, wait_for_disc
+from art98.service import attach
 from art98.session import stage
 
 OUT = Path(sys.argv[1]).resolve()
@@ -89,7 +91,8 @@ def medium_gone(s) -> bool:
 
 
 def main():
-    with stage(work="work", backend=BACKEND) as s:
+    session_cm = stage("work") if BACKEND == "local" else attach()
+    with session_cm as s:
         g = s.bridge
         w, h = g.user32.GetSystemMetrics(0).value, g.user32.GetSystemMetrics(1).value
         rec("screen", (w, h))

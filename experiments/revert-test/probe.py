@@ -10,7 +10,8 @@ import sys
 import time
 from pathlib import Path
 
-from art98.session import boot, private_stage
+from art98.session import boot_local as boot
+from art98.session import private_stage
 
 OUT = Path(sys.argv[1])
 PAINT = r'"C:\Program Files\Accessories\MSPAINT.EXE"'

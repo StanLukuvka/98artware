@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 
 faulthandler.dump_traceback_later(400, exit=True)
-from art98.session import boot, private_stage
+from art98.session import boot_local as boot
+from art98.session import private_stage
 
 OUT = Path(sys.argv[1])
 OUT.mkdir(parents=True, exist_ok=True)
