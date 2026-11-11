@@ -3,6 +3,8 @@ name = "art98"
 version = "0.1.0"
 description = "Script animations with a real Windows 98 desktop inside a VM"
 requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = []
 
 [project.scripts]

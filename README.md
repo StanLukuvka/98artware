@@ -277,3 +277,8 @@ baud, so files move well above the line rate. Setup quirks that `art98 setup` ha
 
 [docs/status.md](docs/status.md) has the full list of what's built and what's next.
 [PLAN.md](docs/archive/PLAN.md), now archived, has the original creative direction.
+
+## Licence
+
+art98 is under the [MIT License](LICENSE). It covers art98's own code only: Windows 98 comes
+from your own disc and key, and stays under Microsoft's licence.
