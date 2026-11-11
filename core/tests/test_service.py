@@ -7,11 +7,11 @@ import stat
 import threading
 import time
 from contextlib import ExitStack
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from dataclasses import replace
 import serve_harness
 from art98 import service
 from art98.container.host import ContainerError
@@ -692,9 +692,15 @@ def test_attach_reads_the_token_from_token_file_without_work(served, tmp_path):
 
 
 def test_a_given_token_beats_the_env_and_the_file(served, tmp_path, monkeypatch):
-    settings = Settings(work=str(tmp_path / "no-work-here"), control=served.address[1],
-                        token_file=str(tmp_path / "missing.token"), root=tmp_path)
-    monkeypatch.setenv("ART98_TOKEN", TOKEN)  # how a host program hands a child its token
+    settings = Settings(
+        work=str(tmp_path / "no-work-here"),
+        control=served.address[1],
+        token_file=str(tmp_path / "missing.token"),
+        root=tmp_path,
+    )
+    monkeypatch.setenv(
+        "ART98_TOKEN", TOKEN
+    )  # how a host program hands a child its token
     with service.attach(settings, revert=False) as session:
         assert session.bridge.ping() is not None
     monkeypatch.setenv("ART98_TOKEN", "wrong")

@@ -31,7 +31,8 @@ class Settings:
     connect: str | None = None
     transport: str | None = None
     token_file: str | None = None
-    token: str | None = field(default=None, repr=False)  # the token itself; never from art98.toml
+    # The token itself; never from art98.toml.
+    token: str | None = field(default=None, repr=False)
     control: int = 7598
     vnc: int = 5900
     setup_vnc: int = 5998

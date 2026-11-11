@@ -9,6 +9,7 @@ checking for it costs one call instead of a copy.
 from __future__ import annotations
 
 import hashlib
+import os
 import struct
 from pathlib import Path
 
@@ -26,7 +27,10 @@ class GuestBuildMissing(FileNotFoundError):
 
 
 def guest_build() -> Path:
-    """Where `make` in guest/ leaves the programs that run on the guest."""
+    """Where `make` in guest/ leaves the programs that run on the guest. ART98_GUEST_BUILD
+    overrides it, for a copy of the library that lives outside the checkout."""
+    if os.environ.get("ART98_GUEST_BUILD"):
+        return Path(os.environ["ART98_GUEST_BUILD"]).expanduser()
     return Path(__file__).resolve().parents[2] / "guest" / "build"
 
 

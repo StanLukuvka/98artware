@@ -12,6 +12,8 @@ All notable changes to art98 are listed here. The format follows
 - A client can be handed the VM token instead of reading a token file: `Settings.token` (for a
   program that uses art98 as a library) or the `ART98_TOKEN` environment variable. The token
   file stays the default.
+- `ART98_GUEST_BUILD` points art98 at the guest programs when the library is a copy outside
+  the checkout, and `tools/vendor_to_hermes.py` makes that copy for the Hermes plugin.
 
 ## [0.1.0] - 2026-11-11
 
