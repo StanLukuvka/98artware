@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from ...base.animation import Instant
 from ...base.vectors import ORIGIN
-from ...win32 import SC_MAXIMIZE, SC_MINIMIZE, SC_RESTORE, WM_SYSCOMMAND, sys_command  # noqa: F401
+from ...win32 import (  # noqa: F401
+    SC_MAXIMIZE,
+    SC_MINIMIZE,
+    SC_RESTORE,
+    WM_SYSCOMMAND,
+    sys_command,
+)
 
 
 class _SysCommand(Instant):
@@ -13,6 +19,7 @@ class _SysCommand(Instant):
     def act(self) -> None:
         sys_command(self.target.guest, self.target.hwnd, self.command)
         self.target.guest.sync(self.target.hwnd)
+        self.target.refresh()  # Windows moved and sized the window itself
 
 
 class Minimize(_SysCommand):
@@ -47,8 +54,15 @@ class Teleport(Instant):
     centre lands on `to`. Give `size` to change its outer size as well.
     """
 
-    def __init__(self, target, to=None, *, aligned_edge=ORIGIN,
-                 size: tuple[int, int] | None = None, **kwargs):
+    def __init__(
+        self,
+        target,
+        to=None,
+        *,
+        aligned_edge=ORIGIN,
+        size: tuple[int, int] | None = None,
+        **kwargs,
+    ):
         if to is None and size is None:
             raise ValueError("Teleport needs somewhere to go, a size, or both")
         super().__init__(target, **kwargs)

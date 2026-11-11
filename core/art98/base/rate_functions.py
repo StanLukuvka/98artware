@@ -18,7 +18,9 @@ def linear(t: float) -> float:
 
 def smooth(t: float, inflection: float = 10.0) -> float:
     error = _sigmoid(-inflection / 2)
-    return min(1.0, max(0.0, (_sigmoid(inflection * (t - 0.5)) - error) / (1 - 2 * error)))
+    return min(
+        1.0, max(0.0, (_sigmoid(inflection * (t - 0.5)) - error) / (1 - 2 * error))
+    )
 
 
 def smoothstep(t: float) -> float:

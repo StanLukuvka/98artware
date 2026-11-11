@@ -4,9 +4,10 @@ What is on the prepared image, and how each program behaves when driven. Everyth
 probed on the real guest: paths, classes, control ids and quirks. Code blocks use the setup from
 [Win32 recipes](win32-recipes.md#setup), and each one ran from the `ready` snapshot.
 
-For the scene props that wrap some of these programs, see the [Scene API](scene-api.md). Notepad is
-the first program that is no longer parked: it is `Notepad` in `art98.anim`, and `"app": "notepad"` in a state.
-`Dialog`, the message box, is the second, and [its own section](#message-box) is below. It is not in a state.
+For the scene props that wrap some of these programs, see the [Scene API](scene-api.md). Every program
+class lives in `core/art98/actions/programs/` and comes from `art98.anim`. Notepad is the only one
+that is also in a state, as `"app": "notepad"`. `Dialog`, the message box, has
+[its own section](#message-box) below. It is not in a state.
 
 Sound Recorder is not covered, because audio is deferred.
 
@@ -92,8 +93,8 @@ pad = g.find_window(class_name="Notepad")
 edit = g.find_window(class_name="Edit", parent=pad.hwnd)
 u.SendMessageA(edit.hwnd, WM_SETTEXT, 0, "hello")
 assert get_text(edit.hwnd) == "hello"
-u.PostMessageA(pad.hwnd, WM_COMMAND, 7, 0)          # Select All
-u.PostMessageA(pad.hwnd, WM_COMMAND, 769, 0)        # Copy
+u.PostMessageA(pad.hwnd, WM_COMMAND, 7, 0)  # Select All
+u.PostMessageA(pad.hwnd, WM_COMMAND, 769, 0)  # Copy
 g.sync(pad.hwnd)
 ```
 
@@ -136,7 +137,7 @@ it visibly. The display's title gives the result.
 ```python
 g.spawn("calc.exe")
 calc = g.find_window(class_name="SciCalc")
-for button in (131, 91, 130, 112):                  # 7 * 6 =
+for button in (131, 91, 130, 112):  # 7 * 6 =
     u.PostMessageA(calc.hwnd, WM_COMMAND, button, 0)
 g.sync(calc.hwnd)
 display = next(c for c in g.windows(calc.hwnd) if u.GetDlgCtrlID(c.hwnd).value == 403)
@@ -200,7 +201,9 @@ time.sleep(0.5)
 parts = g.windows(paint.hwnd)
 view = next(c for c in parts if c.class_name.startswith("Afx:"))
 colors = next(c for c in parts if c.class_name == "AfxWnd42" and c.title == "Colors")
-tools = {u.GetDlgCtrlID(c.hwnd).value: c.hwnd for c in parts if c.class_name == "ToolChild"}
+tools = {
+    u.GetDlgCtrlID(c.hwnd).value: c.hwnd for c in parts if c.class_name == "ToolChild"
+}
 
 
 def click(hwnd, x, y):
@@ -209,11 +212,11 @@ def click(hwnd, x, y):
     g.sync(paint.hwnd)
 
 
-click(tools[640], 5, 5)                             # brush
-click(colors.hwnd, 40 + 2 * 16, 16 + 16)            # red
+click(tools[640], 5, 5)  # brush
+click(colors.hwnd, 40 + 2 * 16, 16 + 16)  # red
 u.PostMessageA(view.hwnd, WM_LBUTTONDOWN, 1, lparam(30, 30))
 for x in range(30, 150, 5):
-    u.PostMessageA(view.hwnd, 0x200, 1, lparam(x, 30))      # WM_MOUSEMOVE, button held
+    u.PostMessageA(view.hwnd, 0x200, 1, lparam(x, 30))  # WM_MOUSEMOVE, button held
 u.PostMessageA(view.hwnd, WM_LBUTTONUP, 0, lparam(150, 30))
 g.sync(paint.hwnd)
 
@@ -228,7 +231,7 @@ Save a picture and read it back. The default canvas here is 400 x 300, at 24 bit
 g.spawn(r'"C:\Program Files\Accessories\MSPAINT.EXE"')
 paint = g.find_window(class_name="MSPaintApp")
 time.sleep(0.5)
-u.PostMessageA(paint.hwnd, WM_COMMAND, 57604, 0)    # Save As
+u.PostMessageA(paint.hwnd, WM_COMMAND, 57604, 0)  # Save As
 dialog = g.find_window(title="Save As", timeout=4)
 name = next(c for c in g.windows(dialog.hwnd) if c.class_name == "Edit")
 u.SendMessageA(name.hwnd, WM_SETTEXT, 0, r"C:\ART.BMP")
@@ -251,7 +254,7 @@ paint = g.find_window(title="Red - Paint")
 time.sleep(0.5)
 view = next(c for c in g.windows(paint.hwnd) if c.class_name.startswith("Afx:"))
 canvas = u.GetDC(view.hwnd).value
-assert gdi.GetPixel(canvas, 10, 10).value == 0x2020D0   # snapped to the 16-bit display
+assert gdi.GetPixel(canvas, 10, 10).value == 0x2020D0  # snapped to the 16-bit display
 u.ReleaseDC(view.hwnd, canvas)
 ```
 
@@ -290,7 +293,7 @@ pad = g.find_window(class_name="WordPadClass")
 time.sleep(0.5)
 text = g.find_window(class_name="RichEdit20A", parent=pad.hwnd)
 u.SendMessageA(text.hwnd, WM_SETTEXT, 0, "First")
-end = u.SendMessageA(text.hwnd, 0x0E, 0, 0).value   # WM_GETTEXTLENGTH
+end = u.SendMessageA(text.hwnd, 0x0E, 0, 0).value  # WM_GETTEXTLENGTH
 u.SendMessageA(text.hwnd, EM_SETSEL, end, end)
 u.SendMessageA(text.hwnd, EM_REPLACESEL, 1, " second")
 assert get_text(text.hwnd) == "First second"
@@ -331,7 +334,7 @@ Posted clicks in client coordinates work on the main window. A left click opens 
 ```python
 g.spawn(r"C:\WINDOWS\WINMINE.EXE")
 game = g.find_window(class_name="Minesweeper")
-u.PostMessageA(game.hwnd, WM_COMMAND, 522, 0)       # Intermediate
+u.PostMessageA(game.hwnd, WM_COMMAND, 522, 0)  # Intermediate
 time.sleep(0.4)
 client = struct.unpack("<4i", u.GetClientRect(game.hwnd, Out(16)).buffers[0])
 assert client[2:] == (280, 323)
@@ -406,7 +409,7 @@ start = g.find_window(class_name="#32770")
 name = g.find_window(class_name="Edit", parent=start.hwnd)
 u.SendMessageA(name.hwnd, WM_SETTEXT, 0, "art98")
 g.find_window(class_name="AfxFrameOrView")
-u.PostMessageA(start.hwnd, WM_COMMAND, 2, 0)        # Quit
+u.PostMessageA(start.hwnd, WM_COMMAND, 2, 0)  # Quit
 ```
 
 ## Character Map
@@ -430,15 +433,15 @@ clipboard.
 g.spawn(r"C:\WINDOWS\CHARMAP.EXE")
 chart = g.find_window(class_name="MyDlgClass")
 fonts = next(c for c in g.windows(chart.hwnd) if c.class_name == "ComboBox")
-assert u.SendMessageA(fonts.hwnd, 0x14D, -1, "Wingdings").signed >= 0   # CB_SELECTSTRING
-u.PostMessageA(chart.hwnd, WM_COMMAND, 105 | 1 << 16, fonts.hwnd)       # CBN_SELCHANGE
+assert u.SendMessageA(fonts.hwnd, 0x14D, -1, "Wingdings").signed >= 0  # CB_SELECTSTRING
+u.PostMessageA(chart.hwnd, WM_COMMAND, 105 | 1 << 16, fonts.hwnd)  # CBN_SELCHANGE
 g.sync(chart.hwnd)
 
 box = g.find_window(class_name="Edit", parent=chart.hwnd)
 u.SendMessageA(box.hwnd, WM_SETTEXT, 0, "abc")
-u.PostMessageA(chart.hwnd, WM_COMMAND, 102, 0)      # Copy
+u.PostMessageA(chart.hwnd, WM_COMMAND, 102, 0)  # Copy
 g.sync(chart.hwnd)
-u.PostMessageA(chart.hwnd, WM_COMMAND, 101, 0)      # Close
+u.PostMessageA(chart.hwnd, WM_COMMAND, 101, 0)  # Close
 ```
 
 ## Command Prompt

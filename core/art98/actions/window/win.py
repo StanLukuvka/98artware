@@ -5,14 +5,22 @@ from __future__ import annotations
 import struct
 import time
 
+from ... import win32
 from ...base.props import Prop, Spot
 from ...base.vectors import DR, Vec
 from ...bridge import BridgeTimeout, Window
 from ...protocol import Out
-from ... import win32
 from ...win32 import (
-    SM_CYCAPTION, SM_CYSIZEFRAME, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
-    WM_GETTEXT, WM_GETTEXTLENGTH, WM_SETTEXT, window_rect,
+    SM_CYCAPTION,
+    SM_CYSIZEFRAME,
+    SWP_NOACTIVATE,
+    SWP_NOMOVE,
+    SWP_NOSIZE,
+    SWP_NOZORDER,
+    WM_GETTEXT,
+    WM_GETTEXTLENGTH,
+    WM_SETTEXT,
+    window_rect,
 )
 
 FIND_WINDOW_TIMEOUT = 15.0
@@ -29,9 +37,16 @@ class Win(Prop):
     command: str | None = None
     window_class: str | None = None
 
-    def __init__(self, title: str | None = None, *, class_name: str | None = None,
-                 hwnd: int | None = None, command: str | None = None,
-                 at: tuple[int, int] | None = None, size: tuple[int, int] | None = None):
+    def __init__(
+        self,
+        title: str | None = None,
+        *,
+        class_name: str | None = None,
+        hwnd: int | None = None,
+        command: str | None = None,
+        at: tuple[int, int] | None = None,
+        size: tuple[int, int] | None = None,
+    ):
         super().__init__()
         self.title_text = title
         self.class_name = class_name or self.window_class
@@ -71,17 +86,23 @@ class Win(Prop):
             if (
                 window.visible
                 and (pid is None or window.pid == pid)
-                and (self.title_text is None
-                     or self.title_text.lower() in window.title.lower())
-                and (self.class_name is None
-                     or self.class_name.lower() == window.class_name.lower())
+                and (
+                    self.title_text is None
+                    or self.title_text.lower() in window.title.lower()
+                )
+                and (
+                    self.class_name is None
+                    or self.class_name.lower() == window.class_name.lower()
+                )
             ):
                 return window
         return None
 
     def _not_found(self, pid: int | None) -> str:
-        return (f"no window for {type(self).__name__}: "
-                f"title={self.title_text!r} class={self.class_name!r} pid={pid}")
+        return (
+            f"no window for {type(self).__name__}: "
+            f"title={self.title_text!r} class={self.class_name!r} pid={pid}"
+        )
 
     def ready(self) -> None:
         """Called once the window exists and has been placed."""
@@ -149,7 +170,9 @@ class Win(Prop):
             self.refresh()
             return self.get_corner(direction) - Vec(direction[0], direction[1]) * inset
 
-        return Spot(locate)
+        spot = Spot(locate)
+        spot.window = self  # a Drag from here resizes this window, so it is read back while Windows does it
+        return spot
 
     def client(self, x: int, y: int) -> Spot:
         """A point given in the window's client coordinates."""
@@ -157,7 +180,8 @@ class Win(Prop):
         def locate():
             point = struct.pack("<ii", x, y)
             return struct.unpack(
-                "<ii", self.guest.user32.ClientToScreen(self.hwnd, point).buffers[0])
+                "<ii", self.guest.user32.ClientToScreen(self.hwnd, point).buffers[0]
+            )
 
         return Spot(locate)
 
@@ -167,19 +191,24 @@ class Win(Prop):
         rect = self.guest.user32.GetClientRect(self.hwnd, Out(16)).buffers[0]
         return struct.unpack("<iiii", rect)[2:]
 
-    def children(self, class_name: str | None = None, title: str | None = None) -> list[Window]:
+    def children(
+        self, class_name: str | None = None, title: str | None = None
+    ) -> list[Window]:
         """Every descendant window, optionally by class and title."""
         return [
-            window for window in self.guest.windows(self.hwnd)
+            window
+            for window in self.guest.windows(self.hwnd)
             if (class_name is None or class_name.lower() == window.class_name.lower())
             and (title is None or title.lower() in window.title.lower())
         ]
 
-    def control(self, class_name: str | None = None, title: str | None = None) -> "Win":
+    def control(self, class_name: str | None = None, title: str | None = None) -> Win:
         """A child window as a prop, for clicking or moving."""
         found = self.children(class_name, title)
         if not found:
-            raise LookupError(f"no {class_name or 'child'} {title or ''} in window {self.hwnd:#x}")
+            raise LookupError(
+                f"no {class_name or 'child'} {title or ''} in window {self.hwnd:#x}"
+            )
         child = Win(hwnd=found[0].hwnd)
         child.attach(self.scene)
         return child
@@ -191,8 +220,10 @@ class Win(Prop):
 
     def _read_text(self, hwnd: int) -> str:
         length = self.guest.user32.SendMessageA(hwnd, WM_GETTEXTLENGTH, 0, 0).value
-        result = self.guest.user32.SendMessageA(hwnd, WM_GETTEXT, length + 1, Out(length + 1))
-        return result.buffers[0][:result.value].decode("cp1252", errors="replace")
+        result = self.guest.user32.SendMessageA(
+            hwnd, WM_GETTEXT, length + 1, Out(length + 1)
+        )
+        return result.buffers[0][: result.value].decode("cp1252", errors="replace")
 
     def set_text(self, text: str) -> None:
         self.guest.user32.SendMessageA(self.hwnd, WM_SETTEXT, 0, text)
@@ -220,12 +251,15 @@ class Win(Prop):
         self.guest.sync()
         pointer.place(home)
         if user32.GetForegroundWindow().value != self.hwnd:
-            raise RuntimeError(f"could not activate window {self.hwnd:#x}: is it covered?")
+            raise RuntimeError(
+                f"could not activate window {self.hwnd:#x}: is it covered?"
+            )
 
     def bring_to_front(self) -> None:
         """Raise the window without activating it."""
         self.guest.user32.SetWindowPos(
-            self.hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+            self.hwnd, 0, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE
+        )
 
     def close(self) -> None:
         """Ask the window to close, as its X button does."""

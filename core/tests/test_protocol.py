@@ -1,7 +1,12 @@
 import pytest
-
 from art98.protocol import (
-    FrameError, Out, crc16, encode_request, frame, parse_values, unframe,
+    FrameError,
+    Out,
+    crc16,
+    encode_request,
+    frame,
+    parse_values,
+    unframe,
 )
 
 
@@ -30,7 +35,12 @@ def test_strings_escape_quotes_backslashes_and_controls():
 
 
 def test_parse_values():
-    assert parse_values(b'12 0x10 "a \\"b\\" \\x41" #00ff') == [12, 16, 'a "b" A', b"\x00\xff"]
+    assert parse_values(b'12 0x10 "a \\"b\\" \\x41" #00ff') == [
+        12,
+        16,
+        'a "b" A',
+        b"\x00\xff",
+    ]
 
 
 def test_strings_use_the_windows_code_page():

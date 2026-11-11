@@ -13,14 +13,14 @@ import os
 import shutil
 import subprocess
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
-from typing import Callable
 
 from art98.bridge import Bridge, BridgeError, BridgeTimeout
 from art98.guestfiles import GUEST_DIR
-from art98.qemu import QEMU_BINARY, QemuError, VM, VMConfig
+from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
 
 SECTOR = 512
 SECTORS_PER_TRACK = 63
@@ -74,7 +74,11 @@ def install_hints(tools: list[str]) -> list[tuple[str, str, list[str]]]:
     """(system, install command, packages) for each distribution family."""
     return [
         ("Fedora", "sudo dnf install", [HOST_TOOLS[tool] for tool in tools]),
-        ("Debian, Ubuntu", "sudo apt install", [DEBIAN_PACKAGES[tool] for tool in tools]),
+        (
+            "Debian, Ubuntu",
+            "sudo apt install",
+            [DEBIAN_PACKAGES[tool] for tool in tools],
+        ),
     ]
 
 
@@ -121,11 +125,11 @@ class Screen:
     rgb: bytes
 
     @classmethod
-    def from_ppm(cls, data: bytes) -> "Screen":
+    def from_ppm(cls, data: bytes) -> Screen:
         fields, pos = [], 0
         while len(fields) < 4:
             start = pos
-            while data[pos:pos + 1] not in (b" ", b"\n"):
+            while data[pos : pos + 1] not in (b" ", b"\n"):
                 pos += 1
             fields.append(data[start:pos])
             pos += 1
@@ -135,30 +139,36 @@ class Screen:
 
     def pixel(self, x: int, y: int) -> tuple[int, int, int]:
         offset = (y * self.width + x) * 3
-        return tuple(self.rgb[offset:offset + 3])
+        return tuple(self.rgb[offset : offset + 3])
 
     def crop(self, left: int, top: int, right: int, bottom: int) -> bytes:
-        rows = (self.rgb[(y * self.width + left) * 3:(y * self.width + right) * 3]
-                for y in range(top, bottom))
+        rows = (
+            self.rgb[(y * self.width + left) * 3 : (y * self.width + right) * 3]
+            for y in range(top, bottom)
+        )
         return b"".join(rows)
 
 
 def setup_wizard_showing(screen: Screen) -> bool:
     """Recognise the first-boot wizard: a dialog alone on a blue screen."""
-    return ((screen.width, screen.height) == (640, 480)
-            and screen.pixel(10, 10) == (0, 0, 255)
-            and screen.pixel(20, 470) == (0, 0, 255)
-            and screen.pixel(300, 70) == (0, 0, 168)
-            and screen.pixel(300, 360) == (192, 199, 200))
+    return (
+        (screen.width, screen.height) == (640, 480)
+        and screen.pixel(10, 10) == (0, 0, 255)
+        and screen.pixel(20, 470) == (0, 0, 255)
+        and screen.pixel(300, 70) == (0, 0, 168)
+        and screen.pixel(300, 360) == (192, 199, 200)
+    )
 
 
 def logon_prompt_showing(screen: Screen) -> bool:
     """Recognise the logon dialog on the bare desktop of the first real boot."""
-    return ((screen.width, screen.height) == (640, 480)
-            and screen.pixel(10, 10) == (0, 128, 128)
-            and screen.pixel(20, 470) == (0, 128, 128)
-            and screen.pixel(300, 72) == (0, 0, 128)
-            and screen.pixel(300, 245) == (192, 192, 192))
+    return (
+        (screen.width, screen.height) == (640, 480)
+        and screen.pixel(10, 10) == (0, 128, 128)
+        and screen.pixel(20, 470) == (0, 128, 128)
+        and screen.pixel(300, 72) == (0, 0, 128)
+        and screen.pixel(300, 245) == (192, 192, 192)
+    )
 
 
 # ---- pipeline ----
@@ -175,10 +185,6 @@ class Setup:
     log: object = print
 
     STAGES = ("vm", "setup", "init_api", "ready")
-    # Steps used to be five stages; work/state.json from those builds still counts.
-    OLD_STAGES = {
-        "media": "vm", "disk": "vm", "install": "setup", "patch": "init_api", "harden": "ready",
-    }
 
     def __post_init__(self) -> None:
         self.work = Path(self.work).resolve()
@@ -195,23 +201,16 @@ class Setup:
 
     @classmethod
     def step_name(cls, name: str) -> str:
-        """The step holding `name`, which may be a step or an old stage name."""
+        """`name` if it is a step; otherwise a SetupError."""
         if name in cls.STAGES:
             return name
-        if name in cls.OLD_STAGES:
-            return cls.OLD_STAGES[name]
-        raise SetupError(f"unknown step {name!r}; choose from "
-                         f"{', '.join(cls.STAGES + tuple(cls.OLD_STAGES))}")
+        raise SetupError(f"unknown step {name!r}; choose from {', '.join(cls.STAGES)}")
 
     def _done(self) -> list[str]:
-        """Finished steps, in order. Old stage names count: vm needs media and disk."""
+        """Recorded steps, in STAGES order."""
         if not self.state_file.exists():
             return []
         recorded = set(json.loads(self.state_file.read_text()))
-        for step in self.STAGES:
-            old = {name for name, held in self.OLD_STAGES.items() if held == step}
-            if old <= recorded:
-                recorded.add(step)
         return [step for step in self.STAGES if step in recorded]
 
     def _mark(self, step: str) -> None:
@@ -223,7 +222,7 @@ class Setup:
     def run(self, from_stage: str | None = None) -> None:
         done = self._done()
         if from_stage:
-            done = done[:self.STAGES.index(self.step_name(from_stage))]
+            done = done[: self.STAGES.index(self.step_name(from_stage))]
             self.state_file.write_text(json.dumps(done))
         for step in self.STAGES:
             if step in done:
@@ -240,13 +239,15 @@ class Setup:
     def _config(self, **overrides) -> VMConfig:
         # In the container there is no window to open: `art98 up --watch` sets VNC.
         display = os.environ.get("ART98_WATCH_DISPLAY", "gtk") if self.watch else "none"
-        return VMConfig(disk=self.golden, machine=self._machine(), display=display, **overrides)
+        return VMConfig(
+            disk=self.golden, machine=self._machine(), display=display, **overrides
+        )
 
     def _machine(self) -> str:
         """Pin the machine version: snapshots only load on the one they came from."""
         output = _run(QEMU_BINARY, "-machine", "help", text=True).stdout
         for line in output.splitlines():
-            name, *rest = line.split()
+            name, *_rest = line.split()
             if name == "pc" and "alias" in line:
                 return line.split("alias of")[1].split(")")[0].strip()
         raise SetupError("could not determine the default QEMU machine type")
@@ -254,8 +255,14 @@ class Setup:
     def _vm_log(self) -> Path:
         return self.work / "qemu.log"
 
-    def _wait_for_agent(self, vm: VM, bridge: Bridge, label: str, timeout: float,
-                        on_poll: Callable[[VM], None] | None = None) -> bool:
+    def _wait_for_agent(
+        self,
+        vm: VM,
+        bridge: Bridge,
+        label: str,
+        timeout: float,
+        on_poll: Callable[[VM], None] | None = None,
+    ) -> bool:
         """Wait for HELLO while keeping screenshots to show where things stand.
 
         Returns False if the guest rebooted first, which ends the VM. Progress
@@ -291,26 +298,35 @@ class Setup:
             elif now - last_change > STALL_LIMIT:
                 raise SetupError(
                     f"no disk writes for {STALL_LIMIT // 60} minutes during {label}; "
-                    f"see {shot}, or rerun with --watch to see the VM")
+                    f"see {shot}, or rerun with --watch to see the VM"
+                )
             if now > deadline:
                 raise SetupError(f"{label} did not finish; last screen: {shot}")
 
     def _require_agent(self, vm: VM, bridge: Bridge, label: str) -> None:
-        if not self._wait_for_agent(vm, bridge, label, 15 * 60, self._answer_setup_prompts):
-            raise SetupError(f"the guest rebooted during {label} before the agent started")
+        if not self._wait_for_agent(
+            vm, bridge, label, 15 * 60, self._answer_setup_prompts
+        ):
+            raise SetupError(
+                f"the guest rebooted during {label} before the agent started"
+            )
         bridge.wait_ready()
 
     def _reboot(self, vm: VM, bridge: Bridge) -> None:
         """Shut Windows down. The call never returns, so it runs on its own thread."""
         bridge.acall("user32", "ExitWindowsEx", EWX_REBOOT | EWX_FORCE, 0)
         if not vm.wait_exit(SHUTDOWN_TIMEOUT):
-            raise SetupError(f"Windows did not shut down; see "
-                             f"{vm.screenshot(self.shots / 'shutdown.png')}")
+            raise SetupError(
+                f"Windows did not shut down; see "
+                f"{vm.screenshot(self.shots / 'shutdown.png')}"
+            )
 
     # first-boot prompts
 
     def _screen(self, vm: VM) -> Screen:
-        return Screen.from_ppm(vm.screenshot(self.shots / "probe.ppm", "ppm").read_bytes())
+        return Screen.from_ppm(
+            vm.screenshot(self.shots / "probe.ppm", "ppm").read_bytes()
+        )
 
     def _answer_setup_prompts(self, vm: VM) -> None:
         screen = self._screen(vm)
@@ -330,6 +346,8 @@ class Setup:
             deadline = time.monotonic() + WIZARD_PAGE_TIMEOUT
             while self._screen(vm).crop(*WIZARD_HEADING) == heading:
                 if time.monotonic() > deadline:
-                    raise SetupError("the first-boot wizard did not advance; see "
-                                     f"{vm.screenshot(self.shots / 'wizard.png')}")
+                    raise SetupError(
+                        "the first-boot wizard did not advance; see "
+                        f"{vm.screenshot(self.shots / 'wizard.png')}"
+                    )
                 time.sleep(1)

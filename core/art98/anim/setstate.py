@@ -12,15 +12,28 @@ import inspect
 import struct
 from pathlib import Path
 
-from ..guestfiles import check_bmp
-from ..desktop import COLOR_DESKTOP, blank, colourref, set_colour, set_wallpaper, wait_for_disc
-from ..state import State, StateError, load_state
-from ..win32 import (  # noqa: F401  (SW_*, cursor_pos, screen_size stay importable from here)
-    SW_MAXIMIZE, SW_SHOWMINNOACTIVE, cursor_pos, repaint_window, screen_size, show_window, work_area,
-)
 from ..actions.pointer import Pointer
 from ..actions.programs.notepad import Notepad
 from ..actions.window.picture import Picture
+from ..desktop import (
+    COLOR_DESKTOP,
+    blank,
+    colourref,
+    set_colour,
+    set_wallpaper,
+    wait_for_disc,
+)
+from ..guestfiles import check_bmp
+from ..state import State, StateError, load_state
+from ..win32 import (
+    SW_MAXIMIZE,
+    SW_SHOWMINNOACTIVE,
+    cursor_pos,
+    repaint_window,
+    screen_size,
+    show_window,
+    work_area,
+)
 
 BITSPIXEL = 12
 APPS = {"picture": Picture, "notepad": Notepad}
@@ -91,9 +104,9 @@ def bmp_pixel(data: bytes, x: int, y: int):
     line = abs(height) - 1 - y if height > 0 else y
     try:
         if depth == 24:
-            b, g, r = data[pixels + line * row + x * 3:][:3]
+            b, g, r = data[pixels + line * row + x * 3 :][:3]
         elif depth == 8:
-            b, g, r = data[14 + header + data[pixels + line * row + x] * 4:][:3]
+            b, g, r = data[14 + header + data[pixels + line * row + x] * 4 :][:3]
         else:
             return None
     except (IndexError, ValueError):  # a short palette or pixel area
@@ -104,16 +117,28 @@ def bmp_pixel(data: bytes, x: int, y: int):
 def wallpaper_sample(state: State, width: int, height: int):
     """A screen point no state window covers, or None if windows cover every candidate."""
     shown = [w for w in state.windows if w.show != "minimized"]
-    for x, y in ((width // 2, height // 2), (width // 4, height // 4),
-                 (3 * width // 4, height // 4), (width // 4, 3 * height // 4)):
+    for x, y in (
+        (width // 2, height // 2),
+        (width // 4, height // 4),
+        (3 * width // 4, height // 4),
+        (width // 4, 3 * height // 4),
+    ):
         y = min(y, height - 40)  # above the taskbar of a stock desktop (572 of 600)
-        if not any(w.show == "maximized" or (w.at[0] <= x < w.at[0] + w.size[0] and w.at[1] <= y < w.at[1] + w.size[1])
-                   for w in shown):
+        if not any(
+            w.show == "maximized"
+            or (
+                w.at[0] <= x < w.at[0] + w.size[0]
+                and w.at[1] <= y < w.at[1] + w.size[1]
+            )
+            for w in shown
+        ):
             return x, y
     return None
 
 
-def expected_pixel(desk, screen: tuple[int, int], colour: tuple[int, int, int], x: int, y: int):
+def expected_pixel(
+    desk, screen: tuple[int, int], colour: tuple[int, int, int], x: int, y: int
+):
     """What a wallpaper in `desk.style` puts at screen (x, y), or None if it can't be told."""
     data = desk.wallpaper.data
     width, height = check_bmp(data)
@@ -134,12 +159,16 @@ def check_state(scene, state: State, props: dict) -> None:
     if state.display:
         actual = display_mode(guest)
         if actual != state.display:
-            problems.append(f"display: {list(state.display)} wanted, the guest has {list(actual)}")
+            problems.append(
+                f"display: {list(state.display)} wanted, the guest has {list(actual)}"
+            )
     desk = state.desktop
     if desk and desk.colour:
         actual = guest.user32.GetSysColor(COLOR_DESKTOP).value & 0xFFFFFF
         if actual != colourref(desk.colour):
-            problems.append(f"desktop.colour: {colourref(desk.colour):06x} wanted, the guest has {actual:06x} (as BGR)")
+            problems.append(
+                f"desktop.colour: {colourref(desk.colour):06x} wanted, the guest has {actual:06x} (as BGR)"
+            )
     if desk and desk.wallpaper:
         problem = wallpaper_problem(guest, state, desk)
         if problem:
@@ -152,19 +181,30 @@ def check_state(scene, state: State, props: dict) -> None:
             problems.append(f"{where}: the window isn't there")
             continue
         if real.title != window.title:
-            problems.append(f"{where}: title {window.title!r} wanted, the guest has {real.title!r}")
+            problems.append(
+                f"{where}: title {window.title!r} wanted, the guest has {real.title!r}"
+            )
         hwnd = real.hwnd
-        show = ("minimized" if guest.user32.IsIconic(hwnd).value
-                else "maximized" if guest.user32.IsZoomed(hwnd).value else "normal")
+        show = (
+            "minimized"
+            if guest.user32.IsIconic(hwnd).value
+            else "maximized"
+            if guest.user32.IsZoomed(hwnd).value
+            else "normal"
+        )
         if show != window.show:
             problems.append(f"{where}: {window.show} wanted, the window is {show}")
         elif show == "normal":
             left, top, right, bottom = real.rect
             if (left, top) != window.at:
-                problems.append(f"{where}: at {list(window.at)} wanted, the guest has {[left, top]}")
+                problems.append(
+                    f"{where}: at {list(window.at)} wanted, the guest has {[left, top]}"
+                )
             if (right - left, bottom - top) != window.size:
-                problems.append(f"{where}: size {list(window.size)} wanted, the guest has "
-                                f"{[right - left, bottom - top]}")
+                problems.append(
+                    f"{where}: size {list(window.size)} wanted, the guest has "
+                    f"{[right - left, bottom - top]}"
+                )
     # Top-level windows come back front to back, and the state lists them
     # back to front. Windows 98 sends a minimized window to the bottom, so only
     # the others are compared.
@@ -173,12 +213,16 @@ def check_state(scene, state: State, props: dict) -> None:
     order = [hwnd for hwnd in found if hwnd in wanted]
     if len(order) == len(wanted) and order != wanted:
         ids = {props[w.id].hwnd: w.id for w in stacked}
-        problems.append(f"windows: front to back should be {[ids[h] for h in wanted]}, "
-                        f"the guest has {[ids[h] for h in order]}")
+        problems.append(
+            f"windows: front to back should be {[ids[h] for h in wanted]}, "
+            f"the guest has {[ids[h] for h in order]}"
+        )
     if state.pointer:
         actual = cursor_pos(guest)
         if actual != state.pointer:
-            problems.append(f"pointer: {list(state.pointer)} wanted, the guest has {list(actual)}")
+            problems.append(
+                f"pointer: {list(state.pointer)} wanted, the guest has {list(actual)}"
+            )
     if problems:
         raise StateMismatch(state.path, problems)
 
@@ -190,7 +234,9 @@ def wallpaper_problem(guest, state: State, desk) -> str | None:
     if point is None:
         return None
     colour = guest.user32.GetSysColor(COLOR_DESKTOP).value & 0xFFFFFF
-    want = expected_pixel(desk, screen, (colour & 255, colour >> 8 & 255, colour >> 16), *point)
+    want = expected_pixel(
+        desk, screen, (colour & 255, colour >> 8 & 255, colour >> 16), *point
+    )
     if want is None:
         return None
     dc = guest.user32.GetDC(0).value

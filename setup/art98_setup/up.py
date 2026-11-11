@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 from art98.container.host import ContainerError, Engine, boot, image_name, mount_args
@@ -22,11 +23,45 @@ DOCKERFILE = ROOT / "setup" / "Dockerfile"
 
 def build_image(engine: Engine, image: str, context: Path = ROOT) -> None:
     """Build the image from setup/Dockerfile. .dockerignore at the root of the
-    context keeps work/ and its disk images out."""
+    context keeps work/ and its disk images out.
+
+    Docker CE's CLI talking to a Podman socket builds in a buildx container
+    builder and keeps the result in its cache, exit code 0. So the build asks
+    for --load where the CLI has it (Podman's own CLI has no such flag), and
+    afterwards the engine's image must carry the ID the build reported."""
     dockerfile = Path(context) / "setup" / "Dockerfile"
     if not dockerfile.exists():
         raise ContainerError(f"{dockerfile} not found; build from an art98 checkout")
-    engine("build", "-t", image, "-f", str(dockerfile), str(context), capture=False)
+    load = (
+        ["--load"] if b"--load" in engine("build", "--help", check=False).stdout else []
+    )
+    with tempfile.TemporaryDirectory(prefix="art98-build-") as folder:
+        iidfile = Path(folder) / "iid"
+        engine(
+            "build",
+            *load,
+            "--iidfile",
+            str(iidfile),
+            "-t",
+            image,
+            "-f",
+            str(dockerfile),
+            str(context),
+            capture=False,
+        )
+        built = iidfile.read_text().strip() if iidfile.exists() else ""
+    have = engine("image", "inspect", "--format", "{{.Id}}", image, check=False)
+    if not built or have.returncode or _bare(have.stdout.decode()) != _bare(built):
+        raise ContainerError(
+            f"{engine.name} built {image} but did not store it: its image is not the one just "
+            f"built. Docker's CLI against a Podman socket needs buildx's --load; try "
+            f"`podman build -t {image} -f {dockerfile} {context}`, or point DOCKER_HOST at the "
+            f"engine that should hold the image"
+        )
+
+
+def _bare(image_id: str) -> str:
+    return image_id.strip().removeprefix("sha256:")
 
 
 def _read_key() -> bytes:
@@ -40,30 +75,71 @@ def _read_key() -> bytes:
 
         key = getpass.getpass("Windows 98 product key (not shown): ").strip()
     if not key:
-        raise ContainerError("setup needs your product key: set ART98_PRODUCT_KEY or type it")
+        raise ContainerError(
+            "setup needs your product key: set ART98_PRODUCT_KEY or type it"
+        )
     return key.encode()
 
 
-def setup_argv(engine: Engine, work: Path, iso: Path, image: str, secret: list[str],
-               watch: bool = False, vnc_port: int = 5998, disk_mb: int = 2047) -> list[str]:
-    watching = (["-p", f"127.0.0.1:{vnc_port}:{VNC_PORT}",
-                 "-e", f"ART98_WATCH_DISPLAY=vnc=0.0.0.0:{VNC_PORT - 5900}"] if watch else [])
+def setup_argv(
+    engine: Engine,
+    work: Path,
+    iso: Path,
+    image: str,
+    secret: list[str],
+    watch: bool = False,
+    vnc_port: int = 5998,
+    disk_mb: int = 2047,
+) -> list[str]:
+    watching = (
+        [
+            "-p",
+            f"127.0.0.1:{vnc_port}:{VNC_PORT}",
+            "-e",
+            f"ART98_WATCH_DISPLAY=vnc=0.0.0.0:{VNC_PORT - 5900}",
+        ]
+        if watch
+        else []
+    )
     return [
-        engine.path, "run", "--rm", "--init", *mount_args(work),
-        "-v", f"{iso.resolve()}:/media/win98.iso:ro", *secret, *watching,
-        image, "setup", "--work", "/work", "--iso", "/media/win98.iso",
-        "--disk-mb", str(disk_mb), *(["--watch"] if watch else []),
+        engine.path,
+        "run",
+        "--rm",
+        "--init",
+        *mount_args(work),
+        "-v",
+        f"{iso.resolve()}:/media/win98.iso:ro",
+        *secret,
+        *watching,
+        image,
+        "setup",
+        "--work",
+        "/work",
+        "--iso",
+        "/media/win98.iso",
+        "--disk-mb",
+        str(disk_mb),
+        *(["--watch"] if watch else []),
     ]
 
 
-def up(work: Path | str = "work", iso: Path | str | None = None, watch: bool = False,
-       rebuild: bool = False, vnc_port: int = 5998, disk_mb: int = 2047,
-       engine: Engine | None = None, log=print) -> int:
+def up(
+    work: Path | str = "work",
+    iso: Path | str | None = None,
+    watch: bool = False,
+    rebuild: bool = False,
+    vnc_port: int = 5998,
+    disk_mb: int = 2047,
+    engine: Engine | None = None,
+    log=print,
+) -> int:
     """`art98 up`: image, key, setup and a first boot, skipping what is done."""
     engine = engine or Engine()
     image = image_name()
     work = Path(work).resolve()
-    exists, created = inspect_created(engine, image)  # one inspect: has_image would be a second
+    exists, created = inspect_created(
+        engine, image
+    )  # one inspect: has_image would be a second
     if rebuild or not exists:
         log(f"[up] building {image} with {engine.name}")
         build_image(engine, image)
@@ -80,7 +156,9 @@ def up(work: Path | str = "work", iso: Path | str | None = None, watch: bool = F
 
     if not (work / "image.json").exists():
         if iso is None:
-            raise ContainerError(f"{work} has no prepared image yet; pass --iso with your disc")
+            raise ContainerError(
+                f"{work} has no prepared image yet; pass --iso with your disc"
+            )
         iso = Path(iso)
         if not iso.is_file():
             raise FileNotFoundError(f"{iso} not found")
@@ -90,12 +168,15 @@ def up(work: Path | str = "work", iso: Path | str | None = None, watch: bool = F
             log(f"[up] watch setup with a VNC viewer at 127.0.0.1:{vnc_port}")
         log("[up] running setup in the container; this takes about 40 minutes")
         try:
-            code = subprocess.run(setup_argv(engine, work, iso, image, secret, watch,
-                                             vnc_port, disk_mb)).returncode
+            code = subprocess.run(  # noqa: PLW1510
+                setup_argv(engine, work, iso, image, secret, watch, vnc_port, disk_mb)
+            ).returncode
         finally:
             cleanup()
         if code != 0:
-            log(f"[up] setup stopped with status {code}; run `art98 up` again to resume")
+            log(
+                f"[up] setup stopped with status {code}; run `art98 up` again to resume"
+            )
             return code
     else:
         log(f"[up] {work / 'image.json'} exists, so setup is done")

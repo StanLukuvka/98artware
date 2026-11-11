@@ -10,7 +10,6 @@ wall clock: everything else is drawn when the script asks for a frame.
 import math
 
 from art98.anim import *
-from art98.anim.apps import Minesweeper, Paint, Screensaver  # parked, see apps.py
 
 CANVAS = (496, 376)
 ROSE_CENTRE = (248, 188)
@@ -27,8 +26,10 @@ class Showcase(Scene):
         def point(t):
             angle = math.pi * t
             radius = ROSE_RADIUS * scale * math.cos(5 * angle)
-            return paint.canvas(ROSE_CENTRE[0] + radius * math.cos(angle),
-                                ROSE_CENTRE[1] - radius * math.sin(angle)).point()
+            return paint.canvas(
+                ROSE_CENTRE[0] + radius * math.cos(angle),
+                ROSE_CENTRE[1] - radius * math.sin(angle),
+            ).point()
 
         return point
 

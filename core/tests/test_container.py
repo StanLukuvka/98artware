@@ -10,14 +10,19 @@ import time
 from pathlib import Path
 
 import pytest
-
 from art98 import session as session_module
 from art98.bridge import Bridge, BridgeError
+from art98.container import host as container
+from art98.container.host import (
+    ContainerError,
+    ContainerStage,
+    Engine,
+    RemoteVM,
+    open_channel,
+)
+from art98.container.serve import MAX_DISC, Server
 from art98.protocol import frame, unframe
 from art98.qemu import VM, QemuError, VMConfig
-from art98.container import host as container
-from art98.container.host import ContainerError, ContainerStage, Engine, RemoteVM, open_channel
-from art98.container.serve import MAX_DISC, Server
 
 TOKEN = "s3cret-token"
 PPM = b"P6\n2 1\n255\n" + bytes(range(6))
@@ -97,11 +102,18 @@ class Served:
         self.vm = FakeVM()
         self.serial = FakeSerial(tmp_path / "serial")
         self.logs = []
-        self.server = Server.listen(self.vm, self.serial.path, TOKEN, host="127.0.0.1", port=0,
-                                    log=self.logs.append)
+        self.server = Server.listen(
+            self.vm,
+            self.serial.path,
+            TOKEN,
+            host="127.0.0.1",
+            port=0,
+            log=self.logs.append,
+        )
         self.address = self.server.address
-        self.thread = threading.Thread(target=self.server.serve, args=(owner_timeout,),
-                                       daemon=True)
+        self.thread = threading.Thread(
+            target=self.server.serve, args=(owner_timeout,), daemon=True
+        )
         self.thread.start()
 
     def channel(self, name, token=TOKEN):
@@ -172,8 +184,13 @@ def test_control_screenshot_keys_revert_pause_resume(served, tmp_path):
     vm.pause()
     vm.resume()
     assert served.vm.calls == [
-        ("screenshot", "ppm"), ("screenshot", "png"), ("send_keys", ("alt", "f"), 50),
-        ("load_snapshot", "ready"), ("save_snapshot", "warm"), ("pause",), ("resume",),
+        ("screenshot", "ppm"),
+        ("screenshot", "png"),
+        ("send_keys", ("alt", "f"), 50),
+        ("load_snapshot", "ready"),
+        ("save_snapshot", "warm"),
+        ("pause",),
+        ("resume",),
     ]
     vm.quit()
 
@@ -284,15 +301,25 @@ def test_the_engine_is_docker_unless_art98_engine_names_another_binary(monkeypat
 
 
 def test_the_stage_publishes_on_loopback_only_and_keeps_secrets_out_of_argv(
-        tmp_path, monkeypatch):
+    tmp_path, monkeypatch
+):
     engine = fake_engine(monkeypatch, None)
-    stage = ContainerStage(tmp_path, engine, image="art98:test", vnc=True, transport="tcp")
-    argv = stage.argv(["-v", "/run/user/1/art98-secret-x/art98_token:/run/secrets/art98_token:ro"])
+    stage = ContainerStage(
+        tmp_path, engine, image="art98:test", vnc=True, transport="tcp"
+    )
+    argv = stage.argv(
+        ["-v", "/run/user/1/art98-secret-x/art98_token:/run/secrets/art98_token:ro"]
+    )
     assert argv[:4] == ["/usr/bin/docker", "run", "--rm", "--init"]
-    assert f"ART98_HOST_UID={os.getuid()}" in argv and f"ART98_HOST_GID={os.getgid()}" in argv
+    assert (
+        f"ART98_HOST_UID={os.getuid()}" in argv
+        and f"ART98_HOST_GID={os.getgid()}" in argv
+    )
     published = [argv[i + 1] for i, arg in enumerate(argv) if arg == "-p"]
     assert published == ["127.0.0.1::7598", "127.0.0.1::5900"]
-    assert ["--security-opt", "label=disable"] == argv[argv.index("--security-opt"):][:2]
+    assert ["--security-opt", "label=disable"] == argv[argv.index("--security-opt") :][
+        :2
+    ]
     assert f"{tmp_path.resolve()}:/work" in argv
     assert stage._token not in " ".join(argv)
     assert argv[-4:] == ["serve", "--work", "/work", "--vnc"]
@@ -326,7 +353,9 @@ def test_backend_comes_from_the_argument_then_the_environment(monkeypatch):
 def test_boot_hands_the_container_backend_to_the_container(tmp_path, monkeypatch):
     (tmp_path / "image.json").write_text(json.dumps({"disk": "/work/golden.qcow2"}))
     seen = {}
-    monkeypatch.setattr(container, "boot", lambda work, **kw: seen.update(work=work, **kw))
+    monkeypatch.setattr(
+        container, "boot", lambda work, **kw: seen.update(work=work, **kw)
+    )
     session_module.boot(tmp_path, backend="container")
     assert seen["work"] == tmp_path and seen["display"] == "none"
 
@@ -345,18 +374,26 @@ def test_a_disk_recorded_in_the_container_is_found_beside_image_json(tmp_path):
 def test_on_a_unix_socket_screenshots_go_through_the_shared_folder(tmp_path):
     import tempfile
 
-    shared = Path(tempfile.mkdtemp(prefix="art98-t-"))  # short: socket paths are limited
+    shared = Path(
+        tempfile.mkdtemp(prefix="art98-t-")
+    )  # short: socket paths are limited
     vm = FakeVM()
     serial = FakeSerial(tmp_path / "serial")
-    server = Server.listen(vm, serial.path, TOKEN, unix=shared / "serve.sock", log=lambda m: None)
+    server = Server.listen(
+        vm, serial.path, TOKEN, unix=shared / "serve.sock", log=lambda m: None
+    )
     thread = threading.Thread(target=server.serve, daemon=True)
     thread.start()
     try:
         stage = StubStage()
         stage.shared_dir = shared
-        remote = RemoteVM(stage, open_channel(str(shared / "serve.sock"), TOKEN, "control", 2))
+        remote = RemoteVM(
+            stage, open_channel(str(shared / "serve.sock"), TOKEN, "control", 2)
+        )
         assert remote.screenshot(tmp_path / "f.ppm", format="ppm").read_bytes() == PPM
-        bridge = Bridge(open_channel(str(shared / "serve.sock"), TOKEN, "agent", 2), timeout=2)
+        bridge = Bridge(
+            open_channel(str(shared / "serve.sock"), TOKEN, "agent", 2), timeout=2
+        )
         assert bridge.ping() == 1
         bridge.close()
         remote.quit()
@@ -381,7 +418,9 @@ def test_the_transport_is_a_unix_socket_on_linux_unless_asked(monkeypatch):
         container.transport_name("pipe")
 
 
-def test_a_unix_stage_mounts_its_socket_folder_and_publishes_no_port(tmp_path, monkeypatch):
+def test_a_unix_stage_mounts_its_socket_folder_and_publishes_no_port(
+    tmp_path, monkeypatch
+):
     engine = fake_engine(monkeypatch, None)
     stage = ContainerStage(tmp_path, engine, image="art98:test", transport="unix")
     stage._socket_dir = tmp_path / "sock"
@@ -408,14 +447,17 @@ def test_cli_explains_a_missing_container_image(tmp_path, monkeypatch, capsys):
     (tmp_path / "image.json").write_text("{}")
 
     def no_image(*args, **kwargs):
-        raise ContainerError("no image localhost/art98:latest; run `art98 up` to build it")
+        raise ContainerError(
+            "no image localhost/art98:latest; run `art98 up` to build it"
+        )
 
     monkeypatch.setattr(container, "boot", no_image)
     scene = Path(__file__).resolve().parents[2] / "examples/mvp/mvp.py"
     for argv in (["ping"], ["render", str(scene), "-o", str(tmp_path / "x.mp4")]):
         assert main([*argv, "--work", str(tmp_path), "--backend", "container"]) == 1
         assert capsys.readouterr().err == (
-            "error: no image localhost/art98:latest; run `art98 up` to build it\n")
+            "error: no image localhost/art98:latest; run `art98 up` to build it\n"
+        )
 
 
 def test_a_stage_that_cannot_start_leaves_no_files(tmp_path, monkeypatch):
@@ -447,8 +489,12 @@ def test_the_entry_point_drops_to_the_host_user_only_on_a_rootful_engine():
     assert is_rootful(ROOTFUL) and not is_rootful(ROOTLESS)
     assert not is_rootful("0 0 65536\n")  # a namespace that maps part of the range
     assert host_user(HOST, ROOTFUL, uid=0) == (1000, 1000)
-    assert host_user(HOST, ROOTLESS, uid=0) is None  # root here is the host user already
-    assert host_user(HOST, ROOTFUL, uid=1000) is None  # run with --user: nothing to drop
+    assert (
+        host_user(HOST, ROOTLESS, uid=0) is None
+    )  # root here is the host user already
+    assert (
+        host_user(HOST, ROOTFUL, uid=1000) is None
+    )  # run with --user: nothing to drop
     assert host_user({}, ROOTFUL, uid=0) is None  # an old host passes nothing
     assert host_user({**HOST, "ART98_HOST_UID": "0"}, ROOTFUL, uid=0) is None
     assert host_user({**HOST, "ART98_HOST_GID": "x"}, ROOTFUL, uid=0) is None
@@ -492,6 +538,7 @@ def test_a_disc_of_the_wrong_size_is_refused_and_ends_the_connection(served, siz
 
 def test_the_real_vm_methods_run_behind_serve(tmp_path):
     """serve calls vm.insert_disc(data) / eject_disc() on the real qemu.VM, QMP stubbed."""
+
     class StubQMP:
         def __init__(self):
             self.calls = []
@@ -501,7 +548,10 @@ def test_the_real_vm_methods_run_behind_serve(tmp_path):
             self.calls.append((command, arguments))
             if command == "query-block":
                 cd = {"device": "ide1-cd0", "qdev": "/machine/unattached/device[9]"}
-                return [{"device": "ide0-hd0"}, dict(cd, inserted={"file": "x"}) if self.medium else cd]
+                return [
+                    {"device": "ide0-hd0"},
+                    dict(cd, inserted={"file": "x"}) if self.medium else cd,
+                ]
             if command == "blockdev-change-medium":
                 self.medium = True
             if command == "blockdev-remove-medium":
@@ -520,8 +570,15 @@ def test_the_real_vm_methods_run_behind_serve(tmp_path):
         assert change["device"] == "ide1-cd0" and change["format"] == "raw"
         remote.eject_disc()
         names = [c for c, _ in vm.qmp.calls if c != "query-block"]
-        assert names[-3:] == ["blockdev-open-tray", "blockdev-remove-medium", "blockdev-close-tray"]
-        assert ("blockdev-remove-medium", {"id": "/machine/unattached/device[9]"}) in vm.qmp.calls
+        assert names[-3:] == [
+            "blockdev-open-tray",
+            "blockdev-remove-medium",
+            "blockdev-close-tray",
+        ]
+        assert (
+            "blockdev-remove-medium",
+            {"id": "/machine/unattached/device[9]"},
+        ) in vm.qmp.calls
         remote.eject_disc()  # empty drive: nothing more is sent
         assert [c for c, _ in vm.qmp.calls].count("blockdev-open-tray") == 1
         remote.quit()

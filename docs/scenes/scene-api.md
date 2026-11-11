@@ -1,10 +1,8 @@
 # Scene API
 
-**Parked.** Paint, Minesweeper and Screensaver still work, but
-`from art98.anim import *` leaves them out until each program returns as its own action
-class. Samples that use them import them from `art98.anim.apps`. [`Picture`](#picture),
-[`Notepad`](#notepad), [`Dialog`](#dialog) and
-[`Backdrop`](#backdrop) are not parked.
+Programs are action classes in `core/art98/actions/programs/`, one file each:
+[`Notepad`](#notepad), [`Dialog`](#dialog), [`Paint`](#paint), [`Minesweeper`](#minesweeper)
+and [`Screensaver`](#screensaver).
 
 Everything here comes from `from art98.anim import *`. For what you pass to `play`, see
 [Animations](animations.md).
@@ -142,15 +140,17 @@ Two animations can't drive the same thing at once. Two pointer actions in one `p
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class Together(Scene):
     def construct(self):
         pad = Notepad(at=(60, 60), size=(360, 220))
         self.add(pad)
-        self.play(TypeWithCursor(pad, "moving and typing"),
-                  pad.animate.shift(300 * RIGHT + 200 * DOWN), run_time=2)
+        self.play(
+            TypeWithCursor(pad, "moving and typing"),
+            pad.animate.shift(300 * RIGHT + 200 * DOWN),
+            run_time=2,
+        )
         self.pause(0.5)
 ```
 
@@ -176,7 +176,9 @@ from art98.anim import *
 class WaitForCalculator(Scene):
     def construct(self):
         self.guest.spawn("calc.exe")
-        self.wait_until(lambda: any(w.class_name == "SciCalc" for w in self.guest.windows()))
+        self.wait_until(
+            lambda: any(w.class_name == "SciCalc" for w in self.guest.windows())
+        )
         self.pause(0.5)
 ```
 
@@ -265,7 +267,6 @@ All of these can be animated through `.animate`.
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class Layout(Scene):
@@ -318,7 +319,6 @@ windows, so the props give you Spots, and an animation reads them as it begins.
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class Spots(Scene):
@@ -413,10 +413,9 @@ Use the animations in most scenes. `place` is useful to park the pointer out of 
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
-class Parked(Scene):
+class OutOfShot(Scene):
     pointer_visible = True
 
     def construct(self):
@@ -482,7 +481,7 @@ Source: [typing.py](../../examples/gallery/typing.py).
 
 ## Paint
 
-Parked: import it from `art98.anim.apps`.
+In `actions/programs/paint.py`.
 
 `Paint(at=None, size=None)`
 
@@ -521,7 +520,7 @@ Source: [paint_drawing.py](../../examples/gallery/paint_drawing.py).
 
 ## Minesweeper
 
-Parked: import it from `art98.anim.apps`.
+In `actions/programs/minesweeper.py`.
 
 `Minesweeper(at=None, size=None)`
 
@@ -548,7 +547,7 @@ Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py).
 
 ## Screensaver
 
-Parked: import it from `art98.anim.apps`.
+In `actions/programs/screensaver.py`.
 
 `Screensaver(name="3D Pipes")`
 

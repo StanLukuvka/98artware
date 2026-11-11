@@ -11,6 +11,7 @@ import tempfile
 import time
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
+from typing import Self
 
 QEMU_BINARY = "qemu-system-i386"
 
@@ -60,20 +61,33 @@ class VMConfig:
         boot = "order=c" + (f",once={self.boot_once}" if self.boot_once else "")
         args = [
             QEMU_BINARY,
-            "-machine", f"{self.machine},accel={self.accel},acpi=off,hpet=off",
-            "-cpu", self.cpu,
-            "-m", str(self.memory_mb),
-            "-vga", self.vga,
-            "-rtc", f"base={self.rtc_base},clock=vm",
-            "-drive", f"file={_opt(self.disk)},format={self.disk_format},if=ide,index=0",
-            "-boot", boot,
+            "-machine",
+            f"{self.machine},accel={self.accel},acpi=off,hpet=off",
+            "-cpu",
+            self.cpu,
+            "-m",
+            str(self.memory_mb),
+            "-vga",
+            self.vga,
+            "-rtc",
+            f"base={self.rtc_base},clock=vm",
+            "-drive",
+            f"file={_opt(self.disk)},format={self.disk_format},if=ide,index=0",
+            "-boot",
+            boot,
             "-no-reboot",
-            "-nic", "none",
-            "-display", self.display,
-            "-chardev", f"socket,id=qmp,path={_opt(qmp)},server=on,wait=off",
-            "-mon", "chardev=qmp,mode=control",
-            "-chardev", f"socket,id=guest,path={_opt(serial)},server=on,wait=off",
-            "-serial", "chardev:guest",
+            "-nic",
+            "none",
+            "-display",
+            self.display,
+            "-chardev",
+            f"socket,id=qmp,path={_opt(qmp)},server=on,wait=off",
+            "-mon",
+            "chardev=qmp,mode=control",
+            "-chardev",
+            f"socket,id=guest,path={_opt(serial)},server=on,wait=off",
+            "-serial",
+            "chardev:guest",
         ]
         if self.icount_shift is not None:
             args += ["-icount", f"shift={self.icount_shift},sleep=off,align=off"]
@@ -91,7 +105,7 @@ class VMConfig:
         return {k: str(v) if isinstance(v, Path) else v for k, v in data.items()}
 
     @classmethod
-    def from_json(cls, data: dict) -> "VMConfig":
+    def from_json(cls, data: dict) -> VMConfig:
         known = {f.name for f in fields(cls)}
         values = {k: v for k, v in data.items() if k in known}
         for key in ("disk", "floppy", "audio_wav"):
@@ -150,17 +164,21 @@ class VM:
     def __init__(self, config: VMConfig, log: Path | None = None):
         self.config = config
         self._log_path = log
-        self._dir = Path(tempfile.mkdtemp(prefix="art98-", dir=os.environ.get("XDG_RUNTIME_DIR")))
+        self._dir = Path(
+            tempfile.mkdtemp(prefix="art98-", dir=os.environ.get("XDG_RUNTIME_DIR"))
+        )
         self.qmp_path = self._dir / "qmp"
         self.serial_path = self._dir / "serial"
         self._process: subprocess.Popen | None = None
         self.qmp: QMP | None = None
 
-    def start(self) -> "VM":
-        log = open(self._log_path, "ab") if self._log_path else subprocess.DEVNULL
+    def start(self) -> VM:
+        log = open(self._log_path, "ab") if self._log_path else subprocess.DEVNULL  # noqa: SIM115
         self._process = subprocess.Popen(
             self.config.argv(self.qmp_path, self.serial_path),
-            stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=log,
         )
         deadline = time.monotonic() + 30
         while True:
@@ -185,7 +203,9 @@ class VM:
 
     def screenshot(self, path: Path | str, format: str = "png") -> Path:
         """Save the display as seen by the VM's video card."""
-        self.qmp.execute("screendump", filename=str(Path(path).resolve()), format=format)
+        self.qmp.execute(
+            "screendump", filename=str(Path(path).resolve()), format=format
+        )
         return Path(path)
 
     def send_keys(self, *qcodes: str, hold_ms: int = 80) -> None:
@@ -210,14 +230,27 @@ class VM:
     CD_DEVICE = "ide1-cd0"
 
     def _cd(self) -> dict | None:
-        return next((d for d in self.qmp.execute("query-block") if d.get("device") == self.CD_DEVICE), None)
+        return next(
+            (
+                d
+                for d in self.qmp.execute("query-block")
+                if d.get("device") == self.CD_DEVICE
+            ),
+            None,
+        )
 
     def insert_disc(self, iso: bytes, name: str = "art98.iso") -> None:
         """Put an ISO image in the CD drive; the file lives in this VM's own folder."""
         path = self._dir / name
         path.write_bytes(iso)
-        self.qmp.execute("blockdev-change-medium", device=self.CD_DEVICE, filename=str(path),
-                         format="raw", force=True, **{"read-only-mode": "read-only"})
+        self.qmp.execute(
+            "blockdev-change-medium",
+            device=self.CD_DEVICE,
+            filename=str(path),
+            format="raw",
+            force=True,
+            **{"read-only-mode": "read-only"},
+        )
 
     def eject_disc(self) -> None:
         """Open the tray and take the medium out; harmless on an empty drive. Call before loadvm."""
@@ -230,8 +263,11 @@ class VM:
 
     def disc_state(self) -> dict:
         cd = self._cd()
-        return {"present": cd is not None, "inserted": bool(cd and "inserted" in cd),
-                "tray_open": bool(cd and cd.get("tray_open"))}
+        return {
+            "present": cd is not None,
+            "inserted": bool(cd and "inserted" in cd),
+            "tray_open": bool(cd and cd.get("tray_open")),
+        }
 
     def wait_exit(self, timeout: float) -> bool:
         """Wait for QEMU to end on its own, as it does when the guest reboots."""
@@ -260,7 +296,7 @@ class VM:
             self.qmp.close()
         shutil.rmtree(self._dir, ignore_errors=True)
 
-    def __enter__(self) -> "VM":
+    def __enter__(self) -> Self:
         return self.start()
 
     def __exit__(self, *exc) -> None:

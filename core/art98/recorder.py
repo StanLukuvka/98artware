@@ -7,8 +7,9 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     from .session import Session
@@ -39,7 +40,9 @@ def part_path(path: Path) -> Path:
 
 def require_ffmpeg() -> None:
     if shutil.which("ffmpeg") is None:
-        raise RecorderError("ffmpeg isn't on PATH: install it (`art98 doctor` lists the packages)")
+        raise RecorderError(
+            "ffmpeg isn't on PATH: install it (`art98 doctor` lists the packages)"
+        )
 
 
 def run_ffmpeg(args: list[str], output: Path, what: str, stage: bool = False) -> Path:
@@ -53,14 +56,20 @@ def run_ffmpeg(args: list[str], output: Path, what: str, stage: bool = False) ->
     output = Path(output)
     part = part_path(output)
     try:
-        result = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *args, str(part)],
-                                capture_output=True, text=True)
+        result = subprocess.run(  # noqa: PLW1510
+            ["ffmpeg", "-y", "-loglevel", "error", *args, str(part)],
+            capture_output=True,
+            text=True,
+        )
     except FileNotFoundError:
-        raise RecorderError("ffmpeg isn't on PATH: install it (`art98 doctor`)") from None
+        raise RecorderError(
+            "ffmpeg isn't on PATH: install it (`art98 doctor`)"
+        ) from None
     if result.returncode != 0:
         part.unlink(missing_ok=True)
         raise RecorderError(
-            f"{what} failed (ffmpeg exit {result.returncode}): {result.stderr.strip()}")
+            f"{what} failed (ffmpeg exit {result.returncode}): {result.stderr.strip()}"
+        )
     if stage:
         return part
     os.replace(part, output)
@@ -95,8 +104,9 @@ class Recorder:
     which is how `render` keeps a whole render all-or-nothing.
     """
 
-    def __init__(self, session: "Session", path: Path | str, fps: int = 30,
-                 lossless: bool = False):
+    def __init__(
+        self, session: Session, path: Path | str, fps: int = 30, lossless: bool = False
+    ):
         self._session = session
         self._fps = fps
         self._lossless = lossless
@@ -122,7 +132,9 @@ class Recorder:
         self._session.bridge.sync()
         self._capture(hold)
 
-    def live(self, seconds: float, stop_condition: Callable[[], bool] | None = None) -> None:
+    def live(
+        self, seconds: float, stop_condition: Callable[[], bool] | None = None
+    ) -> None:
         """Record something that moves by itself, such as a screensaver.
 
         Frames follow the host's clock and skip the sync, so this stretch of
@@ -149,7 +161,8 @@ class Recorder:
             raise RecorderError(
                 f"the screen changed from {_size(self._size)} to {_size(size)} inside the clip "
                 f"{self.path.name}, at frame {self.count + 1}: call cut() before the set_state "
-                f"or revert that changes the screen size")
+                f"or revert that changes the screen size"
+            )
         if self._ffmpeg is None:
             self._start()
         try:
@@ -157,7 +170,9 @@ class Recorder:
                 self._ffmpeg.stdin.write(data)
         except BrokenPipeError:
             self._finish()  # raises with ffmpeg's own message
-            raise RecorderError(f"ffmpeg stopped reading frames for {self.path}") from None
+            raise RecorderError(
+                f"ffmpeg stopped reading frames for {self.path}"
+            ) from None
         self.count += hold
         self.total += hold
 
@@ -224,17 +239,26 @@ class Recorder:
         if output.resolve() in [clip.resolve() for clip in self.clips]:
             raise ValueError(f"{output} is one of the clips being joined")
         if len(set(self._sizes)) > 1:
-            sizes = ", ".join(f"{clip.name} {_size(size)}"
-                              for clip, size in zip(self.clips, self._sizes))
+            sizes = ", ".join(
+                f"{clip.name} {_size(size)}"
+                for clip, size in zip(self.clips, self._sizes)
+            )
             raise RecorderError(f"clips of different sizes can't be joined: {sizes}")
         # join usually runs after close(), so the listing gets its own folder
         with tempfile.TemporaryDirectory(prefix="art98-join-") as folder:
             listing = Path(folder) / "clips.txt"
-            listing.write_text("".join(
-                "file '{}'\n".format(str(part.resolve()).replace("'", "'\\''"))
-                for part in self.parts))
-            return run_ffmpeg(["-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy"],
-                              output, f"joining {len(self.clips)} clips into {output}", stage)
+            listing.write_text(
+                "".join(
+                    "file '{}'\n".format(str(part.resolve()).replace("'", "'\\''"))
+                    for part in self.parts
+                )
+            )
+            return run_ffmpeg(
+                ["-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy"],
+                output,
+                f"joining {len(self.clips)} clips into {output}",
+                stage,
+            )
 
     # ---- inside ----
 
@@ -250,14 +274,31 @@ class Recorder:
         self._log = (self._dir / f"ffmpeg-{len(self.clips) + 1:02d}.log").open("w+b")
         try:
             self._ffmpeg = subprocess.Popen(
-                ["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-c:v", "ppm",
-                 "-framerate", str(self._fps), "-i", "-", *codec, str(part_path(self.path))],
-                stdin=subprocess.PIPE, stderr=self._log,
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-loglevel",
+                    "error",
+                    "-f",
+                    "image2pipe",
+                    "-c:v",
+                    "ppm",
+                    "-framerate",
+                    str(self._fps),
+                    "-i",
+                    "-",
+                    *codec,
+                    str(part_path(self.path)),
+                ],
+                stdin=subprocess.PIPE,
+                stderr=self._log,
             )
         except FileNotFoundError:
             self._log.close()
             self._log = None
-            raise RecorderError("ffmpeg isn't on PATH: install it (`art98 doctor`)") from None
+            raise RecorderError(
+                "ffmpeg isn't on PATH: install it (`art98 doctor`)"
+            ) from None
 
     def _finish(self, first_is_numbered: bool = False) -> Path | None:
         """End the current clip's ffmpeg and file its part under clips.
@@ -283,10 +324,15 @@ class Recorder:
         if code != 0:
             part_path(path).unlink(missing_ok=True)
             self._discard()
-            raise RecorderError(f"ffmpeg failed writing {path} (exit {code})"
-                                + (f": {message}" if message else ""))
-        final = (self._numbered(1) if first_is_numbered and path == self._base
-                 and not self.clips else path)
+            raise RecorderError(
+                f"ffmpeg failed writing {path} (exit {code})"
+                + (f": {message}" if message else "")
+            )
+        final = (
+            self._numbered(1)
+            if first_is_numbered and path == self._base and not self.clips
+            else path
+        )
         if final != path:  # keep the join's part name, `<stem>.part`, free
             os.replace(part_path(path), part_path(final))
         self.clips.append(final)
@@ -327,7 +373,7 @@ class Recorder:
         if self._closed:
             raise RecorderError("the recorder is closed")
 
-    def __enter__(self) -> "Recorder":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, kind, error, traceback) -> None:

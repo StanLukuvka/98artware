@@ -153,8 +153,8 @@ These are checked on the host, before anything is copied.
 
 After the MVP:
 
-- Other programs: Paint, Minesweeper, Calculator, and any bare `command`. Their classes are parked
-  in `core/art98/anim/apps.py`.
+- Other programs: Paint, Minesweeper, Calculator, and any bare `command`. Paint and Minesweeper have
+  classes in `core/art98/actions/programs/` but no state app yet.
 - `Dialog` in a state (`app: "dialog"`), and a helper that adds a cascade of boxes.
 - Adopting a window the scene did not start.
 - Icons and tray in a state. The desktop colour and wallpaper are built: see the

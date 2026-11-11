@@ -527,12 +527,18 @@ so guest time would outpace the video. The host instead tracks what the guest cl
 
 ```python
 # NEW, in anim/clock.py
-target = t0 + 1000 * frame_index / fps      # where guest time should be at this frame
-debt = target - last_tick                   # last_tick: the last SYNC reply, SYNC returns GetTickCount [V:src]
-if frame_has_ops or debt >= tick_ms:        # tick_ms is ~55 on 9x, so only whole ticks are worth advancing
-    run_guest(ops, advance_ms=debt if debt >= tick_ms else 0)     # cont, ops, advance, SYNC, stop, capture
+target = t0 + 1000 * frame_index / fps  # where guest time should be at this frame
+debt = (
+    target - last_tick
+)  # last_tick: the last SYNC reply, SYNC returns GetTickCount [V:src]
+if (
+    frame_has_ops or debt >= tick_ms
+):  # tick_ms is ~55 on 9x, so only whole ticks are worth advancing
+    run_guest(
+        ops, advance_ms=debt if debt >= tick_ms else 0
+    )  # cont, ops, advance, SYNC, stop, capture
 else:
-    reuse_last_capture()                    # the guest stays stopped, so no guest time passes
+    reuse_last_capture()  # the guest stays stopped, so no guest time passes
 ```
 
 Everything is cumulative, so rounding never accumulates. Four consequences:
@@ -1126,52 +1132,72 @@ New code skeleton (every declaration below is NEW; none exists today):
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+
 @dataclass(frozen=True)
 class Op:
     """One guest call, before coalescing."""
+
     dll: str
     fn: str
     args: tuple
-    key: tuple | None = None   # same key in one frame => later op replaces earlier
-    phase: int = 50            # 10 create, 30 style, 50 geometry, 70 z-order, 90 paint
-    out: str | None = None     # name to store the result under (handle plumbing)
+    key: tuple | None = None  # same key in one frame => later op replaces earlier
+    phase: int = 50  # 10 create, 30 style, 50 geometry, 70 z-order, 90 paint
+    out: str | None = None  # name to store the result under (handle plumbing)
+
 
 class Prop:
-    realm = "guest"                       # "host" props are rejected under strict (section 1)
+    realm = "guest"  # "host" props are rejected under strict (section 1)
+
     def __init__(self, **attrs): ...
-    def set(self, **attrs) -> "Prop": ...        # marks dirty, snaps to integers/565
+    def set(self, **attrs) -> "Prop": ...  # marks dirty, snaps to integers/565
     @property
-    def animate(self) -> "_AnimateProxy": ...    # prop.animate.move_to(...) -> Animation
+    def animate(self) -> "_AnimateProxy": ...  # prop.animate.move_to(...) -> Animation
     def emit(self, scene: "Scene") -> list[Op]: ...  # only dirty attrs; clears dirty
     def teardown(self, scene: "Scene") -> list[Op]: ...
-    cost: Callable[["Prop"], int]                  # estimated wire bytes for dry runs
+
+    cost: Callable[["Prop"], int]  # estimated wire bytes for dry runs
+
 
 # 98artware_core/art98/anim/animation.py
 class Animation:
     def __init__(self, target, *, run_time=1.0, rate_func=smooth, lag_ratio=0.0): ...
-    def begin(self, scene) -> None: ...            # capture start state
-    def interpolate(self, alpha: float) -> None: ...   # alpha already rate-mapped
-    def finish(self, scene) -> None: ...           # apply alpha=1 exactly
+    def begin(self, scene) -> None: ...  # capture start state
+    def interpolate(self, alpha: float) -> None: ...  # alpha already rate-mapped
+    def finish(self, scene) -> None: ...  # apply alpha=1 exactly
     def clean_up(self, scene) -> None: ...
+
 
 # 98artware_core/art98/anim/scene.py
 class Scene:
     fps: int = 30
-    strict: "bool | Strict" = False             # Strict(captions=True, audio=True): the labelled exceptions
-    clock: str = "stepped"                         # free | frozen | stepped | locked; "free" until T4.1 lands
-    time: float                                    # virtual scene time, frame_index / fps
+    strict: "bool | Strict" = (
+        False  # Strict(captions=True, audio=True): the labelled exceptions
+    )
+    clock: str = "stepped"  # free | frozen | stepped | locked; "free" until T4.1 lands
+    time: float  # virtual scene time, frame_index / fps
+
     def construct(self): ...
     def play(self, *animations, run_time=None, rate_func=None, subcaption=None): ...
     def wait(self, duration=1.0, stop_condition=None, frozen_frame=None): ...
     def wait_until(self, stop_condition, max_time=60): ...
-    def pause(self, duration=1.0): ...             # wait(duration, frozen_frame=True)
+    def pause(self, duration=1.0): ...  # wait(duration, frozen_frame=True)
     def add(self, *props): ...
     def remove(self, *props): ...
-    def next_section(self, name="unnamed", section_type="default.normal", skip_animations=False, *, checkpoint=False): ...
-    def checkpoint(self, name) -> "Checkpoint": ...  # savevm; .restore() = loadvm + resync
+    def next_section(
+        self,
+        name="unnamed",
+        section_type="default.normal",
+        skip_animations=False,
+        *,
+        checkpoint=False,
+    ): ...
+    def checkpoint(
+        self, name
+    ) -> "Checkpoint": ...  # savevm; .restore() = loadvm + resync
     def add_sound(self, sound_file, time_offset=0, gain=None): ...
     def add_subcaption(self, content, duration=1, offset=0): ...
-    guest: "Bridge"                                # the raw escape hatch, EXISTS as art98.Bridge
+
+    guest: "Bridge"  # the raw escape hatch, EXISTS as art98.Bridge
 ```
 
 The raw bridge stays available at `self.guest` so any Win32 call can be mixed into a scene; the
@@ -1192,15 +1218,23 @@ explicit effect, and it skips the `RedrawWindow` too. `SWP_NOACTIVATE` is a per-
 ```python
 from art98.anim import *
 
+
 class Hello(Scene):
     fps = 30
+
     def construct(self):
-        pad = Notepad(at=(120, 80))          # spawns notepad.exe, finds window + Edit
+        pad = Notepad(at=(120, 80))  # spawns notepad.exe, finds window + Edit
         self.add(pad)
         self.play(TypeWithCursor(pad, "hello from 1998"), run_time=2)
-        self.play(pad.animate.shift(280 * RIGHT + 120 * DOWN), run_time=2, rate_func=smooth)
-        self.wait(1)          # the Notepad caret keeps blinking: in wall time under `free` (Phase 1), video time under `stepped`
-        self.play(FadeOut(pad, fade="cut"))      # Phase 1; from Phase 3 use fade="dither" on the flat teal backdrop (4.6)
+        self.play(
+            pad.animate.shift(280 * RIGHT + 120 * DOWN), run_time=2, rate_func=smooth
+        )
+        self.wait(
+            1
+        )  # the Notepad caret keeps blinking: in wall time under `free` (Phase 1), video time under `stepped`
+        self.play(
+            FadeOut(pad, fade="cut")
+        )  # Phase 1; from Phase 3 use fade="dither" on the flat teal backdrop (4.6)
 ```
 
 ### 6.4 Example: a "graph", with real widgets
@@ -1209,13 +1243,24 @@ class Hello(Scene):
 from art98.anim import *
 import math
 
+
 class Wave(Scene):
     def construct(self):
         t = ValueTracker(0)
-        slider = Trackbar(range=(0, 6.28), at=(40, 500), width=720).bind(t)     # real msctls_trackbar32
-        plane = Axes(x=(0, 6.28), y=(-1.2, 1.2), at=(40, 40), size=(500, 440))   # default backend="window": an opaque plot panel
-        curve = always_redraw(lambda: plane.plot(lambda x: math.sin(x + t.get_value()), samples=160, color=W98.NAVY))   # sent with POLY
-        bars = BarChart([3, 5, 2, 7], at=(560, 40), size=(200, 440))            # vertical progress bars
+        slider = Trackbar(range=(0, 6.28), at=(40, 500), width=720).bind(
+            t
+        )  # real msctls_trackbar32
+        plane = Axes(
+            x=(0, 6.28), y=(-1.2, 1.2), at=(40, 40), size=(500, 440)
+        )  # default backend="window": an opaque plot panel
+        curve = always_redraw(
+            lambda: plane.plot(
+                lambda x: math.sin(x + t.get_value()), samples=160, color=W98.NAVY
+            )
+        )  # sent with POLY
+        bars = BarChart(
+            [3, 5, 2, 7], at=(560, 40), size=(200, 440)
+        )  # vertical progress bars
         self.add(plane, curve, slider, bars)
         self.play(t.animate.set_value(6.28), run_time=4, rate_func=linear)
         self.play(bars.animate.change_bar_values([7, 2, 5, 3]), run_time=2)
@@ -1228,6 +1273,7 @@ class Confession(Scene):
     # forbids host compositing of guest pixels; the host audio mix is a labelled exception,
     # captions are off for this film
     strict = Strict(captions=False, audio=True)
+
     def construct(self):
         pad = Notepad(at=(200, 120))
         self.add(pad)
@@ -1235,9 +1281,15 @@ class Confession(Scene):
         self.wait(3)
         self.play(UntypeWithCursor(pad), run_time=1.5)
         self.play(TypeWithCursor(pad, "never mind"), run_time=1)
-        self.play(Drag(pad.title_bar, to=RecycleBin().pos), run_time=1.5)     # real mouse drag
-        self.play(Alert("A fatal exception 0E has occurred", icon="error"))   # MessageBox, dismissed on cue
-        self.add_sound("chord.wav")                     # audio exception: host-mixed, starts at the current scene time
+        self.play(
+            Drag(pad.title_bar, to=RecycleBin().pos), run_time=1.5
+        )  # real mouse drag
+        self.play(
+            Alert("A fatal exception 0E has occurred", icon="error")
+        )  # MessageBox, dismissed on cue
+        self.add_sound(
+            "chord.wav"
+        )  # audio exception: host-mixed, starts at the current scene time
 ```
 
 ### 6.6 Checkpoints: what only this medium can do
@@ -1271,33 +1323,49 @@ of that. The plugin (2.4, 2.6) keeps Manim as the engine and replaces only the l
 from manim import Camera, Scene, config
 from manim.renderer.cairo_renderer import CairoRenderer
 
+
 class Win98Renderer(CairoRenderer):
     """Tells the camera which pass it is in, and the video time it needs for debt."""
+
     def save_static_frame_data(self, scene, static_mobjects):
-        self.camera.begin_static(content_hash(static_mobjects))    # a hit leaves the guest's static DC alone
+        self.camera.begin_static(
+            content_hash(static_mobjects)
+        )  # a hit leaves the guest's static DC alone
         super().save_static_frame_data(scene, static_mobjects)
         self.camera.end_static()
+
     def update_frame(self, scene, *args, **kwargs):
         self.camera.video_time = self.time
         super().update_frame(scene, *args, **kwargs)
 
+
 class Win98Camera(Camera):
     """Manim decides what goes where; GDI draws it; a screendump is the frame.
     The bridge lives outside the camera, because Manim hashes the camera's __dict__."""
+
     def reset(self):
-        link().canvas.clear()               # the base method touches host pixels only
+        link().canvas.clear()  # the base method touches host pixels only
         return self
+
     def set_frame_to_background(self, background):
-        link().canvas.blit_static()         # restores the static DC, not the host pixels
+        link().canvas.blit_static()  # restores the static DC, not the host pixels
+
     def capture_mobjects(self, mobjects, **kwargs):
-        shapes = flatten(self.get_mobjects_to_display(mobjects), self.to_pixels)   # Beziers, fill levels
+        shapes = flatten(
+            self.get_mobjects_to_display(mobjects), self.to_pixels
+        )  # Beziers, fill levels
         if self.in_static_pass:
             if not self.static_hit:
                 link().canvas.draw_static(shapes)
             return
-        link().canvas.draw(shapes)          # PolyBezier or POLY paths, 17-level dither for fill_opacity
-        link().settle(self.video_time)      # SYNC, plus clock handling
-        self.pixel_array = rgb_to_rgba(link().capture())     # screendump is RGB; Manim wants RGBA
+        link().canvas.draw(
+            shapes
+        )  # PolyBezier or POLY paths, 17-level dither for fill_opacity
+        link().settle(self.video_time)  # SYNC, plus clock handling
+        self.pixel_array = rgb_to_rgba(
+            link().capture()
+        )  # screendump is RGB; Manim wants RGBA
+
 
 class Win98Scene(Scene):
     def __init__(self, **kwargs):
@@ -1311,10 +1379,11 @@ The script is a plain Manim scene, with one import changed:
 from manim import *
 from manim_win98 import Win98Scene
 
+
 class Parabola(Win98Scene):
     def construct(self):
         axes = Axes(x_range=[-3, 3], y_range=[0, 9])
-        graph = axes.plot(lambda x: x ** 2, color=BLUE)
+        graph = axes.plot(lambda x: x**2, color=BLUE)
         self.play(Create(axes), Create(graph))
         self.play(Write(MathTex(r"y = x^2").to_corner(UR)))
 ```
@@ -1416,8 +1485,13 @@ All agent work lands in `windows_handlers/call_proxy/agent.c` and must stay a no
 NEW lines, shown as the delta:
 
 ```python
-ALLOWED_IMPORTS["USER32.dll"] |= {"BeginPaint", "EndPaint", "GetClientRect", "GetWindowLongA"}
-ALLOWED_IMPORTS["GDI32.dll"]  |= {"BitBlt"}
+ALLOWED_IMPORTS["USER32.dll"] |= {
+    "BeginPaint",
+    "EndPaint",
+    "GetClientRect",
+    "GetWindowLongA",
+}
+ALLOWED_IMPORTS["GDI32.dll"] |= {"BitBlt"}
 # KERNEL32 additions only if A3/A6 need them: none expected (HeapAlloc, CreateThread already allowed).
 ```
 

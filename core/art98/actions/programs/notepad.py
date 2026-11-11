@@ -38,19 +38,27 @@ class Notepad(Win):
     command = "notepad.exe"
     window_class = "Notepad"
 
-    def __init__(self, title: str | None = None, *, open: Path | str | None = None,
-                 at: tuple[int, int] | None = None, size: tuple[int, int] | None = None):
+    def __init__(
+        self,
+        title: str | None = None,
+        *,
+        open: Path | str | None = None,
+        at: tuple[int, int] | None = None,
+        size: tuple[int, int] | None = None,
+    ):
         self.open_file = Path(open) if open is not None else None
         self._file_data = None
         if self.open_file is not None:
             guestfiles.check_name(self.open_file.name)
-            self._file_data = guestfiles.check_text(self.open_file.read_bytes(), str(self.open_file))
+            self._file_data = guestfiles.check_text(
+                self.open_file.read_bytes(), str(self.open_file)
+            )
         if title is None:
             title = notepad_title(self.open_file) if self.open_file is not None else ""
         super().__init__(title, at=at, size=size)
 
     @classmethod
-    def from_state(cls, window) -> "Notepad":
+    def from_state(cls, window) -> Notepad:
         file = window.open.path if window.open else None
         return cls(window.title, open=file, at=window.at, size=window.size)
 

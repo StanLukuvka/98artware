@@ -3,11 +3,9 @@
 This takes you from nothing to a scene with a picture, Notepad and the pointer, and then to a GIF.
 The first scene was rendered on the real image.
 
-**Parked.** Paint, Minesweeper and Screensaver still work, but
-`from art98.anim import *` leaves them out until each program returns as its own action
-class. Samples that use them import them from `art98.anim.apps`. The windows you get without that
-are [`Picture`](scene-api.md#picture), [`Notepad`](scene-api.md#notepad) and
-[`Dialog`](scene-api.md#dialog).
+Every program on the image is an action class in `core/art98/actions/programs/`, one file each, and `from art98.anim import *` gives them all: [`Notepad`](scene-api.md#notepad), [`Dialog`](scene-api.md#dialog),
+[`Paint`](scene-api.md#paint), [`Minesweeper`](scene-api.md#minesweeper) and
+[`Screensaver`](scene-api.md#screensaver). [`Picture`](scene-api.md#picture) shows an image.
 
 ## Before you start
 
@@ -117,7 +115,9 @@ from art98.anim import *
 
 class AddOne(Scene):
     def construct(self):
-        sky = Picture("Sky", image="examples/mvp/assets/sky.bmp", at=(100, 100), size=(240, 200))
+        sky = Picture(
+            "Sky", image="examples/mvp/assets/sky.bmp", at=(100, 100), size=(240, 200)
+        )
         self.add(sky)
         self.play(sky.animate.shift(200 * RIGHT), run_time=1)
         self.play(Close(sky))
@@ -199,14 +199,11 @@ after the move, and Windows carries the window because the pointer holds its tit
 
 ## Draw in Paint
 
-Parked: `Paint` is imported from `art98.anim.apps`.
-
 `Paint` gives you targets for its buttons and canvas. It reads them from the live window, so they
 stay right after you move it. `Stroke` holds the button down along a path.
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Paint
 
 
 class Draw(Scene):
@@ -217,8 +214,12 @@ class Draw(Scene):
         self.add(paint)
         self.play(Click(paint.tool("brush")))
         self.play(Click(paint.color("red")))
-        points = [paint.canvas(40, 40), paint.canvas(300, 80),
-                  paint.canvas(120, 240), paint.canvas(40, 40)]
+        points = [
+            paint.canvas(40, 40),
+            paint.canvas(300, 80),
+            paint.canvas(120, 240),
+            paint.canvas(40, 40),
+        ]
         self.play(Stroke(points, run_time=2))
         self.play(Click(paint.tool("fill")))
         self.play(Click(paint.color("yellow")))

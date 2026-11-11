@@ -1,7 +1,6 @@
 """Minesweeper: the board is read through the XYZZY cheat, then played by hand."""
 
 from art98.anim import *
-from art98.anim.apps import Minesweeper  # parked, see apps.py
 
 
 class MinesweeperWin(Scene):

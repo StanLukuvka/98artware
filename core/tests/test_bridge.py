@@ -6,7 +6,6 @@ import threading
 import time
 
 import pytest
-
 from art98.bridge import Bridge, BridgeError, BridgeTimeout, GuestCrashed
 from art98.protocol import frame, parse_values, unframe
 
@@ -49,7 +48,9 @@ def pair():
 
 def test_call_returns_value_error_and_buffers(pair):
     bridge, agent = pair
-    agent.handlers["CALL"] = lambda i, a: agent.send(b"%d OK 4294967295 5 #0a000000" % i)
+    agent.handlers["CALL"] = lambda i, a: agent.send(
+        b"%d OK 4294967295 5 #0a000000" % i
+    )
     result = bridge.user32.GetWindowRect(1)
     assert result.signed == -1 and result.last_error == 5
     assert result.buffers == [b"\x0a\0\0\0"]
@@ -136,11 +137,16 @@ def test_abandon_fails_open_requests_and_async_calls_at_once(pair):
     agent.handlers["CALL"] = lambda i, a: None  # never answers
     pending = bridge.acall("kernel32", "Sleep", 4000)
     blocked = []
-    thread = threading.Thread(target=lambda: blocked.append(
-        pytest.raises(BridgeError, bridge.call, "kernel32", "Sleep", 1)))
+    thread = threading.Thread(
+        target=lambda: blocked.append(
+            pytest.raises(BridgeError, bridge.call, "kernel32", "Sleep", 1)
+        )
+    )
     thread.start()
     deadline = time.monotonic() + 2
-    while not any(r[0] == "CALL" for r in agent.requests) and time.monotonic() < deadline:
+    while (
+        not any(r[0] == "CALL" for r in agent.requests) and time.monotonic() < deadline
+    ):
         time.sleep(0.01)
     bridge.abandon("the desktop was reverted")
     thread.join(2)
@@ -182,13 +188,13 @@ def test_file_transfer_is_chunked_both_ways(pair):
     stored = bytearray()
 
     def put(i, a):
-        path, offset, data = a
+        _path, offset, data = a
         assert offset == len(stored)
         stored.extend(data)
         agent.send(b"%d OK %d" % (i, len(data)))
 
     def get(i, a):
-        path, offset, n = a
+        _path, offset, n = a
         chunk = bytes(stored[offset : offset + n])
         agent.send(b"%d OK %d #%s" % (i, len(stored), chunk.hex().encode()))
 

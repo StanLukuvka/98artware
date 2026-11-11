@@ -1,17 +1,18 @@
-import json
 import shutil
 import struct
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
-
+from art98.guestfiles import guest_build
 from art98_setup import builder, init_api, pecheck
 from art98_setup import setup as install_step
 from art98_setup import vm as vm_step
-from art98.guestfiles import guest_build
 
 GUEST_BUILD = guest_build()
-needs_mtools = pytest.mark.skipif(shutil.which("mformat") is None, reason="needs mtools")
+needs_mtools = pytest.mark.skipif(
+    shutil.which("mformat") is None, reason="needs mtools"
+)
 
 
 def fake_disc(path: Path, media: int = 2, indicator: int = 0x88) -> bytes:
@@ -71,7 +72,9 @@ def test_disk_holds_files_in_a_fat32_partition(tmp_path):
     spec = builder.disk_spec(disk)
     builder._mtool("mcopy", "-i", spec, str(tmp_path / "HELLO.TXT"), "::HELLO.TXT")
     assert builder._mtool("mtype", "-i", spec, "::HELLO.TXT").stdout == b"hi"
-    boot_sector = disk.read_bytes()[builder.PARTITION_OFFSET : builder.PARTITION_OFFSET + 512]
+    boot_sector = disk.read_bytes()[
+        builder.PARTITION_OFFSET : builder.PARTITION_OFFSET + 512
+    ]
     assert boot_sector[82:87] == b"FAT32"
     assert struct.unpack_from("<I", boot_sector, 28)[0] == builder.PARTITION_START
 
@@ -89,7 +92,9 @@ def test_patch_floppy_replaces_boot_files(tmp_path):
     vm_step.patch_floppy(floppy, tmp_path)
     autoexec = builder._mtool("mtype", "-i", str(floppy), "::AUTOEXEC.BAT").stdout
     assert b"MSBATCH.INF" in autoexec and b"\r\n" in autoexec
-    listing = builder._mtool("mdir", "-a", "-b", "-i", str(floppy), "::", text=True).stdout
+    listing = builder._mtool(
+        "mdir", "-a", "-b", "-i", str(floppy), "::", text=True
+    ).stdout
     assert "JO.SYS" not in listing.upper()
 
 
@@ -111,7 +116,7 @@ def test_msbatch_carries_key_and_starts_the_agent():
     assert r'"Art98Agent",,"C:\ART98\AGENT.EXE"' in text
     assert 'ComputerName="art98"' in text and 'Workgroup="WORKGROUP"' in text
     assert "OptionalComponents=1" in text
-    assert '[OptionalComponents]' in text and '"Games"=1' in text
+    assert "[OptionalComponents]" in text and '"Games"=1' in text
     assert "\r\n" in text and "\n" not in text.replace("\r\n", "")
 
 
@@ -159,8 +164,10 @@ def rehearsal_disc(tmp_path):
 
     disc = pycdlib.PyCdlib()
     disc.new(interchange_level=3, joliet=3)
-    disc.add_fp(open(floppy, "rb"), 1474560, "/BOOT.IMG;1", joliet_path="/boot.img")
-    disc.add_eltorito("/BOOT.IMG;1", "/BOOT.CAT;1", media_name="floppy", boot_load_size=2880)
+    disc.add_fp(open(floppy, "rb"), 1474560, "/BOOT.IMG;1", joliet_path="/boot.img")  # noqa: SIM115
+    disc.add_eltorito(
+        "/BOOT.IMG;1", "/BOOT.CAT;1", media_name="floppy", boot_load_size=2880
+    )
     disc.add_directory("/WIN98", joliet_path="/WIN98")
     for name, body in (("SETUP.EXE", b"setup"), ("PRECOPY1.CAB", b"cab")):
         data = tmp_path / name
@@ -175,9 +182,17 @@ def rehearsal_disc(tmp_path):
 @needs_mtools
 @pytest.mark.skipif(shutil.which("7z") is None, reason="needs 7z")
 @pytest.mark.skipif(not (GUEST_BUILD / "mbr.bin").exists(), reason="guest not built")
-def test_media_and_disk_stages_lay_out_a_ready_to_install_disk(rehearsal_disc, tmp_path):
-    tool = builder.Setup(work=tmp_path / "work", guest_build=GUEST_BUILD, iso=rehearsal_disc,
-                     product_key="AAAAA-BBBBB", disk_mb=600, log=lambda _: None)
+def test_media_and_disk_stages_lay_out_a_ready_to_install_disk(
+    rehearsal_disc, tmp_path
+):
+    tool = builder.Setup(
+        work=tmp_path / "work",
+        guest_build=GUEST_BUILD,
+        iso=rehearsal_disc,
+        product_key="AAAAA-BBBBB",
+        disk_mb=600,
+        log=lambda _: None,
+    )
     vm_step.media(tool)
     autoexec = builder._mtool("mtype", "-i", str(tool.floppy), "::AUTOEXEC.BAT").stdout
     assert b"SETUP.EXE" in autoexec
@@ -185,7 +200,11 @@ def test_media_and_disk_stages_lay_out_a_ready_to_install_disk(rehearsal_disc, t
     vm_step.disk(tool)
     spec = builder.disk_spec(tool.raw)
     listing = builder._mtool("mdir", "-b", "-i", spec, "::WIN98").stdout.upper()
-    assert b"SETUP.EXE" in listing and b"PRECOPY1.CAB" in listing and b"MSBATCH.INF" in listing
+    assert (
+        b"SETUP.EXE" in listing
+        and b"PRECOPY1.CAB" in listing
+        and b"MSBATCH.INF" in listing
+    )
     answer = builder._mtool("mtype", "-i", spec, "::WIN98/MSBATCH.INF").stdout
     assert b'ProductKey="AAAAA-BBBBB"' in answer
     agent = builder._mtool("mtype", "-i", spec, "::ART98/AGENT.EXE").stdout
@@ -201,7 +220,9 @@ def test_disk_stage_refuses_to_run_without_a_key(tmp_path):
 
 def test_steps_resume_and_can_be_redone(tmp_path, monkeypatch):
     calls = []
-    monkeypatch.setattr(builder.Setup, "_execute", lambda self, step: calls.append(step))
+    monkeypatch.setattr(
+        builder.Setup, "_execute", lambda self, step: calls.append(step)
+    )
     tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
     tool.run()
     assert calls == ["vm", "setup", "init_api", "ready"]
@@ -225,58 +246,11 @@ def test_a_failed_step_is_not_marked_done(tmp_path, monkeypatch):
     assert tool._done() == ["vm"]
 
 
-OLD_STATE = ["media", "disk", "install", "patch", "harden"]
-
-
-def test_a_finished_build_with_old_stage_names_runs_nothing(tmp_path, monkeypatch):
-    calls = []
-    monkeypatch.setattr(builder.Setup, "_execute", lambda self, step: calls.append(step))
-    state = tmp_path / "state.json"
-    state.write_text(json.dumps(OLD_STATE))
+def test_from_rejects_unknown_and_old_stage_names(tmp_path):
     tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
-    assert tool._done() == ["vm", "setup", "init_api", "ready"]
-    tool.run()
-    assert calls == []
-    assert json.loads(state.read_text()) == OLD_STATE  # not rewritten just to rename
-
-
-def test_old_stage_names_count_step_by_step(tmp_path):
-    state = tmp_path / "state.json"
-    tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
-    for recorded, done in (
-        (["media"], []),  # vm needs both of its old stages
-        (["media", "disk"], ["vm"]),
-        (["media", "disk", "install"], ["vm", "setup"]),
-        (["media", "disk", "install", "patch"], ["vm", "setup", "init_api"]),
-        (["vm", "setup"], ["vm", "setup"]),
-        (["media", "disk", "setup"], ["vm", "setup"]),
-    ):
-        state.write_text(json.dumps(recorded))
-        assert tool._done() == done
-
-
-def test_a_resumed_old_build_writes_new_names(tmp_path, monkeypatch):
-    calls = []
-    monkeypatch.setattr(builder.Setup, "_execute", lambda self, step: calls.append(step))
-    state = tmp_path / "state.json"
-    state.write_text(json.dumps(["media", "disk", "install"]))
-    builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None).run()
-    assert calls == ["init_api", "ready"]
-    assert json.loads(state.read_text()) == ["vm", "setup", "init_api", "ready"]
-
-
-def test_from_accepts_old_stage_names(tmp_path, monkeypatch):
-    calls = []
-    monkeypatch.setattr(builder.Setup, "_execute", lambda self, step: calls.append(step))
-    tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
-    for old, first in (("media", "vm"), ("disk", "vm"), ("install", "setup"),
-                       ("patch", "init_api"), ("harden", "ready")):
-        (tmp_path / "state.json").write_text(json.dumps(OLD_STATE))
-        calls.clear()
-        tool.run(old)
-        assert calls[0] == first and calls[-1] == "ready"
-    with pytest.raises(builder.SetupError, match="unknown step"):
-        tool.run("bogus")
+    for name in ("bogus", "media", "disk", "install", "patch", "harden"):
+        with pytest.raises(builder.SetupError, match="unknown step"):
+            tool.run(name)
 
 
 def test_init_api_boots_the_converted_image_and_shuts_it_down(tmp_path, monkeypatch):
@@ -293,7 +267,7 @@ def wizard_screen(heading: int = 0, wizard: bool = True) -> bytes:
     def paint(left, top, right, bottom, color):
         for y in range(top, bottom):
             for x in range(left, right):
-                rgb[(y * 640 + x) * 3:(y * 640 + x) * 3 + 3] = bytes(color)
+                rgb[(y * 640 + x) * 3 : (y * 640 + x) * 3 + 3] = bytes(color)
 
     if wizard:
         paint(76, 60, 562, 80, (0, 0, 168))
@@ -311,8 +285,12 @@ def test_screen_reads_the_ppm_qemu_writes():
 
 def test_wizard_is_told_from_other_setup_screens():
     assert builder.setup_wizard_showing(builder.Screen.from_ppm(wizard_screen()))
-    assert not builder.setup_wizard_showing(builder.Screen.from_ppm(wizard_screen(wizard=False)))
-    assert not builder.setup_wizard_showing(builder.Screen(800, 600, bytes(800 * 600 * 3)))
+    assert not builder.setup_wizard_showing(
+        builder.Screen.from_ppm(wizard_screen(wizard=False))
+    )
+    assert not builder.setup_wizard_showing(
+        builder.Screen(800, 600, bytes(800 * 600 * 3))
+    )
 
 
 class WizardVM:
@@ -330,8 +308,9 @@ class WizardVM:
     def send_keys(self, *chord):
         self.keys.append(chord)
         self.pending += 1
-        if (self.page != self.stuck_at
-                and self.pending == len(builder.WIZARD_PAGES[self.page])):
+        if self.page != self.stuck_at and self.pending == len(
+            builder.WIZARD_PAGES[self.page]
+        ):
             self.page, self.pending = self.page + 1, 0
 
 
@@ -390,14 +369,15 @@ def logon_screen() -> bytes:
     for y in range(64, 258):
         for x in range(90, 548):
             navy = y < 82
-            rgb[(y * 640 + x) * 3:(y * 640 + x) * 3 + 3] = bytes(
-                (0, 0, 128) if navy else (192, 192, 192))
+            rgb[(y * 640 + x) * 3 : (y * 640 + x) * 3 + 3] = bytes(
+                (0, 0, 128) if navy else (192, 192, 192)
+            )
     return b"P6\n640 480\n255\n" + bytes(rgb)
 
 
 def test_logon_prompt_is_answered_once_with_enter(tmp_path, monkeypatch):
     class LogonVM:
-        keys = []
+        keys: ClassVar[list[tuple[str, ...]]] = []
 
         def screenshot(self, path, format="png"):
             path.write_bytes(logon_screen())
@@ -415,7 +395,8 @@ def test_logon_prompt_is_answered_once_with_enter(tmp_path, monkeypatch):
 
 class RestartingVM:
     """Stands in for VM: each boot either reboots or brings up the agent."""
-    boots = []
+
+    boots: ClassVar[list[tuple]] = []
 
     def __init__(self, config, log=None):
         self.config, self.serial_path = config, None
@@ -433,7 +414,8 @@ class RestartingVM:
 
 class RestartingBridge:
     """Reports the link closing until the third boot, when the agent says hello."""
-    calls = []
+
+    calls: ClassVar[list] = []
 
     @classmethod
     def connect(cls, path):

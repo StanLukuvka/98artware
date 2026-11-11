@@ -1,6 +1,6 @@
 # Part 1: preparing the VM
 
-`art98 setup` (`art98 prep` still works as an alias) turns your Windows 98 SE disc image into a desktop that restores to
+`art98 setup` turns your Windows 98 SE disc image into a desktop that restores to
 the same state every time. It runs Setup with no input, cleans up the result, and
 saves a QEMU snapshot called `ready`. Everything else in art98 starts from that
 snapshot.
@@ -194,12 +194,12 @@ scriptable desktop: VM, setup, init api, ready. Each one is recorded in
 
 ![The four setup steps, their inputs and their outputs](../diagrams/prep-pipeline.png)
 
-| Step | Old stages | Time on the two full runs logged | Result |
-|------|------------|---------------------------------|--------|
-| `vm` | `media`, `disk` | 1 s, then 0 to 9 s | Setup files unpacked, boot floppy patched, raw disk with Setup, the answer file and the agent on it |
-| `setup` | `install` | 2083 s and 2268 s | Windows installed |
-| `init_api` | `patch` | 1 to 2 s, plus one extra boot | `MSDOS.SYS` edited, disk converted to qcow2, the agent seen answering |
-| `ready` | `harden` | 78 s and 106 s | Settings applied, snapshot saved |
+| Step | Time on the two full runs logged | Result |
+|------|---------------------------------|--------|
+| `vm` | 1 s, then 0 to 9 s | Setup files unpacked, boot floppy patched, raw disk with Setup, the answer file and the agent on it |
+| `setup` | 2083 s and 2268 s | Windows installed |
+| `init_api` | 1 to 2 s, plus one extra boot | `MSDOS.SYS` edited, disk converted to qcow2, the agent seen answering |
+| `ready` | 78 s and 106 s | Settings applied, snapshot saved |
 
 The extra boot in `init_api` is new, so the logged times do not include it.
 

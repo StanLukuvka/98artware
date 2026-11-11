@@ -7,14 +7,12 @@ The local backend needs QEMU on PATH, the container backend the art98 image
 
 import os
 import shutil
-import time
 from pathlib import Path
 
 import pytest
-
+from art98.container import host as container
 from art98.qemu import QEMU_BINARY
 from art98.session import stage
-from art98.container import host as container
 
 HERE = Path(__file__).resolve().parents[2]
 WORK = Path(os.environ.get("ART98_TEST_WORK") or HERE / "work")
@@ -30,16 +28,28 @@ def _container_ready() -> bool:
 
 
 BACKENDS = [
-    pytest.param("local", marks=[
-        pytest.mark.qemu,
-        pytest.mark.skipif(shutil.which(QEMU_BINARY) is None, reason="needs QEMU")]),
-    pytest.param("container", marks=[
-        pytest.mark.container,
-        pytest.mark.skipif(not _container_ready(), reason="needs the art98 container image")]),
+    pytest.param(
+        "local",
+        marks=[
+            pytest.mark.qemu,
+            pytest.mark.skipif(shutil.which(QEMU_BINARY) is None, reason="needs QEMU"),
+        ],
+    ),
+    pytest.param(
+        "container",
+        marks=[
+            pytest.mark.container,
+            pytest.mark.skipif(
+                not _container_ready(), reason="needs the art98 container image"
+            ),
+        ],
+    ),
 ]
 pytestmark = [
     pytest.mark.stage,
-    pytest.mark.skipif(not (WORK / "image.json").exists(), reason=f"no prepared image in {WORK}"),
+    pytest.mark.skipif(
+        not (WORK / "image.json").exists(), reason=f"no prepared image in {WORK}"
+    ),
 ]
 
 
@@ -73,7 +83,9 @@ def test_a_scene_renders(backend, tmp_path):
     from art98.anim import render
     from art98.cli import _load_scene
 
-    out = render(_load_scene(MVP, "Mvp"), tmp_path / "mvp.mp4", work=WORK, backend=backend)
+    out = render(
+        _load_scene(MVP, "Mvp"), tmp_path / "mvp.mp4", work=WORK, backend=backend
+    )
     assert out.stat().st_size > 10_000
 
 
@@ -83,9 +95,16 @@ def test_the_proof_scene_renders(tmp_path):
     from art98.anim import render
     from art98.cli import _load_scene
 
-    out = render(_load_scene(BLANK_START, "BlankStart"), tmp_path / "blank_start.mp4", work=WORK, backend="local")
+    out = render(
+        _load_scene(BLANK_START, "BlankStart"),
+        tmp_path / "blank_start.mp4",
+        work=WORK,
+        backend="local",
+    )
     assert out.stat().st_size > 10_000
-    assert [(tmp_path / f"blank_start-0{n}.mp4").exists() for n in (1, 2, 3)] == [True] * 3
+    assert [(tmp_path / f"blank_start-0{n}.mp4").exists() for n in (1, 2, 3)] == [
+        True
+    ] * 3
 
 
 def test_disc_insert_revert_insert(tmp_path):
@@ -112,7 +131,7 @@ def _pixel(session, tmp_path, x, y):
     data = session.vm.screenshot(tmp_path / "px.ppm", format="ppm").read_bytes()
     head, rest = data.split(b"\n255\n", 1)
     width = int(head.split()[1])
-    return tuple(rest[(y * width + x) * 3:(y * width + x) * 3 + 3])
+    return tuple(rest[(y * width + x) * 3 : (y * width + x) * 3 + 3])
 
 
 @pytest.mark.qemu
@@ -127,7 +146,9 @@ def test_backdrop_colour_reads_back(tmp_path):
         desktop.set_colour(guest, rgb)
         guest.sync()
         assert guest.user32.GetSysColor(1).value & 0xFFFFFF == desktop.colourref(rgb)
-        assert not guest.user32.IsWindowVisible(desktop.shell_windows(guest)[2]).value  # P0: icons stay hidden
+        assert not guest.user32.IsWindowVisible(
+            desktop.shell_windows(guest)[2]
+        ).value  # P0: icons stay hidden
         got = _pixel(session, tmp_path, 790, 590)
         assert all(abs(g - w) <= 8 for g, w in zip(got, rgb)), got
 
@@ -137,10 +158,18 @@ def _wall_bmp(width, height):
     import struct
 
     stride = (width * 3 + 3) // 4 * 4
-    row = (b"\x00\x00\xff" * (width // 2) + b"\xff\x00\x00" * (width - width // 2)).ljust(stride, b"\0")
+    row = (
+        b"\x00\x00\xff" * (width // 2) + b"\xff\x00\x00" * (width - width // 2)
+    ).ljust(stride, b"\0")
     pixels = row * height
-    return (b"BM" + struct.pack("<IHHI", 54 + len(pixels), 0, 0, 54)
-            + struct.pack("<IiiHHIIiiII", 40, width, height, 1, 24, 0, len(pixels), 0, 0, 0, 0) + pixels)
+    return (
+        b"BM"
+        + struct.pack("<IHHI", 54 + len(pixels), 0, 0, 54)
+        + struct.pack(
+            "<IiiHHIIiiII", 40, width, height, 1, 24, 0, len(pixels), 0, 0, 0, 0
+        )
+        + pixels
+    )
 
 
 @pytest.mark.qemu
@@ -153,8 +182,20 @@ def test_state_with_wallpaper(tmp_path):
 
     data = _wall_bmp(640, 480)
     (tmp_path / "wall.bmp").write_bytes(data)
-    (tmp_path / "s.json").write_text(json.dumps({"version": 1, "desktop": {
-        "colour": [0, 128, 128], "wallpaper": {"file": "wall.bmp", "sha256": hashlib.sha256(data).hexdigest()}}}))
+    (tmp_path / "s.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "desktop": {
+                    "colour": [0, 128, 128],
+                    "wallpaper": {
+                        "file": "wall.bmp",
+                        "sha256": hashlib.sha256(data).hexdigest(),
+                    },
+                },
+            }
+        )
+    )
 
     def near(got, want):
         return all(abs(g - w) <= 12 for g, w in zip(got, want))
@@ -163,8 +204,12 @@ def test_state_with_wallpaper(tmp_path):
         scene = Scene()
         scene.desktop = "stock"
         scene.session, scene.guest, scene.vm = session, session.bridge, session.vm
-        for _ in range(2):  # the second Set reverts (and ejects) first, then does it all again
-            scene.set_state(tmp_path / "s.json")  # check_state already compared one pixel
+        for _ in range(
+            2
+        ):  # the second Set reverts (and ejects) first, then does it all again
+            scene.set_state(
+                tmp_path / "s.json"
+            )  # check_state already compared one pixel
             assert near(_pixel(session, tmp_path, 300, 300), (255, 0, 0))
             assert near(_pixel(session, tmp_path, 500, 300), (0, 0, 255))
             assert near(_pixel(session, tmp_path, 5, 5), (0, 128, 128))
@@ -180,9 +225,14 @@ def test_same_title_dialogs(tmp_path):
         scene = Scene()
         scene.desktop = "stock"
         scene.session, scene.guest, scene.vm = session, session.bridge, session.vm
-        boxes = [Dialog("???", "???", icon=icon, at=at, size=size) for icon, at, size in (
-            ("warning", (60, 300), (300, 130)), ("computer", (200, 200), (320, 150)),
-            ("info", (340, 100), (340, 170)))]
+        boxes = [
+            Dialog("???", "???", icon=icon, at=at, size=size)
+            for icon, at, size in (
+                ("warning", (60, 300), (300, 130)),
+                ("computer", (200, 200), (320, 150)),
+                ("info", (340, 100), (340, 170)),
+            )
+        ]
         for box in boxes:
             scene.add(box)
         assert len({box.hwnd for box in boxes}) == 3

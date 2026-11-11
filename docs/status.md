@@ -7,9 +7,9 @@ work can pick up from here.
 
 | Part | State | Docs |
 | --- | --- | --- |
-| VM preparation | Built. `art98 setup` (alias `prep`) turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input. Four steps: vm, setup, init_api, ready | [Part 1](setup/README.md) |
+| VM preparation | Built. `art98 setup` turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input. Four steps: vm, setup, init_api, ready | [Part 1](setup/README.md) |
 | Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](scenes/bridge.md), [Instruction set](scenes/instruction-set.md) |
-| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. Notepad and Dialog are programs in `actions/programs/`, and `Backdrop` sets the desktop colour. Paint, Minesweeper and Screensaver are parked, unexported | [Part 2](scenes/README.md) |
+| Scene API and renderer | Built. `Scene`, props, animations, `art98 render`. Every program (Notepad, Dialog, Paint, Minesweeper, Screensaver) is in `actions/programs/`, and `Backdrop` sets the desktop colour. Paint, Minesweeper and Screensaver are there too | [Part 2](scenes/README.md) |
 | Examples | `examples/blank_start` (the proof scene: a Picture and a Notepad, three sections), `examples/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
 | Diagrams | Seven diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
 | States and sections | The MVP is built: state files, `set_state`, picture windows and `Teleport`. `Scene.next_section(name)` is built, on top of `cut()`. The `--section` option is not | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
@@ -74,8 +74,8 @@ Audio is deferred. art98 is video only.
     minutes on a quiet host, and its image renders the MVP scene with all 257 frames identical
     to the host-built image's. Doctor and the guides now give Debian and Ubuntu package names
     too. See [Container](design/container.md).
-14. **`actions.py` split, 2026-11-10.** It's now `anim/pointer.py`, `anim/keys.py` and
-    `anim/window.py`, and `Teleport` moved from `picture.py` to `window.py`. The programs a
+14. **`actions.py` split, 2026-11-10.** It's now `actions/pointer.py`, `actions/keyboard.py` and
+    `actions/window/`, and `Teleport` moved from `picture.py` to `commands.py`. The programs a
     state can open are listed once, in `setstate.py`, and `scene.py` sets up the pointer in
     one place. Nothing a scene imports changed.
 15. **Cleanup and naming, 2026-11-11.** Each duplicated guest read (work area, screen size,
@@ -143,6 +143,9 @@ Audio is deferred. art98 is video only.
     - **Same-title boxes.** The first version took any visible box whose title matched, so a
       new `Dialog` could attach to an older one. A `Dialog` now ignores windows that existed
       before its call.
+20. **Programs unparked, 2026-11-11.** `Paint`, `Minesweeper` and `Screensaver` are action
+    classes in `actions/programs/` (`paint.py`, `minesweeper.py`, `screensaver.py`), exported
+    from `art98.anim`. `anim/apps.py` and `PARKED` are gone, with no old import path left.
 
 ## What is open
 
@@ -151,9 +154,9 @@ Audio is deferred. art98 is video only.
 In order, from the layer review of 2026-11-11. See also
 [After the MVP](design/state-and-action.md#after-the-mvp).
 
-1. **Other programs.** Paint, Minesweeper and the rest return one at a time, each as a file in
-   `actions/programs/` that subclasses `Win`, following the Notepad pilot. `apps.py` and the
-   fixed `APPS` list go when the last one is moved.
+1. **Other programs.** New programs (Calculator and the rest) go in `actions/programs/`, one
+   file each, subclassing `Win`. Only Picture and Notepad are in the fixed `APPS` list of state
+   apps; Paint and Minesweeper are not in a state yet.
 2. **Gallery and showcase port.** Port the showcase and re-render the gallery.
 3. **`--section`.** Render one section of a scene, on top of `next_section`.
 
@@ -163,10 +166,10 @@ In order, from the layer review of 2026-11-11. See also
   Delete it or give `RemoteVM` one.
 - `bmp_pixel` decodes 24-bit and 8-bit BMPs only. For any other depth the wallpaper pixel
   check is skipped. (A `lazy:` marker in the code.)
-- On this host, `art98 up --rebuild` with Docker CE's CLI pointed at the Podman socket does not
-  refresh the Podman image: the build goes through a buildx `docker-container` builder and its
-  result stays in the build cache. `podman build -t localhost/art98:latest -f setup/Dockerfile .`
-  works (7 s). A fix is `--load`, or detecting the engine.
+- Fixed: `art98 up --rebuild` with Docker CE's CLI at the Podman socket left the image
+  unchanged (buildx `docker-container` builder, result only in the build cache, exit 0).
+  `build_image` now passes `--load` where the CLI has it and fails with a message unless the
+  engine's image has the ID the build wrote with `--iidfile`.
 - A `Cascade` helper, `Dialog` as a state `app`, and desktop icons and tray in a state are not built.
 - `test_state_with_wallpaper` runs on the local backend only. The container path is covered by
   rendering a wallpapered state on both engines.
@@ -211,7 +214,7 @@ doesn't: with no timeout it uses the bridge's, 10 s by default, and raises `Brid
   same effects off at run time, so it only matters for stock scenes. This and the other prep
   options for a blank snapshot are listed in
   [Blank start](design/blank-start.md#prep-changes-not-made).
-- `art98 setup --from setup` and `--from init_api` (old names `install` and `patch`) fail after a
+- `art98 setup --from setup` and `--from init_api` fail after a
   finished build, because `install.img` is gone. The workaround is `--from vm`.
 
 ## Working notes

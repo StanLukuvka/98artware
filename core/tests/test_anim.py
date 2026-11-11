@@ -1,17 +1,18 @@
 """The scene layer against a stand-in guest: nothing here needs a VM."""
 
+import importlib.util
 import inspect
 import struct
 from pathlib import Path
 
 import pytest
-
-from art98 import anim, session as session_module
+from art98 import anim
+from art98 import session as session_module
+from art98.actions import keyboard as keys_module
+from art98.actions import programs
+from art98.actions.keyboard import char_chord, key_chord
+from art98.actions.pointer import BUTTONS
 from art98.anim import *
-from art98.anim.apps import PARKED, Minesweeper, Notepad, Paint, Screensaver
-from art98.anim import keys as keys_module
-from art98.anim.keys import char_chord, key_chord
-from art98.anim.pointer import BUTTONS
 from art98.bridge import CallResult, Window
 
 WM_CHAR, WM_CLOSE, WM_SYSCOMMAND = 0x0102, 0x0010, 0x0112
@@ -49,7 +50,8 @@ class FakeGuest:
     def add_window(self, hwnd, class_name, rect, title="", parent=0, pid=0):
         self.rects[hwnd] = rect
         self.rows.setdefault(parent, []).append(
-            Window(hwnd, pid, True, rect, class_name, title))
+            Window(hwnd, pid, True, rect, class_name, title)
+        )
 
     def handle(self, dll, function, args):
         self.calls.append((function, args))
@@ -102,8 +104,11 @@ class FakeGuest:
         return list(self.rows.get(parent, []))
 
     def find_window(self, title=None, class_name=None, parent=0, timeout=10.0):
-        return next(w for w in self.windows(parent)
-                    if class_name is None or w.class_name == class_name)
+        return next(
+            w
+            for w in self.windows(parent)
+            if class_name is None or w.class_name == class_name
+        )
 
     def spawn(self, command, cwd=None):
         self.spawned.append(command)
@@ -181,7 +186,9 @@ def test_revert_ejects_the_disc_before_loadvm_only_when_one_was_inserted():
     vm = FakeVM()
     session = session_module.Session(vm, QuietBridge())
     session.revert()
-    assert vm.calls == ["load_snapshot"]  # no disc: an old container image never sees eject_disc
+    assert vm.calls == [
+        "load_snapshot"
+    ]  # no disc: an old container image never sees eject_disc
     session.attach_disc({"WALL0001.BMP": b"x" * 10})
     assert vm.calls[-1] == "insert_disc"
     session.revert()
@@ -271,7 +278,10 @@ def test_play_writes_run_time_times_fps_frames_and_ends_at_exactly_1(scene):
 
 
 def test_one_play_runs_animations_together_and_short_ones_hold(scene):
-    long, short = Probe(run_time=1, rate_func=linear), Probe(run_time=0.5, rate_func=linear)
+    long, short = (
+        Probe(run_time=1, rate_func=linear),
+        Probe(run_time=0.5, rate_func=linear),
+    )
     scene.play(long, short)
     assert scene.video.count == 30
     assert short.log.count("finish") == 1
@@ -368,7 +378,10 @@ def test_succession_starts_each_child_where_the_last_left_off(guest, scene):
 
 
 def test_a_group_with_lag_starts_late(scene):
-    first, second = Probe(run_time=1, rate_func=linear), Probe(run_time=1, rate_func=linear)
+    first, second = (
+        Probe(run_time=1, rate_func=linear),
+        Probe(run_time=1, rate_func=linear),
+    )
     scene.play(LaggedStart(first, second, lag_ratio=0.5))
     assert scene.video.count == 45
     assert first.log[-2] == 1.0 and second.log[-2] == 1.0
@@ -421,7 +434,7 @@ def test_a_win_starts_its_program_and_finds_its_own_window(guest, scene):
 
 def test_a_prop_not_on_stage_says_so():
     with pytest.raises(RuntimeError, match="add it"):
-        Notepad().guest
+        Notepad().guest  # noqa: B018
 
 
 def test_playing_a_prop_adds_it(guest, scene):
@@ -438,13 +451,19 @@ def test_a_move_keeps_size_and_order_and_repaints_each_frame(guest, scene):
     moves = guest.named("SetWindowPos")
     assert len(moves) == 3 and len(guest.named("RedrawWindow")) == 3
     assert moves[-1][1][2:4] == (122, 88)
-    assert all(args[-1] == SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE for _, args in moves)
+    assert all(
+        args[-1] == SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE for _, args in moves
+    )
 
 
 def test_a_move_and_a_resize_become_one_call_per_frame(guest, scene):
     pad = notepad(guest, scene)
-    scene.play(pad.animate.shift(30 * RIGHT), pad.animate.resize(300, 200),
-               run_time=0.1, rate_func=linear)
+    scene.play(
+        pad.animate.shift(30 * RIGHT),
+        pad.animate.resize(300, 200),
+        run_time=0.1,
+        rate_func=linear,
+    )
     assert len(guest.named("SetWindowPos")) == 3
     assert guest.rects[0x10] == (122, 88, 422, 288)
 
@@ -465,13 +484,16 @@ def test_animate_starts_from_the_real_window(guest, scene):
 def test_animate_refuses_what_is_not_layout(guest, scene):
     pad = notepad(guest, scene)
     with pytest.raises(AttributeError):
-        pad.animate.close
+        pad.animate.close  # noqa: B018
 
 
 def test_move_along_path_carries_the_centre(guest, scene):
     pad = notepad(guest, scene)
-    scene.play(MoveAlongPath(pad, [(300, 200), (400, 200), (400, 300)]), run_time=0.5,
-               rate_func=linear)
+    scene.play(
+        MoveAlongPath(pad, [(300, 200), (400, 200), (400, 300)]),
+        run_time=0.5,
+        rate_func=linear,
+    )
     left, top, right, bottom = guest.rects[0x10]
     assert (left + right) / 2 == pytest.approx(400, abs=1)
     assert (top + bottom) / 2 == pytest.approx(300, abs=1)
@@ -533,8 +555,10 @@ def test_pointer_animate_goes_through_the_frame_loop(guest, scene):
 
 
 def events(guest):
-    return [(name, args[0] if name == "mouse_event" else args)
-            for name, args in guest.named("SetCursorPos", "mouse_event")]
+    return [
+        (name, args[0] if name == "mouse_event" else args)
+        for name, args in guest.named("SetCursorPos", "mouse_event")
+    ]
 
 
 def test_click_arrives_then_presses_then_releases(guest, scene):
@@ -558,15 +582,29 @@ def test_press_and_release_land_on_different_frames(guest, scene):
 def test_right_click_uses_the_right_button(guest, scene):
     scene.play(RightClick((1, 2)))
     assert [e for e in events(guest) if e[0] == "mouse_event"] == [
-        ("mouse_event", RDOWN), ("mouse_event", RUP)]
+        ("mouse_event", RDOWN),
+        ("mouse_event", RUP),
+    ]
 
 
 def test_double_click_is_two_clicks_inside_one_stretch(guest, scene):
     scene.play(DoubleClick((1, 2)))
-    assert [e[1] for e in events(guest) if e[0] == "mouse_event"] == [LDOWN, LUP, LDOWN, LUP]
-    held = [i for i, (_, index, _) in enumerate(scene.video.frames)
-            if index >= guest.calls.index(("mouse_event", (LDOWN, 0, 0, 0, 0)))]
-    last = len(guest.calls) - 1 - guest.calls[::-1].index(("mouse_event", (LUP, 0, 0, 0, 0)))
+    assert [e[1] for e in events(guest) if e[0] == "mouse_event"] == [
+        LDOWN,
+        LUP,
+        LDOWN,
+        LUP,
+    ]
+    held = [
+        i
+        for i, (_, index, _) in enumerate(scene.video.frames)
+        if index >= guest.calls.index(("mouse_event", (LDOWN, 0, 0, 0, 0)))
+    ]
+    last = (
+        len(guest.calls)
+        - 1
+        - guest.calls[::-1].index(("mouse_event", (LUP, 0, 0, 0, 0)))
+    )
     span = [i for i in held if scene.video.frames[i][1] <= last]
     assert len(span) <= 5  # under 170 ms of video, well inside 500 ms
 
@@ -626,8 +664,12 @@ def test_hover_records_in_real_time(guest, scene):
 
 
 def menu_guest(guest):
-    labels = {(0x50, 0): "&File", (0x50, 1): "&Help", (0x51, 0): "&New\tCtrl+N",
-              (0x51, 1): "E&xit"}
+    labels = {
+        (0x50, 0): "&File",
+        (0x50, 1): "&Help",
+        (0x51, 0): "&New\tCtrl+N",
+        (0x51, 1): "E&xit",
+    }
     guest.do_GetMenu = lambda hwnd: CallResult(0x50, 0, [])
     guest.do_GetMenuItemCount = lambda menu: CallResult(2, 0, [])
     guest.do_GetSubMenu = lambda menu, position: CallResult(0x51, 0, [])
@@ -666,7 +708,8 @@ def test_typing_sends_each_letter_to_the_edit_control(guest, scene):
     pad = notepad(guest, scene)
     scene.play(TypeWithCursor(pad, "a\nb"))
     assert guest.named("SendMessageA") == [
-        ("SendMessageA", (0x11, WM_CHAR, code, 1)) for code in (97, 13, 98)]
+        ("SendMessageA", (0x11, WM_CHAR, code, 1)) for code in (97, 13, 98)
+    ]
     assert scene.video.count == 9
 
 
@@ -675,7 +718,9 @@ def test_typing_invalidates_the_edit_so_the_frame_shows_the_text(guest, scene):
     scene.play(TypeWithCursor(pad, "ab", run_time=0.2))
     redraws = guest.named("RedrawWindow")
     assert redraws and all(args == (0x11, 0, 0, 0x585) for _, args in redraws)
-    calls = [name for name, _ in guest.calls if name in ("SendMessageA", "RedrawWindow")]
+    calls = [
+        name for name, _ in guest.calls if name in ("SendMessageA", "RedrawWindow")
+    ]
     assert calls[-1] == "RedrawWindow" and calls[0] == "SendMessageA"
 
 
@@ -700,11 +745,21 @@ def test_key_names_become_qemu_names():
     assert key_chord("win") == ("meta_l",)
 
 
-@pytest.mark.parametrize("char, chord", [
-    ("a", ("a",)), ("A", ("shift", "a")), ("7", ("7",)), ("&", ("shift", "7")),
-    (" ", ("spc",)), ("\n", ("ret",)), (".", ("dot",)), ("?", ("shift", "slash")),
-    ("|", ("shift", "backslash")), ("\\", ("backslash",)),
-])
+@pytest.mark.parametrize(
+    "char, chord",
+    [
+        ("a", ("a",)),
+        ("A", ("shift", "a")),
+        ("7", ("7",)),
+        ("&", ("shift", "7")),
+        (" ", ("spc",)),
+        ("\n", ("ret",)),
+        (".", ("dot",)),
+        ("?", ("shift", "slash")),
+        ("|", ("shift", "backslash")),
+        ("\\", ("backslash",)),
+    ],
+)
 def test_characters_become_keys(char, chord):
     assert char_chord(char) == chord
 
@@ -725,19 +780,23 @@ def test_type_keys_presses_every_character(scene):
     assert scene.vm.keys == [("shift", "h"), ("i",), ("ret",)]
 
 
-# ---- apps ----
+# ---- programs ----
 
 
 def paint(guest, scene, left=20, top=10):
     def at(rect):
         return tuple(v + (left if i % 2 == 0 else top) for i, v in enumerate(rect))
 
-    guest.add_window(0x40, "MSPaintApp", at((0, 0, 580, 510)), "untitled - Paint", pid=7000)
+    guest.add_window(
+        0x40, "MSPaintApp", at((0, 0, 580, 510)), "untitled - Paint", pid=7000
+    )
     guest.add_window(0x41, "Afx:1000000:8", at((63, 44, 574, 432)), parent=0x40)
     guest.add_window(0x42, "AfxWnd42", at((2, 432, 261, 483)), "Colors", parent=0x40)
     for number in Paint.TOOLS.values():
         offset = 42 + (number % 16) * 25
-        guest.add_window(number, "ToolChild", at((8, offset, 33, offset + 25)), parent=0x40)
+        guest.add_window(
+            number, "ToolChild", at((8, offset, 33, offset + 25)), parent=0x40
+        )
     prop = Paint()
     scene.add(prop)
     guest.calls.clear()
@@ -781,7 +840,9 @@ def test_paint_measures_the_canvas_between_white_and_grey(guest, scene):
     x0, y0 = prop.canvas(0, 0).point()
 
     def pixel(dc, x, y):
-        return CallResult(0xFFFFFF if x < x0 + 400 and y < y0 + 300 else 0x808080, 0, [])
+        return CallResult(
+            0xFFFFFF if x < x0 + 400 and y < y0 + 300 else 0x808080, 0, []
+        )
 
     guest.do_GetPixel = pixel
     assert prop.canvas_size == (400, 300)
@@ -879,8 +940,7 @@ def test_dialog_opens_on_a_guest_thread_and_reports_its_answer(guest, scene):
 
 def test_private_stage_copies_and_cleans_up(tmp_path):
     (tmp_path / "golden.qcow2").write_bytes(b"disk")
-    (tmp_path / "image.json").write_text(
-        '{"disk": "%s"}' % (tmp_path / "golden.qcow2"))
+    (tmp_path / "image.json").write_text('{"disk": "%s"}' % (tmp_path / "golden.qcow2"))
     with session_module.private_stage(tmp_path) as stage:
         assert (stage / "golden.qcow2").read_bytes() == b"disk"
         assert str(stage) in (stage / "image.json").read_text()
@@ -889,7 +949,9 @@ def test_private_stage_copies_and_cleans_up(tmp_path):
     assert not stage.exists()
 
 
-def test_render_turns_a_class_into_a_scene_and_routes_a_gif(tmp_path, monkeypatch, guest):
+def test_render_turns_a_class_into_a_scene_and_routes_a_gif(
+    tmp_path, monkeypatch, guest
+):
     from art98.anim import renderer as render_module
 
     class Tiny(Scene):
@@ -917,9 +979,14 @@ def test_render_turns_a_class_into_a_scene_and_routes_a_gif(tmp_path, monkeypatc
             return recorder
 
     options, gifs = {}, []
-    monkeypatch.setattr(render_module, "stage",
-                        lambda work, display, backend: Booted(guest))
-    monkeypatch.setattr(render_module, "write_gif", lambda *a, **k: (gifs.append(a), (tmp_path / "out.part.gif").write_bytes(b"")))
+    monkeypatch.setattr(
+        render_module, "stage", lambda work, display, backend: Booted(guest)
+    )
+    monkeypatch.setattr(
+        render_module,
+        "write_gif",
+        lambda *a, **k: (gifs.append(a), (tmp_path / "out.part.gif").write_bytes(b"")),
+    )
     written = render_module.render(Tiny, tmp_path / "out.gif")
     assert written == tmp_path / "out.gif"
     assert options["lossless"] is True and gifs[0][1] == tmp_path / "out.gif"
@@ -927,6 +994,7 @@ def test_render_turns_a_class_into_a_scene_and_routes_a_gif(tmp_path, monkeypatc
 
 def test_cli_scene_named_like_a_stdlib_module_finds_its_own_file(tmp_path):
     from art98.cli import _load_scene
+
     file = tmp_path / "typing.py"
     file.write_text("from art98.anim import *\nclass T(Scene):\n    pass\n")
     (tmp_path / "x.json").write_text("{}")
@@ -934,6 +1002,7 @@ def test_cli_scene_named_like_a_stdlib_module_finds_its_own_file(tmp_path):
     assert Path(inspect.getfile(scene)) == file
     assert scene()._find_state(Path("x.json")) == tmp_path / "x.json"
     import typing
+
     assert typing.__file__ != str(file)  # stdlib untouched
 
 
@@ -944,8 +1013,10 @@ def test_cli_finds_the_scene_in_a_file(tmp_path):
     file.write_text("from art98.anim import *\nclass Only(Scene):\n    pass\n")
     assert _load_scene(file, None).__name__ == "Only"
     file = tmp_path / "two_scenes.py"
-    file.write_text("from art98.anim import *\nclass A(Scene):\n    pass\n"
-                    "class B(Scene):\n    pass\n")
+    file.write_text(
+        "from art98.anim import *\nclass A(Scene):\n    pass\n"
+        "class B(Scene):\n    pass\n"
+    )
     assert _load_scene(file, "B").__name__ == "B"
     with pytest.raises(SystemExit, match="A, B"):
         _load_scene(file, None)
@@ -953,11 +1024,14 @@ def test_cli_finds_the_scene_in_a_file(tmp_path):
 
 def test_star_import_gives_the_scene_api():
     namespace = {}
-    exec("from art98.anim import *", namespace)
+    exec("from art98.anim import *", namespace)  # noqa: S102
     for name in ("Scene", "Click", "Picture", "RIGHT", "smooth", "Teleport", "Stroke"):
         assert name in namespace
-    # Parked program classes come from art98.anim.apps, not the star import.
-    assert not set(PARKED) & set(namespace)
+    # Every program is an action class, and the star import gives each one.
+    for name in ("Dialog", "Minesweeper", "Notepad", "Paint", "Screensaver"):
+        assert namespace[name] is getattr(programs, name)
+        assert name in anim.__all__
+    assert importlib.util.find_spec("art98.anim.apps") is None
     assert set(anim.__all__) <= set(dir(anim))
 
 
@@ -992,7 +1066,9 @@ def test_a_scene_without_a_state_is_not_reverted(guest):
 
 def test_a_title_bar_drag_repaints_the_window_only_when_it_moved(guest, scene):
     pad = notepad(guest, scene)
-    guest.do_mouse_event = lambda *a: guest.rects.__setitem__(0x10, (10, 10, 610, 421)) or CallResult(1, 0, [])
+    guest.do_mouse_event = lambda *a: (
+        guest.rects.__setitem__(0x10, (10, 10, 610, 421)) or CallResult(1, 0, [])
+    )
     scene.play(Drag(pad.title_bar, by=(1, 1), run_time=0.5))
     redraws = [args[0] for _, args in guest.named("RedrawWindow")]
     assert redraws and set(redraws) == {0x10}

@@ -22,16 +22,25 @@ class Menu(Succession):
     def __init__(self, window: Win, *labels: str, step: float = 0.45):
         if not labels:
             raise ValueError("Menu needs at least one label")
-        clicks = [Click(Spot(_item_finder(window, labels[: depth + 1])), run_time=step)
-                  for depth in range(len(labels))]
+        clicks = [
+            Click(Spot(_item_finder(window, labels[: depth + 1])), run_time=step)
+            for depth in range(len(labels))
+        ]
         super().__init__(*clicks)
         self.target = window
 
 
 def _item_finder(window: Win, labels: tuple[str, ...]):
     def label_of(menu: int, position: int) -> str:
-        result = window.guest.user32.GetMenuStringA(menu, position, Out(64), 64, MF_BYPOSITION)
-        return result.buffers[0][:result.value].decode("cp1252").split("\t")[0].replace("&", "")
+        result = window.guest.user32.GetMenuStringA(
+            menu, position, Out(64), 64, MF_BYPOSITION
+        )
+        return (
+            result.buffers[0][: result.value]
+            .decode("cp1252")
+            .split("\t")[0]
+            .replace("&", "")
+        )
 
     def position_of(menu: int, label: str) -> int:
         count = window.guest.user32.GetMenuItemCount(menu).value
@@ -46,7 +55,9 @@ def _item_finder(window: Win, labels: tuple[str, ...]):
         menu = user32.GetMenu(window.hwnd).value
         for label in labels[:-1]:
             menu = user32.GetSubMenu(menu, position_of(menu, label)).value
-        rect = menu_item_rect(window.guest, window.hwnd, menu, position_of(menu, labels[-1]))
+        rect = menu_item_rect(
+            window.guest, window.hwnd, menu, position_of(menu, labels[-1])
+        )
         if rect is None:
             raise LookupError(f"menu {' > '.join(labels)} is not open")
         left, top, right, bottom = rect

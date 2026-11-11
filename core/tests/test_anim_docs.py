@@ -3,16 +3,20 @@
 import re
 from pathlib import Path
 
-import pytest
-
 import art98.anim
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs" / "scenes"
 PAGES = ("README.md", "tutorial.md", "scene-api.md", "animations.md")
-SAMPLE = re.compile(r"```python\n(.*?)```", re.S)
+SAMPLE = re.compile(r"```python\n(.*?)```", re.DOTALL)
 LINK = re.compile(r"!\[[^\]]*\]\(([^)]+)\)|(?<!!)\[[^\]]*\]\(([^)#]+)(?:#[^)]*)?\)")
-WRITTEN_ELSEWHERE = {"bridge.md", "instruction-set.md", "win32-recipes.md", "app-catalog.md"}
+WRITTEN_ELSEWHERE = {
+    "bridge.md",
+    "instruction-set.md",
+    "win32-recipes.md",
+    "app-catalog.md",
+}
 
 
 def samples():
@@ -24,15 +28,24 @@ def samples():
 @pytest.mark.parametrize("code", list(samples()))
 def test_a_sample_is_one_whole_scene(code):
     names = {}
-    exec(compile(code, "sample", "exec"), names)
-    scenes = [v for k, v in names.items() if isinstance(v, type) and issubclass(v, art98.anim.Scene)
-              and v is not art98.anim.Scene]
+    exec(compile(code, "sample", "exec"), names)  # noqa: S102
+    scenes = [
+        v
+        for k, v in names.items()
+        if isinstance(v, type)
+        and issubclass(v, art98.anim.Scene)
+        and v is not art98.anim.Scene
+    ]
     assert len(scenes) == 1
 
 
 def test_every_public_name_is_documented():
     text = (DOCS / "scene-api.md").read_text() + (DOCS / "animations.md").read_text()
-    missing = [name for name in art98.anim.__all__ if f"`{name}" not in text and name not in text]
+    missing = [
+        name
+        for name in art98.anim.__all__
+        if f"`{name}" not in text and name not in text
+    ]
     assert not missing
 
 

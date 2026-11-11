@@ -44,7 +44,10 @@ DESKTOP_FIELDS = {"colour", "wallpaper", "style"}
 WINDOW_FIELDS = {"id", "app", "title", "at", "size", "show", "open"}
 FILE_FIELDS = {"file", "sha256"}
 LATER = {"focus": "the last window is the active one"}
-LATER_DESKTOP = {"icons": "desktop icons come after this milestone", "tray": "the tray comes after this milestone"}
+LATER_DESKTOP = {
+    "icons": "desktop icons come after this milestone",
+    "tray": "the tray comes after this milestone",
+}
 
 
 def programs() -> tuple[str, ...]:
@@ -107,8 +110,11 @@ class State:
 
 
 def _whole_numbers(value, count: int) -> bool:
-    return (isinstance(value, list) and len(value) == count
-            and all(isinstance(v, int) and not isinstance(v, bool) for v in value))
+    return (
+        isinstance(value, list)
+        and len(value) == count
+        and all(isinstance(v, int) and not isinstance(v, bool) for v in value)
+    )
 
 
 class _Reader:
@@ -124,8 +130,10 @@ class _Reader:
             return False
         for key in sorted(set(value) - allowed):
             reason = later.get(key)
-            self.fail(f"{where}.{key}" if where != "state" else key,
-                      f"not supported yet: {reason}" if reason else "unknown field")
+            self.fail(
+                f"{where}.{key}" if where != "state" else key,
+                f"not supported yet: {reason}" if reason else "unknown field",
+            )
         return True
 
     def numbers(self, value, count: int, where: str, positive: bool = False):
@@ -151,8 +159,11 @@ class _Reader:
         data = path.read_bytes()
         actual = hashlib.sha256(data).hexdigest()
         if digest != actual:
-            self.fail(f"{where}.sha256", f"should be {actual} for {name}"
-                      + ("" if digest is None else f", not {digest}"))
+            self.fail(
+                f"{where}.sha256",
+                f"should be {actual} for {name}"
+                + ("" if digest is None else f", not {digest}"),
+            )
             return None
         return FileRef(path, actual, data)
 
@@ -176,7 +187,9 @@ class _Reader:
         if "style" in value and "wallpaper" not in value:
             self.fail(f"{where}.style", "needs a wallpaper")
         elif style not in STYLES:
-            self.fail(f"{where}.style", f"should be one of {', '.join(STYLES)}, not {style!r}")
+            self.fail(
+                f"{where}.style", f"should be one of {', '.join(STYLES)}, not {style!r}"
+            )
         if len(self.problems) > problems:
             return None
         return DesktopState(colour, wallpaper, style)
@@ -191,7 +204,9 @@ class _Reader:
         app = value.get("app")
         apps = programs()
         if app not in apps:
-            self.fail(f"{where}.app", f"should be one of {', '.join(apps)}, not {app!r}")
+            self.fail(
+                f"{where}.app", f"should be one of {', '.join(apps)}, not {app!r}"
+            )
         title = value.get("title")
         if title is not None and not isinstance(title, str):
             self.fail(f"{where}.title", "needs text")
@@ -201,16 +216,23 @@ class _Reader:
         size = self.numbers(value.get("size"), 2, f"{where}.size", positive=True)
         show = value.get("show", "normal")
         if show not in SHOWS:
-            self.fail(f"{where}.show", f"should be one of {', '.join(SHOWS)}, not {show!r}")
+            self.fail(
+                f"{where}.show", f"should be one of {', '.join(SHOWS)}, not {show!r}"
+            )
         opened = None
         if "open" in value:
             opened = self.file(value["open"], f"{where}.open")
             if opened is not None and name_problem(opened.path.name):
-                self.fail(f"{where}.open.file", f"{opened.path.name!r} can't be a file name on the"
-                          f" guest: it {name_problem(opened.path.name)}")
+                self.fail(
+                    f"{where}.open.file",
+                    f"{opened.path.name!r} can't be a file name on the"
+                    f" guest: it {name_problem(opened.path.name)}",
+                )
             elif opened is not None and app in apps:
                 try:
-                    (check_bmp if app == "picture" else check_text)(opened.data, str(opened.path))
+                    (check_bmp if app == "picture" else check_text)(
+                        opened.data, str(opened.path)
+                    )
                 except ValueError as error:
                     self.fail(f"{where}.open", str(error))
         if len(self.problems) > problems:
@@ -218,7 +240,11 @@ class _Reader:
         if title is None:
             from .actions.programs.notepad import notepad_title  # lazy, like programs()
 
-            title = "Picture" if app == "picture" else notepad_title(opened.path if opened else None)
+            title = (
+                "Picture"
+                if app == "picture"
+                else notepad_title(opened.path if opened else None)
+            )
         return WindowState(id_, app, title, at, size, show, opened)
 
     def state(self, value) -> State | None:
@@ -231,7 +257,9 @@ class _Reader:
             display = self.numbers(value["display"], 3, "display", positive=True)
             if display and display[2] not in DEPTHS:
                 self.fail("display", f"colour depth should be one of {DEPTHS}")
-        desktop = self.desktop(value["desktop"], "desktop") if "desktop" in value else None
+        desktop = (
+            self.desktop(value["desktop"], "desktop") if "desktop" in value else None
+        )
         windows, seen = [], set()
         raw = value.get("windows", [])
         if not isinstance(raw, list):

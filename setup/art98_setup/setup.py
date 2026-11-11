@@ -22,13 +22,20 @@ def install(setup: Setup) -> None:
     config.disk, config.disk_format = setup.raw, "raw"
     setup.log(f"  running Setup, this takes a while; progress shots in {setup.shots}")
     for boot in range(1, SETUP_BOOTS + 1):
-        with VM(config, log=setup._vm_log()) as vm:
-            with Bridge.connect(vm.serial_path) as bridge:
-                if setup._wait_for_agent(vm, bridge, f"install{boot}", INSTALL_TIMEOUT,
-                                         setup._answer_setup_prompts):
-                    bridge.wait_ready()
-                    setup._reboot(vm, bridge)
-                    return
+        with (
+            VM(config, log=setup._vm_log()) as vm,
+            Bridge.connect(vm.serial_path) as bridge,
+        ):
+            if setup._wait_for_agent(
+                vm,
+                bridge,
+                f"install{boot}",
+                INSTALL_TIMEOUT,
+                setup._answer_setup_prompts,
+            ):
+                bridge.wait_ready()
+                setup._reboot(vm, bridge)
+                return
         setup.log(f"  Setup restarted the machine (boot {boot})")
         config.floppy, config.boot_once = None, None  # only the first boot uses it
     raise SetupError(f"Windows did not come up after {SETUP_BOOTS} boots")

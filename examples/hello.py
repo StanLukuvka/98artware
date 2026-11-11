@@ -6,7 +6,6 @@ Notepad opens, types a line, drifts across the desktop and closes.
 """
 
 from art98.anim import *
-from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class Hello(Scene):

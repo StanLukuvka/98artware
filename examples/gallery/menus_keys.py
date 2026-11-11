@@ -1,7 +1,6 @@
 """Menus and keys: real menu clicks select and stamp, real key presses delete and type."""
 
 from art98.anim import *
-from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class MenusKeys(Scene):

@@ -5,13 +5,11 @@ import json
 from pathlib import Path
 
 import pytest
-
 from art98 import guestfiles
-from art98.anim import Close, Picture, Scene, Teleport, UL
+from art98.anim import UL, Close, Picture, Scene, Teleport
 from art98.anim.setstate import StateMismatch
 from art98.bridge import CallResult, Window
 from art98.state import StateError
-
 from test_anim import FakeGuest, FakeVideo, FakeVM
 from test_state import bmp
 
@@ -46,16 +44,34 @@ class GuestWithFiles(FakeGuest):
             title = command.split('"')[1]
             # The newest window is at the front, as EnumWindows lists them.
             self.rects[self.next_hwnd] = (x, y, x + width, y + height)
-            self.rows[0].insert(0, Window(self.next_hwnd, self.next_pid, True,
-                                          self.rects[self.next_hwnd], "Art98View", title))
+            self.rows[0].insert(
+                0,
+                Window(
+                    self.next_hwnd,
+                    self.next_pid,
+                    True,
+                    self.rects[self.next_hwnd],
+                    "Art98View",
+                    title,
+                ),
+            )
             self.next_hwnd += 1
         self.pids.add(self.next_pid)
         return self.next_pid
 
     def windows(self, parent=0):
         # Rows follow the real rects, as the agent's WINDOWS does.
-        return [Window(w.hwnd, w.pid, w.visible, self.rects.get(w.hwnd, w.rect), w.class_name, w.title)
-                for w in self.rows.get(parent, [])]
+        return [
+            Window(
+                w.hwnd,
+                w.pid,
+                w.visible,
+                self.rects.get(w.hwnd, w.rect),
+                w.class_name,
+                w.title,
+            )
+            for w in self.rows.get(parent, [])
+        ]
 
     def processes(self):
         return [(pid, "VIEW.EXE") for pid in self.pids]
@@ -122,11 +138,30 @@ def run(guest, scene_class):
 
 def state_file(folder, name="state.json", **values):
     data = (folder / "flower.bmp").read_bytes()
-    value = {"version": 1, "windows": [
-        {"id": "back", "app": "picture", "title": "Back", "at": [10, 20], "size": [200, 150]},
-        {"id": "flower", "app": "picture", "title": "Flower", "at": [60, 60], "size": [300, 220],
-         "open": {"file": "flower.bmp", "sha256": hashlib.sha256(data).hexdigest()}},
-    ], "pointer": [500, 400]}
+    value = {
+        "version": 1,
+        "windows": [
+            {
+                "id": "back",
+                "app": "picture",
+                "title": "Back",
+                "at": [10, 20],
+                "size": [200, 150],
+            },
+            {
+                "id": "flower",
+                "app": "picture",
+                "title": "Flower",
+                "at": [60, 60],
+                "size": [300, 220],
+                "open": {
+                    "file": "flower.bmp",
+                    "sha256": hashlib.sha256(data).hexdigest(),
+                },
+            },
+        ],
+        "pointer": [500, 400],
+    }
     value.update(values)
     value = {k: v for k, v in value.items() if v is not None}
     path = folder / name
@@ -149,8 +184,10 @@ def test_a_picture_opens_where_it_should_with_its_image_copied_once(guest, folde
     scene, _ = run(guest, Two)
     viewer = guestfiles.guest_path(b"MZ view", "VIEW.EXE")
     picture = guestfiles.guest_path(image.read_bytes(), "flower.bmp")
-    assert guest.spawned == [f'{viewer} 40 50 300 200 "Flower" "{picture}"',
-                             f'{viewer} 100 100 320 240 "Again" "{picture}"']
+    assert guest.spawned == [
+        f'{viewer} 40 50 300 200 "Flower" "{picture}"',
+        f'{viewer} 100 100 320 240 "Again" "{picture}"',
+    ]
     assert guest.puts == [viewer, picture]
     assert scene.first.image_size == (4, 3)
     assert scene.first.rect == (40, 50, 340, 250)
@@ -160,8 +197,12 @@ def test_a_bad_picture_fails_before_the_guest_is_asked(folder):
     (folder / "cut.bmp").write_bytes(bmp()[:60])
     with pytest.raises(ValueError, match="cut short"):
         Picture(image=folder / "cut.bmp")
-    for title, match in (('a "quoted" title', "double quote"), ("ends\\", "backslash"),
-                         ("a\nb", "control"), ("\u4e2d", "1252")):
+    for title, match in (
+        ('a "quoted" title', "double quote"),
+        ("ends\\", "backslash"),
+        ("a\nb", "control"),
+        ("\u4e2d", "1252"),
+    ):
         with pytest.raises(ValueError, match=match):
             Picture(title)
     Picture("a\\b caf\u00e9")  # accepted: inner backslash, cp1252 accent
@@ -229,9 +270,21 @@ def test_a_scene_state_is_applied_and_checked_before_setup(guest, folder):
 
 def test_set_state_jumps_and_old_props_are_forgotten(guest, folder):
     first = state_file(folder, "first.json")
-    second = state_file(folder, "second.json", windows=[
-        {"id": "only", "app": "picture", "title": "Only", "at": [0, 0], "size": [100, 100],
-         "show": "maximized"}], pointer=None)
+    second = state_file(
+        folder,
+        "second.json",
+        windows=[
+            {
+                "id": "only",
+                "app": "picture",
+                "title": "Only",
+                "at": [0, 0],
+                "size": [100, 100],
+                "show": "maximized",
+            }
+        ],
+        pointer=None,
+    )
 
     class Jump(Scene):
         def construct(self):
@@ -287,12 +340,16 @@ def test_a_guest_that_does_not_match_says_how(guest, folder):
     back = scene.prop("back")
     guest.rects[back.hwnd] = (11, 20, 211, 160)
     row = guest.rows[0][1]
-    guest.rows[0][1] = Window(row.hwnd, row.pid, True, row.rect, row.class_name, "Moved")
+    guest.rows[0][1] = Window(
+        row.hwnd, row.pid, True, row.rect, row.class_name, "Moved"
+    )
     guest.shown[scene.prop("flower").hwnd] = "minimized"
     guest.cursor = (1, 2)
     guest.display = (640, 480, 16)
     with pytest.raises(StateMismatch) as caught:
-        check_state(scene, load_state(path), {"back": back, "flower": scene.prop("flower")})
+        check_state(
+            scene, load_state(path), {"back": back, "flower": scene.prop("flower")}
+        )
     assert caught.value.problems == [
         "display: [800, 600, 16] wanted, the guest has [640, 480, 16]",
         "windows[0] 'back': title 'Back' wanted, the guest has 'Moved'",
@@ -320,7 +377,8 @@ def test_check_reports_order_and_a_missing_window(guest, folder):
     with pytest.raises(StateMismatch) as caught:
         check_state(scene, state, props)
     assert caught.value.problems == [
-        "windows: front to back should be ['flower', 'back'], the guest has ['back', 'flower']"]
+        "windows: front to back should be ['flower', 'back'], the guest has ['back', 'flower']"
+    ]
     guest.rows[0] = guest.rows[0][1:]
     with pytest.raises(StateMismatch) as caught:
         check_state(scene, state, props)

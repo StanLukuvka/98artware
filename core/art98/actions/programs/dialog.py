@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import struct
+from typing import ClassVar
 
 from ... import win32
 from ..window.win import Win
@@ -25,9 +26,15 @@ class Dialog(Win):
     """
 
     window_class = "#32770"
-    ICONS = {None: 0, "error": 0x10, "question": 0x20, "warning": 0x30, "info": 0x40}
+    ICONS: ClassVar[dict[str | None, int]] = {
+        None: 0,
+        "error": 0x10,
+        "question": 0x20,
+        "warning": 0x30,
+        "info": 0x40,
+    }
     # Each one seen in a real box (experiments/dialog-storm/README-p1.md).
-    CUSTOM_ICONS = {
+    CUSTOM_ICONS: ClassVar[dict[str, tuple[str, int]]] = {
         "computer": (r"C:\WINDOWS\SYSTEM\shell32.dll", 15),
         "printer": (r"C:\WINDOWS\SYSTEM\shell32.dll", 16),
         "mouse": (r"C:\WINDOWS\SYSTEM\main.cpl", 0),
@@ -36,13 +43,35 @@ class Dialog(Win):
         "globe": (r"C:\WINDOWS\SYSTEM\shell32.dll", 13),
         "flag": (r"C:\WINDOWS\SYSTEM\user.exe", 0),
     }
-    BUTTONS = {"ok": 0, "okcancel": 1, "abortretryignore": 2, "yesnocancel": 3,
-               "yesno": 4, "retrycancel": 5}
-    ANSWERS = {1: "ok", 2: "cancel", 3: "abort", 4: "retry", 5: "ignore", 6: "yes", 7: "no"}
+    BUTTONS: ClassVar[dict[str, int]] = {
+        "ok": 0,
+        "okcancel": 1,
+        "abortretryignore": 2,
+        "yesnocancel": 3,
+        "yesno": 4,
+        "retrycancel": 5,
+    }
+    ANSWERS: ClassVar[dict[int, str]] = {
+        1: "ok",
+        2: "cancel",
+        3: "abort",
+        4: "retry",
+        5: "ignore",
+        6: "yes",
+        7: "no",
+    }
 
-    def __init__(self, text: str, title: str = "art98", *, icon: str | tuple[str, int] | None = None,
-                 buttons: str = "ok", at: tuple[int, int] | None = None,
-                 size: tuple[int, int] | None = None, disabled: bool = False):
+    def __init__(
+        self,
+        text: str,
+        title: str = "art98",
+        *,
+        icon: str | tuple[str, int] | None = None,
+        buttons: str = "ok",
+        at: tuple[int, int] | None = None,
+        size: tuple[int, int] | None = None,
+        disabled: bool = False,
+    ):
         super().__init__(title, at=at, size=size)
         self.message = text
         self.disabled = disabled
@@ -53,7 +82,9 @@ class Dialog(Win):
             self._custom = self.CUSTOM_ICONS[icon]
         elif icon not in self.ICONS:
             raise ValueError(f"unknown icon {icon!r}")
-        self.style = (BASE_ICON if self._custom else self.ICONS[icon]) | self.BUTTONS[buttons]
+        self.style = (BASE_ICON if self._custom else self.ICONS[icon]) | self.BUTTONS[
+            buttons
+        ]
         self._call = None
         self._hicon = None
         self._text_hwnd = None
@@ -62,17 +93,25 @@ class Dialog(Win):
 
     def attach(self, scene) -> None:
         # Every box comes from the one agent process and may share a title: only the unseen one is ours.
-        self._seen = {w.hwnd for w in scene.guest.windows() if w.class_name.lower() == self.window_class}
+        self._seen = {
+            w.hwnd
+            for w in scene.guest.windows()
+            if w.class_name.lower() == self.window_class
+        }
         self._call = scene.guest.acall(
-            "user32", "MessageBoxA", 0, self.message, self.title_text, self.style)
+            "user32", "MessageBoxA", 0, self.message, self.title_text, self.style
+        )
         super().attach(scene)
 
     def _look(self, pid):
         title = self.title_text.lower()
         for window in self.guest.windows():
-            if (window.visible and window.hwnd not in self._seen
-                    and window.class_name.lower() == self.window_class
-                    and title in window.title.lower()):
+            if (
+                window.visible
+                and window.hwnd not in self._seen
+                and window.class_name.lower() == self.window_class
+                and title in window.title.lower()
+            ):
                 return window
         return None
 
@@ -82,14 +121,19 @@ class Dialog(Win):
             self._size_checked = True
             if self._size[0] < self._sent[2] or self._size[1] < self._sent[3]:
                 # lazy: the box stays open on the guest until the next revert.
-                raise ValueError(f"size {self._size} is smaller than the stock box "
-                                 f"{self._sent[2:]}: the text and buttons would be clipped")
+                raise ValueError(
+                    f"size {self._size} is smaller than the stock box "
+                    f"{self._sent[2:]}: the text and buttons would be clipped"
+                )
         super().apply()
 
     def ready(self) -> None:
         user32 = self.guest.user32
         statics = self.children("Static")
-        styles = {w.hwnd: user32.GetWindowLongA(w.hwnd, GWL_STYLE & 0xFFFFFFFF).value for w in statics}
+        styles = {
+            w.hwnd: user32.GetWindowLongA(w.hwnd, GWL_STYLE & 0xFFFFFFFF).value
+            for w in statics
+        }
         text = [w.hwnd for w in statics if styles[w.hwnd] & 0x1F != SS_ICON]
         self._text_hwnd = text[0] if text else None
         if self._custom:
@@ -115,31 +159,49 @@ class Dialog(Win):
     def _origin(self) -> tuple[int, int]:
         """Where the client area starts, as the (negative) screen-to-client offset."""
         point = struct.pack("<ii", 0, 0)
-        return struct.unpack("<ii", self.guest.user32.ScreenToClient(self.hwnd, point).buffers[0])
+        return struct.unpack(
+            "<ii", self.guest.user32.ScreenToClient(self.hwnd, point).buffers[0]
+        )
 
     def _relayout(self, buttons: list[int]) -> None:
         user32 = self.guest.user32
-        win32.place_window(self.guest, self.hwnd, 0, 0, *self._size, 0x2 | 0x4)  # NOMOVE | NOZORDER
+        win32.place_window(
+            self.guest, self.hwnd, 0, 0, *self._size, 0x2 | 0x4
+        )  # NOMOVE | NOZORDER
         width, height = self.client_size()
         total = len(buttons) * BUTTON_W + (len(buttons) - 1) * BUTTON_GAP
         x = (width - total) // 2
         for hwnd in buttons:
-            user32.MoveWindow(hwnd, x, height - BOTTOM_MARGIN - BUTTON_H, BUTTON_W, BUTTON_H, 1)
+            user32.MoveWindow(
+                hwnd, x, height - BOTTOM_MARGIN - BUTTON_H, BUTTON_W, BUTTON_H, 1
+            )
             x += BUTTON_W + BUTTON_GAP
         if self._text_hwnd is not None:
             rect = win32.window_rect(self.guest, self._text_hwnd)
-            user32.MoveWindow(self._text_hwnd, TEXT_X, rect[1] + self._origin()[1],
-                              width - TEXT_X - RIGHT_MARGIN, rect[3] - rect[1], 1)
+            user32.MoveWindow(
+                self._text_hwnd,
+                TEXT_X,
+                rect[1] + self._origin()[1],
+                width - TEXT_X - RIGHT_MARGIN,
+                rect[3] - rect[1],
+                1,
+            )
 
     def set_message(self, text: str) -> None:
         """Change the box's text. The text area grows to its lines; it must stay clear of the buttons."""
         user32 = self.guest.user32
         left, top, right, _ = win32.window_rect(self.guest, self._text_hwnd)
         height = LINE_H * (text.count("\n") + 1)
-        buttons = [win32.window_rect(self.guest, w.hwnd) for w in self.children("Button")]
+        buttons = [
+            win32.window_rect(self.guest, w.hwnd) for w in self.children("Button")
+        ]
         if buttons and top + height > min(b[1] for b in buttons):
-            raise ValueError("the message is too tall for the box: give the Dialog a bigger size")
-        user32.MoveWindow(self._text_hwnd, TEXT_X, top + self._origin()[1], right - left, height, 1)
+            raise ValueError(
+                "the message is too tall for the box: give the Dialog a bigger size"
+            )
+        user32.MoveWindow(
+            self._text_hwnd, TEXT_X, top + self._origin()[1], right - left, height, 1
+        )
         user32.SetWindowTextA(self._text_hwnd, text)
         self.message = text
         self.guest.sync(self.hwnd)

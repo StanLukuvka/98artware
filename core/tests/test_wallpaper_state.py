@@ -6,21 +6,24 @@ import struct
 from types import SimpleNamespace
 
 import pytest
-
 from art98 import desktop
 from art98.anim import setstate
 from art98.bridge import CallResult
 from art98.state import DesktopState, State, StateError, WindowState, load_state
-
 from test_backdrop import DiskGuest
 
 
 def bmp(width=4, height=3, rgb=(10, 200, 30)):
     stride = (width * 3 + 3) // 4 * 4
     pixels = (bytes(rgb[::-1]) * width).ljust(stride, b"\0") * height
-    return (b"BM" + struct.pack("<IHHI", 54 + len(pixels), 0, 0, 54)
-            + struct.pack("<IiiHHIIiiII", 40, width, height, 1, 24, 0, len(pixels), 0, 0, 0, 0)
-            + pixels)
+    return (
+        b"BM"
+        + struct.pack("<IHHI", 54 + len(pixels), 0, 0, 54)
+        + struct.pack(
+            "<IiiHHIIiiII", 40, width, height, 1, 24, 0, len(pixels), 0, 0, 0, 0
+        )
+        + pixels
+    )
 
 
 def ref(folder, name="wall.bmp", data=None):
@@ -42,11 +45,15 @@ def problems(folder, desk):
 
 
 def test_a_full_desktop_block_loads(tmp_path):
-    state = load(tmp_path, {"colour": [0, 128, 128], "wallpaper": ref(tmp_path), "style": "tile"})
+    state = load(
+        tmp_path, {"colour": [0, 128, 128], "wallpaper": ref(tmp_path), "style": "tile"}
+    )
     assert state.desktop.colour == (0, 128, 128)
     assert state.desktop.style == "tile"
     assert state.desktop.wallpaper.data == bmp()
-    assert load(tmp_path, {"colour": [1, 2, 3]}).desktop == DesktopState((1, 2, 3), None, "center")
+    assert load(tmp_path, {"colour": [1, 2, 3]}).desktop == DesktopState(
+        (1, 2, 3), None, "center"
+    )
     assert load(tmp_path, {"wallpaper": ref(tmp_path)}).desktop.style == "center"
 
 
@@ -58,10 +65,18 @@ def test_a_state_without_desktop_has_none(tmp_path):
 def test_every_desktop_error_message(tmp_path):
     ok = ref(tmp_path)
     junk = ref(tmp_path, "text.bmp", b"hello world, not a bitmap at all")
-    assert problems(tmp_path, {"colour": [1, 2]}) == ["desktop.colour: needs 3 whole numbers"]
-    assert problems(tmp_path, {"colour": [1, 2, True]}) == ["desktop.colour: needs 3 whole numbers"]
-    assert problems(tmp_path, {"colour": [1, 2, 256]}) == ["desktop.colour: needs numbers from 0 to 255"]
-    assert problems(tmp_path, {"colour": [-1, 2, 3]}) == ["desktop.colour: needs numbers from 0 to 255"]
+    assert problems(tmp_path, {"colour": [1, 2]}) == [
+        "desktop.colour: needs 3 whole numbers"
+    ]
+    assert problems(tmp_path, {"colour": [1, 2, True]}) == [
+        "desktop.colour: needs 3 whole numbers"
+    ]
+    assert problems(tmp_path, {"colour": [1, 2, 256]}) == [
+        "desktop.colour: needs numbers from 0 to 255"
+    ]
+    assert problems(tmp_path, {"colour": [-1, 2, 3]}) == [
+        "desktop.colour: needs numbers from 0 to 255"
+    ]
     [p] = problems(tmp_path, {"wallpaper": {"file": "nope.bmp", "sha256": "0"}})
     assert p.startswith("desktop.wallpaper.file:") and "doesn't exist" in p
     [p] = problems(tmp_path, {"wallpaper": {**ok, "sha256": "0" * 64}})
@@ -69,12 +84,14 @@ def test_every_desktop_error_message(tmp_path):
     [p] = problems(tmp_path, {"wallpaper": junk})
     assert p.startswith("desktop.wallpaper: ") and "is not a BMP file" in p
     assert problems(tmp_path, {"wallpaper": ok, "style": "wavy"}) == [
-        "desktop.style: should be one of center, tile, stretch, not 'wavy'"]
+        "desktop.style: should be one of center, tile, stretch, not 'wavy'"
+    ]
     assert problems(tmp_path, {"style": "tile"}) == ["desktop.style: needs a wallpaper"]
     assert problems(tmp_path, {"icons": [], "tray": 1, "bogus": 2}) == [
         "desktop.bogus: unknown field",
         "desktop.icons: not supported yet: desktop icons come after this milestone",
-        "desktop.tray: not supported yet: the tray comes after this milestone"]
+        "desktop.tray: not supported yet: the tray comes after this milestone",
+    ]
     assert problems(tmp_path, [1]) == ["desktop: should be an object"]
 
 
@@ -91,7 +108,11 @@ class Guest(DiskGuest):
 
     def __init__(self, pixel=(10, 200, 30), colour=(0, 128, 128), log=None):
         super().__init__(files={"D:\\WALL0001.BMP"})
-        self.pixel, self.colour, self.log = pixel, colour, log if log is not None else []
+        self.pixel, self.colour, self.log = (
+            pixel,
+            colour,
+            log if log is not None else [],
+        )
         self.gdi32 = self.user32
 
     def handle(self, dll, function, args):
@@ -122,8 +143,12 @@ def stub_scene(guest, log, monkeypatch):
 
     monkeypatch.setattr(setstate, "APPS", {"picture": App})
     monkeypatch.setattr(setstate, "repaint_window", lambda *a: None)
-    return SimpleNamespace(guest=guest, session=Session(log), pointer=None,
-                           add=lambda prop: log.append("add"))
+    return SimpleNamespace(
+        guest=guest,
+        session=Session(log),
+        pointer=None,
+        add=lambda prop: log.append("add"),
+    )
 
 
 def window():
@@ -134,21 +159,33 @@ def kinds(log):
     return [e[0] if isinstance(e, tuple) else e for e in log]
 
 
-def test_apply_attaches_the_disc_before_windows_and_sets_colour_then_wallpaper(tmp_path, monkeypatch):
+def test_apply_attaches_the_disc_before_windows_and_sets_colour_then_wallpaper(
+    tmp_path, monkeypatch
+):
     log = []
     guest = Guest(log=log)
     scene = stub_scene(guest, log, monkeypatch)
-    state = load(tmp_path, {"colour": [1, 2, 3], "wallpaper": ref(tmp_path), "style": "stretch"})
+    state = load(
+        tmp_path, {"colour": [1, 2, 3], "wallpaper": ref(tmp_path), "style": "stretch"}
+    )
     state = State(state.path, None, (window(),), None, state.desktop)
     setstate.apply_state(scene, state)
     k = kinds(log)
-    assert k.index("SetSysColors") < k.index("attach_disc") < k.index("SystemParametersInfoA")
+    assert (
+        k.index("SetSysColors")
+        < k.index("attach_disc")
+        < k.index("SystemParametersInfoA")
+    )
     assert k.index("SystemParametersInfoA") < k.index("from_state") < k.index("add")
     assert log[k.index("attach_disc")] == ("attach_disc", {"WALL0001.BMP": bmp()})
-    assert [c[1][2] for c in guest.named("SystemParametersInfoA") if c[1][0] == 0x14] == ["D:\\WALL0001.BMP"]
+    assert [
+        c[1][2] for c in guest.named("SystemParametersInfoA") if c[1][0] == 0x14
+    ] == ["D:\\WALL0001.BMP"]
 
 
-def test_a_state_without_desktop_makes_no_disc_call_and_touches_nothing(tmp_path, monkeypatch):
+def test_a_state_without_desktop_makes_no_disc_call_and_touches_nothing(
+    tmp_path, monkeypatch
+):
     log = []
     guest = Guest(log=log)
     scene = stub_scene(guest, log, monkeypatch)
@@ -161,7 +198,7 @@ def checked(tmp_path, guest, desk, windows=()):
     state = load(tmp_path, desk)
     state = State(state.path, None, tuple(windows), None, state.desktop)
     props = {w.id: SimpleNamespace(hwnd=1) for w in windows}
-    guest.windows = lambda: []
+    guest.windows = list
     try:
         setstate.check_state(SimpleNamespace(guest=guest), state, props)
     except setstate.StateMismatch as error:
@@ -179,14 +216,18 @@ def test_check_state_fails_on_a_wrong_colour(tmp_path):
 
 
 def test_check_state_compares_one_wallpaper_pixel_within_tolerance(tmp_path):
-    wall = {"wallpaper": ref(tmp_path, data=bmp(800, 600, (10, 200, 30)))}  # fills the screen
+    wall = {
+        "wallpaper": ref(tmp_path, data=bmp(800, 600, (10, 200, 30)))
+    }  # fills the screen
     checked(tmp_path, Guest(pixel=(18, 192, 24)), wall)  # 16 bpp rounding is inside 12
     with pytest.raises(setstate.StateMismatch) as caught:
         checked(tmp_path, Guest(pixel=(200, 0, 0)), wall)
     assert caught.value.problems[0].startswith("desktop.wallpaper: pixel [")
 
 
-def test_the_wallpaper_pixel_is_taken_where_no_window_is_and_above_the_taskbar(tmp_path):
+def test_the_wallpaper_pixel_is_taken_where_no_window_is_and_above_the_taskbar(
+    tmp_path,
+):
     log = []
     wall = {"wallpaper": ref(tmp_path, data=bmp(800, 600))}
     over = WindowState("w", "picture", "P", (300, 200), (200, 200))  # covers the centre
@@ -200,7 +241,11 @@ def test_expected_pixel_for_each_style():
     data = bmp(2, 2, (9, 8, 7))
     desk = lambda style: DesktopState(None, SimpleNamespace(data=data), style)
     bg = (1, 1, 1)
-    assert setstate.expected_pixel(desk("center"), (800, 600), bg, 400, 300) == (9, 8, 7)
+    assert setstate.expected_pixel(desk("center"), (800, 600), bg, 400, 300) == (
+        9,
+        8,
+        7,
+    )
     assert setstate.expected_pixel(desk("center"), (800, 600), bg, 10, 10) == bg
     assert setstate.expected_pixel(desk("tile"), (800, 600), bg, 10, 10) == (9, 8, 7)
     assert setstate.expected_pixel(desk("stretch"), (800, 600), bg, 10, 10) == (9, 8, 7)
@@ -212,8 +257,12 @@ def odd_bmps():
     rle[30:34] = struct.pack("<I", 1)  # ... BI_RLE8
     rle += b"\0" * 1100
     pixels = b"\x01\x02\x03" * 4  # 12-byte header: 16-bit size, 3-byte palette entries
-    os2 = (b"BM" + struct.pack("<IHHI", 26 + len(pixels), 0, 0, 26)
-           + struct.pack("<IHHHH", 12, 4, 1, 1, 24) + pixels)
+    os2 = (
+        b"BM"
+        + struct.pack("<IHHI", 26 + len(pixels), 0, 0, 26)
+        + struct.pack("<IHHHH", 12, 4, 1, 1, 24)
+        + pixels
+    )
     return [bytes(rle), os2]
 
 
@@ -223,6 +272,18 @@ def test_rle_and_os2_bmps_skip_the_pixel_check_without_raising(tmp_path):
         assert guest_bmp[0] == 4
         assert setstate.bmp_pixel(data, 1, 0) is None
         for style in ("tile", "stretch"):
-            assert setstate.expected_pixel(DesktopState(None, SimpleNamespace(data=data), style),
-                                           (800, 600), (1, 1, 1), 10, 10) is None
-        checked(tmp_path, Guest(pixel=(200, 0, 0)), {"wallpaper": ref(tmp_path, data=data), "style": "tile"})
+            assert (
+                setstate.expected_pixel(
+                    DesktopState(None, SimpleNamespace(data=data), style),
+                    (800, 600),
+                    (1, 1, 1),
+                    10,
+                    10,
+                )
+                is None
+            )
+        checked(
+            tmp_path,
+            Guest(pixel=(200, 0, 0)),
+            {"wallpaper": ref(tmp_path, data=data), "style": "tile"},
+        )

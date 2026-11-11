@@ -1,7 +1,6 @@
 """Dragging: Windows moves the window itself, because the pointer holds its title bar."""
 
 from art98.anim import *
-from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class DragWindow(Scene):

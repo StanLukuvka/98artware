@@ -1,6 +1,6 @@
 """Render every gallery scene to docs/assets/gifs, a few VMs at a time.
 
-    uv run python tools/render_all.py [name ...]
+uv run python tools/render_all.py [name ...]
 """
 
 import subprocess
@@ -33,11 +33,27 @@ def render(name: str) -> str:
     scene, options = SCENES[name]
     output = OUT / f"{name.replace('_', '-')}.gif"
     folders = ("gallery", ".", "mvp", "blank_start", "dialog_storm")
-    source = next(path for folder in folders
-                  if (path := ROOT / "examples" / folder / f"{name}.py").exists())
+    source = next(
+        path
+        for folder in folders
+        if (path := ROOT / "examples" / folder / f"{name}.py").exists()
+    )
     subprocess.run(
-        [sys.executable, "-m", "art98.cli", "render", str(source), scene, "-o", str(output), "--work", str(ROOT / "work"), *options],
-        check=True, cwd=ROOT,
+        [
+            sys.executable,
+            "-m",
+            "art98.cli",
+            "render",
+            str(source),
+            scene,
+            "-o",
+            str(output),
+            "--work",
+            str(ROOT / "work"),
+            *options,
+        ],
+        check=True,
+        cwd=ROOT,
     )
     return f"{output.name}: {output.stat().st_size / 1e6:.2f} MB"
 

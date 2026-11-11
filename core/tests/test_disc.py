@@ -3,7 +3,6 @@ import os
 
 import pycdlib
 import pytest
-
 from art98.disc import build_iso
 
 
@@ -42,7 +41,9 @@ def test_volume_is_uppercased():
     assert cd.pvd.volume_identifier.rstrip(b" ") == b"DISC"
 
 
-@pytest.mark.parametrize("name", ["wall.bmp", "WALL.BMPX", "TOOLONGNAME.BMP", "NODOT", ".BMP", "A B.TXT"])
+@pytest.mark.parametrize(
+    "name", ["wall.bmp", "WALL.BMPX", "TOOLONGNAME.BMP", "NODOT", ".BMP", "A B.TXT"]
+)
 def test_bad_names_raise(name):
     with pytest.raises(ValueError):
         build_iso({name: b"x"})

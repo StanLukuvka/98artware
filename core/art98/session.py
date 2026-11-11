@@ -7,14 +7,15 @@ import os
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import Self
 
 from . import disc
 from .bridge import Bridge
 from .qemu import VM, VMConfig
-from .recorder import GIF_COLORS, GIF_FPS, H264, Recorder  # noqa: F401  (old names stay importable from here)
+from .recorder import Recorder
 
 SNAPSHOT = "ready"
 IMAGE_FILE = "image.json"
@@ -33,7 +34,9 @@ def backend_name(backend: str | None = None) -> str:
     """The backend to use: the argument, else ART98_BACKEND, else "container"."""
     name = backend or os.environ.get("ART98_BACKEND") or "container"
     if name not in BACKENDS:
-        raise BackendError(f"unknown backend {name!r}; choose from {', '.join(BACKENDS)}")
+        raise BackendError(
+            f"unknown backend {name!r}; choose from {', '.join(BACKENDS)}"
+        )
     return name
 
 
@@ -52,14 +55,18 @@ class Session:
     def __init__(self, vm: VM, bridge: Bridge):
         self.vm = vm
         self.bridge = bridge
-        self._disc = False  # True while a disc this session inserted may be in the drive
+        self._disc = (
+            False  # True while a disc this session inserted may be in the drive
+        )
 
     def attach_disc(self, files: dict[str, bytes]) -> None:
         """Put an ISO of `files` (level 1 names, see disc.build_iso) in the CD drive."""
         self.vm.insert_disc(disc.build_iso(files))
         self._disc = True
 
-    def record(self, path: Path | str, fps: int = 30, lossless: bool = False) -> Recorder:
+    def record(
+        self, path: Path | str, fps: int = 30, lossless: bool = False
+    ) -> Recorder:
         return Recorder(self, path, fps, lossless)
 
     def revert(self, snapshot: str = SNAPSHOT) -> None:
@@ -82,7 +89,7 @@ class Session:
         self.bridge.close()
         self.vm.close()
 
-    def __enter__(self) -> "Session":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -111,8 +118,12 @@ def private_stage(work: Path | str = "work") -> Iterator[Path]:
         shutil.rmtree(stage, ignore_errors=True)
 
 
-def boot(work: Path | str = "work", display: str = "none", ready_timeout: float = 30.0,
-         backend: str | None = None) -> Session:
+def boot(
+    work: Path | str = "work",
+    display: str = "none",
+    ready_timeout: float = 30.0,
+    backend: str | None = None,
+) -> Session:
     """Restore the prepared desktop and connect to it.
 
     Each boot starts from the same snapshot, so nothing a previous run did to
@@ -127,8 +138,9 @@ def boot(work: Path | str = "work", display: str = "none", ready_timeout: float 
     if backend_name(backend) == "container":
         from .container import host
 
-        return host.boot(work, display=display,
-                         ready_timeout=max(ready_timeout, host.START_TIMEOUT))
+        return host.boot(
+            work, display=display, ready_timeout=max(ready_timeout, host.START_TIMEOUT)
+        )
     data = json.loads(image.read_text())
     data["disk"] = str(image_disk(work, data))
     config = VMConfig.from_json(data)
@@ -145,8 +157,9 @@ def boot(work: Path | str = "work", display: str = "none", ready_timeout: float 
 
 
 @contextmanager
-def stage(work: Path | str = "work", display: str = "none",
-          backend: str | None = None) -> Iterator[Session]:
+def stage(
+    work: Path | str = "work", display: str = "none", backend: str | None = None
+) -> Iterator[Session]:
     """A booted session on a throwaway copy of the image, closed afterwards.
 
     The local backend copies the disk under work/runs here; the container
@@ -156,5 +169,8 @@ def stage(work: Path | str = "work", display: str = "none",
         with boot(work, display=display, backend="container") as session:
             yield session
         return
-    with private_stage(work) as copy, boot(copy, display=display, backend="local") as session:
+    with (
+        private_stage(work) as copy,
+        boot(copy, display=display, backend="local") as session,
+    ):
         yield session

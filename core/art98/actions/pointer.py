@@ -51,7 +51,13 @@ class Pointer(Prop):
 
 def _span(progress: float, start: float, end: float) -> float:
     """How far progress is through the stretch from start to end."""
-    return 0.0 if progress <= start else 1.0 if progress >= end else (progress - start) / (end - start)
+    return (
+        0.0
+        if progress <= start
+        else 1.0
+        if progress >= end
+        else (progress - start) / (end - start)
+    )
 
 
 class PointerAction(Animation):
@@ -78,7 +84,9 @@ class PointerAction(Animation):
         return []
 
     def update(self, progress: float) -> None:
-        self.pointer.place(lerp(self.start, self.end, self.rate_func(_span(progress, 0, self.travel))))
+        self.pointer.place(
+            lerp(self.start, self.end, self.rate_func(_span(progress, 0, self.travel)))
+        )
         self.fire(progress)
 
     def fire(self, progress: float) -> None:
@@ -101,7 +109,9 @@ class Hover(PointerAction):
 
     live = True
 
-    def __init__(self, target, *, hold: float = 1.0, travel_time: float = 0.5, **kwargs):
+    def __init__(
+        self, target, *, hold: float = 1.0, travel_time: float = 0.5, **kwargs
+    ):
         super().__init__(target, **kwargs)
         self.run_time = travel_time + hold
         self.travel = travel_time / self.run_time
@@ -146,8 +156,12 @@ class DoubleClick(Click):
     travel = 0.66
 
     def schedule(self) -> list:
-        return [(0.66, self._press), (0.72, self._release),
-                (0.78, self._press), (0.84, self._release)]
+        return [
+            (0.66, self._press),
+            (0.72, self._release),
+            (0.78, self._press),
+            (0.84, self._release),
+        ]
 
 
 class Drag(PointerAction):
@@ -172,8 +186,10 @@ class Drag(PointerAction):
     def schedule(self) -> list:
         self.grab = self.end
         self.goal = self.grab + self.by if self.by is not None else point_of(self.to)
-        return [(self.travel, self._take_hold),
-                (self.drop, lambda: self.pointer.release(self.button))]
+        return [
+            (self.travel, self._take_hold),
+            (self.drop, lambda: self.pointer.release(self.button)),
+        ]
 
     def _take_hold(self) -> None:
         self.pointer.place(self.grab)
@@ -181,7 +197,13 @@ class Drag(PointerAction):
 
     def update(self, progress: float) -> None:
         if progress < self.travel:
-            self.pointer.place(lerp(self.start, self.grab, self.rate_func(_span(progress, 0, self.travel))))
+            self.pointer.place(
+                lerp(
+                    self.start,
+                    self.grab,
+                    self.rate_func(_span(progress, 0, self.travel)),
+                )
+            )
             return
         self.fire(self.travel)
         carried = self.rate_func(_span(progress, self.travel, self.drop))
@@ -209,7 +231,9 @@ class Stroke(PointerAction):
     run_time = 2.0
     travel_time = 0.4
 
-    def __init__(self, path, *, button: str = "left", steps_per_frame: int = 4, **kwargs):
+    def __init__(
+        self, path, *, button: str = "left", steps_per_frame: int = 4, **kwargs
+    ):
         super().__init__(None, **kwargs)
         self.path = path_function(path)
         self.button = button
@@ -218,7 +242,9 @@ class Stroke(PointerAction):
 
     def begin(self, scene) -> None:
         self.target = Spot(lambda: self.path(0))
-        self.travel = min(0.5, self.travel_time / self.run_time) if self.run_time else 0.0
+        self.travel = (
+            min(0.5, self.travel_time / self.run_time) if self.run_time else 0.0
+        )
         self._done = 0.0
         super().begin(scene)
 
@@ -231,12 +257,16 @@ class Stroke(PointerAction):
 
     def update(self, progress: float) -> None:
         if progress < self.travel:
-            self.pointer.place(lerp(self.start, self.end, smooth(_span(progress, 0, self.travel))))
+            self.pointer.place(
+                lerp(self.start, self.end, smooth(_span(progress, 0, self.travel)))
+            )
             return
         self.fire(self.travel)
         drawn = self.rate_func(_span(progress, self.travel, 1.0))
         for step in range(1, self.steps + 1):
-            self.pointer.place(self.path(self._done + (drawn - self._done) * step / self.steps))
+            self.pointer.place(
+                self.path(self._done + (drawn - self._done) * step / self.steps)
+            )
             self.scene.guest.sync()
         self._done = drawn
         if progress >= 1:

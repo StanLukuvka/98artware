@@ -198,6 +198,7 @@ Eleven are in `C:\WINDOWS\SYSTEM`, and one is in `C:\WINDOWS`. All have long nam
 ```python
 from art98 import Out, boot
 
+
 def listing(guest, pattern):
     found = guest.kernel32.FindFirstFileA(pattern, Out(320))
     if found.value == 0xFFFFFFFF:
@@ -211,6 +212,7 @@ def listing(guest, pattern):
             guest.kernel32.FindClose(handle)
             return names
         data = more.buffers[0]
+
 
 with boot("work") as stage:
     print(listing(stage.bridge, r"C:\WINDOWS\SYSTEM\*.SCR"))

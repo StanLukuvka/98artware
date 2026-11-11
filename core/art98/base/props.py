@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from .vectors import DL, LEFT, ORIGIN, RIGHT, Vec
 
@@ -38,8 +38,19 @@ class Box:
     """
 
     claims: tuple[str, ...] = ()
-    LAYOUT = frozenset(("shift", "move_to", "center", "to_edge", "to_corner", "next_to",
-                        "resize", "set_rect", "scale"))
+    LAYOUT = frozenset(
+        (
+            "shift",
+            "move_to",
+            "center",
+            "to_edge",
+            "to_corner",
+            "next_to",
+            "resize",
+            "set_rect",
+            "scale",
+        )
+    )
 
     def __init__(self, x: float = 0, y: float = 0, width: float = 0, height: float = 0):
         self.x, self.y, self.width, self.height = x, y, width, height
@@ -62,33 +73,35 @@ class Box:
         return self.get_center()
 
     def get_corner(self, direction) -> Vec:
-        return self.get_center() + Vec(direction[0] * self.width / 2, direction[1] * self.height / 2)
+        return self.get_center() + Vec(
+            direction[0] * self.width / 2, direction[1] * self.height / 2
+        )
 
     def refresh(self) -> None:
         """Read the real position back. A plain Box has nothing to read."""
 
-    def ghost(self) -> "Box":
+    def ghost(self) -> Box:
         """A copy to try layout calls on, without touching the prop."""
         ghost = Box(self.x, self.y, self.width, self.height)
         ghost.area = self.area
         return ghost
 
-    def shift(self, *vectors) -> "Box":
+    def shift(self, *vectors) -> Box:
         for vector in vectors:
             self.x += vector[0]
             self.y += vector[1]
         return self
 
-    def move_to(self, target, aligned_edge=ORIGIN) -> "Box":
+    def move_to(self, target, aligned_edge=ORIGIN) -> Box:
         """Put this box's centre on the target, or the given edge or corner."""
         return self.shift(point_of(target) - self.get_corner(aligned_edge))
 
-    def center(self) -> "Box":
+    def center(self) -> Box:
         """Centre in the work area: the whole screen, or above the taskbar."""
         left, top, right, bottom = self.area
         return self.move_to(((left + right) / 2, (top + bottom) / 2))
 
-    def to_edge(self, edge=LEFT, buff: float = 0) -> "Box":
+    def to_edge(self, edge=LEFT, buff: float = 0) -> Box:
         left, top, right, bottom = self.area
         if edge[0]:
             self.x = left + buff if edge[0] < 0 else right - buff - self.width
@@ -96,26 +109,28 @@ class Box:
             self.y = top + buff if edge[1] < 0 else bottom - buff - self.height
         return self
 
-    def to_corner(self, corner=DL, buff: float = 0) -> "Box":
+    def to_corner(self, corner=DL, buff: float = 0) -> Box:
         return self.to_edge(corner, buff)
 
-    def next_to(self, other, direction=RIGHT, buff: float = DEFAULT_BUFF) -> "Box":
+    def next_to(self, other, direction=RIGHT, buff: float = DEFAULT_BUFF) -> Box:
         """Sit beside another box, centred on it along the other axis."""
         other.refresh()
-        gap = Vec(direction[0] * (other.width + self.width) / 2 + direction[0] * buff,
-                  direction[1] * (other.height + self.height) / 2 + direction[1] * buff)
+        gap = Vec(
+            direction[0] * (other.width + self.width) / 2 + direction[0] * buff,
+            direction[1] * (other.height + self.height) / 2 + direction[1] * buff,
+        )
         return self.move_to(other.get_center() + gap)
 
-    def resize(self, width: float, height: float) -> "Box":
+    def resize(self, width: float, height: float) -> Box:
         """Change size, keeping the top left corner where it is."""
         self.width, self.height = width, height
         return self
 
-    def set_rect(self, x: float, y: float, width: float, height: float) -> "Box":
+    def set_rect(self, x: float, y: float, width: float, height: float) -> Box:
         self.x, self.y, self.width, self.height = x, y, width, height
         return self
 
-    def scale(self, factor: float) -> "Box":
+    def scale(self, factor: float) -> Box:
         """Grow or shrink about the centre. A real app keeps its font size."""
         centre = self.get_center()
         self.width *= factor
@@ -139,7 +154,9 @@ class Prop(Box):
     @property
     def guest(self):
         if self.scene is None:
-            raise RuntimeError(f"{type(self).__name__} is not on stage: add it to the scene first")
+            raise RuntimeError(
+                f"{type(self).__name__} is not on stage: add it to the scene first"
+            )
         return self.scene.guest
 
     def attach(self, scene) -> None:

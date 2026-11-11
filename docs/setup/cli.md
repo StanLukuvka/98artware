@@ -4,7 +4,7 @@ The `art98` command is `core/art98/cli.py`. Run it with `uv run art98`, from a s
 checkout: it finds `guest/build` relative to the source file, so an installed wheel
 would not find it.
 
-This page covers `doctor`, `setup`, `ping`, `up` and `serve`. `setup` was called `prep`, and `art98 prep` still works as an alias. For `art98 render`, see
+This page covers `doctor`, `setup`, `ping`, `up` and `serve`. For `art98 render`, see
 [the scene API](../scenes/scene-api.md).
 
 ## art98 doctor
@@ -64,7 +64,7 @@ uv run art98 setup --iso /path/to/win98se.iso
 | `--key KEY` | `ART98_PRODUCT_KEY` | Your product key. Only `vm` needs it, and it is used when the answer file is written. `--key` wins over the variable |
 | `--work PATH` | `work` | The work directory, relative to where you run the command. Created if missing |
 | `--disk-mb N` | 2047 | Size of the Windows disk. Only the `vm` step reads it, and it rounds down to whole cylinders. Only the default has been run |
-| `--from STEP` | None | Redo `vm`, `setup`, `init_api` or `ready`, and everything after it. The old stage names `media`, `disk`, `install`, `patch` and `harden` are accepted and mean the step that holds them. See [what `--from` needs](stages.md#what---from-needs) |
+| `--from STEP` | None | Redo `vm`, `setup`, `init_api` or `ready`, and everything after it. See [what `--from` needs](stages.md#what---from-needs) |
 | `--watch` | Off | Show the VM's screen in a window, with `-display gtk` instead of `-display none`. Needs a graphical session and a QEMU built with GTK. `ART98_WATCH_DISPLAY` replaces `gtk`, which is how `art98 up --watch` gets VNC |
 
 Steps that are already done don't need their flags. Resuming at `setup` needs
@@ -163,7 +163,7 @@ uv run art98 up --iso /path/to/win98se.iso
 | `--work PATH` | `work` | The work directory, mounted at `/work` in the container |
 | `--watch` | Off | Show setup's screen over VNC on `127.0.0.1:PORT`, with no password. Loopback only |
 | `--vnc-port PORT` | 5998 | The host port for `--watch` |
-| `--rebuild` | Off | Build the image even if it exists |
+| `--rebuild` | Off | Build the image even if it exists. The build asks Docker's CLI for `--load` and fails if the engine's image isn't the one just built |
 | `--disk-mb N` | 2047 | As for `setup` |
 
 art98 calls only `docker`. On a Podman host, install `podman-docker`, which provides it. Files
@@ -210,7 +210,7 @@ Everything setup makes goes under `--work`. `work/` is in `.gitignore`.
 
 | Path | From | Removed | What it is |
 |------|------|---------|------------|
-| `state.json` | Every step | | Finished steps. Old stage names in it still count, see [how steps are tracked](stages.md#how-steps-are-tracked) |
+| `state.json` | Every step | | Finished steps. See [how steps are tracked](stages.md#how-steps-are-tracked) |
 | `media/win98/` | `vm` | | Setup files from your disc. Microsoft's files, so keep them out of anything you publish |
 | `boot.img` | `vm` | | Patched boot floppy |
 | `AUTOEXEC.BAT`, `CONFIG.SYS` | `vm` | | Scratch copies of what went on the floppy. No key in them, and nothing reads them again |

@@ -5,9 +5,9 @@ An animation is one change over time. You pass it to [`Scene.play`](scene-api.md
 Every animation takes `run_time` and `rate_func` as keywords. A value given to `play` overrides
 both.
 
-**Parked.** Paint, Minesweeper and Screensaver still work, but
-`from art98.anim import *` leaves them out until each program returns as its own action
-class. Samples that use them import them from `art98.anim.apps`. The MVP's one window is [`Picture`](scene-api.md#picture).
+Every program on the image is an action class in `core/art98/actions/programs/`, one file each, and `from art98.anim import *` gives them all: [`Notepad`](scene-api.md#notepad), [`Dialog`](scene-api.md#dialog),
+[`Paint`](scene-api.md#paint), [`Minesweeper`](scene-api.md#minesweeper) and
+[`Screensaver`](scene-api.md#screensaver). [`Picture`](scene-api.md#picture) is the window states use most.
 Most samples here use Notepad as the window to act on.
 
 ## How one runs
@@ -34,7 +34,6 @@ A rate function maps progress to eased progress. The formulas are Manim's.
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class Rates(Scene):
@@ -64,7 +63,6 @@ Call the result to set its timing, which is handy inside a group:
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class Chained(Scene):
@@ -111,7 +109,6 @@ function from 0..1 to a point.
 import math
 
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class Orbit(Scene):
@@ -120,7 +117,10 @@ class Orbit(Scene):
         self.add(pad)
 
         def circle(t):
-            return (400 + 200 * math.cos(2 * math.pi * t), 280 + 120 * math.sin(2 * math.pi * t))
+            return (
+                400 + 200 * math.cos(2 * math.pi * t),
+                280 + 120 * math.sin(2 * math.pi * t),
+            )
 
         self.play(MoveAlongPath(pad, circle), run_time=3, rate_func=linear)
         self.pause(0.5)
@@ -151,7 +151,6 @@ Children that overlap can't drive the same thing. That raises `ValueError`.
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class InOrder(Scene):
@@ -160,12 +159,14 @@ class InOrder(Scene):
     def construct(self):
         pad = Notepad(at=(120, 100), size=(420, 260))
         self.add(pad)
-        self.play(Succession(
-            Glide((300, 400)),
-            Wait(0.3),
-            Click(pad.client(40, 40)),
-            TypeWithCursor(pad, "one after another"),
-        ))
+        self.play(
+            Succession(
+                Glide((300, 400)),
+                Wait(0.3),
+                Click(pad.client(40, 40)),
+                TypeWithCursor(pad, "one after another"),
+            )
+        )
         self.pause(0.5)
 ```
 
@@ -176,14 +177,15 @@ the one before.
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class Staggered(Scene):
     def construct(self):
         pads = [Notepad(at=(30 + 180 * i, 40), size=(170, 120)) for i in range(4)]
         self.add(*pads)
-        self.play(LaggedStart(*(pad.animate.shift(300 * DOWN) for pad in pads), lag_ratio=0.3))
+        self.play(
+            LaggedStart(*(pad.animate.shift(300 * DOWN) for pad in pads), lag_ratio=0.3)
+        )
         self.pause(0.5)
 ```
 
@@ -277,7 +279,6 @@ Source: [drag_window.py](../../examples/gallery/drag_window.py).
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class DragAndResize(Scene):
@@ -305,7 +306,6 @@ instead of a curve. More steps give a smoother line and a slower render.
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Paint
 
 
 class Line(Scene):
@@ -315,7 +315,11 @@ class Line(Scene):
         paint = Paint(at=(120, 40), size=(520, 480))
         self.add(paint)
         self.play(Click(paint.tool("pencil")))
-        self.play(Stroke([paint.canvas(40, 60), paint.canvas(360, 60), paint.canvas(200, 240)]))
+        self.play(
+            Stroke(
+                [paint.canvas(40, 60), paint.canvas(360, 60), paint.canvas(200, 240)]
+            )
+        )
         self.pause(0.5)
 ```
 
@@ -335,7 +339,6 @@ Source: [menus_keys.py](../../examples/gallery/menus_keys.py).
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class WordWrap(Scene):
@@ -379,7 +382,6 @@ Deletes `count` letters from the caret, with Backspace.
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class Retype(Scene):
@@ -409,7 +411,6 @@ the US layout can't type.
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class RealKeys(Scene):
@@ -433,7 +434,6 @@ frame.
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 
 class States(Scene):
@@ -476,7 +476,6 @@ For something Windows does at once, subclass `Instant` and write `act()`. It run
 
 ```python
 from art98.anim import *
-from art98.anim.apps import Notepad
 
 SW_HIDE, SW_SHOW = 0, 5
 

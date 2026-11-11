@@ -97,7 +97,10 @@ What a scene author imports with `from art98.anim import *`.
 - [ ] [picture.py](../core/art98/actions/window/picture.py): the picture window.
 - [ ] [notepad.py](../core/art98/actions/programs/notepad.py): Notepad as a program. Programs live in
   `actions/programs/`, one file each, and subclass `Win`.
-- [ ] [apps.py](../core/art98/anim/apps.py): the parked programs (Paint, Minesweeper and the rest), unexported.
+- [ ] [dialog.py](../core/art98/actions/programs/dialog.py): a real message box, opened by the agent.
+- [ ] [paint.py](../core/art98/actions/programs/paint.py): Paint, with targets for its tools, palette and canvas.
+- [ ] [minesweeper.py](../core/art98/actions/programs/minesweeper.py): Minesweeper, which can read its mines and win.
+- [ ] [screensaver.py](../core/art98/actions/programs/screensaver.py): a screensaver, started with /s.
 - [ ] [timeline.py](../core/art98/anim/timeline.py): `play`, `wait`, `pause`, `live` as functions `Scene` calls.
 - [ ] [freshness.py](../core/art98/freshness.py): warns when the image or guest programs are older than the code.
 - [ ] [setstate.py](../core/art98/anim/setstate.py): applies a state and checks it took.

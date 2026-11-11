@@ -7,13 +7,13 @@ import time
 from pathlib import Path
 
 import pytest
-
 from art98 import disc
 from art98.guestfiles import guest_build
-from art98.recorder import ppm_size
 from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
+from art98.recorder import ppm_size
 from art98.session import Session
-from art98_setup import builder, vm as vm_step
+from art98_setup import builder
+from art98_setup import vm as vm_step
 
 MBR = guest_build() / "mbr.bin"
 pytestmark = [
@@ -92,7 +92,9 @@ def test_screenshot_formats(disk, tmp_path):
 
 def test_snapshot_restores_at_launch(tmp_path, disk):
     golden = tmp_path / "golden.qcow2"
-    subprocess.run(["qemu-img", "convert", "-O", "qcow2", str(disk), str(golden)], check=True)
+    subprocess.run(
+        ["qemu-img", "convert", "-O", "qcow2", str(disk), str(golden)], check=True
+    )
     config = VMConfig(disk=golden)
     with VM(config) as vm:
         serial_output(vm.serial_path, MESSAGE)
@@ -154,9 +156,23 @@ def test_recorder_writes_exactly_the_requested_frames(disk, tmp_path):
             recorder.live(0.3)
     assert bridge.syncs == 2 and recorder.count == 8
     probe = subprocess.run(
-        ["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0",
-         "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(video)],
-        capture_output=True, text=True, check=True)
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-count_frames",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=nb_read_frames",
+            "-of",
+            "csv=p=0",
+            str(video),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     assert probe.stdout.strip() == "8"
 
 
@@ -174,7 +190,9 @@ def test_broken_config_reports_the_failure(tmp_path):
 
 
 def test_config_survives_json(tmp_path):
-    config = VMConfig(disk=tmp_path / "d.qcow2", machine="pc-i440fx-10.2", icount_shift=2)
+    config = VMConfig(
+        disk=tmp_path / "d.qcow2", machine="pc-i440fx-10.2", icount_shift=2
+    )
     assert VMConfig.from_json(config.to_json()) == config
 
 
@@ -183,13 +201,23 @@ def test_disc_insert_and_eject(tmp_path):
     disk = tmp_path / "disk.img"
     disk.write_bytes(bytes(1024 * 1024))
     iso = disc.build_iso({"WALL0001.BMP": b"BM" + bytes(5000)})
-    with VM(VMConfig(disk=disk, disk_format="raw", sound=False, extra_args=["-S"])) as vm:
-        assert vm.disc_state() == {"present": True, "inserted": False, "tray_open": False}
+    with VM(
+        VMConfig(disk=disk, disk_format="raw", sound=False, extra_args=["-S"])
+    ) as vm:
+        assert vm.disc_state() == {
+            "present": True,
+            "inserted": False,
+            "tray_open": False,
+        }
         vm.eject_disc()  # empty drive: harmless
         vm.insert_disc(iso)
         assert (vm._dir / "art98.iso").read_bytes() == iso
         assert vm.disc_state()["inserted"] is True
         vm.eject_disc()
-        assert vm.disc_state() == {"present": True, "inserted": False, "tray_open": False}
+        assert vm.disc_state() == {
+            "present": True,
+            "inserted": False,
+            "tray_open": False,
+        }
         vm.insert_disc(iso)  # and again
         assert vm.disc_state()["inserted"] is True

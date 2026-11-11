@@ -9,11 +9,10 @@ and cannot do.
 
 ![System overview](../diagrams/system-overview.png)
 
-**Parked.** Paint, Minesweeper and Screensaver still work, but
-`from art98.anim import *` leaves them out until each program returns as its own action
-class. Samples that use them import them from `art98.anim.apps`. [`Picture`](scene-api.md#picture),
-[`Notepad`](scene-api.md#notepad), [`Dialog`](scene-api.md#dialog) and
-[`Backdrop`](scene-api.md#backdrop) are not parked.
+Programs are action classes in `core/art98/actions/programs/`, one file each, and
+`from art98.anim import *` gives them all: [`Notepad`](scene-api.md#notepad),
+[`Dialog`](scene-api.md#dialog), [`Paint`](scene-api.md#paint),
+[`Minesweeper`](scene-api.md#minesweeper) and [`Screensaver`](scene-api.md#screensaver).
 
 ## A first scene
 

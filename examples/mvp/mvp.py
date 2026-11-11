@@ -1,6 +1,6 @@
 """The MVP sample: picture windows, set from state files and moved on camera.
 
-    art98 render examples/mvp/mvp.py
+art98 render examples/mvp/mvp.py
 """
 
 from pathlib import Path
@@ -22,7 +22,11 @@ class Mvp(Scene):
         self.pause(0.5)
         self.play(Close(flower))
         self.pause(0.5)
-        self.add(Picture("Sky", image=HERE / "assets" / "sky.bmp", at=(100, 260), size=(240, 200)))
+        self.add(
+            Picture(
+                "Sky", image=HERE / "assets" / "sky.bmp", at=(100, 260), size=(240, 200)
+            )
+        )
         self.pause(1)
 
         self.set_state("states/gallery.json")

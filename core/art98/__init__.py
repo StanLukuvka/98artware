@@ -7,6 +7,7 @@ from .recorder import Recorder, RecorderError
 from .session import Session, boot
 
 __all__ = [
+    "VM",
     "Bridge",
     "BridgeError",
     "BridgeTimeout",
@@ -16,7 +17,6 @@ __all__ = [
     "Recorder",
     "RecorderError",
     "Session",
-    "VM",
     "VMConfig",
     "Window",
     "boot",

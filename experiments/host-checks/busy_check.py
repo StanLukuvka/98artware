@@ -16,7 +16,8 @@ import threading
 import time
 from pathlib import Path
 
-out = Path(sys.argv[1]); out.mkdir(parents=True, exist_ok=True)
+out = Path(sys.argv[1])
+out.mkdir(parents=True, exist_ok=True)
 busy_runs = int(sys.argv[2]) if len(sys.argv) > 2 else 2
 SCENE = "examples/blank_start/blank_start.py"
 HERE = Path(__file__).parent
@@ -35,23 +36,51 @@ def render(name: str) -> dict:
             samples.append(some10())
 
     before = some10()
-    t = threading.Thread(target=sampler); t.start()
+    t = threading.Thread(target=sampler)
+    t.start()
     start = time.monotonic()
-    p = subprocess.run([sys.executable, str(HERE / "timed_render.py"), str(timings), "--", "render", SCENE,
-                        "--backend", "local", "--work", "work", "-o", str(video)],
-                       capture_output=True, text=True)
+    p = subprocess.run(  # noqa: PLW1510
+        [
+            sys.executable,
+            str(HERE / "timed_render.py"),
+            str(timings),
+            "--",
+            "render",
+            SCENE,
+            "--backend",
+            "local",
+            "--work",
+            "work",
+            "-o",
+            str(video),
+        ],
+        capture_output=True,
+        text=True,
+    )
     wall = time.monotonic() - start
-    stop.set(); t.join()
+    stop.set()
+    t.join()
     (out / f"{name}.log").write_text(p.stdout + p.stderr)
-    r = {"name": name, "exit": p.returncode, "wall_s": round(wall, 1), "psi_before": before,
-         "psi_during_min": min(samples, default=None), "psi_during_max": max(samples, default=None),
-         "psi_during_mean": round(sum(samples) / len(samples), 1) if samples else None,
-         "psi_after": some10()}
+    r = {
+        "name": name,
+        "exit": p.returncode,
+        "wall_s": round(wall, 1),
+        "psi_before": before,
+        "psi_during_min": min(samples, default=None),
+        "psi_during_max": max(samples, default=None),
+        "psi_during_mean": round(sum(samples) / len(samples), 1) if samples else None,
+        "psi_after": some10(),
+    }
     if timings.exists():
         tm = json.loads(timings.read_text())
         s = [d for d, _ in tm["sync"]]
-        r |= {"sync_calls": len(s), "sync_max_s": max(s, default=0), "sync_total_s": round(sum(s), 2),
-              "put_file_s": round(sum(x[2] for x in tm["put_file"]), 2), "timeouts": tm["timeouts"]}
+        r |= {
+            "sync_calls": len(s),
+            "sync_max_s": max(s, default=0),
+            "sync_total_s": round(sum(s), 2),
+            "put_file_s": round(sum(x[2] for x in tm["put_file"]), 2),
+            "timeouts": tm["timeouts"],
+        }
     print(json.dumps(r), flush=True)
     return r
 

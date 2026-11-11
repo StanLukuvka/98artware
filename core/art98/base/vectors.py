@@ -11,26 +11,26 @@ class Vec(NamedTuple):
     x: float
     y: float
 
-    def __add__(self, other) -> "Vec":
+    def __add__(self, other) -> Vec:
         return Vec(self.x + other[0], self.y + other[1])
 
     __radd__ = __add__
 
-    def __sub__(self, other) -> "Vec":
+    def __sub__(self, other) -> Vec:
         return Vec(self.x - other[0], self.y - other[1])
 
-    def __rsub__(self, other) -> "Vec":
+    def __rsub__(self, other) -> Vec:
         return Vec(other[0] - self.x, other[1] - self.y)
 
-    def __mul__(self, factor: float) -> "Vec":
+    def __mul__(self, factor: float) -> Vec:
         return Vec(self.x * factor, self.y * factor)
 
     __rmul__ = __mul__
 
-    def __truediv__(self, factor: float) -> "Vec":
+    def __truediv__(self, factor: float) -> Vec:
         return Vec(self.x / factor, self.y / factor)
 
-    def __neg__(self) -> "Vec":
+    def __neg__(self) -> Vec:
         return Vec(-self.x, -self.y)
 
     def rounded(self) -> tuple[int, int]:
@@ -49,4 +49,6 @@ DR = DOWN + RIGHT
 
 
 def lerp(start, end, alpha: float) -> Vec:
-    return Vec(start[0] + (end[0] - start[0]) * alpha, start[1] + (end[1] - start[1]) * alpha)
+    return Vec(
+        start[0] + (end[0] - start[0]) * alpha, start[1] + (end[1] - start[1]) * alpha
+    )

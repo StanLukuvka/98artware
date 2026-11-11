@@ -6,17 +6,16 @@ Setup, the agent's first call, and the `ready` snapshot. Each step is a module i
 `setup/art98_setup/` with a `run` function, and `Setup` in `builder.py`
 runs them.
 
-| Step | Module | What it holds | Old stages |
-|------|--------|---------------|------------|
-| `vm` | `vm.py` | Boot floppy, Setup files from the disc, blank disk with the MBR, `AGENT.EXE` copied in | `media`, `disk` |
-| `setup` | `setup.py` | Unattended Windows Setup through its reboots | `install` |
-| `init_api` | `init_api.py` | `MSDOS.SYS` options, convert to qcow2, then boot once and wait for the agent | `patch` |
-| `ready` | `ready.py` | Registry settings, display mode, clean desktop check, the `ready` snapshot | `harden` |
+| Step | Module | What it holds |
+|------|--------|---------------|
+| `vm` | `vm.py` | Boot floppy, Setup files from the disc, blank disk with the MBR, `AGENT.EXE` copied in |
+| `setup` | `setup.py` | Unattended Windows Setup through its reboots |
+| `init_api` | `init_api.py` | `MSDOS.SYS` options, convert to qcow2, then boot once and wait for the agent |
+| `ready` | `ready.py` | Registry settings, display mode, clean desktop check, the `ready` snapshot |
 
 ![The four setup steps, their inputs and their outputs](../diagrams/prep-pipeline.png)
 
-The command is `art98 setup`. `art98 prep` still works as an alias, and the old
-stage names are accepted wherever a step name is.
+The command is `art98 setup`.
 
 ## How steps are tracked
 
@@ -25,18 +24,9 @@ is in it. A step is added only after it returns, so a failed step is not marked
 done. Running `art98 setup` again resumes at that step from its start. A step has no
 checkpoints of its own.
 
-**Old `state.json` files still count.** Builds made before the rename recorded five
-stages: `["media", "disk", "install", "patch", "harden"]`. Reading the file maps them
-onto the steps: `vm` is done when both `media` and `disk` are, `setup` when `install`
-is, `init_api` when `patch` is, and `ready` when `harden` is. So a finished old build
-says every step is already done and nothing runs. The file is not rewritten just to
-rename; the next step to finish writes the list again with the new names.
-
 `--from STEP` cuts the list down to the steps before `STEP`, writes that to
 `state.json`, and then runs as usual. The file is rewritten before any work
-starts, so if the redo fails, the later steps stay forgotten. `STEP` can be a new
-name or an old stage name: `media` or `disk` mean `vm`, `install` means `setup`,
-`patch` means `init_api`, `harden` means `ready`.
+starts, so if the redo fails, the later steps stay forgotten. `STEP` must be one of the four step names.
 
 The list is cut by position, so `--from` never skips a step that has not run. On
 a `state.json` holding `["vm"]`, `--from ready` runs `setup` next.

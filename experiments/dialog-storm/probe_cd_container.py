@@ -7,6 +7,7 @@
 
 Throwaway probe: no source edits, no savevm, private copy only. Exit 1 if any check fails.
 """
+
 import json
 import struct
 import sys
@@ -49,24 +50,28 @@ def make_bmp(w, h) -> bytes:
         row = b"".join(bytes((128, g, x * 255 // (w - 1))) for x in range(w))  # BGR
         rows.append(row + bytes(stride - len(row)))
     pix = b"".join(rows)
-    return (b"BM" + struct.pack("<IHHI", 54 + len(pix), 0, 0, 54)
-            + struct.pack("<IiiHHIIiiII", 40, w, h, 1, 24, 0, len(pix), 2835, 2835, 0, 0) + pix)
+    return (
+        b"BM"
+        + struct.pack("<IHHI", 54 + len(pix), 0, 0, 54)
+        + struct.pack("<IiiHHIIiiII", 40, w, h, 1, 24, 0, len(pix), 2835, 2835, 0, 0)
+        + pix
+    )
 
 
 def ppm_px(path, x, y):
     data = Path(path).read_bytes()
     toks, pos = [], 0
     while len(toks) < 4:
-        while data[pos:pos + 1].isspace():
+        while data[pos : pos + 1].isspace():
             pos += 1
         end = pos
-        while not data[end:end + 1].isspace():
+        while not data[end : end + 1].isspace():
             end += 1
         toks.append(data[pos:end])
         pos = end
     w = int(toks[1])
     i = pos + 1 + (y * w + x) * 3
-    return tuple(data[i:i + 3])
+    return tuple(data[i : i + 3])
 
 
 def near(a, b):
@@ -76,7 +81,10 @@ def near(a, b):
 def medium_gone(s) -> bool:
     # RemoteVM has no disc_state(): the guest's own view is the only check on the container
     letter = cd_drive(s.bridge)
-    readable = bool(letter) and s.bridge.kernel32.GetFileAttributesA(letter + NAME).value != 0xFFFFFFFF
+    readable = (
+        bool(letter)
+        and s.bridge.kernel32.GetFileAttributesA(letter + NAME).value != 0xFFFFFFFF
+    )
     return not readable
 
 
@@ -92,15 +100,20 @@ def main():
 
         def cycle(tag, style):
             t = time.perf_counter()
-            s.attach_disc({NAME: bmp})            # send + insert (first check: no "unknown op")
+            s.attach_disc({NAME: bmp})  # send + insert (first check: no "unknown op")
             t1 = time.perf_counter()
             path = wait_for_disc(g, NAME)
             t2 = time.perf_counter()
             set_wallpaper(g, path, style)
             t3 = time.perf_counter()
             ms = lambda a, b: round((b - a) * 1000)
-            RES[f"timing:{tag}"] = {"send_insert": ms(t, t1), "detect": ms(t1, t2), "set": ms(t2, t3),
-                                    "total": ms(t, t3), "psi_cpu": psi()}
+            RES[f"timing:{tag}"] = {
+                "send_insert": ms(t, t1),
+                "detect": ms(t1, t2),
+                "set": ms(t2, t3),
+                "total": ms(t, t3),
+                "psi_cpu": psi(),
+            }
             rec(f"timing:{tag}", RES[f"timing:{tag}"])
             shot = OUT / f"{BACKEND}_{tag}.ppm"
             s.vm.screenshot(shot, format="ppm")
@@ -116,7 +129,7 @@ def main():
         s.revert()
         rec("revert1_ms", round((time.perf_counter() - t) * 1000))
         check("revert1_medium_gone", medium_gone(s))
-        cycle("stretch", "stretch")               # fresh attach after revert 1
+        cycle("stretch", "stretch")  # fresh attach after revert 1
         t = time.perf_counter()
         s.revert()
         rec("revert2_ms", round((time.perf_counter() - t) * 1000))
@@ -126,8 +139,9 @@ def main():
 
 try:
     main()
-except Exception:
+except Exception:  # noqa: BLE001
     import traceback
+
     RES["fail"].append("exception")
     rec("EXCEPTION", traceback.format_exc()[-1500:])
 (OUT / f"results_{BACKEND}.json").write_text(json.dumps(RES, indent=1, default=str))

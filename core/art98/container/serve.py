@@ -75,8 +75,14 @@ class Server:
     container, a fake in tests); serial_path is the guest's COM1 socket.
     """
 
-    def __init__(self, vm, serial_path: Path | str, token: str,
-                 listener: socket.socket, log=print):
+    def __init__(
+        self,
+        vm,
+        serial_path: Path | str,
+        token: str,
+        listener: socket.socket,
+        log=print,
+    ):
         self.vm = vm
         self.serial_path = str(serial_path)
         self._token = token.encode()
@@ -87,15 +93,30 @@ class Server:
         self._relay_lock = threading.Lock()
         self._relay: tuple[socket.socket, socket.socket] | None = None
         self._vm_lock = threading.Lock()
-        self._shots = Path(tempfile.mkdtemp(
-            prefix="art98-shots-", dir="/dev/shm" if os.path.isdir("/dev/shm") else None))
+        self._shots = Path(
+            tempfile.mkdtemp(
+                prefix="art98-shots-",
+                dir="/dev/shm" if os.path.isdir("/dev/shm") else None,
+            )
+        )
         # The folder holding a Unix socket is shared with the host.
-        self._shared = (Path(listener.getsockname()).parent
-                        if listener.family == socket.AF_UNIX else None)
+        self._shared = (
+            Path(listener.getsockname()).parent
+            if listener.family == socket.AF_UNIX
+            else None
+        )
 
     @classmethod
-    def listen(cls, vm, serial_path, token: str, host: str = "0.0.0.0", port: int = PORT,
-               unix: Path | str | None = None, log=print) -> "Server":
+    def listen(
+        cls,
+        vm,
+        serial_path,
+        token: str,
+        host: str = "0.0.0.0",
+        port: int = PORT,
+        unix: Path | str | None = None,
+        log=print,
+    ) -> Server:
         """Listen on TCP, or on the Unix socket `unix` if given."""
         if unix:
             Path(unix).unlink(missing_ok=True)
@@ -128,8 +149,13 @@ class Server:
         started = time.monotonic()
         try:
             while not self._stop.is_set():
-                if not self._owner_seen.is_set() and time.monotonic() - started > owner_timeout:
-                    self._log(f"no control connection within {owner_timeout:.0f}s; quitting")
+                if (
+                    not self._owner_seen.is_set()
+                    and time.monotonic() - started > owner_timeout
+                ):
+                    self._log(
+                        f"no control connection within {owner_timeout:.0f}s; quitting"
+                    )
                     break
                 try:
                     conn, _ = self._listener.accept()
@@ -137,7 +163,9 @@ class Server:
                     continue
                 except OSError:
                     break
-                threading.Thread(target=self._handshake, args=(conn,), daemon=True).start()
+                threading.Thread(
+                    target=self._handshake, args=(conn,), daemon=True
+                ).start()
         finally:
             if self._shared:
                 Path(self._listener.getsockname()).unlink(missing_ok=True)
@@ -248,14 +276,24 @@ class Server:
                     data = b""
                     if isinstance(request, dict) and request.get("op") == "insert_disc":
                         size = request.get("size")
-                        if not isinstance(size, int) or isinstance(size, bool) or not 0 < size <= MAX_DISC:
-                            raise DesyncError(f"insert_disc size must be 1 to {MAX_DISC} bytes")
+                        if (
+                            not isinstance(size, int)
+                            or isinstance(size, bool)
+                            or not 0 < size <= MAX_DISC
+                        ):
+                            raise DesyncError(
+                                f"insert_disc size must be 1 to {MAX_DISC} bytes"
+                            )
                         data = reader.read(size)
                         if len(data) != size:
-                            raise ConnectionError("the connection closed inside a disc image")
+                            raise ConnectionError(
+                                "the connection closed inside a disc image"
+                            )
                     reply, payload = self.handle(request, data)
                 except DesyncError as error:
-                    conn.sendall(json.dumps({"ok": False, "error": str(error)}).encode() + b"\n")
+                    conn.sendall(
+                        json.dumps({"ok": False, "error": str(error)}).encode() + b"\n"
+                    )
                     self._log(f"{error}; closing the control connection")
                     break
                 except ConnectionError as error:
@@ -263,8 +301,11 @@ class Server:
                     break
                 except (ValueError, TypeError, KeyError, ControlError) as error:
                     reply, payload = {"ok": False, "error": str(error)}, b""
-                except Exception as error:  # QEMU errors and the like go back to the host
-                    reply, payload = {"ok": False, "error": f"{type(error).__name__}: {error}"}, b""
+                except Exception as error:  # noqa: BLE001  (QEMU errors and the like go back to the host)
+                    reply, payload = (
+                        {"ok": False, "error": f"{type(error).__name__}: {error}"},
+                        b"",
+                    )
                 conn.sendall(json.dumps(reply).encode() + b"\n" + payload)
                 if reply.get("ok") and request.get("op") == "quit":
                     break
@@ -283,7 +324,9 @@ class Server:
             if op == "screenshot":
                 fmt = request.get("format", "ppm")
                 if fmt not in SCREENSHOT_FORMATS:
-                    raise ControlError(f"format must be one of {', '.join(SCREENSHOT_FORMATS)}")
+                    raise ControlError(
+                        f"format must be one of {', '.join(SCREENSHOT_FORMATS)}"
+                    )
                 if request.get("shared") and self._shared:
                     name = f"frame.{fmt}"
                     self.vm.screenshot(self._shared / name, format=fmt)
@@ -294,7 +337,9 @@ class Server:
                 return {"ok": True, "size": len(data)}, data
             if op == "send_keys":
                 keys = request["keys"]
-                if not isinstance(keys, list) or not all(isinstance(k, str) for k in keys):
+                if not isinstance(keys, list) or not all(
+                    isinstance(k, str) for k in keys
+                ):
                     raise ControlError("keys is a list of QEMU key names")
                 self.vm.send_keys(*keys, hold_ms=int(request.get("hold_ms", 80)))
             elif op == "revert":
@@ -321,18 +366,26 @@ def read_token(path: Path | str | None = None) -> str:
     try:
         token = path.read_text().strip()
     except FileNotFoundError:
-        raise SystemExit(f"error: no token at {path}; mount one at /run/secrets/art98_token") from None
+        raise SystemExit(
+            f"error: no token at {path}; mount one at /run/secrets/art98_token"
+        ) from None
     if not token:
         raise SystemExit(f"error: the token in {path} is empty")
     return token
 
 
-def run(work: Path | str = "/work", port: int = PORT, token_file: Path | str | None = None,
-        vnc: bool = False, ready_timeout: float = 60.0, unix: Path | str | None = None) -> int:
+def run(
+    work: Path | str = "/work",
+    port: int = PORT,
+    token_file: Path | str | None = None,
+    vnc: bool = False,
+    ready_timeout: float = 60.0,
+    unix: Path | str | None = None,
+) -> int:
     """Boot the stage and serve it. Used by `art98 serve` inside the container."""
     from art98.bridge import Bridge
     from art98.qemu import VM, VMConfig
-    from art98.session import SNAPSHOT, IMAGE_FILE, private_stage
+    from art98.session import IMAGE_FILE, SNAPSHOT, private_stage
 
     token = read_token(token_file)
 
@@ -354,9 +407,13 @@ def run(work: Path | str = "/work", port: int = PORT, token_file: Path | str | N
                 probe.wait_ready(ready_timeout)
             finally:
                 probe.close()
-            server = Server.listen(vm, vm.serial_path, token, port=port, unix=unix, log=log)
+            server = Server.listen(
+                vm, vm.serial_path, token, port=port, unix=unix, log=log
+            )
             where = unix or f"port {port}"
-            log(f"guest ready in {time.monotonic() - started:.2f}s; listening on {where}")
+            log(
+                f"guest ready in {time.monotonic() - started:.2f}s; listening on {where}"
+            )
             server.serve()
     log("stopped")
     return 0

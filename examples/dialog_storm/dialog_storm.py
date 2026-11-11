@@ -25,7 +25,15 @@ class DialogStorm(Scene):
         # Cascade candidate: this loop by hand is the case for a library helper.
         x0, y0 = 60, 330
         for i in range(8):
-            self.add(Dialog("???", "???", icon="warning", at=(x0 + 24 * i, y0 - 18 * i), size=BOX))
+            self.add(
+                Dialog(
+                    "???",
+                    "???",
+                    icon="warning",
+                    at=(x0 + 24 * i, y0 - 18 * i),
+                    size=BOX,
+                )
+            )
             self.pause(2 * FRAME)
         self.pause(0.5)
         self.next_section("pair")
@@ -33,8 +41,16 @@ class DialogStorm(Scene):
         rng = random.Random(98)
         for _ in range(2):
             jitter = (rng.randint(-4, 4), rng.randint(-4, 4))
-            self.add(Dialog("???", "???", icon="computer", disabled=True, size=BOX,
-                            at=(400 + jitter[0], 380 + jitter[1])))
+            self.add(
+                Dialog(
+                    "???",
+                    "???",
+                    icon="computer",
+                    disabled=True,
+                    size=BOX,
+                    at=(400 + jitter[0], 380 + jitter[1]),
+                )
+            )
             self.pause(2 * FRAME)
         self.pause(0.5)
 
@@ -66,6 +82,14 @@ class DialogStormStock(Scene):
         self.pause(0.5)
         self.play(Backdrop("dark_red"))
         for i in range(4):
-            self.add(Dialog("???", "???", icon="warning", at=(200 + 24 * i, 250 - 18 * i), size=BOX))
+            self.add(
+                Dialog(
+                    "???",
+                    "???",
+                    icon="warning",
+                    at=(200 + 24 * i, 250 - 18 * i),
+                    size=BOX,
+                )
+            )
             self.pause(2 * FRAME)
         self.pause(1)

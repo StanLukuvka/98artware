@@ -14,21 +14,60 @@ MAX_SUBSYSTEM_VERSION = (4, 10)
 # Every import the agent uses, each confirmed present in Windows 98.
 ALLOWED_IMPORTS = {
     "KERNEL32.dll": {
-        "CloseHandle", "CreateEventA", "CreateFileA", "CreateProcessA", "CreateThread",
-        "CreateToolhelp32Snapshot", "EnterCriticalSection", "ExitProcess", "GetCommState",
-        "GetFileSize", "GetLastError", "GetModuleFileNameA", "GetModuleHandleA",
-        "GetOverlappedResult", "GetProcAddress", "GetProcessHeap", "GetTickCount",
-        "HeapAlloc", "HeapFree", "InitializeCriticalSection",
-        "LeaveCriticalSection", "LoadLibraryA", "Process32First", "Process32Next",
-        "ReadFile", "ResetEvent", "SetCommState", "SetCommTimeouts", "SetFilePointer",
-        "SetLastError", "SetUnhandledExceptionFilter", "SetupComm", "Sleep", "WriteFile",
+        "CloseHandle",
+        "CreateEventA",
+        "CreateFileA",
+        "CreateProcessA",
+        "CreateThread",
+        "CreateToolhelp32Snapshot",
+        "EnterCriticalSection",
+        "ExitProcess",
+        "GetCommState",
+        "GetFileSize",
+        "GetLastError",
+        "GetModuleFileNameA",
+        "GetModuleHandleA",
+        "GetOverlappedResult",
+        "GetProcAddress",
+        "GetProcessHeap",
+        "GetTickCount",
+        "HeapAlloc",
+        "HeapFree",
+        "InitializeCriticalSection",
+        "LeaveCriticalSection",
+        "LoadLibraryA",
+        "Process32First",
+        "Process32Next",
+        "ReadFile",
+        "ResetEvent",
+        "SetCommState",
+        "SetCommTimeouts",
+        "SetFilePointer",
+        "SetLastError",
+        "SetUnhandledExceptionFilter",
+        "SetupComm",
+        "Sleep",
+        "WriteFile",
         "lstrcmpA",
     },
     "USER32.dll": {
-        "CreateWindowExA", "DefWindowProcA", "DispatchMessageA", "EnumChildWindows",
-        "EnumWindows", "GetClassNameA", "GetMessageA", "GetWindowRect", "GetWindowTextA",
-        "GetWindowThreadProcessId", "IsWindowVisible", "KillTimer", "PostMessageA",
-        "RedrawWindow", "RegisterClassA", "SendMessageTimeoutA", "SetTimer",
+        "CreateWindowExA",
+        "DefWindowProcA",
+        "DispatchMessageA",
+        "EnumChildWindows",
+        "EnumWindows",
+        "GetClassNameA",
+        "GetMessageA",
+        "GetWindowRect",
+        "GetWindowTextA",
+        "GetWindowThreadProcessId",
+        "IsWindowVisible",
+        "KillTimer",
+        "PostMessageA",
+        "RedrawWindow",
+        "RegisterClassA",
+        "SendMessageTimeoutA",
+        "SetTimer",
         "TranslateMessage",
     },
     "GDI32.dll": {"GdiFlush"},
@@ -37,15 +76,35 @@ ALLOWED_IMPORTS = {
 # Every import the picture window (VIEW.EXE) uses, each present in Windows 98.
 VIEWER_IMPORTS = {
     "KERNEL32.dll": {
-        "ExitProcess", "GetCommandLineA", "GetModuleHandleA",
+        "ExitProcess",
+        "GetCommandLineA",
+        "GetModuleHandleA",
     },
     "USER32.dll": {
-        "BeginPaint", "CreateWindowExA", "DefWindowProcA", "DispatchMessageA", "EndPaint",
-        "GetClientRect", "GetMessageA", "InvalidateRect", "LoadCursorA", "LoadIconA",
-        "LoadImageA", "PostQuitMessage", "RegisterClassA", "ShowWindow", "TranslateMessage",
+        "BeginPaint",
+        "CreateWindowExA",
+        "DefWindowProcA",
+        "DispatchMessageA",
+        "EndPaint",
+        "GetClientRect",
+        "GetMessageA",
+        "InvalidateRect",
+        "LoadCursorA",
+        "LoadIconA",
+        "LoadImageA",
+        "PostQuitMessage",
+        "RegisterClassA",
+        "ShowWindow",
+        "TranslateMessage",
         "UpdateWindow",
     },
-    "GDI32.dll": {"BitBlt", "CreateCompatibleDC", "DeleteDC", "GetObjectA", "SelectObject"},
+    "GDI32.dll": {
+        "BitBlt",
+        "CreateCompatibleDC",
+        "DeleteDC",
+        "GetObjectA",
+        "SelectObject",
+    },
 }
 
 
@@ -59,7 +118,7 @@ def read_imports(path: Path) -> tuple[tuple[int, int], dict[str, set[str]]]:
     if data[:2] != b"MZ":
         raise PEError(f"{path} is not an executable")
     pe = struct.unpack_from("<I", data, 0x3C)[0]
-    if data[pe:pe + 4] != b"PE\0\0":
+    if data[pe : pe + 4] != b"PE\0\0":
         raise PEError(f"{path} has no PE header")
     section_count, optional_size = struct.unpack_from("<H12xH", data, pe + 6)
     optional = pe + 24
@@ -72,7 +131,8 @@ def read_imports(path: Path) -> tuple[tuple[int, int], dict[str, set[str]]]:
     for i in range(section_count):
         base = optional + optional_size + i * 40
         virtual_size, virtual_address, raw_size, raw_pointer = struct.unpack_from(
-            "<IIII", data, base + 8)
+            "<IIII", data, base + 8
+        )
         sections.append((virtual_address, max(virtual_size, raw_size), raw_pointer))
 
     def offset(rva: int) -> int:
@@ -83,7 +143,7 @@ def read_imports(path: Path) -> tuple[tuple[int, int], dict[str, set[str]]]:
 
     def text(rva: int) -> str:
         start = offset(rva)
-        return data[start:data.index(b"\0", start)].decode("ascii")
+        return data[start : data.index(b"\0", start)].decode("ascii")
 
     imports: dict[str, set[str]] = {}
     entry = offset(import_rva)
@@ -93,7 +153,7 @@ def read_imports(path: Path) -> tuple[tuple[int, int], dict[str, set[str]]]:
             return version, imports
         names = imports.setdefault(text(name_rva), set())
         slot = offset(lookup or thunks)
-        while (thunk := struct.unpack_from("<I", data, slot)[0]):
+        while thunk := struct.unpack_from("<I", data, slot)[0]:
             if not thunk & 0x80000000:
                 names.add(text(thunk + 2))
             slot += 4
@@ -118,4 +178,6 @@ def check_program(path: Path, allowed: dict[str, set[str]]) -> None:
     for dll, names in imports.items():
         unknown = names - allowed.get(dll, set())
         if unknown:
-            raise PEError(f"{path} imports unreviewed functions from {dll}: {sorted(unknown)}")
+            raise PEError(
+                f"{path} imports unreviewed functions from {dll}: {sorted(unknown)}"
+            )

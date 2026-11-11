@@ -15,7 +15,7 @@ import time
 
 from art98 import bridge, cli
 
-out, args = sys.argv[1], sys.argv[sys.argv.index("--") + 1:]
+out, args = sys.argv[1], sys.argv[sys.argv.index("--") + 1 :]
 log = {"sync": [], "put_file": [], "timeouts": []}
 
 real_sync, real_put = bridge.Bridge.sync, bridge.Bridge.put_file

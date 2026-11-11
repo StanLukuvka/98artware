@@ -11,7 +11,6 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
-
 from art98 import recorder as recorder_module
 from art98.anim import Scene
 from art98.anim import renderer as render_module
@@ -22,7 +21,9 @@ needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs 
 
 
 def ppm(width=16, height=12, shade=0):
-    return f"P6\n{width} {height}\n255\n".encode() + bytes([shade % 256]) * (width * height * 3)
+    return f"P6\n{width} {height}\n255\n".encode() + bytes([shade % 256]) * (
+        width * height * 3
+    )
 
 
 class Screen:
@@ -56,9 +57,23 @@ def session(screen):
 
 def frames(path: Path) -> int:
     probe = subprocess.run(
-        ["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0",
-         "-show_entries", "stream=nb_read_frames", "-of", "csv=p=0", str(path)],
-        capture_output=True, text=True, check=True)
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-count_frames",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=nb_read_frames",
+            "-of",
+            "csv=p=0",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     return int(probe.stdout.strip())
 
 
@@ -69,6 +84,7 @@ def test_ppm_size_reads_the_header():
 
 
 # ---- clip naming ----
+
 
 @needs_ffmpeg
 def test_a_run_without_cuts_writes_one_file_under_its_own_name(session, tmp_path):
@@ -107,7 +123,11 @@ def test_cut_takes_a_path_for_the_next_clip(session, tmp_path):
         video.frame()
         video.cut()
         video.frame()
-    assert [clip.name for clip in video.clips] == ["out-01.mp4", "intro.mp4", "out-03.mp4"]
+    assert [clip.name for clip in video.clips] == [
+        "out-01.mp4",
+        "intro.mp4",
+        "out-03.mp4",
+    ]
 
 
 @needs_ffmpeg
@@ -129,7 +149,7 @@ def test_a_lossless_recorder_writes_matroska(session, tmp_path, monkeypatch):
     class FakePopen:
         def __init__(self, command, stdin=None, stderr=None):
             commands.append(command)
-            self.stdin = open(command[-1], "wb")
+            self.stdin = open(command[-1], "wb")  # noqa: SIM115
 
         def wait(self):
             return 0
@@ -149,8 +169,11 @@ def test_a_lossless_recorder_writes_matroska(session, tmp_path, monkeypatch):
 
 def test_live_stops_on_its_condition(session, tmp_path, monkeypatch):
     recorder = Recorder(session, tmp_path / "x.mp4", fps=1000)
-    monkeypatch.setattr(recorder, "_capture", lambda hold: setattr(recorder, "count",
-                                                                   recorder.count + hold))
+    monkeypatch.setattr(
+        recorder,
+        "_capture",
+        lambda hold: setattr(recorder, "count", recorder.count + hold),
+    )
     recorder.live(1, stop_condition=lambda: recorder.count >= 3)
     assert recorder.count == 3
     recorder.close()
@@ -158,11 +181,12 @@ def test_live_stops_on_its_condition(session, tmp_path, monkeypatch):
 
 # ---- ffmpeg's exit code ----
 
+
 class FailingFfmpeg:
     """Takes every frame, then exits 1 with a message on its stderr."""
 
     def __init__(self, command, stdin=None, stderr=None):
-        self.stdin = open(command[-1], "wb")  # the part file
+        self.stdin = open(command[-1], "wb")  # the part file  # noqa: SIM115
         self._stderr = stderr
 
     def terminate(self):
@@ -196,10 +220,12 @@ def test_cut_raises_when_the_clip_it_closes_failed(session, tmp_path, monkeypatc
 
 def test_the_scenes_own_error_is_not_replaced(session, tmp_path, monkeypatch):
     monkeypatch.setattr(recorder_module.subprocess, "Popen", FailingFfmpeg)
-    with pytest.raises(KeyError, match="the scene's own") as raised:
-        with session.record(tmp_path / "out.mp4") as video:
-            video.frame()
-            raise KeyError("the scene's own")
+    with (
+        pytest.raises(KeyError, match="the scene's own"),
+        session.record(tmp_path / "out.mp4") as video,
+    ):
+        video.frame()
+        raise KeyError("the scene's own")
     assert not list(tmp_path.glob("out*"))  # abort() left no half clip
 
 
@@ -209,26 +235,34 @@ def test_a_good_close_does_not_raise_and_a_second_close_is_harmless(session, tmp
     video.frame()
     video.close()
     video.close()
-    assert sorted(p.name for p in tmp_path.iterdir()) == ["out.mp4"]  # final name, no .part
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "out.mp4"
+    ]  # final name, no .part
     with pytest.raises(RecorderError, match="closed"):
         video.cut()
 
 
 # ---- the screen size ----
 
+
 @needs_ffmpeg
 def test_a_size_change_inside_a_clip_raises_and_suggests_cut(session, screen, tmp_path):
-    with pytest.raises(RecorderError, match=r"16x12 to 32x24.*cut\(\)"):
-        with session.record(tmp_path / "out.mp4", fps=10) as video:
-            video.frame()
-            screen.size = (32, 24)
-            video.frame()
-    assert video.clips == [] and list(tmp_path.iterdir()) == []  # the half clip was dropped
+    with (
+        pytest.raises(RecorderError, match=r"16x12 to 32x24.*cut\(\)"),
+        session.record(tmp_path / "out.mp4", fps=10) as video,
+    ):
+        video.frame()
+        screen.size = (32, 24)
+        video.frame()
+    assert (
+        video.clips == [] and list(tmp_path.iterdir()) == []
+    )  # the half clip was dropped
 
 
 @needs_ffmpeg
-def test_a_size_change_after_a_cut_records_but_the_join_names_the_sizes(session, screen,
-                                                                       tmp_path):
+def test_a_size_change_after_a_cut_records_but_the_join_names_the_sizes(
+    session, screen, tmp_path
+):
     with session.record(tmp_path / "out.mp4", fps=10) as video:
         video.frame()
         video.cut()
@@ -241,8 +275,10 @@ def test_a_size_change_after_a_cut_records_but_the_join_names_the_sizes(session,
 
 # ---- the scene and render ----
 
-def test_scene_cut_reaches_the_recorder_and_time_counts_every_clip(session, tmp_path,
-                                                                   monkeypatch):
+
+def test_scene_cut_reaches_the_recorder_and_time_counts_every_clip(
+    session, tmp_path, monkeypatch
+):
     class Fake:
         total, cuts = 45, []
 
@@ -287,7 +323,11 @@ def test_render_joins_the_clips_and_keeps_them_beside_the_output(staged, tmp_pat
     out = render_module.render(Cutting(), tmp_path / "out.mp4")
     assert frames(out) == 6
     assert sorted(p.name for p in tmp_path.iterdir()) == [
-        "out-01.mp4", "out-02.mp4", "out-03.mp4", "out.mp4"]
+        "out-01.mp4",
+        "out-02.mp4",
+        "out-03.mp4",
+        "out.mp4",
+    ]
 
 
 @needs_ffmpeg
@@ -302,14 +342,21 @@ def test_a_gif_render_makes_one_gif_and_keeps_the_clips_as_mp4(staged, tmp_path)
     out = render_module.render(Cutting(named), tmp_path / "out.gif")
     assert out == tmp_path / "out.gif"
     assert sorted(p.name for p in tmp_path.iterdir()) == [
-        "named.mp4", "out-01.mp4", "out-02.mp4", "out.gif"]
-    assert [frames(tmp_path / n) for n in ("out-01.mp4", "out-02.mp4", "named.mp4")] == [2, 3, 1]
+        "named.mp4",
+        "out-01.mp4",
+        "out-02.mp4",
+        "out.gif",
+    ]
+    assert [
+        frames(tmp_path / n) for n in ("out-01.mp4", "out-02.mp4", "named.mp4")
+    ] == [2, 3, 1]
 
 
 @needs_ffmpeg
 def test_a_gif_and_mp4_render_with_keep_clips_false(staged, tmp_path):
-    render_module.render(Cutting(), tmp_path / "out.mp4", gif=tmp_path / "out.gif",
-                         keep_clips=False)
+    render_module.render(
+        Cutting(), tmp_path / "out.mp4", gif=tmp_path / "out.gif", keep_clips=False
+    )
     assert sorted(p.name for p in tmp_path.iterdir()) == ["out.gif", "out.mp4"]
     assert frames(tmp_path / "out.mp4") == 6
 
@@ -340,14 +387,17 @@ def test_render_of_a_scene_with_no_frames_says_so(staged, tmp_path):
 
 # ---- hardening: part files, abort, ffmpeg errors, stale clips ----
 
+
 @needs_ffmpeg
 def test_a_scene_error_leaves_no_partial_clip(session, tmp_path):
-    with pytest.raises(KeyError):
-        with session.record(tmp_path / "out.mp4", fps=10) as video:
-            video.frame()
-            video.cut()
-            video.frame()
-            raise KeyError("scene")
+    with (
+        pytest.raises(KeyError),
+        session.record(tmp_path / "out.mp4", fps=10) as video,
+    ):
+        video.frame()
+        video.cut()
+        video.frame()
+        raise KeyError("scene")
     assert video.clips == [] and list(tmp_path.iterdir()) == []  # finished parts go too
 
 
@@ -402,7 +452,9 @@ def test_a_failed_join_leaves_the_earlier_render_alone(staged, tmp_path, monkeyp
 
 
 @needs_ffmpeg
-def test_a_failed_clip_encode_leaves_the_earlier_render_alone(staged, tmp_path, monkeypatch):
+def test_a_failed_clip_encode_leaves_the_earlier_render_alone(
+    staged, tmp_path, monkeypatch
+):
     old = earlier(tmp_path)
     real, calls = render_module._encode, []
 
@@ -420,11 +472,17 @@ def test_a_failed_clip_encode_leaves_the_earlier_render_alone(staged, tmp_path, 
 
 
 @needs_ffmpeg
-def test_a_successful_render_replaces_the_earlier_files_with_final_names(staged, tmp_path):
+def test_a_successful_render_replaces_the_earlier_files_with_final_names(
+    staged, tmp_path
+):
     earlier(tmp_path)
     render_module.render(Cutting(), tmp_path / "out.mp4")
     assert sorted(p.name for p in tmp_path.iterdir()) == [
-        "out-01.mp4", "out-02.mp4", "out-03.mp4", "out.mp4"]
+        "out-01.mp4",
+        "out-02.mp4",
+        "out-03.mp4",
+        "out.mp4",
+    ]
     assert frames(tmp_path / "out-01.mp4") == 2 and frames(tmp_path / "out.mp4") == 6
 
 
@@ -449,7 +507,8 @@ def failing_run(monkeypatch):
 
 
 def test_gif_encode_and_join_failures_raise_recorder_error_with_ffmpegs_message(
-        session, tmp_path, monkeypatch):
+    session, tmp_path, monkeypatch
+):
     failing_run(monkeypatch)
     with pytest.raises(RecorderError, match=r"making the GIF failed.*boom"):
         render_module.write_gif(tmp_path / "in.mkv", tmp_path / "out.gif")

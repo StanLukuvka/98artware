@@ -3,11 +3,9 @@
 import struct
 
 import pytest
-
-from art98 import desktop
+from art98 import desktop, win32
 from art98.anim import Scene
 from art98.bridge import CallResult
-
 from test_anim import FakeGuest, FakeSession, FakeVideo
 
 TASKBAR, PROGMAN, VIEW, ICONS = 0x50, 0x60, 0x61, 0x62
@@ -29,14 +27,16 @@ class DesktopGuest(FakeGuest):
         self.system_cursors = {shape: shape for shape in desktop.POINTER_SHAPES}
 
     def do_FindWindowA(self, class_name, title):
-        return CallResult({"Shell_TrayWnd": TASKBAR, "Progman": PROGMAN}.get(class_name, 0), 0, [])
+        return CallResult(
+            {"Shell_TrayWnd": TASKBAR, "Progman": PROGMAN}.get(class_name, 0), 0, []
+        )
 
     def do_FindWindowExA(self, parent, after, class_name, title):
         found = {(PROGMAN, "SHELLDLL_DefView"): VIEW, (VIEW, "SysListView32"): ICONS}
         return CallResult(found.get((parent, class_name), 0), 0, [])
 
     def do_ShowWindow(self, hwnd, command):
-        if "hide" not in self.ignore and command == desktop.SW_HIDE:
+        if "hide" not in self.ignore and command == win32.SW_HIDE:
             self.visible.discard(hwnd)
         return CallResult(1, 0, [])
 
@@ -60,15 +60,19 @@ class DesktopGuest(FakeGuest):
         return CallResult(self.colour, 0, [])
 
     def do_GetSystemMetrics(self, index):
-        return CallResult({desktop.SM_CXSCREEN: 800, desktop.SM_CYSCREEN: 600}.get(index, 0), 0, [])
+        return CallResult(
+            {win32.SM_CXSCREEN: 800, win32.SM_CYSCREEN: 600}.get(index, 0), 0, []
+        )
 
     def do_SystemParametersInfoA(self, action, value, param, flags):
-        if action == desktop.SPI_SETWORKAREA and "area" not in self.ignore:
+        if action == win32.SPI_SETWORKAREA and "area" not in self.ignore:
             self.area = struct.unpack("<4i", param)
-        elif action == desktop.SPI_GETWORKAREA:
+        elif action == win32.SPI_GETWORKAREA:
             return CallResult(1, 0, [struct.pack("<4i", *self.area)])
         elif action in EFFECT_GETS:
-            return CallResult(1, 0, [struct.pack("<I", self.effects[EFFECT_GETS[action]])])
+            return CallResult(
+                1, 0, [struct.pack("<I", self.effects[EFFECT_GETS[action]])]
+            )
         elif action in self.effects:
             self.effects[action] = param
         return CallResult(1, 0, [])
@@ -98,7 +102,9 @@ def test_blank_hides_the_shell_and_turns_everything_off():
     assert guest.pointer_hidden()
     assert len(guest.named("CopyIcon")) == len(desktop.POINTER_SHAPES)
     assert guest.named("DestroyCursor") == [("DestroyCursor", (EMPTY,))]
-    assert guest.syncs == 1
+    assert (
+        guest.syncs == 3
+    )  # set_colour waits twice (see test_drift.py), then blank waits once
 
 
 def test_blank_can_keep_the_pointer():
@@ -107,10 +113,13 @@ def test_blank_can_keep_the_pointer():
     assert guest.named("SetSystemCursor") == []
 
 
-@pytest.mark.parametrize("ignore, problem", [
-    ("hide", "the taskbar is showing"),
-    ("area", "the work area is [0, 0, 800, 572]"),
-])
+@pytest.mark.parametrize(
+    "ignore, problem",
+    [
+        ("hide", "the taskbar is showing"),
+        ("area", "the work area is [0, 0, 800, 572]"),
+    ],
+)
 def test_blank_says_what_did_not_take(ignore, problem):
     guest = DesktopGuest(ignore=[ignore])
     with pytest.raises(desktop.DesktopError) as error:

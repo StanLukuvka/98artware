@@ -158,7 +158,7 @@ A proxy attribute is the function name, and `timeout` is the one keyword it take
 
 ```python
 guest.user32.SetCursorPos(400, 300)
-guest.call("user32", "SetCursorPos", 400, 300)                 # the same call
+guest.call("user32", "SetCursorPos", 400, 300)  # the same call
 guest.user32.SendMessageA(hwnd, 0x0C, 0, "new text", timeout=2)
 ```
 
@@ -238,7 +238,9 @@ A Win32 failure is not an exception. Check the value.
 result = guest.kernel32.DeleteFileA(r"C:\NOPE.TXT")
 assert (result.value, result.last_error) == (0, 2)
 
-left, top, right, bottom = struct.unpack("<4i", guest.user32.GetWindowRect(hwnd, Out(16)).buffers[0])
+left, top, right, bottom = struct.unpack(
+    "<4i", guest.user32.GetWindowRect(hwnd, Out(16)).buffers[0]
+)
 ```
 
 ## Out
@@ -439,8 +441,8 @@ The QEMU control socket. It has no lock, so use it from one thread.
 | `close()` | Closes the socket. |
 
 ```python
-vm.qmp.execute("query-status")              # {'status': 'running', 'running': True}
-vm.qmp.execute("query-version")["qemu"]     # {'major': 10, 'minor': 2, 'micro': 2}
+vm.qmp.execute("query-status")  # {'status': 'running', 'running': True}
+vm.qmp.execute("query-version")["qemu"]  # {'major': 10, 'minor': 2, 'micro': 2}
 print(vm.qmp.human("info snapshots"))
 ```
 

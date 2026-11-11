@@ -25,7 +25,9 @@ def play(scene, animations, run_time, rate_func, live) -> None:
         elapsed = index / count * total
         for animation in list(running):
             length = animation.run_time
-            progress = 1.0 if length <= 0 or index == count else min(1.0, elapsed / length)
+            progress = (
+                1.0 if length <= 0 or index == count else min(1.0, elapsed / length)
+            )
             animation.update(progress)
             if progress >= 1:
                 animation.finish(scene)

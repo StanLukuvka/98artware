@@ -36,9 +36,23 @@ RUN_KEYS = [
 ]
 
 SILENCED_EVENTS = [
-    ".Default", "AppGPFault", "Close", "EmptyRecycleBin", "Maximize", "MenuCommand",
-    "MenuPopup", "Minimize", "Open", "RestoreDown", "RestoreUp", "SystemAsterisk",
-    "SystemExclamation", "SystemExit", "SystemHand", "SystemQuestion", "SystemStart",
+    ".Default",
+    "AppGPFault",
+    "Close",
+    "EmptyRecycleBin",
+    "Maximize",
+    "MenuCommand",
+    "MenuPopup",
+    "Minimize",
+    "Open",
+    "RestoreDown",
+    "RestoreUp",
+    "SystemAsterisk",
+    "SystemExclamation",
+    "SystemExit",
+    "SystemHand",
+    "SystemQuestion",
+    "SystemStart",
 ]
 
 # Registry state of the prepared desktop: (root, key, value name, data).
@@ -55,11 +69,22 @@ HARDEN_SETTINGS: list[tuple[int, str, str, str | bytes]] = [
     (HKCU, r"Control Panel\Desktop\WindowMetrics", "MinAnimate", "0"),
     (HKCU, r"Control Panel\PowerCfg", "CurrentPowerPolicy", "3"),
     (HKCU, r"AppEvents\Schemes", "", ".None"),
-    (HKCU, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Tips", "Show", b"\0\0\0\0"),
-    (HKCU, r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer",
-     "NoDriveTypeAutoRun", b"\xff\0\0\0"),
-    *((HKCU, rf"AppEvents\Schemes\Apps\.Default\{event}\.Current", "", "")
-      for event in SILENCED_EVENTS),
+    (
+        HKCU,
+        r"Software\Microsoft\Windows\CurrentVersion\Explorer\Tips",
+        "Show",
+        b"\0\0\0\0",
+    ),
+    (
+        HKCU,
+        r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer",
+        "NoDriveTypeAutoRun",
+        b"\xff\0\0\0",
+    ),
+    *(
+        (HKCU, rf"AppEvents\Schemes\Apps\.Default\{event}\.Current", "", "")
+        for event in SILENCED_EVENTS
+    ),
 ]
 
 
@@ -76,20 +101,24 @@ def wait_for_quiet_screen(setup: Setup, vm: VM, label: str) -> None:
 
 def harden(setup: Setup) -> None:
     config = setup._config()
-    with VM(config, log=setup._vm_log()) as vm:
-        with Bridge.connect(vm.serial_path) as bridge:
-            setup._require_agent(vm, bridge, "harden")
-            apply_settings(bridge)
-            bridge.set_display_mode(*DISPLAY_MODE)
-            setup._reboot(vm, bridge)
-    with VM(config, log=setup._vm_log()) as vm:
-        with Bridge.connect(vm.serial_path) as bridge:
-            setup._require_agent(vm, bridge, "reboot")
-            wait_for_quiet_screen(setup, vm, "ready")
-            verify_desktop(bridge)
-            vm.pause()
-            vm.save_snapshot(SNAPSHOT)
-            vm.screenshot(setup.shots / "ready.png")
+    with (
+        VM(config, log=setup._vm_log()) as vm,
+        Bridge.connect(vm.serial_path) as bridge,
+    ):
+        setup._require_agent(vm, bridge, "harden")
+        apply_settings(bridge)
+        bridge.set_display_mode(*DISPLAY_MODE)
+        setup._reboot(vm, bridge)
+    with (
+        VM(config, log=setup._vm_log()) as vm,
+        Bridge.connect(vm.serial_path) as bridge,
+    ):
+        setup._require_agent(vm, bridge, "reboot")
+        wait_for_quiet_screen(setup, vm, "ready")
+        verify_desktop(bridge)
+        vm.pause()
+        vm.save_snapshot(SNAPSHOT)
+        vm.screenshot(setup.shots / "ready.png")
     (setup.work / IMAGE_FILE).write_text(json.dumps(config.to_json(), indent=2))
     setup.raw.unlink(missing_ok=True)
 
@@ -113,7 +142,9 @@ def apply_settings(bridge: Bridge) -> None:
             kind, blob = REG_SZ, data.encode("cp1252") + b"\0"
         else:
             kind, blob = REG_BINARY, data
-        result = bridge.advapi32.RegSetValueExA(handle, name or None, 0, kind, blob, len(blob))
+        result = bridge.advapi32.RegSetValueExA(
+            handle, name or None, 0, kind, blob, len(blob)
+        )
         bridge.advapi32.RegCloseKey(handle)
         if result.value:
             raise BridgeError(f"cannot set {key}\\{name}: error {result.value}")
@@ -126,7 +157,8 @@ def run_key_values(bridge: Bridge, handle: int) -> list[str]:
     index = 0
     while True:
         result = bridge.advapi32.RegEnumValueA(
-            handle, index, Out(260), struct.pack("<I", 260), 0, 0, 0, 0)
+            handle, index, Out(260), struct.pack("<I", 260), 0, 0, 0, 0
+        )
         if result.value:  # ERROR_NO_MORE_ITEMS
             return names
         names.append(result.buffers[0].split(b"\0", 1)[0].decode("cp1252"))

@@ -9,13 +9,28 @@ import sys
 import tempfile
 from pathlib import Path
 
-from ..recorder import (GIF_COLORS, GIF_FPS, H264, LOSSLESS_SUFFIX, RecorderError, part_path,
-                        require_ffmpeg, run_ffmpeg)
+from ..recorder import (
+    GIF_COLORS,
+    GIF_FPS,
+    H264,
+    LOSSLESS_SUFFIX,
+    RecorderError,
+    part_path,
+    require_ffmpeg,
+    run_ffmpeg,
+)
 from ..session import stage
 
 
-def write_gif(source: Path | str, output: Path | str, fps: int = GIF_FPS, colors: int = GIF_COLORS,
-              scale: float = 1.0, dither: str = "none", stage: bool = False) -> Path:
+def write_gif(
+    source: Path | str,
+    output: Path | str,
+    fps: int = GIF_FPS,
+    colors: int = GIF_COLORS,
+    scale: float = 1.0,
+    dither: str = "none",
+    stage: bool = False,
+) -> Path:
     """Convert a video to a GIF with its own palette, keeping pixels sharp.
 
     With stage, the GIF is left as `part_path(output)` for the caller to rename.
@@ -26,15 +41,29 @@ def write_gif(source: Path | str, output: Path | str, fps: int = GIF_FPS, colors
         f"[a]palettegen=max_colors={colors}:stats_mode=diff[palette];"
         f"[b][palette]paletteuse=dither={dither}:diff_mode=rectangle"
     )
-    run_ffmpeg(["-i", str(source), "-filter_complex", graph, "-loop", "0"], Path(output),
-               "making the GIF", stage)
+    run_ffmpeg(
+        ["-i", str(source), "-filter_complex", graph, "-loop", "0"],
+        Path(output),
+        "making the GIF",
+        stage,
+    )
     return Path(output)
 
 
-def render(scene, output: Path | str | None = None, *, gif: Path | str | None = None,
-           work: Path | str = "work", gif_fps: int = GIF_FPS, gif_colors: int = GIF_COLORS,
-           gif_scale: float = 1.0, gif_dither: str = "none", display: str = "none",
-           backend: str | None = None, keep_clips: bool = True) -> Path:
+def render(
+    scene,
+    output: Path | str | None = None,
+    *,
+    gif: Path | str | None = None,
+    work: Path | str = "work",
+    gif_fps: int = GIF_FPS,
+    gif_colors: int = GIF_COLORS,
+    gif_scale: float = 1.0,
+    gif_dither: str = "none",
+    display: str = "none",
+    backend: str | None = None,
+    keep_clips: bool = True,
+) -> Path:
     """Play a scene on a private copy of the prepared image and write the video.
 
     `output` ends in .mp4 or .gif. `gif` asks for a GIF as well. A GIF is made
@@ -62,7 +91,11 @@ def render(scene, output: Path | str | None = None, *, gif: Path | str | None = 
     master = temp / "master.mkv" if temp else output
     named = output or Path(gif)
     video = None
-    staged, kept, results = [], [], []  # part files made; (part, final) clips; (part, final) outputs
+    staged, kept, results = (
+        [],
+        [],
+        [],
+    )  # part files made; (part, final) clips; (part, final) outputs
     try:
         with stage(work, display=display, backend=backend) as session:
             video = session.record(master, fps=scene.fps, lossless=bool(gif))
@@ -78,7 +111,9 @@ def render(scene, output: Path | str | None = None, *, gif: Path | str | None = 
             source = video.join(master, stage=True)
             staged.append(source)
         if gif:
-            write_gif(source, gif, gif_fps, gif_colors, gif_scale, gif_dither, stage=True)
+            write_gif(
+                source, gif, gif_fps, gif_colors, gif_scale, gif_dither, stage=True
+            )
             staged.append(part_path(gif))
             results.append((part_path(gif), gif))
             if output:
@@ -88,9 +123,14 @@ def render(scene, output: Path | str | None = None, *, gif: Path | str | None = 
         else:
             results.append((source, output))
         for clip, part in zip(video.clips, video.parts) if cut and keep_clips else []:
-            if clip.suffix == LOSSLESS_SUFFIX:  # kept as H.264, the lossless one dropped
-                clip = (named.with_name(f"{named.stem}-{clip.stem.rsplit('-', 1)[-1]}.mp4")
-                        if clip.parent == temp else clip.with_suffix(".mp4"))
+            if (
+                clip.suffix == LOSSLESS_SUFFIX
+            ):  # kept as H.264, the lossless one dropped
+                clip = (
+                    named.with_name(f"{named.stem}-{clip.stem.rsplit('-', 1)[-1]}.mp4")
+                    if clip.parent == temp
+                    else clip.with_suffix(".mp4")
+                )
                 _encode(part, clip)
                 part = part_path(clip)
                 staged.append(part)
@@ -106,8 +146,11 @@ def render(scene, output: Path | str | None = None, *, gif: Path | str | None = 
     written = {final for _, final in kept}
     stale = stale_clips(named, written)
     if stale:
-        print(f"art98: warning: {', '.join(p.name for p in stale)} left from an earlier render; "
-              f"this render wrote {len(written)} clips.", file=sys.stderr)
+        print(
+            f"art98: warning: {', '.join(p.name for p in stale)} left from an earlier render; "
+            f"this render wrote {len(written)} clips.",
+            file=sys.stderr,
+        )
     return named
 
 
@@ -115,10 +158,15 @@ def stale_clips(named_after: Path, written: set[Path]) -> list[Path]:
     """Numbered clips beside the output that this render did not write."""
     pattern = re.compile(rf"^{re.escape(named_after.stem)}-\d{{2}}\.mp4$")
     keep = {w.resolve() for w in written}
-    return sorted(p for p in named_after.parent.glob(f"{named_after.stem}-*.mp4")
-                  if pattern.match(p.name) and p.resolve() not in keep)
+    return sorted(
+        p
+        for p in named_after.parent.glob(f"{named_after.stem}-*.mp4")
+        if pattern.match(p.name) and p.resolve() not in keep
+    )
 
 
 def _encode(source: Path, output: Path) -> None:
     """Encode to H.264, left as `part_path(output)` for render to rename."""
-    run_ffmpeg(["-i", str(source), *H264], output, f"encoding {output.name}", stage=True)
+    run_ffmpeg(
+        ["-i", str(source), *H264], output, f"encoding {output.name}", stage=True
+    )

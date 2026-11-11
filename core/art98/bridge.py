@@ -10,12 +10,17 @@ from collections import deque
 from dataclasses import dataclass, field
 from itertools import count
 from pathlib import Path
+from typing import Self
 
 from .protocol import (
-    PROTOCOL_VERSION, FrameError, Out, encode_request, parse_values, unframe,
+    PROTOCOL_VERSION,
+    FrameError,
+    Out,
+    encode_request,
+    parse_values,
+    unframe,
 )
 from .win32 import RDW_REPAINT_ALL, SWP_NOSIZE, SWP_NOZORDER
-from .win32 import RDW_ALLCHILDREN, RDW_ERASE, RDW_FRAME, RDW_INVALIDATE, RDW_UPDATENOW  # noqa: F401  (old names stay importable from here)
 
 DEFAULT_TIMEOUT = 10.0
 CHUNK_SIZE = 4096
@@ -70,9 +75,11 @@ class Window:
     title: str
 
     @classmethod
-    def from_row(cls, row: list) -> "Window":
+    def from_row(cls, row: list) -> Window:
         hwnd, pid, visible, left, top, right, bottom, class_name, title = row
-        rect = tuple(v - (1 << 32) if v & 0x80000000 else v for v in (left, top, right, bottom))
+        rect = tuple(
+            v - (1 << 32) if v & 0x80000000 else v for v in (left, top, right, bottom)
+        )
         return cls(hwnd, pid, bool(visible), rect, class_name, title)
 
 
@@ -86,7 +93,7 @@ class _Pending:
 class AsyncCall:
     """A guest call that runs on its own thread, such as a modal dialog."""
 
-    def __init__(self, bridge: "Bridge", request_id: int):
+    def __init__(self, bridge: Bridge, request_id: int):
         self._bridge = bridge
         self.id = request_id
 
@@ -101,7 +108,7 @@ class AsyncCall:
 class _Dll:
     """Lets `bridge.user32.SetCursorPos(10, 20)` read like a local call."""
 
-    def __init__(self, bridge: "Bridge", name: str):
+    def __init__(self, bridge: Bridge, name: str):
         self._bridge = bridge
         self._name = name
 
@@ -138,7 +145,7 @@ class Bridge:
         self._reader.start()
 
     @classmethod
-    def connect(cls, path: Path | str, timeout: float = DEFAULT_TIMEOUT) -> "Bridge":
+    def connect(cls, path: Path | str, timeout: float = DEFAULT_TIMEOUT) -> Bridge:
         sock = socket.socket(socket.AF_UNIX)
         sock.connect(str(path))
         return cls(sock, timeout)
@@ -154,7 +161,7 @@ class Bridge:
         self._sock.close()
         self._reader.join(2)
 
-    def __enter__(self) -> "Bridge":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -197,7 +204,9 @@ class Bridge:
             else:
                 code, _, text = rest.partition(b" ")
                 detail = parse_values(text)
-                pending.error = BridgeError(f"{code.decode()}: {detail[0] if detail else ''}")
+                pending.error = BridgeError(
+                    f"{code.decode()}: {detail[0] if detail else ''}"
+                )
             self._cond.notify_all()
 
     def _handle_event(self, name: str, values: list) -> None:
@@ -210,7 +219,9 @@ class Bridge:
             return
         if name == "CRASH":
             code, address = values
-            self._fail_all(GuestCrashed(f"agent crashed: code {code:#x} at {address:#x}"))
+            self._fail_all(
+                GuestCrashed(f"agent crashed: code {code:#x} at {address:#x}")
+            )
         with self._cond:
             self._events.append((name, values))
             self._cond.notify_all()
@@ -226,6 +237,7 @@ class Bridge:
 
     def wait_event(self, name: str, timeout: float | None = None) -> list:
         """Take the oldest unread event called name, waiting for one if needed."""
+
         def take():
             for item in self._events:
                 if item[0] == name:
@@ -286,12 +298,15 @@ class Bridge:
 
     # ---- outgoing ----
 
-    def request(self, verb: str, *args, timeout: float | None = None) -> tuple[list, list[list]]:
+    def request(
+        self, verb: str, *args, timeout: float | None = None
+    ) -> tuple[list, list[list]]:
         """Send one request and return its final values and any rows."""
         return self._send(next(self._ids), verb, *args, timeout=timeout)
 
-    def _send(self, request_id: int, verb: str, *args,
-              timeout: float | None = None) -> tuple[list, list[list]]:
+    def _send(
+        self, request_id: int, verb: str, *args, timeout: float | None = None
+    ) -> tuple[list, list[list]]:
         pending = _Pending()
         with self._cond:
             if self._closed:
@@ -317,7 +332,9 @@ class Bridge:
             raise pending.error
         return pending.values, pending.rows
 
-    def call(self, dll: str, function: str, *args, timeout: float | None = None) -> CallResult:
+    def call(
+        self, dll: str, function: str, *args, timeout: float | None = None
+    ) -> CallResult:
         """Call a Win32 function on the guest's main thread."""
         values, _ = self.request("CALL", dll, function, *args, timeout=timeout)
         value, last_error, *buffers = values
@@ -346,21 +363,27 @@ class Bridge:
         while True:
             try:
                 values, _ = self.request(
-                    "PING", timeout=min(2.0, max(0.1, deadline - time.monotonic())))
+                    "PING", timeout=min(2.0, max(0.1, deadline - time.monotonic()))
+                )
             except BridgeTimeout:
                 if time.monotonic() >= deadline:
                     raise
                 continue
             if values[1] != PROTOCOL_VERSION:
-                raise BridgeError(f"guest speaks protocol {values[1]}, host {PROTOCOL_VERSION}")
+                raise BridgeError(
+                    f"guest speaks protocol {values[1]}, host {PROTOCOL_VERSION}"
+                )
             return
 
     def windows(self, parent: int = 0) -> list[Window]:
         return [Window.from_row(row) for row in self.request("WINDOWS", parent)[1]]
 
     def find_window(
-        self, title: str | None = None, class_name: str | None = None,
-        parent: int = 0, timeout: float = 10.0,
+        self,
+        title: str | None = None,
+        class_name: str | None = None,
+        parent: int = 0,
+        timeout: float = 10.0,
     ) -> Window:
         """Wait for a visible window. Titles match on a substring."""
         deadline = time.monotonic() + timeout
@@ -369,7 +392,10 @@ class Bridge:
                 if (
                     window.visible
                     and (title is None or title.lower() in window.title.lower())
-                    and (class_name is None or class_name.lower() == window.class_name.lower())
+                    and (
+                        class_name is None
+                        or class_name.lower() == window.class_name.lower()
+                    )
                 ):
                     return window
             if time.monotonic() >= deadline:
@@ -399,7 +425,8 @@ class Bridge:
             written = self.request("PUT", path, offset, chunk)[0][0]
             if written != len(chunk):
                 raise BridgeError(
-                    f"guest wrote {written} of {len(chunk)} bytes to {path} at offset {offset}")
+                    f"guest wrote {written} of {len(chunk)} bytes to {path} at offset {offset}"
+                )
 
     def get_file(self, path: str) -> bytes:
         data = bytearray()
@@ -418,7 +445,9 @@ class Bridge:
         self.user32.SetWindowPos(hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER)
         self.user32.RedrawWindow(hwnd, 0, 0, RDW_REPAINT_ALL)
 
-    def set_display_mode(self, width: int, height: int, depth: int, persist: bool = True) -> None:
+    def set_display_mode(
+        self, width: int, height: int, depth: int, persist: bool = True
+    ) -> None:
         """Switch resolution, using a mode the video driver itself reports."""
         mode = 0
         while True:
@@ -432,12 +461,22 @@ class Bridge:
             if (w, h, bpp) == (width, height, depth):
                 break
             mode += 1
-        struct.pack_into("<I", devmode, 40, DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT)
+        struct.pack_into(
+            "<I", devmode, 40, DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT
+        )
         flags = CDS_UPDATEREGISTRY if persist else 0
         result = self.user32.ChangeDisplaySettingsA(devmode, flags)
         if result.signed < 0:
             raise BridgeError(f"ChangeDisplaySettings failed with {result.signed}")
 
 
-__all__ = ["AsyncCall", "Bridge", "BridgeError", "BridgeTimeout", "CallResult",
-           "GuestCrashed", "Out", "Window"]
+__all__ = [
+    "AsyncCall",
+    "Bridge",
+    "BridgeError",
+    "BridgeTimeout",
+    "CallResult",
+    "GuestCrashed",
+    "Out",
+    "Window",
+]

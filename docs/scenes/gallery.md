@@ -6,12 +6,8 @@ Each GIF is a real scene on the real image, cut down to keep the file small. To 
 uv run python tools/render_all.py
 ```
 
-**Parked.** Paint, Minesweeper and Screensaver still work, but
-`from art98.anim import *` leaves them out until each program returns as its own action
-class. Samples that use them import them from `art98.anim.apps`. [`Picture`](scene-api.md#picture),
-[`Notepad`](scene-api.md#notepad), [`Dialog`](scene-api.md#dialog) and
-[`Backdrop`](scene-api.md#backdrop) are not parked.
-Most scenes here were written before the MVP, so their samples still import Notepad from `art98.anim.apps`. That works, and `from art98.anim import *` now gives the same `Notepad`.
+Every program in these samples (Notepad, Paint, Minesweeper, Screensaver, Dialog) is an action
+class in `core/art98/actions/programs/`, and `from art98.anim import *` gives them all.
 
 Give scene names to render only those, such as `render_all.py typing`. A GIF's frame rate and colours are set in that file.
 
@@ -29,7 +25,7 @@ Source: [mvp.py](../../examples/mvp/mvp.py), with its
 ```py
 """The MVP sample: picture windows, set from state files and moved on camera.
 
-    art98 render examples/mvp/mvp.py
+art98 render examples/mvp/mvp.py
 """
 
 from pathlib import Path
@@ -51,7 +47,11 @@ class Mvp(Scene):
         self.pause(0.5)
         self.play(Close(flower))
         self.pause(0.5)
-        self.add(Picture("Sky", image=HERE / "assets" / "sky.bmp", at=(100, 260), size=(240, 200)))
+        self.add(
+            Picture(
+                "Sky", image=HERE / "assets" / "sky.bmp", at=(100, 260), size=(240, 200)
+            )
+        )
         self.pause(1)
 
         self.set_state("states/gallery.json")
@@ -77,7 +77,6 @@ Notepad opens, types a line, drifts across the desktop and closes.
 """
 
 from art98.anim import *
-from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class Hello(Scene):
@@ -135,7 +134,6 @@ Source: [typing.py](../../examples/gallery/typing.py)
 """Typing: letters reach a real Edit control, and the caret moves with them."""
 
 from art98.anim import *
-from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class Typing(Scene):
@@ -146,7 +144,11 @@ class Typing(Scene):
         self.add(pad)
         self.pointer.place((700, 500))
         self.pause(0.4)
-        self.play(TypeWithCursor(pad, "Dear diary,\n\nToday the computer wrote back.", run_time=3))
+        self.play(
+            TypeWithCursor(
+                pad, "Dear diary,\n\nToday the computer wrote back.", run_time=3
+            )
+        )
         self.wait(0.8)
         self.play(UntypeWithCursor(pad, 11, run_time=0.8))
         self.play(TypeWithCursor(pad, "typed by itself.", run_time=1.6))
@@ -165,7 +167,6 @@ Source: [window_motion.py](../../examples/gallery/window_motion.py)
 """Window motion: a move, a resize, and both at once, as one SetWindowPos a frame."""
 
 from art98.anim import *
-from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class WindowMotion(Scene):
@@ -179,8 +180,15 @@ class WindowMotion(Scene):
         self.pause(0.4)
         self.play(pad.animate.shift(320 * RIGHT + 60 * DOWN), run_time=1.2)
         self.play(pad.animate.resize(200, 140), run_time=0.8)
-        self.play(pad.animate.to_corner(UL, buff=90), pad.animate.resize(420, 300), run_time=1.2)
-        self.play(MoveAlongPath(pad, [(400, 200), (480, 340), (300, 340), (400, 200)]), run_time=2)
+        self.play(
+            pad.animate.to_corner(UL, buff=90),
+            pad.animate.resize(420, 300),
+            run_time=1.2,
+        )
+        self.play(
+            MoveAlongPath(pad, [(400, 200), (480, 340), (300, 340), (400, 200)]),
+            run_time=2,
+        )
         self.pause(0.6)
 ```
 
@@ -196,7 +204,6 @@ Source: [drag_window.py](../../examples/gallery/drag_window.py)
 """Dragging: Windows moves the window itself, because the pointer holds its title bar."""
 
 from art98.anim import *
-from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class DragWindow(Scene):
@@ -225,7 +232,6 @@ Source: [menus_keys.py](../../examples/gallery/menus_keys.py)
 """Menus and keys: real menu clicks select and stamp, real key presses delete and type."""
 
 from art98.anim import *
-from art98.anim.apps import Notepad  # parked, see apps.py
 
 
 class MenusKeys(Scene):
@@ -316,7 +322,15 @@ class DialogStorm(Scene):
         # Cascade candidate: this loop by hand is the case for a library helper.
         x0, y0 = 60, 330
         for i in range(8):
-            self.add(Dialog("???", "???", icon="warning", at=(x0 + 24 * i, y0 - 18 * i), size=BOX))
+            self.add(
+                Dialog(
+                    "???",
+                    "???",
+                    icon="warning",
+                    at=(x0 + 24 * i, y0 - 18 * i),
+                    size=BOX,
+                )
+            )
             self.pause(2 * FRAME)
         self.pause(0.5)
         self.next_section("pair")
@@ -324,8 +338,16 @@ class DialogStorm(Scene):
         rng = random.Random(98)
         for _ in range(2):
             jitter = (rng.randint(-4, 4), rng.randint(-4, 4))
-            self.add(Dialog("???", "???", icon="computer", disabled=True, size=BOX,
-                            at=(400 + jitter[0], 380 + jitter[1])))
+            self.add(
+                Dialog(
+                    "???",
+                    "???",
+                    icon="computer",
+                    disabled=True,
+                    size=BOX,
+                    at=(400 + jitter[0], 380 + jitter[1]),
+                )
+            )
             self.pause(2 * FRAME)
         self.pause(0.5)
 
@@ -357,7 +379,15 @@ class DialogStormStock(Scene):
         self.pause(0.5)
         self.play(Backdrop("dark_red"))
         for i in range(4):
-            self.add(Dialog("???", "???", icon="warning", at=(200 + 24 * i, 250 - 18 * i), size=BOX))
+            self.add(
+                Dialog(
+                    "???",
+                    "???",
+                    icon="warning",
+                    at=(200 + 24 * i, 250 - 18 * i),
+                    size=BOX,
+                )
+            )
             self.pause(2 * FRAME)
         self.pause(1)
 ```
@@ -379,7 +409,6 @@ Paint is moved and resized first, so nothing here can rest on one layout.
 import math
 
 from art98.anim import *
-from art98.anim.apps import Paint  # parked, see apps.py
 
 WIDTH, HEIGHT = 400, 310
 RADIUS = 110
@@ -392,15 +421,20 @@ class PaintDrawing(Scene):
         paint = Paint(at=(150, 40), size=(520, 480))
         self.add(paint)
         self.pause(0.3)
-        self.play(paint.animate.shift(90 * LEFT + 30 * DOWN), paint.animate.resize(500, 460),
-                  run_time=0.7)
+        self.play(
+            paint.animate.shift(90 * LEFT + 30 * DOWN),
+            paint.animate.resize(500, 460),
+            run_time=0.7,
+        )
         self.play(paint.resize_canvas(WIDTH, HEIGHT, run_time=1))
 
         def flower(t):
             angle = 2 * math.pi * t
             radius = RADIUS * (1 + 0.3 * math.cos(6 * angle))
-            return paint.canvas(WIDTH / 2 + radius * math.cos(angle),
-                                HEIGHT / 2 + radius * math.sin(angle)).point()
+            return paint.canvas(
+                WIDTH / 2 + radius * math.cos(angle),
+                HEIGHT / 2 + radius * math.sin(angle),
+            ).point()
 
         self.play(Click(paint.tool("brush")))
         self.play(Click(paint.color("navy"), run_time=0.5))
@@ -425,7 +459,6 @@ Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py)
 """Minesweeper: the board is read through the XYZZY cheat, then played by hand."""
 
 from art98.anim import *
-from art98.anim.apps import Minesweeper  # parked, see apps.py
 
 
 class MinesweeperWin(Scene):
@@ -452,7 +485,6 @@ Source: [screensaver.py](../../examples/gallery/screensaver.py)
 """A screensaver, launched directly and recorded live, then dismissed."""
 
 from art98.anim import *
-from art98.anim.apps import Screensaver  # parked, see apps.py
 
 
 class ScreensaverRun(Scene):

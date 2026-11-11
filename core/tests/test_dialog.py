@@ -3,11 +3,8 @@
 import struct
 
 import pytest
-
 from art98.actions.programs.dialog import Dialog
-from art98.anim import apps
 from art98.bridge import CallResult
-
 from test_anim import FakeDll, FakeGuest, FakeSession, FakeVideo, Stage
 
 BOX, ICON, TEXT, YES, NO = 0x70, 0x71, 0x72, 0x73, 0x74
@@ -66,7 +63,11 @@ def names(guest):
 def test_stock_icon_style_bits_are_unchanged(guest, scene):
     box = Dialog("Radius?", "Quit?", icon="question", buttons="yesno")
     scene.add(box)
-    assert guest.named("acall")[0][1] == ("user32", "MessageBoxA", (0, "Radius?", "Quit?", 0x24))
+    assert guest.named("acall")[0][1] == (
+        "user32",
+        "MessageBoxA",
+        (0, "Radius?", "Quit?", 0x24),
+    )
     assert box.style == 0x24
     assert "ExtractIconA" not in names(guest) and box.answer == "yes"
     with pytest.raises(ValueError, match="unknown icon"):
@@ -74,7 +75,9 @@ def test_stock_icon_style_bits_are_unchanged(guest, scene):
 
 
 def test_a_same_title_box_already_open_is_skipped(guest, scene):
-    guest.add_window(0x10, "#32770", (0, 0, 50, 50), "Quit?")  # an older box with the same title
+    guest.add_window(
+        0x10, "#32770", (0, 0, 50, 50), "Quit?"
+    )  # an older box with the same title
     box = Dialog("Hi", "Quit?")
     scene.add(box)
     assert box.hwnd == BOX
@@ -86,7 +89,11 @@ def test_custom_icon_is_extracted_set_then_repainted(guest, scene):
     box = Dialog("Hi", "Quit?", icon="computer")
     scene.add(box)
     assert box.style == 0x40
-    order = [c for c in guest.calls if c[0] in ("ExtractIconA", "SendMessageA", "RedrawWindow")]
+    order = [
+        c
+        for c in guest.calls
+        if c[0] in ("ExtractIconA", "SendMessageA", "RedrawWindow")
+    ]
     assert order[0] == ("ExtractIconA", (0, path, index))
     assert order[1] == ("SendMessageA", (ICON, 0x170, 0x55, 0))
     assert order[2][0] == "RedrawWindow" and order[2][1][0] == ICON
@@ -104,7 +111,10 @@ def test_custom_icon_rejects_a_bad_file_or_index(guest, scene, handle):
 
 def test_disabled_greys_every_button(guest, scene):
     scene.add(Dialog("Hi", "Quit?", buttons="yesno", disabled=True))
-    assert guest.named("EnableWindow") == [("EnableWindow", (YES, 0)), ("EnableWindow", (NO, 0))]
+    assert guest.named("EnableWindow") == [
+        ("EnableWindow", (YES, 0)),
+        ("EnableWindow", (NO, 0)),
+    ]
 
 
 def test_size_goes_to_win_and_the_box_is_laid_out_again(guest, scene):
@@ -117,7 +127,9 @@ def test_size_goes_to_win_and_the_box_is_laid_out_again(guest, scene):
         ("MoveWindow", (NO, 77, 157, 75, 23, 1)),
         ("MoveWindow", (TEXT, 62, 10, 70, 15, 1)),
     ]
-    guest.rows[0].clear()  # the stand-in reuses one hwnd for every box: forget the first
+    guest.rows[
+        0
+    ].clear()  # the stand-in reuses one hwnd for every box: forget the first
     with pytest.raises(ValueError, match="smaller than the stock box"):
         scene.add(Dialog("Hi", "Quit?", size=(100, 50)))
 
@@ -128,14 +140,17 @@ def test_set_message_changes_the_text_not_the_title(guest, scene):
     guest.calls.clear()
     box.set_message("A\nB")
     assert box.message == "A\nB"
-    assert guest.named("MoveWindow") == [("MoveWindow", (TEXT, 62, 51 - 41, 111, 30, 1))]
+    assert guest.named("MoveWindow") == [
+        ("MoveWindow", (TEXT, 62, 51 - 41, 111, 30, 1))
+    ]
     assert guest.named("SetWindowTextA") == [("SetWindowTextA", (TEXT, "A\nB"))]
     assert box.title_text == "Quit?"
     with pytest.raises(ValueError, match="too tall"):
         box.set_message("1\n2\n3\n4\n5")
 
 
-def test_dialog_is_exported_and_no_longer_parked():
+def test_dialog_is_an_exported_program():
     from art98 import anim
-    assert anim.Dialog is Dialog and apps.Dialog is Dialog
-    assert "Dialog" in anim.__all__ and "Dialog" not in apps.PARKED
+
+    assert anim.Dialog is Dialog
+    assert "Dialog" in anim.__all__

@@ -1,6 +1,6 @@
 """Draw the wallpaper tile and print its hash for states/wall.json.
 
-    python examples/dialog_storm/make_assets.py
+python examples/dialog_storm/make_assets.py
 """
 
 import hashlib
@@ -8,7 +8,10 @@ import struct
 from pathlib import Path
 
 ASSETS = Path(__file__).parent / "assets"
-WIDTH, HEIGHT = 64, 48  # a tile: the state's "tile" style repeats it over the 800x600 screen
+WIDTH, HEIGHT = (
+    64,
+    48,
+)  # a tile: the state's "tile" style repeats it over the 800x600 screen
 
 
 def pixel(x, y):
@@ -27,9 +30,13 @@ def write_bmp(path: Path) -> None:
         rows.append(row + bytes(stride - len(row)))
     pixels = b"".join(rows)
     path.write_bytes(
-        b"BM" + struct.pack("<IHHI", 54 + len(pixels), 0, 0, 54)
-        + struct.pack("<IiiHHIIiiII", 40, WIDTH, HEIGHT, 1, 24, 0, len(pixels), 2835, 2835, 0, 0)
-        + pixels)
+        b"BM"
+        + struct.pack("<IHHI", 54 + len(pixels), 0, 0, 54)
+        + struct.pack(
+            "<IiiHHIIiiII", 40, WIDTH, HEIGHT, 1, 24, 0, len(pixels), 2835, 2835, 0, 0
+        )
+        + pixels
+    )
 
 
 if __name__ == "__main__":

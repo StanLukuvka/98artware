@@ -176,7 +176,7 @@ user's and mode 0600, so they stay readable after the switch.
 
 ### `art98 up`, on the host
 
-1. Builds the image if it isn't there.
+1. Builds the image if it isn't there (or with `--rebuild`). It passes `--load` when `docker build` has it, since Docker CE's CLI against a Podman socket otherwise leaves the result in a buildx cache, and it fails if the engine's image isn't the ID the build reported.
 2. Reads the key from `ART98_PRODUCT_KEY`, or asks for it without echo, and writes it to a
    private file to mount at `/run/secrets/art98_key`.
 3. If `work/image.json` is missing, runs `art98 setup` in the container with the ISO mounted:

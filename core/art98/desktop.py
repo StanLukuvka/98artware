@@ -33,12 +33,17 @@ import struct
 import time
 
 from .protocol import Out
-from .win32 import SM_CXSCREEN, SM_CYSCREEN, SPI_GETWORKAREA, SPI_SETWORKAREA, SW_HIDE, screen_size, work_area  # noqa: F401
+from .win32 import SPI_SETWORKAREA, SW_HIDE, repaint_all, screen_size, work_area
 
 COLOR_DESKTOP = 1
 BLACK = 0x000000
-NAMED_COLOURS = {"teal": (0, 128, 128), "dark_red": (128, 0, 0), "red": (255, 0, 0),
-                 "white": (255, 255, 255), "black": (0, 0, 0)}
+NAMED_COLOURS = {
+    "teal": (0, 128, 128),
+    "dark_red": (128, 0, 0),
+    "red": (255, 0, 0),
+    "white": (255, 255, 255),
+    "black": (0, 0, 0),
+}
 
 HKCU, KEY_SET_VALUE, REG_SZ = 0x80000001, 2, 1
 SPI_SETDESKWALLPAPER = 0x14
@@ -59,8 +64,21 @@ UI_EFFECTS = (
 
 # Every pointer shape Windows 98 draws by itself: arrow, I-beam, wait, cross,
 # up arrow, the four resize arrows, move, no, hand and arrow-with-hourglass.
-POINTER_SHAPES = (32512, 32513, 32514, 32515, 32516,
-                  32642, 32643, 32644, 32645, 32646, 32648, 32649, 32650)
+POINTER_SHAPES = (
+    32512,
+    32513,
+    32514,
+    32515,
+    32516,
+    32642,
+    32643,
+    32644,
+    32645,
+    32646,
+    32648,
+    32649,
+    32650,
+)
 POINTER_SIZE = 32
 
 
@@ -77,7 +95,9 @@ def shell_windows(guest) -> tuple[int, int, int]:
     user32 = guest.user32
     taskbar = user32.FindWindowA("Shell_TrayWnd", 0).value
     desktop = user32.FindWindowA("Progman", 0).value
-    view = user32.FindWindowExA(desktop, 0, "SHELLDLL_DefView", 0).value if desktop else 0
+    view = (
+        user32.FindWindowExA(desktop, 0, "SHELLDLL_DefView", 0).value if desktop else 0
+    )
     icons = user32.FindWindowExA(view, 0, "SysListView32", 0).value if view else 0
     return taskbar, desktop, icons
 
@@ -86,12 +106,16 @@ def resolve_colour(colour) -> tuple[int, int, int]:
     """A colour name from NAMED_COLOURS or an (r, g, b) of ints 0..255, as a tuple. Raises ValueError."""
     if isinstance(colour, str):
         if colour not in NAMED_COLOURS:
-            raise ValueError(f"unknown colour {colour!r}; use one of {sorted(NAMED_COLOURS)} or (r, g, b)")
+            raise ValueError(
+                f"unknown colour {colour!r}; use one of {sorted(NAMED_COLOURS)} or (r, g, b)"
+            )
         return NAMED_COLOURS[colour]
     try:
         rgb = tuple(colour)
     except TypeError:
-        raise ValueError(f"colour must be a name or (r, g, b), not {colour!r}") from None
+        raise ValueError(
+            f"colour must be a name or (r, g, b), not {colour!r}"
+        ) from None
     if len(rgb) != 3 or not all(type(c) is int and 0 <= c <= 255 for c in rgb):
         raise ValueError(f"colour must be three ints from 0 to 255, not {colour!r}")
     return rgb
@@ -103,29 +127,50 @@ def colourref(rgb) -> int:
 
 
 def set_colour(guest, rgb) -> None:
-    """Set the desktop colour. On a blank desktop the change shows the icons again, so hide them again."""
+    """Set the desktop colour. On a blank desktop the change shows the icons again, so hide them again.
+
+    The broadcast makes every window repaint itself on its own thread, in no
+    set order, and a frame repainted late can draw over the window in front of
+    it (or leave pixels behind). So once every thread has taken the message,
+    the whole screen is repainted back to front: the frame comes out as a
+    fresh paint would draw it, on every run.
+    """
     user32 = guest.user32
     icons = shell_windows(guest)[2]
     was_hidden = bool(icons) and not user32.IsWindowVisible(icons).value
-    user32.SetSysColors(1, struct.pack("<I", COLOR_DESKTOP), struct.pack("<I", colourref(rgb)))
+    user32.SetSysColors(
+        1, struct.pack("<I", COLOR_DESKTOP), struct.pack("<I", colourref(rgb))
+    )
     if was_hidden:
         user32.ShowWindow(shell_windows(guest)[2], SW_HIDE)
-        guest.sync()
+    guest.sync()  # every window's thread has handled WM_SYSCOLORCHANGE
+    repaint_all(guest)
 
 
 def set_wallpaper(guest, path: str, style: str) -> None:
     """Show the BMP at `path` on the desktop. Icons are not re-hidden: the call doesn't bring them back."""
     tile, mode = STYLES[style]
-    key = guest.advapi32.RegOpenKeyExA(HKCU, r"Control Panel\Desktop", 0, KEY_SET_VALUE, Out(4))
+    key = guest.advapi32.RegOpenKeyExA(
+        HKCU, r"Control Panel\Desktop", 0, KEY_SET_VALUE, Out(4)
+    )
     hkey = struct.unpack("<I", key.buffers[0])[0]
     try:
         for name, value in (("TileWallpaper", tile), ("WallpaperStyle", mode)):
             data = value.encode() + b"\0"
-            if guest.advapi32.RegSetValueExA(hkey, name, 0, REG_SZ, data, len(data)).value != 0:
-                raise DesktopError([f"could not set {name} in the registry"], "the wallpaper failed:")
+            if (
+                guest.advapi32.RegSetValueExA(
+                    hkey, name, 0, REG_SZ, data, len(data)
+                ).value
+                != 0
+            ):
+                raise DesktopError(
+                    [f"could not set {name} in the registry"], "the wallpaper failed:"
+                )
     finally:
         guest.advapi32.RegCloseKey(hkey)
-    guest.user32.SystemParametersInfoA(SPI_SETDESKWALLPAPER, 0, path, SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE)
+    guest.user32.SystemParametersInfoA(
+        SPI_SETDESKWALLPAPER, 0, path, SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE
+    )
     guest.sync()
 
 
@@ -144,10 +189,17 @@ def wait_for_disc(guest, name: str, timeout: float = 2.0) -> str:
     deadline = time.monotonic() + timeout
     while True:
         letter = cd_drive(guest)
-        if letter and guest.kernel32.GetFileAttributesA(letter + name).value != INVALID_FILE_ATTRIBUTES:
+        if (
+            letter
+            and guest.kernel32.GetFileAttributesA(letter + name).value
+            != INVALID_FILE_ATTRIBUTES
+        ):
             return letter + name
         if time.monotonic() >= deadline:
-            raise DesktopError([f"the CD with {name} did not show up in {timeout:g} s"], "the wallpaper disc failed:")
+            raise DesktopError(
+                [f"the CD with {name} did not show up in {timeout:g} s"],
+                "the wallpaper disc failed:",
+            )
         time.sleep(0.05)
 
 
@@ -168,7 +220,9 @@ def blank(guest, pointer: bool = False) -> None:
     if desk:
         user32.EnableWindow(desk, 0)
     width, height = screen_size(guest)
-    user32.SystemParametersInfoA(SPI_SETWORKAREA, 0, struct.pack("<4i", 0, 0, width, height), 0)
+    user32.SystemParametersInfoA(
+        SPI_SETWORKAREA, 0, struct.pack("<4i", 0, 0, width, height), 0
+    )
     for _name, _get, set_action in UI_EFFECTS:
         user32.SystemParametersInfoA(set_action, 0, 0, 0)
     if not pointer:
@@ -193,7 +247,9 @@ def check_blank(guest) -> list[str]:
     elif user32.IsWindowVisible(taskbar).value:
         problems.append("the taskbar is showing")
     elif user32.IsWindowEnabled(taskbar).value:
-        problems.append("the taskbar takes input, so the Windows key opens the Start menu")
+        problems.append(
+            "the taskbar takes input, so the Windows key opens the Start menu"
+        )
     if desk and user32.IsWindowEnabled(desk).value:
         problems.append("the desktop takes input, so a right-click opens its menu")
     colour = user32.GetSysColor(COLOR_DESKTOP).value & 0xFFFFFF
@@ -202,7 +258,9 @@ def check_blank(guest) -> list[str]:
     width, height = screen_size(guest)
     area = work_area(guest)
     if area != (0, 0, width, height):
-        problems.append(f"the work area is {list(area)}, not the whole {width}x{height} screen")
+        problems.append(
+            f"the work area is {list(area)}, not the whole {width}x{height} screen"
+        )
     for name, get_action, _set in UI_EFFECTS:
         result = user32.SystemParametersInfoA(get_action, 0, Out(4), 0)
         if struct.unpack("<I", result.buffers[0])[0]:
@@ -219,8 +277,9 @@ def hide_pointer(guest) -> None:
     """
     user32 = guest.user32
     mask = POINTER_SIZE * POINTER_SIZE // 8
-    empty = user32.CreateCursor(0, 0, 0, POINTER_SIZE, POINTER_SIZE,
-                                b"\xff" * mask, b"\x00" * mask).value
+    empty = user32.CreateCursor(
+        0, 0, 0, POINTER_SIZE, POINTER_SIZE, b"\xff" * mask, b"\x00" * mask
+    ).value
     try:
         for shape in POINTER_SHAPES:
             # SetSystemCursor takes over the handle it's given, so each gets a copy.

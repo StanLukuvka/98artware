@@ -23,10 +23,18 @@ class Picture(Win):
 
     window_class = "Art98View"
 
-    def __init__(self, title: str = "Picture", *, image: Path | str | None = None,
-                 at: tuple[int, int] | None = None, size: tuple[int, int] | None = None):
+    def __init__(
+        self,
+        title: str = "Picture",
+        *,
+        image: Path | str | None = None,
+        at: tuple[int, int] | None = None,
+        size: tuple[int, int] | None = None,
+    ):
         if guestfiles.title_problem(title):
-            raise ValueError(f"{title!r} can't be a picture window's title: it {guestfiles.title_problem(title)}")
+            raise ValueError(
+                f"{title!r} can't be a picture window's title: it {guestfiles.title_problem(title)}"
+            )
         super().__init__(title, at=at or DEFAULT_AT, size=size or DEFAULT_SIZE)
         self.image = Path(image) if image is not None else None
         self._image_data = None
@@ -36,31 +44,52 @@ class Picture(Win):
             self.image_size = guestfiles.check_bmp(self._image_data, str(self.image))
 
     @classmethod
-    def from_state(cls, window) -> "Picture":
-        return cls(window.title, image=window.open.path if window.open else None,
-                   at=window.at, size=window.size)
+    def from_state(cls, window) -> Picture:
+        return cls(
+            window.title,
+            image=window.open.path if window.open else None,
+            at=window.at,
+            size=window.size,
+        )
 
     def attach(self, scene) -> None:
         guest = scene.guest
-        args = [guestfiles.ensure(guest, guestfiles.viewer(), "VIEW.EXE"),
-                *map(str, self._at), *map(str, self._size), f'"{self.title_text}"']
+        args = [
+            guestfiles.ensure(guest, guestfiles.viewer(), "VIEW.EXE"),
+            *map(str, self._at),
+            *map(str, self._size),
+            f'"{self.title_text}"',
+        ]
         if self._image_data is not None:
-            args.append(f'"{guestfiles.ensure(guest, self._image_data, self.image.name)}"')
+            args.append(
+                f'"{guestfiles.ensure(guest, self._image_data, self.image.name)}"'
+            )
         self.command = " ".join(args)
         super().attach(scene)
 
     def _look(self, pid: int | None) -> Window | None:
         """Look for the window, failing at once if VIEW.EXE gave up or crashed."""
         for window in self.guest.windows():
-            if window.pid == pid and window.visible and window.class_name == self.class_name:
+            if (
+                window.pid == pid
+                and window.visible
+                and window.class_name == self.class_name
+            ):
                 return window
-            if window.visible and window.class_name == "#32770" and window.title == "View":
+            if (
+                window.visible
+                and window.class_name == "#32770"
+                and window.title == "View"
+            ):
                 raise RuntimeError(
                     f"VIEW.EXE crashed opening {self.image or 'its window'}, and Windows 98's"
-                    " crash dialog is on the desktop")
+                    " crash dialog is on the desktop"
+                )
         if pid not in {p for p, _ in self.guest.processes()}:
             what = f"the image {self.image}" if self.image else "its window"
-            raise RuntimeError(f"VIEW.EXE closed without a window: Windows 98 couldn't open {what}")
+            raise RuntimeError(
+                f"VIEW.EXE closed without a window: Windows 98 couldn't open {what}"
+            )
         return None
 
     def _not_found(self, pid: int | None) -> str:

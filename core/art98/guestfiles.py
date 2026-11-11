@@ -44,7 +44,7 @@ def name_problem(name: str) -> str | None:
     if not name:
         return "is empty"
     if set(name) & BAD_NAME_CHARS:
-        return "has one of \\ / : * ? \" < > |"
+        return 'has one of \\ / : * ? " < > |'
     if any(ord(c) < 0x20 for c in name):
         return "has a control character"
     if name[-1] in " .":
@@ -104,7 +104,9 @@ def check_bmp(data: bytes, source: str = "image") -> tuple[int, int]:
         raise ValueError(f"{source} is not a BMP file")
     header = struct.unpack_from("<I", data, 14)[0]
     if header not in BMP_HEADER_SIZES or len(data) < 14 + header:
-        raise ValueError(f"{source} has a BMP header Windows 98 can't read (size {header})")
+        raise ValueError(
+            f"{source} has a BMP header Windows 98 can't read (size {header})"
+        )
     compression = 0
     if header == 12:
         width, height, _, depth = struct.unpack_from("<HHHH", data, 18)
@@ -113,12 +115,16 @@ def check_bmp(data: bytes, source: str = "image") -> tuple[int, int]:
     if width <= 0 or height == 0:
         raise ValueError(f"{source} has no pixels ({width}x{height})")
     if depth not in BMP_DEPTHS:
-        raise ValueError(f"{source} uses {depth} bits per pixel, which Windows 98 can't load")
+        raise ValueError(
+            f"{source} uses {depth} bits per pixel, which Windows 98 can't load"
+        )
     # LoadImage on Windows 98 can crash reading past the end, so the pixels must all be there.
     pixels = struct.unpack_from("<I", data, 10)[0]
     needed = pixels + (width * depth + 31) // 32 * 4 * abs(height)
     if compression in (BI_RGB, BI_BITFIELDS) and len(data) < needed:
-        raise ValueError(f"{source} is cut short: {len(data)} bytes, its header needs {needed}")
+        raise ValueError(
+            f"{source} is cut short: {len(data)} bytes, its header needs {needed}"
+        )
     if pixels >= len(data):
         raise ValueError(f"{source} is cut short: its pixels would start past the end")
     return width, abs(height)
@@ -129,10 +135,14 @@ def check_text(data: bytes, source: str = "text") -> bytes:
     if b"\0" in data:
         raise ValueError(f"{source} has NUL bytes, so it isn't a text file")
     if len(data) > TEXT_LIMIT:
-        raise ValueError(f"{source} is {len(data)} bytes; Notepad on Windows 98 takes at most {TEXT_LIMIT}")
+        raise ValueError(
+            f"{source} is {len(data)} bytes; Notepad on Windows 98 takes at most {TEXT_LIMIT}"
+        )
     try:
         data.decode("cp1252")
     except UnicodeDecodeError as error:
-        raise ValueError(f"{source} has bytes outside Windows 1252 (at {error.start})") from None
+        raise ValueError(
+            f"{source} has bytes outside Windows 1252 (at {error.start})"
+        ) from None
     # A bare LF shows as a box in Windows 98 Notepad.
     return data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")

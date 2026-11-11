@@ -18,7 +18,7 @@ appear, and marked out of scope.
 Categories:
 
 - **(a)** can be done today
-- **(b)** needs a program or action that is parked or not yet built
+- **(b)** needs a program or action that is not yet built
 - **(c)** needs a new feature
 - **(d)** out of reach, or better done outside art98
 

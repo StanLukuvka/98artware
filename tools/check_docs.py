@@ -16,8 +16,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGES = ("README.md", "tutorial.md", "scene-api.md", "animations.md")
-SAMPLE = re.compile(r"```python\n(.*?)```", re.S)
-SCENE = re.compile(r"^class (\w+)\(Scene\):", re.M)
+SAMPLE = re.compile(r"```python\n(.*?)```", re.DOTALL)
+SCENE = re.compile(r"^class (\w+)\(Scene\):", re.MULTILINE)
 
 
 def samples() -> list[tuple[str, str, str]]:
@@ -26,7 +26,9 @@ def samples() -> list[tuple[str, str, str]]:
         for code in SAMPLE.findall((ROOT / "docs/scenes" / page).read_text()):
             names = SCENE.findall(code)
             if len(names) != 1:
-                raise SystemExit(f"{page}: a sample must hold one scene, found {names}:\n{code}")
+                raise SystemExit(
+                    f"{page}: a sample must hold one scene, found {names}:\n{code}"
+                )
             found.append((page, names[0], code))
     return found
 
@@ -35,10 +37,22 @@ def run(sample: tuple[str, str, str], folder: Path) -> tuple[str, str]:
     page, name, code = sample
     source = folder / f"{name}.py"
     source.write_text(code)
-    done = subprocess.run(
-        [sys.executable, "-m", "art98.cli", "render", str(source), name,
-         "-o", str(folder / f"{name}.mp4"), "--work", str(ROOT / "work")],
-        cwd=ROOT, capture_output=True, text=True,
+    done = subprocess.run(  # noqa: PLW1510
+        [
+            sys.executable,
+            "-m",
+            "art98.cli",
+            "render",
+            str(source),
+            name,
+            "-o",
+            str(folder / f"{name}.mp4"),
+            "--work",
+            str(ROOT / "work"),
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
     )
     return f"{page}: {name}", "" if done.returncode == 0 else done.stderr[-2000:]
 

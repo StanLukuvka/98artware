@@ -1,5 +1,4 @@
 import pytest
-
 from art98 import freshness
 from art98.anim import Scene
 

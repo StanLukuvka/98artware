@@ -42,8 +42,6 @@ def get_text(hwnd, size=1024):
 def client_origin(hwnd):
     """The screen position of a window's client area."""
     return struct.unpack("<ii", u.ClientToScreen(hwnd, bytes(8)).buffers[0])
-
-
 ```
 
 Each recipe then runs inside this block, on a throwaway copy of the prepared image.
@@ -111,7 +109,7 @@ while u.IsWindow(pad.hwnd):
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
 g.move_window(pad.hwnd, 100, 80)
-u.SetWindowPos(pad.hwnd, 0, 0, 0, 400, 300, 0x0006)     # SWP_NOMOVE | SWP_NOZORDER
+u.SetWindowPos(pad.hwnd, 0, 0, 0, 400, 300, 0x0006)  # SWP_NOMOVE | SWP_NOZORDER
 assert g.find_window(class_name="Notepad").rect == (100, 80, 500, 380)
 u.MoveWindow(pad.hwnd, 50, 50, 300, 200, 1)
 assert g.find_window(class_name="Notepad").rect == (50, 50, 350, 250)
@@ -167,15 +165,15 @@ The same works through the system menu commands, with `PostMessageA`.
 ```python
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
-u.PostMessageA(pad.hwnd, WM_SYSCOMMAND, 0xF020, 0)      # SC_MINIMIZE
+u.PostMessageA(pad.hwnd, WM_SYSCOMMAND, 0xF020, 0)  # SC_MINIMIZE
 time.sleep(0.4)
 assert u.IsIconic(pad.hwnd).value == 1
-u.PostMessageA(pad.hwnd, WM_SYSCOMMAND, 0xF120, 0)      # SC_RESTORE
+u.PostMessageA(pad.hwnd, WM_SYSCOMMAND, 0xF120, 0)  # SC_RESTORE
 time.sleep(0.4)
-u.PostMessageA(pad.hwnd, WM_SYSCOMMAND, 0xF030, 0)      # SC_MAXIMIZE
+u.PostMessageA(pad.hwnd, WM_SYSCOMMAND, 0xF030, 0)  # SC_MAXIMIZE
 time.sleep(0.4)
 assert u.IsZoomed(pad.hwnd).value == 1
-u.PostMessageA(pad.hwnd, WM_SYSCOMMAND, 0xF060, 0)      # SC_CLOSE
+u.PostMessageA(pad.hwnd, WM_SYSCOMMAND, 0xF060, 0)  # SC_CLOSE
 ```
 
 ### Change a title
@@ -195,8 +193,10 @@ assert g.find_window(class_name="Notepad").title == "Written in 1998"
 ```python
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
-u.SetWindowPos(pad.hwnd, 0xFFFFFFFF, 0, 0, 0, 0, 0x0003)    # HWND_TOPMOST, no move, no size
-assert u.GetWindowLongA(pad.hwnd, -20).value & 0x8          # WS_EX_TOPMOST
+u.SetWindowPos(
+    pad.hwnd, 0xFFFFFFFF, 0, 0, 0, 0, 0x0003
+)  # HWND_TOPMOST, no move, no size
+assert u.GetWindowLongA(pad.hwnd, -20).value & 0x8  # WS_EX_TOPMOST
 ```
 
 ### Bring to front and give focus
@@ -268,8 +268,9 @@ A window made with `call` belongs to the agent's UI thread, which pumps messages
 and paints. `0x90800000` is `WS_POPUP | WS_VISIBLE | WS_BORDER`.
 
 ```python
-label = u.CreateWindowExA(0, "STATIC", "made by art98", 0x90800000,
-                          200, 200, 200, 40, 0, 0, 0, 0)
+label = u.CreateWindowExA(
+    0, "STATIC", "made by art98", 0x90800000, 200, 200, 200, 40, 0, 0, 0, 0
+)
 assert label.value
 g.sync()
 assert g.find_window(title="made by art98").rect == (200, 200, 400, 240)
@@ -335,7 +336,7 @@ pad = g.find_window(class_name="Notepad")
 u.SetCursorPos(pad.rect[0] + 200, pad.rect[1] + 150)
 u.mouse_event(MOUSEEVENTF_RIGHTDOWN, 0, 0, 0, 0)
 u.mouse_event(MOUSEEVENTF_RIGHTUP, 0, 0, 0, 0)
-popup = g.find_window(class_name="#32768", timeout=3)       # the menu window class
+popup = g.find_window(class_name="#32768", timeout=3)  # the menu window class
 vm.send_keys("esc")
 ```
 
@@ -353,7 +354,10 @@ for step in range(1, 41):
     u.SetCursorPos(x + step * 3, y + step)
 u.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 g.sync()
-assert g.find_window(class_name="Notepad").rect[:2] == (pad.rect[0] + 120, pad.rect[1] + 40)
+assert g.find_window(class_name="Notepad").rect[:2] == (
+    pad.rect[0] + 120,
+    pad.rect[1] + 40,
+)
 ```
 
 ### Click without the pointer
@@ -400,7 +404,7 @@ It returns at once and QEMU plays the keys out, so a script must pace itself.
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
 edit = g.find_window(class_name="Edit", parent=pad.hwnd)
-time.sleep(0.5)                         # a new window takes a moment to become foreground
+time.sleep(0.5)  # a new window takes a moment to become foreground
 for key in "hi":
     vm.send_keys(key)
     time.sleep(0.2)
@@ -433,9 +437,22 @@ This map covers the keys on a US layout. A key takes about 2 x `hold_ms`, and a 
 overflows and drops keys if about 300 are queued at once.
 
 ```python
-NAMES = {" ": "spc", "\n": "ret", "\t": "tab", ".": "dot", ",": "comma", "-": "minus",
-         "=": "equal", "/": "slash", ";": "semicolon", "'": "apostrophe", "[": "bracket_left",
-         "]": "bracket_right", "\\": "backslash", "`": "grave_accent"}
+NAMES = {
+    " ": "spc",
+    "\n": "ret",
+    "\t": "tab",
+    ".": "dot",
+    ",": "comma",
+    "-": "minus",
+    "=": "equal",
+    "/": "slash",
+    ";": "semicolon",
+    "'": "apostrophe",
+    "[": "bracket_left",
+    "]": "bracket_right",
+    "\\": "backslash",
+    "`": "grave_accent",
+}
 SHIFTED = dict(zip('!@#$%^&*()_+{}|:"<>?~', "1234567890-=[]\\;',./`"))
 
 
@@ -474,7 +491,7 @@ g.spawn("calc.exe")
 g.find_window(class_name="SciCalc")
 for char in "behind\r":
     u.PostMessageA(edit.hwnd, WM_CHAR, ord(char), 0)
-u.PostMessageA(edit.hwnd, WM_CHAR, 0xE9, 0)         # é, in cp1252
+u.PostMessageA(edit.hwnd, WM_CHAR, 0xE9, 0)  # é, in cp1252
 g.sync(pad.hwnd)
 assert get_text(edit.hwnd) == "behind\r\né"
 ```
@@ -520,7 +537,7 @@ u.keybd_event(VK_SHIFT, 0, KEYUP, 0)
 tap(ord("B"))
 g.sync(pad.hwnd)
 assert get_text(edit.hwnd) == "Ab"
-assert u.VkKeyScanA(ord("!")).value == 0x131        # Shift with VK 0x31
+assert u.VkKeyScanA(ord("!")).value == 0x131  # Shift with VK 0x31
 ```
 
 ## Processes
@@ -700,11 +717,18 @@ key = struct.unpack("<I", made.buffers[0])[0]
 assert g.advapi32.RegSetValueExA(key, "name", 0, 1, b"hello\0", 6).value == 0
 assert g.advapi32.RegSetValueExA(key, "count", 0, 4, struct.pack("<I", 7), 4).value == 0
 
-read = g.advapi32.RegQueryValueExA(key, "name", 0, Out(4), Out(64), struct.pack("<I", 64))
+read = g.advapi32.RegQueryValueExA(
+    key, "name", 0, Out(4), Out(64), struct.pack("<I", 64)
+)
 assert read.value == 0
 assert struct.unpack("<I", read.buffers[0])[0] == 1
 assert cstring(read.buffers[1]) == "hello"
-assert g.advapi32.RegQueryValueExA(key, "nope", 0, Out(4), Out(4), struct.pack("<I", 4)).value == 2
+assert (
+    g.advapi32.RegQueryValueExA(
+        key, "nope", 0, Out(4), Out(4), struct.pack("<I", 4)
+    ).value
+    == 2
+)
 
 g.advapi32.RegDeleteValueA(key, "count")
 g.advapi32.RegCloseKey(key)
@@ -719,8 +743,16 @@ opened = g.advapi32.RegOpenKeyExA(HKCU, r"Control Panel\Desktop", 0, 1, Out(4))
 key = struct.unpack("<I", opened.buffers[0])[0]
 names, index = [], 0
 while True:
-    step = g.advapi32.RegEnumValueA(key, index, Out(260), struct.pack("<I", 260), 0,
-                                    Out(4), Out(260), struct.pack("<I", 260))
+    step = g.advapi32.RegEnumValueA(
+        key,
+        index,
+        Out(260),
+        struct.pack("<I", 260),
+        0,
+        Out(4),
+        Out(260),
+        struct.pack("<I", 260),
+    )
     if step.value:
         break
     names.append(cstring(step.buffers[0]))
@@ -769,10 +801,12 @@ for index in range(count):
     u.SendMessageA(icons.hwnd, LVM_GETITEMTEXTA, index, memory)
     name = cstring(k.RtlMoveMemory(Out(200), memory + 256, 200).buffers[0])
     u.SendMessageA(icons.hwnd, LVM_GETITEMPOSITION, index, memory + 512)
-    names[name] = struct.unpack("<ii", k.RtlMoveMemory(Out(8), memory + 512, 8).buffers[0])
+    names[name] = struct.unpack(
+        "<ii", k.RtlMoveMemory(Out(8), memory + 512, 8).buffers[0]
+    )
 assert names["My Computer"] == (21, 2)
 
-u.SendMessageA(icons.hwnd, LVM_SETITEMPOSITION, 0, lparam(300, 200))    # move an icon
+u.SendMessageA(icons.hwnd, LVM_SETITEMPOSITION, 0, lparam(300, 200))  # move an icon
 k.VirtualFree(memory, 0, 0x8000)
 ```
 
@@ -784,7 +818,7 @@ something repaints. All of these were checked on screen.
 ### Shapes
 
 ```python
-RED, BLUE = 0x0000FF, 0xFF0000                      # GDI colours are 0xBBGGRR
+RED, BLUE = 0x0000FF, 0xFF0000  # GDI colours are 0xBBGGRR
 
 screen = u.GetDC(0).value
 pen = gdi.CreatePen(0, 3, RED).value
@@ -812,9 +846,11 @@ u.ReleaseDC(0, screen)
 
 ```python
 screen = u.GetDC(0).value
-font = gdi.CreateFontA(48, 0, 0, 0, 700, 0, 0, 0, 0, 0, 0, 0, 0, "Times New Roman").value
+font = gdi.CreateFontA(
+    48, 0, 0, 0, 700, 0, 0, 0, 0, 0, 0, 0, 0, "Times New Roman"
+).value
 old = gdi.SelectObject(screen, font).value
-gdi.SetBkMode(screen, 1)                            # TRANSPARENT
+gdi.SetBkMode(screen, 1)  # TRANSPARENT
 gdi.SetTextColor(screen, 0x00FFFF)
 gdi.TextOutA(screen, 100, 100, "Hello 1998", 10)
 u.DrawTextA(screen, "centred", -1, struct.pack("<4i", 0, 200, 800, 300), 0x25)
@@ -849,7 +885,10 @@ points = []
 for i in range(500):
     angle = i * math.tau / 500
     radius = 120 + 60 * math.sin(angle * 5)
-    points += [round(400 + radius * math.cos(angle)), round(300 + radius * math.sin(angle))]
+    points += [
+        round(400 + radius * math.cos(angle)),
+        round(300 + radius * math.sin(angle)),
+    ]
 
 screen = u.GetDC(0).value
 gdi.Polyline(screen, struct.pack(f"<{len(points)}i", *points), 500)
@@ -870,7 +909,7 @@ gdi.BitBlt(screen, 500, 300, 100, 100, screen, 300, 300, 0xCC0020)
 assert gdi.GetPixel(screen, 510, 310).value == 0x0000FF
 gdi.StretchBlt(screen, 620, 300, 100, 100, screen, 300, 300, 50, 50, 0xCC0020)
 
-old = gdi.SelectObject(screen, gdi.GetStockObject(0).value).value      # WHITE_BRUSH
+old = gdi.SelectObject(screen, gdi.GetStockObject(0).value).value  # WHITE_BRUSH
 gdi.PatBlt(screen, 500, 300, 100, 100, 0x5A0049)
 gdi.SelectObject(screen, old)
 assert gdi.GetPixel(screen, 510, 310).value == 0xFFFF00
@@ -887,7 +926,7 @@ Drawing on the screen DC stays until something repaints that area. Ask every win
 screen = u.GetDC(0).value
 gdi.Rectangle(screen, 100, 100, 300, 300)
 u.ReleaseDC(0, screen)
-u.RedrawWindow(0, 0, 0, 0x85)                       # invalidate, erase, all children
+u.RedrawWindow(0, 0, 0, 0x85)  # invalidate, erase, all children
 g.sync()
 ```
 
@@ -902,7 +941,7 @@ pad = g.find_window(class_name="Notepad")
 edit = g.find_window(class_name="Edit", parent=pad.hwnd)
 g.sync()
 dc = u.GetDC(edit.hwnd).value
-old = gdi.SelectObject(dc, gdi.GetStockObject(4).value).value          # BLACK_BRUSH
+old = gdi.SelectObject(dc, gdi.GetStockObject(4).value).value  # BLACK_BRUSH
 gdi.Rectangle(dc, 0, 0, 100, 100)
 gdi.SelectObject(dc, old)
 assert gdi.GetPixel(dc, 50, 50).value == 0
@@ -922,7 +961,9 @@ def walk(menu):
     for index in range(u.GetMenuItemCount(menu).signed):
         label = cstring(u.GetMenuStringA(menu, index, Out(80), 80, 0x400).buffers[0])
         submenu = u.GetSubMenu(menu, index).value
-        items.append((label, walk(submenu) if submenu else u.GetMenuItemID(menu, index).signed))
+        items.append(
+            (label, walk(submenu) if submenu else u.GetMenuItemID(menu, index).signed)
+        )
     return items
 
 
@@ -941,7 +982,7 @@ may open a modal dialog.
 ```python
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
-u.PostMessageA(pad.hwnd, WM_COMMAND, 11, 0)         # Help > About
+u.PostMessageA(pad.hwnd, WM_COMMAND, 11, 0)  # Help > About
 about = g.find_window(title="About Notepad", timeout=3)
 u.PostMessageA(about.hwnd, WM_CLOSE, 0, 0)
 ```
@@ -971,7 +1012,9 @@ g.find_window(class_name="#32768", timeout=3)
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
 system = u.GetSystemMenu(pad.hwnd, 0).value
-ids = [u.GetMenuItemID(system, i).value for i in range(u.GetMenuItemCount(system).value)]
+ids = [
+    u.GetMenuItemID(system, i).value for i in range(u.GetMenuItemCount(system).value)
+]
 assert ids == [0xF120, 0xF010, 0xF000, 0xF020, 0xF030, 0, 0xF060]
 ```
 
@@ -1003,7 +1046,7 @@ box = g.acall("user32", "MessageBoxA", 0, "Delete everything?", "art98", 4)
 dialog = g.find_window(title="art98", class_name="#32770", timeout=3)
 labels = [c.title for c in g.windows(dialog.hwnd)]
 assert "Delete everything?" in labels and "&Yes" in labels
-u.PostMessageA(dialog.hwnd, WM_COMMAND, 6, 0)       # Yes
+u.PostMessageA(dialog.hwnd, WM_COMMAND, 6, 0)  # Yes
 assert box.wait(5).value == 6
 ```
 
@@ -1017,7 +1060,7 @@ g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
 edit = g.find_window(class_name="Edit", parent=pad.hwnd)
 u.SendMessageA(edit.hwnd, WM_SETTEXT, 0, "saved by art98")
-u.PostMessageA(pad.hwnd, WM_COMMAND, 2, 0)          # File > Save As
+u.PostMessageA(pad.hwnd, WM_COMMAND, 2, 0)  # File > Save As
 dialog = g.find_window(title="Save As", timeout=4)
 name = next(c for c in g.windows(dialog.hwnd) if c.class_name == "Edit")
 u.SendMessageA(name.hwnd, WM_SETTEXT, 0, r"C:\SAVED.TXT")
@@ -1055,9 +1098,15 @@ assert read == text
 ## System information
 
 ```python
-assert [u.GetSystemMetrics(i).value for i in (0, 1)] == [800, 600]  # SM_CXSCREEN, SM_CYSCREEN
-assert u.GetSystemMetrics(4).value == 19                            # SM_CYCAPTION
-assert cstring(g.advapi32.GetUserNameA(Out(32), struct.pack("<I", 32)).buffers[0]) == "art98"
+assert [u.GetSystemMetrics(i).value for i in (0, 1)] == [
+    800,
+    600,
+]  # SM_CXSCREEN, SM_CYSCREEN
+assert u.GetSystemMetrics(4).value == 19  # SM_CYCAPTION
+assert (
+    cstring(g.advapi32.GetUserNameA(Out(32), struct.pack("<I", 32)).buffers[0])
+    == "art98"
+)
 assert cstring(k.GetComputerNameA(Out(32), struct.pack("<I", 32)).buffers[0]) == "ART98"
 
 version = bytearray(148)
@@ -1118,7 +1167,7 @@ g.set_display_mode(1024, 768, 16, persist=False)
 assert u.GetSystemMetrics(0).value == 1024
 g.set_display_mode(800, 600, 8, persist=False)
 screen = u.GetDC(0).value
-assert gdi.GetDeviceCaps(screen, 12).value == 8     # BITSPIXEL
+assert gdi.GetDeviceCaps(screen, 12).value == 8  # BITSPIXEL
 u.ReleaseDC(0, screen)
 g.set_display_mode(800, 600, 16, persist=False)
 ```
@@ -1160,7 +1209,7 @@ assert saver.rect == (0, 0, 800, 600)
 assert g.ping(timeout=2)
 
 u.SetCursorPos(100, 100)
-u.mouse_event(MOUSEEVENTF_MOVE, 20, 20, 0, 0)       # any mouse move ends it
+u.mouse_event(MOUSEEVENTF_MOVE, 20, 20, 0, 0)  # any mouse move ends it
 time.sleep(0.3)
 u.mouse_event(MOUSEEVENTF_MOVE, 20, 20, 0, 0)
 time.sleep(0.6)
@@ -1189,10 +1238,13 @@ To start the configured saver the way Windows does, name it in `SYSTEM.INI`, usi
 name, and turn saving on. Then `SC_SCREENSAVE` (`0xF140`) starts it.
 
 ```python
-short = cstring(k.GetShortPathNameA(r"C:\WINDOWS\SYSTEM\Mystify Your Mind.scr",
-                                    Out(128), 128).buffers[0])
+short = cstring(
+    k.GetShortPathNameA(
+        r"C:\WINDOWS\SYSTEM\Mystify Your Mind.scr", Out(128), 128
+    ).buffers[0]
+)
 k.WritePrivateProfileStringA("boot", "SCRNSAVE.EXE", short, "SYSTEM.INI")
-u.SystemParametersInfoA(17, 1, 0, 0)                # SPI_SETSCREENSAVEACTIVE
+u.SystemParametersInfoA(17, 1, 0, 0)  # SPI_SETSCREENSAVEACTIVE
 
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
@@ -1224,6 +1276,7 @@ video files, so copy one in. This builder writes the smallest AVI that Windows a
 ```python
 def avi(frames, width, height, fps):
     """Uncompressed 24-bit video from raw bottom-up BGR frames."""
+
     def chunk(tag, data):
         return tag + struct.pack("<I", len(data)) + data + b"\0" * (len(data) & 1)
 
@@ -1231,19 +1284,46 @@ def avi(frames, width, height, fps):
         return b"LIST" + struct.pack("<I", len(data) + 4) + kind + data
 
     size = width * height * 3
-    avih = struct.pack("<14I", 1000000 // fps, size * fps, 0, 0x10, len(frames), 0, 1,
-                       size, width, height, 0, 0, 0, 0)
-    strh = b"vidsDIB " + struct.pack("<IHHIIIIIIII", 0, 0, 0, 0, 1, fps, 0, len(frames),
-                                     size, 0xFFFFFFFF, 0) + struct.pack("<4H", 0, 0, width, height)
+    avih = struct.pack(
+        "<14I",
+        1000000 // fps,
+        size * fps,
+        0,
+        0x10,
+        len(frames),
+        0,
+        1,
+        size,
+        width,
+        height,
+        0,
+        0,
+        0,
+        0,
+    )
+    strh = (
+        b"vidsDIB "
+        + struct.pack(
+            "<IHHIIIIIIII", 0, 0, 0, 0, 1, fps, 0, len(frames), size, 0xFFFFFFFF, 0
+        )
+        + struct.pack("<4H", 0, 0, width, height)
+    )
     strf = struct.pack("<IiiHHIIiiII", 40, width, height, 1, 24, 0, size, 0, 0, 0, 0)
-    head = group(b"hdrl", chunk(b"avih", avih)
-                 + group(b"strl", chunk(b"strh", strh) + chunk(b"strf", strf)))
+    head = group(
+        b"hdrl",
+        chunk(b"avih", avih)
+        + group(b"strl", chunk(b"strh", strh) + chunk(b"strf", strf)),
+    )
     index, offset = b"", 4
     for frame in frames:
         index += b"00db" + struct.pack("<III", 0x10, offset, len(frame))
         offset += 8 + len(frame)
-    body = (b"AVI " + head + group(b"movi", b"".join(chunk(b"00db", f) for f in frames))
-            + chunk(b"idx1", index))
+    body = (
+        b"AVI "
+        + head
+        + group(b"movi", b"".join(chunk(b"00db", f) for f in frames))
+        + chunk(b"idx1", index)
+    )
     return b"RIFF" + struct.pack("<I", len(body)) + body
 
 
@@ -1271,7 +1351,9 @@ exits when the clip ends.
 
 ```python
 g.put_file(r"C:\CLIP.AVI", avi(frames, 64, 48, 10))
-g.spawn(r'"C:\Program Files\Windows Media Player\MPLAYER2.EXE" /play /close C:\CLIP.AVI')
+g.spawn(
+    r'"C:\Program Files\Windows Media Player\MPLAYER2.EXE" /play /close C:\CLIP.AVI'
+)
 player = g.find_window(class_name="Media Player 2", timeout=6)
 while u.IsWindow(player.hwnd):
     time.sleep(0.2)
@@ -1313,7 +1395,7 @@ for row in range(8):
         if gdi.GetPixel(screen, 0, 0).value & 0xFFFFFF == 0:
             mines.add((column, row))
 u.ReleaseDC(0, screen)
-u.ShowWindow(desktop.hwnd, 8)                       # SW_SHOWNA
+u.ShowWindow(desktop.hwnd, 8)  # SW_SHOWNA
 assert len(mines) == 10
 
 for row in range(8):
@@ -1339,12 +1421,12 @@ game = g.find_window(class_name="Solitaire")
 left, top = client_origin(game.hwnd)
 time.sleep(0.5)
 dc = u.GetDC(game.hwnd).value
-assert gdi.GetPixel(dc, 130, 50).value == 0x008000          # table, no card yet
+assert gdi.GetPixel(dc, 130, 50).value == 0x008000  # table, no card yet
 u.SetCursorPos(left + 40, top + 50)
 u.mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
 u.mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 g.sync()
-assert gdi.GetPixel(dc, 130, 50).value != 0x008000         # the card to its right
+assert gdi.GetPixel(dc, 130, 50).value != 0x008000  # the card to its right
 u.ReleaseDC(game.hwnd, dc)
 ```
 
@@ -1362,7 +1444,7 @@ from art98 import GuestCrashed
 
 g.clear_events()
 try:
-    u.CallWindowProcA(0x70000000, 0, 0, 0, 0)       # jumps to unmapped memory
+    u.CallWindowProcA(0x70000000, 0, 0, 0, 0)  # jumps to unmapped memory
 except GuestCrashed as error:
     assert "0xc0000005" in str(error)
 g.wait_event("HELLO", timeout=3)
@@ -1418,7 +1500,7 @@ try:
     u.SendMessageA(pad.hwnd, WM_COMMAND, 11, 0, timeout=1)  # About opens, agent blocks
 except BridgeTimeout:
     pass
-vm.send_keys("ret")                                         # OK
+vm.send_keys("ret")  # OK
 time.sleep(0.5)
 g.wait_ready(5)
 ```
@@ -1433,9 +1515,27 @@ time.sleep(0.3)
 
 vm.send_keys("meta_l", "r")
 time.sleep(0.5)
-for key in (["c"], ["shift", "semicolon"], ["backslash"], ["a"], ["r"], ["t"], ["9"], ["8"],
-            ["backslash"], ["a"], ["g"], ["e"], ["n"], ["t"], ["dot"], ["e"], ["x"], ["e"],
-            ["ret"]):
+for key in (
+    ["c"],
+    ["shift", "semicolon"],
+    ["backslash"],
+    ["a"],
+    ["r"],
+    ["t"],
+    ["9"],
+    ["8"],
+    ["backslash"],
+    ["a"],
+    ["g"],
+    ["e"],
+    ["n"],
+    ["t"],
+    ["dot"],
+    ["e"],
+    ["x"],
+    ["e"],
+    ["ret"],
+):
     vm.send_keys(*key)
     time.sleep(0.2)
 g.wait_ready(10)

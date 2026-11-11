@@ -9,6 +9,7 @@ Local backend only, private stage, no snapshot saved. Screenshots go to OUTDIR
   <desk>-<colour>-n.png  (stock) with a Notepad on top, after the repaint
 and prints pixel samples. A fresh revert() separates desktops, not colours.
 """
+
 import struct
 import sys
 import time
@@ -18,9 +19,20 @@ from art98.desktop import blank, shell_windows
 from art98.session import stage
 from art98.win32 import RDW_REPAINT_ALL
 
-COLOURS = {"teal": (0, 128, 128), "darkred": (128, 0, 0), "red": (255, 0, 0), "white": (255, 255, 255)}
+COLOURS = {
+    "teal": (0, 128, 128),
+    "darkred": (128, 0, 0),
+    "red": (255, 0, 0),
+    "white": (255, 255, 255),
+}
 # probes: desktop gap, first icon label (My Computer text ~ (40,62)), taskbar, Start button
-POINTS = {"bg": (400, 300), "label_bg": (22, 64), "taskbar": (400, 590), "start": (30, 590), "tray": (770, 590)}
+POINTS = {
+    "bg": (400, 300),
+    "label_bg": (22, 64),
+    "taskbar": (400, 590),
+    "start": (30, 590),
+    "tray": (770, 590),
+}
 
 
 def colourref(r, g, b):
@@ -36,12 +48,16 @@ def shot(session, out, name):
     data = ppm.read_bytes()
     head, rest = data.split(b"\n255\n", 1)
     w = int(head.split()[1])
-    px = {k: tuple(rest[(y * w + x) * 3:(y * w + x) * 3 + 3]) for k, (x, y) in POINTS.items()}
+    px = {
+        k: tuple(rest[(y * w + x) * 3 : (y * w + x) * 3 + 3])
+        for k, (x, y) in POINTS.items()
+    }
     try:
         from PIL import Image
+
         Image.open(ppm).save(out / f"{name}.png")
         ppm.unlink()
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
     print(f"  {name}: {px}")
     return px
@@ -54,10 +70,14 @@ def run(session, out, desk):
         t = time.time()
         if desk == "blank":
             blank(guest)
-        guest.user32.SetSysColors(1, struct.pack("<I", 1), struct.pack("<I", colourref(*rgb)))
+        guest.user32.SetSysColors(
+            1, struct.pack("<I", 1), struct.pack("<I", colourref(*rgb))
+        )
         guest.sync()
         got = guest.user32.GetSysColor(1).value
-        print(f"{desk}/{cname}: want {rgb} GetSysColor={got:06x} (BGR) pressure {pressure()}")
+        print(
+            f"{desk}/{cname}: want {rgb} GetSysColor={got:06x} (BGR) pressure {pressure()}"
+        )
         shot(session, out, f"{desk}-{cname}-a")
         _tb, progman, icons = shell_windows(guest)
         guest.user32.RedrawWindow(progman, 0, 0, RDW_REPAINT_ALL)
@@ -70,7 +90,9 @@ def run(session, out, desk):
             guest.user32.ShowWindow(icons, 0)  # the one-line fix: re-hide the icon list
             guest.sync()
             shot(session, out, f"{desk}-{cname}-c")
-            print(f"  after re-hide: icons visible={guest.user32.IsWindowVisible(icons).value}")
+            print(
+                f"  after re-hide: icons visible={guest.user32.IsWindowVisible(icons).value}"
+            )
         if desk == "stock":
             guest.spawn("notepad.exe")
             time.sleep(2)

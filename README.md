@@ -48,7 +48,11 @@ class Mvp(Scene):
         self.play(flower.animate.shift(200 * RIGHT), run_time=2)
         self.play(Teleport(flower, to=(40, 40), aligned_edge=UL))
         self.play(Close(flower))
-        self.add(Picture("Sky", image=HERE / "assets" / "sky.bmp", at=(100, 260), size=(240, 200)))
+        self.add(
+            Picture(
+                "Sky", image=HERE / "assets" / "sky.bmp", at=(100, 260), size=(240, 200)
+            )
+        )
 
         self.set_state("states/gallery.json")  # a new starting desktop, off camera
         self.play(self.prop("picture").animate.shift(100 * DOWN), run_time=2)

@@ -20,10 +20,25 @@ KEY_HOLD_MS = 40
 KEY_SETTLE = 0.1  # time for a key press to reach the guest and be handled
 
 QCODES = {
-    "enter": "ret", "return": "ret", "escape": "esc", "space": "spc", "del": "delete",
-    "win": "meta_l", "pageup": "pgup", "pagedown": "pgdn", "-": "minus", "=": "equal",
-    ",": "comma", ".": "dot", "/": "slash", ";": "semicolon", "'": "apostrophe",
-    "[": "bracket_left", "]": "bracket_right", "\\": "backslash", "`": "grave_accent",
+    "enter": "ret",
+    "return": "ret",
+    "escape": "esc",
+    "space": "spc",
+    "del": "delete",
+    "win": "meta_l",
+    "pageup": "pgup",
+    "pagedown": "pgdn",
+    "-": "minus",
+    "=": "equal",
+    ",": "comma",
+    ".": "dot",
+    "/": "slash",
+    ";": "semicolon",
+    "'": "apostrophe",
+    "[": "bracket_left",
+    "]": "bracket_right",
+    "\\": "backslash",
+    "`": "grave_accent",
 }
 UNSHIFTED = r"`1234567890-=[]\;',./"
 SHIFTED = '~!@#$%^&*()_+{}|:"<>?'
@@ -81,7 +96,9 @@ class TypeWithCursor(Animation):
         wanted = min(len(self.codes), round(alpha * len(self.codes)))
         before = self._typed
         while self._typed < wanted:
-            self.scene.guest.user32.SendMessageA(hwnd, WM_CHAR, self.codes[self._typed], 1)
+            self.scene.guest.user32.SendMessageA(
+                hwnd, WM_CHAR, self.codes[self._typed], 1
+            )
             self._typed += 1
         if self._typed != before:
             # Typing before existing text makes the Edit shift the rest of the line by a

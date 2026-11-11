@@ -49,10 +49,15 @@ def transport_name(transport: str | None = None) -> str:
     """How the host reaches serve: a Unix socket in a mounted folder on Linux,
     which skips the rootless port forward, and loopback TCP everywhere else.
     ART98_TRANSPORT overrides it."""
-    name = transport or os.environ.get("ART98_TRANSPORT") or (
-        "unix" if sys.platform == "linux" else "tcp")
+    name = (
+        transport
+        or os.environ.get("ART98_TRANSPORT")
+        or ("unix" if sys.platform == "linux" else "tcp")
+    )
     if name not in TRANSPORTS:
-        raise ValueError(f"unknown transport {name!r}; choose from {', '.join(TRANSPORTS)}")
+        raise ValueError(
+            f"unknown transport {name!r}; choose from {', '.join(TRANSPORTS)}"
+        )
     return name
 
 
@@ -69,15 +74,23 @@ class Engine:
         path = shutil.which(wanted)
         if not path:
             raise ContainerError(
-                f"{wanted} not found; install Docker, or podman-docker on a Podman host")
+                f"{wanted} not found; install Docker, or podman-docker on a Podman host"
+            )
         self.name = Path(wanted).name
         self.path = path
 
-    def __call__(self, *args: str, check: bool = True, input: bytes | None = None,
-                 capture: bool = True) -> subprocess.CompletedProcess:
+    def __call__(
+        self,
+        *args: str,
+        check: bool = True,
+        input: bytes | None = None,
+        capture: bool = True,
+    ) -> subprocess.CompletedProcess:
         try:
             return subprocess.run(
-                [self.path, *args], check=check, input=input,
+                [self.path, *args],
+                check=check,
+                input=input,
                 stdout=subprocess.PIPE if capture else None,
                 stderr=subprocess.PIPE if capture else None,
             )
@@ -106,25 +119,35 @@ class Engine:
 
     # secrets
 
-    def secret_args(self, data: bytes, target: str) -> tuple[list[str], "callable"]:
+    def secret_args(self, data: bytes, target: str) -> tuple[list[str], callable]:
         """Arguments that put data at /run/secrets/<target>, and a cleanup.
 
         `docker run` has no secrets outside swarm, so the data goes in a private
         file, mode 0600 in a folder of our own, mounted read-only. The cleanup can
         run once the container exists: its mount keeps the file.
         """
-        folder = Path(tempfile.mkdtemp(prefix="art98-secret-", dir=os.environ.get("XDG_RUNTIME_DIR")))
+        folder = Path(
+            tempfile.mkdtemp(
+                prefix="art98-secret-", dir=os.environ.get("XDG_RUNTIME_DIR")
+            )
+        )
         path = folder / target
         path.touch(mode=0o600)
         path.write_bytes(data)
         return ["-v", f"{path}:/run/secrets/{target}:ro"], (
-            lambda: shutil.rmtree(folder, ignore_errors=True))
+            lambda: shutil.rmtree(folder, ignore_errors=True)
+        )
 
 
 def mount_args(work: Path) -> list[str]:
     # label=disable lets the container use work/ without relabelling the files in it.
-    return ["--security-opt", "label=disable", "-v", f"{Path(work).resolve()}:/work",
-            *owner_args()]
+    return [
+        "--security-opt",
+        "label=disable",
+        "-v",
+        f"{Path(work).resolve()}:/work",
+        *owner_args(),
+    ]
 
 
 def owner_args() -> list[str]:
@@ -132,11 +155,21 @@ def owner_args() -> list[str]:
     it writes in work/ is ours. See art98.container.entry."""
     if not hasattr(os, "getuid"):
         return []
-    return ["-e", f"ART98_HOST_UID={os.getuid()}", "-e", f"ART98_HOST_GID={os.getgid()}"]
+    return [
+        "-e",
+        f"ART98_HOST_UID={os.getuid()}",
+        "-e",
+        f"ART98_HOST_GID={os.getgid()}",
+    ]
 
 
-def open_channel(address: tuple[str, int] | str, token: str, channel: str,
-                 timeout: float = START_TIMEOUT, check=None) -> socket.socket:
+def open_channel(
+    address: tuple[str, int] | str,
+    token: str,
+    channel: str,
+    timeout: float = START_TIMEOUT,
+    check=None,
+) -> socket.socket:
     """Connect and pass the handshake, retrying while the guest boots.
 
     Until serve listens, a rootless port forward accepts and then hangs up, so
@@ -168,8 +201,10 @@ def open_channel(address: tuple[str, int] | str, token: str, channel: str,
             continue
         if answer != "ok":
             sock.close()
-            raise ContainerError(f"the stage refused the {channel} channel: "
-                                 f"{answer.removeprefix('error ')}")
+            raise ContainerError(
+                f"the stage refused the {channel} channel: "
+                f"{answer.removeprefix('error ')}"
+            )
         sock.settimeout(None)
         return sock
 
@@ -177,8 +212,14 @@ def open_channel(address: tuple[str, int] | str, token: str, channel: str,
 class ContainerStage:
     """One running container, from `run` until the control connection closes."""
 
-    def __init__(self, work: Path | str = "work", engine: Engine | None = None,
-                 image: str | None = None, vnc: bool = False, transport: str | None = None):
+    def __init__(
+        self,
+        work: Path | str = "work",
+        engine: Engine | None = None,
+        image: str | None = None,
+        vnc: bool = False,
+        transport: str | None = None,
+    ):
         self.work = Path(work).resolve()
         self.engine = engine or Engine()
         self.image = image or image_name()
@@ -202,9 +243,21 @@ class ContainerStage:
         if self.vnc:
             listen += ["-p", f"127.0.0.1::{VNC_PORT}"]
         return [
-            self.engine.path, "run", "--rm", "--init", "--name", self.name,
-            *mount_args(self.work), *listen, *secret,
-            self.image, "serve", "--work", "/work", *serve, *(["--vnc"] if self.vnc else []),
+            self.engine.path,
+            "run",
+            "--rm",
+            "--init",
+            "--name",
+            self.name,
+            *mount_args(self.work),
+            *listen,
+            *secret,
+            self.image,
+            "serve",
+            "--work",
+            "/work",
+            *serve,
+            *(["--vnc"] if self.vnc else []),
         ]
 
     def log_tail(self, lines: int = 20) -> str:
@@ -220,23 +273,34 @@ class ContainerStage:
         tail = self.log_tail()
         return ContainerError(message + (f"\n{tail}" if tail else ""))
 
-    def start(self, timeout: float = START_TIMEOUT) -> "ContainerStage":
+    def start(self, timeout: float = START_TIMEOUT) -> ContainerStage:
         if not (self.work / "image.json").exists():
-            raise ImageMissing(f"{self.work / 'image.json'} not found; run `art98 up` first")
+            raise ImageMissing(
+                f"{self.work / 'image.json'} not found; run `art98 up` first"
+            )
         if not self.engine.has_image(self.image):
             raise ContainerError(f"no image {self.image}; run `art98 up` to build it")
         if self.transport == "unix":
-            self._socket_dir = Path(tempfile.mkdtemp(
-                prefix="art98-stage-", dir=os.environ.get("XDG_RUNTIME_DIR")))
+            self._socket_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="art98-stage-", dir=os.environ.get("XDG_RUNTIME_DIR")
+                )
+            )
             self.address = str(self._socket_dir / "serve.sock")
-        self._log = tempfile.NamedTemporaryFile(
-            prefix="art98-serve-", suffix=".log", dir=os.environ.get("XDG_RUNTIME_DIR"),
-            delete=False)
+        self._log = tempfile.NamedTemporaryFile(  # noqa: SIM115
+            prefix="art98-serve-",
+            suffix=".log",
+            dir=os.environ.get("XDG_RUNTIME_DIR"),
+            delete=False,
+        )
         secret, cleanup = self.engine.secret_args(self._token.encode(), TOKEN_TARGET)
         try:
             self._process = subprocess.Popen(
-                self.argv(secret), stdin=subprocess.DEVNULL, stdout=self._log,
-                stderr=subprocess.STDOUT)
+                self.argv(secret),
+                stdin=subprocess.DEVNULL,
+                stdout=self._log,
+                stderr=subprocess.STDOUT,
+            )
             deadline = time.monotonic() + timeout
             self._wait_for_container(deadline)
             if self.transport == "tcp":
@@ -252,7 +316,9 @@ class ContainerStage:
 
     def _wait_for_container(self, deadline: float) -> None:
         """Wait until the container exists, which is when the token file is mounted."""
-        while self.engine("container", "inspect", self.name, check=False).returncode != 0:
+        while (
+            self.engine("container", "inspect", self.name, check=False).returncode != 0
+        ):
             self._check_alive()
             if time.monotonic() > deadline:
                 raise self._fail(f"{self.name} did not start")
@@ -265,7 +331,9 @@ class ContainerStage:
                 return self.engine.port(self.name, port)
             except ContainerError:
                 if time.monotonic() > deadline:
-                    raise self._fail(f"{self.name} did not publish port {port}") from None
+                    raise self._fail(
+                        f"{self.name} did not publish port {port}"
+                    ) from None
                 time.sleep(0.1)
 
     @property
@@ -284,7 +352,9 @@ class ContainerStage:
 
     def connect(self, channel: str, timeout: float = START_TIMEOUT) -> socket.socket:
         try:
-            return open_channel(self.address, self._token, channel, timeout, self._check_alive)
+            return open_channel(
+                self.address, self._token, channel, timeout, self._check_alive
+            )
         except TimeoutError:
             raise self._fail(f"{self.name} did not answer on {self.address}") from None
 
@@ -316,9 +386,15 @@ class RemoteVM:
     def running(self) -> bool:
         return not self._closed and self.stage.running
 
-    def _request(self, op: str, payload: bytes = b"", **arguments) -> tuple[dict, bytes]:
+    def _request(
+        self, op: str, payload: bytes = b"", **arguments
+    ) -> tuple[dict, bytes]:
         # A request with a payload carries `size` and the raw bytes after the JSON line.
-        header = {"op": op, "size": len(payload), **arguments} if payload else {"op": op, **arguments}
+        header = (
+            {"op": op, "size": len(payload), **arguments}
+            if payload
+            else {"op": op, **arguments}
+        )
         message = json.dumps(header).encode() + b"\n" + payload
         with self._lock:
             if self._closed:
@@ -329,9 +405,13 @@ class RemoteVM:
                 if not line:
                     raise QemuError("the stage closed the control connection")
                 reply = json.loads(line)
-                payload = self._read_exact(reply.get("size", 0)) if reply.get("ok") else b""
+                payload = (
+                    self._read_exact(reply.get("size", 0)) if reply.get("ok") else b""
+                )
             except OSError as error:
-                raise QemuError(f"the stage control connection failed: {error}") from None
+                raise QemuError(
+                    f"the stage control connection failed: {error}"
+                ) from None
         if not reply.get("ok"):
             raise QemuError(f"{op}: {reply.get('error')}")
         return reply, payload
@@ -344,7 +424,9 @@ class RemoteVM:
 
     def screenshot(self, path: Path | str, format: str = "png") -> Path:
         shared = self.stage.shared_dir
-        reply, data = self._request("screenshot", format=format, shared=shared is not None)
+        reply, data = self._request(
+            "screenshot", format=format, shared=shared is not None
+        )
         if "file" in reply:
             # Written by QEMU into the folder we share with the container.
             shutil.copyfile(shared / reply["file"], path)
@@ -390,8 +472,12 @@ class RemoteVM:
         self.stage.close()
 
 
-def boot(work: Path | str = "work", display: str = "none",
-         ready_timeout: float = START_TIMEOUT, engine: Engine | None = None):
+def boot(
+    work: Path | str = "work",
+    display: str = "none",
+    ready_timeout: float = START_TIMEOUT,
+    engine: Engine | None = None,
+):
     """Start a stage container and connect a Session to it.
 
     Any display other than "none" shows the screen over VNC on a loopback

@@ -81,9 +81,13 @@ class Scene:
     def run(self, session, video) -> None:
         """Play this scene on a booted session, into an open recorder."""
         if self.clock != "free":
-            raise NotImplementedError(f"clock {self.clock!r}: only 'free' exists so far")
+            raise NotImplementedError(
+                f"clock {self.clock!r}: only 'free' exists so far"
+            )
         if self.desktop not in DESKTOPS:
-            raise ValueError(f"desktop {self.desktop!r}: use one of {', '.join(DESKTOPS)}")
+            raise ValueError(
+                f"desktop {self.desktop!r}: use one of {', '.join(DESKTOPS)}"
+            )
         self.session, self.recorder = session, video
         self.sections = []
         self.guest, self.vm = session.bridge, session.vm
@@ -119,7 +123,9 @@ class Scene:
             return self._state_props[window_id]
         except KeyError:
             known = ", ".join(self._state_props) or "none"
-            raise KeyError(f"no window {window_id!r} in the state (it has {known})") from None
+            raise KeyError(
+                f"no window {window_id!r} in the state (it has {known})"
+            ) from None
 
     def _start_desktop(self) -> None:
         """After a boot or a revert: the desktop the scene asked for, and a new pointer."""
@@ -164,8 +170,13 @@ class Scene:
 
     # ---- time ----
 
-    def play(self, *animations: Animation, run_time: float | None = None,
-             rate_func=None, live: bool = False) -> None:
+    def play(
+        self,
+        *animations: Animation,
+        run_time: float | None = None,
+        rate_func=None,
+        live: bool = False,
+    ) -> None:
         """Run animations together, one captured frame at a time.
 
         run_time and rate_func override every animation given. Shorter
@@ -174,7 +185,9 @@ class Scene:
         """
         timeline.play(self, animations, run_time, rate_func, live)
 
-    def wait(self, duration: float = 1.0, stop_condition=None, frozen_frame: bool = False) -> None:
+    def wait(
+        self, duration: float = 1.0, stop_condition=None, frozen_frame: bool = False
+    ) -> None:
         """Hold for a while, or until stop_condition() is true.
 
         The guest keeps running, so a caret blinks and a clock ticks. These

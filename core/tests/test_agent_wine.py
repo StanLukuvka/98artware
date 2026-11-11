@@ -17,7 +17,6 @@ import tty
 from pathlib import Path
 
 import pytest
-
 from art98.bridge import Bridge, BridgeError, GuestCrashed
 from art98.guestfiles import guest_build
 from art98.protocol import Out
@@ -51,14 +50,36 @@ def relay_back(source: socket.socket, sink: int) -> None:
 @pytest.fixture(scope="module")
 def prefix(tmp_path_factory):
     path = os.environ.get("ART98_TEST_WINEPREFIX") or tmp_path_factory.mktemp("wine")
-    env = {k: v for k, v in os.environ.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY")}
+    env = {
+        k: v for k, v in os.environ.items() if k not in ("DISPLAY", "WAYLAND_DISPLAY")
+    }
     env["WINEPREFIX"] = str(path)
     if not (Path(path) / "drive_c").exists():
-        subprocess.run(["wine", "cmd", "/c", "ver"], env=env, check=True, capture_output=True,
-                       timeout=240)
+        subprocess.run(
+            ["wine", "cmd", "/c", "ver"],
+            env=env,
+            check=True,
+            capture_output=True,
+            timeout=240,
+        )
     # The agent needs a window, and these tests must not need a display.
-    subprocess.run(["wine", "reg", "add", r"HKCU\Software\Wine\Drivers", "/v", "Graphics",
-                    "/d", "null", "/f"], env=env, check=True, capture_output=True, timeout=60)
+    subprocess.run(
+        [
+            "wine",
+            "reg",
+            "add",
+            r"HKCU\Software\Wine\Drivers",
+            "/v",
+            "Graphics",
+            "/d",
+            "null",
+            "/f",
+        ],
+        env=env,
+        check=True,
+        capture_output=True,
+        timeout=60,
+    )
     return Path(path), env
 
 
@@ -77,8 +98,12 @@ def agent(prefix, tmp_path):
     bridge = Bridge(ours, timeout=15)
     binary = tmp_path / "agent.exe"
     shutil.copy(AGENT, binary)
-    process = subprocess.Popen(["wine", str(binary)], env=env, stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL)
+    process = subprocess.Popen(
+        ["wine", str(binary)],
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
     bridge.wait_ready(45)
     yield bridge
     try:
@@ -147,7 +172,8 @@ def test_unknown_verb_is_an_error(agent):
 
 def test_window_can_be_created_found_moved_and_measured(agent):
     hwnd = agent.user32.CreateWindowExA(
-        0, "STATIC", "art98 test", WS_POPUP_VISIBLE, 10, 20, 100, 50, 0, 0, 0, 0).value
+        0, "STATIC", "art98 test", WS_POPUP_VISIBLE, 10, 20, 100, 50, 0, 0, 0, 0
+    ).value
     assert hwnd
     window = agent.find_window(title="art98 test")
     assert window.hwnd == hwnd and window.class_name.lower() == "static"

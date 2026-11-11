@@ -1,6 +1,6 @@
 """Draw the sample's two BMPs and print their hashes for the state files.
 
-    python examples/mvp/make_assets.py
+python examples/mvp/make_assets.py
 """
 
 import hashlib
@@ -21,9 +21,13 @@ def write_bmp(path: Path, pixel) -> None:
         rows.append(row + bytes(stride - len(row)))
     pixels = b"".join(rows)
     path.write_bytes(
-        b"BM" + struct.pack("<IHHI", 54 + len(pixels), 0, 0, 54)
-        + struct.pack("<IiiHHIIiiII", 40, WIDTH, HEIGHT, 1, 24, 0, len(pixels), 2835, 2835, 0, 0)
-        + pixels)
+        b"BM"
+        + struct.pack("<IHHI", 54 + len(pixels), 0, 0, 54)
+        + struct.pack(
+            "<IiiHHIIiiII", 40, WIDTH, HEIGHT, 1, 24, 0, len(pixels), 2835, 2835, 0, 0
+        )
+        + pixels
+    )
 
 
 def flower(x, y):

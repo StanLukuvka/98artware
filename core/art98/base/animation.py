@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
+from itertools import pairwise
 
 from .props import Box, Prop, point_of
 from .rate_functions import linear, smooth
@@ -28,8 +29,13 @@ class Animation:
     claims: tuple[str, ...] = ()
     live = False
 
-    def __init__(self, target=None, *, run_time: float | None = None,
-                 rate_func: Callable[[float], float] | None = None):
+    def __init__(
+        self,
+        target=None,
+        *,
+        run_time: float | None = None,
+        rate_func: Callable[[float], float] | None = None,
+    ):
         self.target = target
         self.scene = None
         if run_time is not None:
@@ -90,8 +96,13 @@ class AnimationGroup(Animation):
 
     rate_func = staticmethod(linear)
 
-    def __init__(self, *animations: Animation, lag_ratio: float = 0.0,
-                 run_time: float | None = None, rate_func=None):
+    def __init__(
+        self,
+        *animations: Animation,
+        lag_ratio: float = 0.0,
+        run_time: float | None = None,
+        rate_func=None,
+    ):
         super().__init__(run_time=run_time, rate_func=rate_func)
         self.animations = animations
         self.lag_ratio = lag_ratio
@@ -114,7 +125,9 @@ class AnimationGroup(Animation):
                 a, b = self._spans[i], self._spans[j]
                 shared = set(first.claims) & set(second.claims)
                 if shared and a[0] < b[1] and b[0] < a[1]:
-                    raise ValueError(f"two animations in a group both drive the {shared.pop()}")
+                    raise ValueError(
+                        f"two animations in a group both drive the {shared.pop()}"
+                    )
 
     def begin(self, scene) -> None:
         super().begin(scene)
@@ -125,7 +138,9 @@ class AnimationGroup(Animation):
         now = self.rate_func(progress) * self.natural_time
         if progress >= 1:
             now = self.natural_time
-        for index, (animation, (start, end)) in enumerate(zip(self.animations, self._spans)):
+        for index, (animation, (start, end)) in enumerate(
+            zip(self.animations, self._spans)
+        ):
             if index in self._finished or now < start:
                 continue
             if index not in self._begun:
@@ -178,12 +193,12 @@ def path_function(path) -> Callable[[float], tuple[float, float]]:
     points = [point_of(p) for p in path]
     if len(points) < 2:
         raise ValueError("a path needs at least two points")
-    lengths = [abs(b.x - a.x) + abs(b.y - a.y) for a, b in zip(points, points[1:])]
+    lengths = [abs(b.x - a.x) + abs(b.y - a.y) for a, b in pairwise(points)]
     total = sum(lengths) or 1.0
 
     def along(t: float):
         remaining = max(0.0, min(1.0, t)) * total
-        for (a, b), length in zip(zip(points, points[1:]), lengths):
+        for (a, b), length in zip(pairwise(points), lengths):
             if remaining <= length and length:
                 return lerp(a, b, remaining / length)
             remaining -= length
@@ -207,7 +222,7 @@ class Animate(Animation):
         self._start: dict[str, float] = {}
         self._end: dict[str, float] = {}
 
-    def __call__(self, *, run_time=None, rate_func=None) -> "Animate":
+    def __call__(self, *, run_time=None, rate_func=None) -> Animate:
         if run_time is not None:
             self.run_time = run_time
         if rate_func is not None:
@@ -218,7 +233,7 @@ class Animate(Animation):
         if name not in Box.LAYOUT:
             raise AttributeError(f"{name!r} cannot be animated")
 
-        def record(*args, **kwargs) -> "Animate":
+        def record(*args, **kwargs) -> Animate:
             self._calls.append((name, args, kwargs))
             return self
 
@@ -232,7 +247,9 @@ class Animate(Animation):
             getattr(ghost, name)(*args, **kwargs)
         fields = ("x", "y", "width", "height")
         self._start = {f: getattr(self.target, f) for f in fields}
-        self._end = {f: getattr(ghost, f) for f in fields if getattr(ghost, f) != self._start[f]}
+        self._end = {
+            f: getattr(ghost, f) for f in fields if getattr(ghost, f) != self._start[f]
+        }
 
     def interpolate(self, alpha: float) -> None:
         for field, end in self._end.items():

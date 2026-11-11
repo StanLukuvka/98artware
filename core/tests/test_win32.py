@@ -3,7 +3,6 @@
 import struct
 
 from art98 import win32
-from art98.bridge import RDW_REPAINT_ALL as bridge_repaint
 from art98.protocol import Out
 
 
@@ -27,6 +26,7 @@ class Guest:
                 def call(*args):
                     guest.calls.append((name, args))
                     return guest.result
+
                 return call
 
         self.user32 = User32()
@@ -41,12 +41,10 @@ def test_window_rect_is_none_when_the_window_is_gone():
 def test_place_window_moves_then_repaints():
     guest = Guest()
     win32.place_window(guest, 7, 1, 2, 3, 4, 0x14)
-    assert guest.calls == [("SetWindowPos", (7, 0, 1, 2, 3, 4, 0x14)),
-                           ("RedrawWindow", (7, 0, 0, 0x585))]
-
-
-def test_repaint_flags_are_shared():
-    assert bridge_repaint == win32.RDW_REPAINT_ALL == 0x585
+    assert guest.calls == [
+        ("SetWindowPos", (7, 0, 1, 2, 3, 4, 0x14)),
+        ("RedrawWindow", (7, 0, 0, 0x585)),
+    ]
 
 
 def test_mouse_button_sends_down_or_up():

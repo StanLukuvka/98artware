@@ -59,15 +59,26 @@ def patch(setup: Setup) -> None:
     _mtool("mcopy", "-o", "-i", spec, str(patched), "::MSDOS.SYS")
     _mtool("mattrib", "-i", spec, "+r", "+h", "+s", "::MSDOS.SYS")
     patched.unlink()
-    _run("qemu-img", "convert", "-f", "raw", "-O", "qcow2", str(setup.raw), str(setup.golden))
+    _run(
+        "qemu-img",
+        "convert",
+        "-f",
+        "raw",
+        "-O",
+        "qcow2",
+        str(setup.raw),
+        str(setup.golden),
+    )
 
 
 def boot_and_ping(setup: Setup) -> None:
     """Boot the converted image once and shut it down: the agent must answer."""
-    with VM(setup._config(), log=setup._vm_log()) as vm:
-        with Bridge.connect(vm.serial_path) as bridge:
-            setup._require_agent(vm, bridge, "init_api")
-            setup._reboot(vm, bridge)
+    with (
+        VM(setup._config(), log=setup._vm_log()) as vm,
+        Bridge.connect(vm.serial_path) as bridge,
+    ):
+        setup._require_agent(vm, bridge, "init_api")
+        setup._reboot(vm, bridge)
 
 
 def run(setup: Setup) -> None:
