@@ -11,6 +11,7 @@ import time
 
 from ..base.animation import Animation
 from ..base.rate_functions import linear
+from ..win32 import repaint_window
 from .window.win import Win
 
 WM_CHAR = 0x0102
@@ -78,9 +79,16 @@ class TypeWithCursor(Animation):
     def interpolate(self, alpha: float) -> None:
         hwnd = self.target.edit_hwnd
         wanted = min(len(self.codes), round(alpha * len(self.codes)))
+        before = self._typed
         while self._typed < wanted:
             self.scene.guest.user32.SendMessageA(hwnd, WM_CHAR, self.codes[self._typed], 1)
             self._typed += 1
+        if self._typed != before:
+            # Typing before existing text makes the Edit shift the rest of the line by a
+            # blit and mark nothing invalid, and that blit comes out garbled on screen.
+            # SYNC only repaints what is invalid, so the Edit is invalidated here, frame
+            # included: the shifted text also leaves a stray letter over its scroll bar.
+            repaint_window(self.scene.guest, hwnd)
 
 
 class UntypeWithCursor(TypeWithCursor):

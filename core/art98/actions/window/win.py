@@ -100,6 +100,14 @@ class Win(Prop):
         self.set_rect(left, top, right - left, bottom - top)
         self._sent = self.rect[0], self.rect[1], *self.size
 
+    def repaint_if_moved(self) -> None:
+        """Read the place back and repaint if the guest moved the window itself (a Drag)."""
+        before = (*self.rect[:2], *self.size)
+        self.refresh()
+        if self.hwnd is not None and (*self.rect[:2], *self.size) != before:
+            # Dragging leaves stale icon-label pixels in the frame: experiments/host-checks/README.md (M7b)
+            win32.repaint_window(self.guest, self.hwnd)
+
     def point(self) -> Vec:
         self.refresh()
         return self.get_center()
@@ -130,7 +138,9 @@ class Win(Prop):
             caption = self.guest.user32.GetSystemMetrics(SM_CYCAPTION).value
             return self.x + self.width / 2, self.y + frame + caption / 2
 
-        return Spot(locate)
+        spot = Spot(locate)
+        spot.window = self  # a Drag from here knows which window it moves
+        return spot
 
     def corner(self, direction=DR, inset: int = 2) -> Spot:
         """A corner or edge of the frame, which is where a window is resized from."""

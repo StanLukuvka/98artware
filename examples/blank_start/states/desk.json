@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "display": [800, 600, 16],
+  "windows": [
+    {"id": "flower", "app": "picture", "title": "Flower", "at": [60, 60], "size": [240, 200],
+     "open": {"file": "../../mvp/assets/flower.bmp",
+              "sha256": "235768010b463d9ab566c62020f830d7a0ca1527ac643cfb8fe0d892ea62a619"}},
+    {"id": "note", "app": "notepad", "at": [320, 180], "size": [320, 200],
+     "open": {"file": "../assets/note.txt", "sha256": "85659a8be19192d7530eceb977e5cb067081e08f13b342267d1fc5619908ef90"}}
+  ],
+  "pointer": [400, 540]
+}

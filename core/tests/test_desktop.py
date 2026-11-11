@@ -136,7 +136,9 @@ class Blank(Scene):
 def test_a_scene_starts_blank_and_measures_the_whole_screen():
     guest = DesktopGuest()
     scene = Blank()
-    scene.run(FakeSession(guest), FakeVideo(guest))
+    session = FakeSession(guest)
+    scene.run(session, FakeVideo(guest))
+    assert session.reverts == 0
     assert guest.visible == set()
     assert scene.seen == ((0, 0, 800, 600), (0, 0, 800, 600))
 

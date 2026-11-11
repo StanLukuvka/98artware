@@ -3,6 +3,7 @@
 from .bridge import Bridge, BridgeError, BridgeTimeout, CallResult, GuestCrashed, Window
 from .protocol import Out
 from .qemu import VM, VMConfig
+from .recorder import Recorder, RecorderError
 from .session import Session, boot
 
 __all__ = [
@@ -12,6 +13,8 @@ __all__ = [
     "CallResult",
     "GuestCrashed",
     "Out",
+    "Recorder",
+    "RecorderError",
     "Session",
     "VM",
     "VMConfig",

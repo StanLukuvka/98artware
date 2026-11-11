@@ -1,9 +1,11 @@
-"""Parked: the programs on the image, as props that know their own controls.
+"""Parked: the programs still to be moved, as props that know their own controls.
 
-Programs are out of the MVP, and each one (Notepad, Paint, Minesweeper, the
+Programs are out of the MVP, and each one (Paint, Minesweeper, the
 screensavers and message boxes) comes back later as its own action class. Until
 then this module still works and is tested, but `art98.anim` doesn't export it:
-import the classes from `art98.anim.apps`. `PARKED` lists them.
+import the classes from `art98.anim.apps`. `PARKED` lists them. Notepad has
+already moved to `art98.actions.programs.notepad`; it is re-exported here only
+so old imports keep working.
 """
 
 from __future__ import annotations
@@ -14,15 +16,15 @@ import time
 from ..bridge import BridgeTimeout
 from ..actions.keyboard import Keys, TypeKeys
 from ..actions.pointer import Click, Drag, RightClick
+from ..actions.programs.notepad import Notepad  # noqa: F401  (moved; still importable from here)
 from ..actions.window.win import Win
 from ..base.props import Spot
 from ..base.vectors import Vec
-from ..win32 import WM_SETTEXT, window_rect
+from ..win32 import window_rect
 
-EM_SETMODIFY = 0x00B9
 SW_HIDE, SW_SHOWNA = 0, 8
 BLACK = 0
-PARKED = ("Dialog", "Minesweeper", "Notepad", "Paint", "Screensaver")
+PARKED = ("Dialog", "Minesweeper", "Paint", "Screensaver")
 
 
 class Dialog(Win):
@@ -58,33 +60,6 @@ class Dialog(Win):
     @property
     def answer(self) -> str:
         return self.ANSWERS.get(self._call.wait().value, "unknown")
-
-
-class Notepad(Win):
-    """Notepad and its Edit control. Text goes to `edit_hwnd`."""
-
-    command = "notepad.exe"
-    window_class = "Notepad"
-
-    def ready(self) -> None:
-        self._edit = self.children("Edit")[0].hwnd
-        super().ready()
-
-    @property
-    def edit_hwnd(self) -> int:
-        return self._edit
-
-    @property
-    def text(self) -> str:
-        return self._read_text(self._edit)
-
-    def set_text(self, text: str) -> None:
-        self.guest.user32.SendMessageA(self._edit, WM_SETTEXT, 0, text)
-
-    def close(self) -> None:
-        """Close without the save prompt, by marking the text as saved."""
-        self.guest.user32.SendMessageA(self._edit, EM_SETMODIFY, 0, 0)
-        super().close()
 
 
 class Paint(Win):

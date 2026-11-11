@@ -18,7 +18,8 @@ class Scene:
     `self.guest` is the raw Bridge, so any Win32 call can sit between
     animations, `self.vm` is the VM, and `self.pointer` is the mouse pointer.
     `self.time` is video time, frames written over fps, and it never reads a
-    clock. Only the `free` clock exists so far: the guest runs all the time,
+    clock. `self.recorder` (also `self.video`) writes the frames, and
+    `cut()` starts a new clip, and `next_section(name)` does the same with a label. Only the `free` clock exists so far: the guest runs all the time,
     and what the script drives lands on exact frames while anything the guest
     times for itself runs by the host's clock.
 
@@ -41,13 +42,14 @@ class Scene:
 
     def __init__(self):
         self.session = None
-        self.video = None
+        self.recorder = None
         self.guest = None
         self.vm = None
         self.pointer: Pointer | None = None
         self.props: list[Prop] = []
         self.work_area = DESKTOP_AREA
         self._state_props: dict[str, Prop] = {}
+        self.sections: list[tuple[str, float]] = []
 
     # ---- what a scene writes ----
 
@@ -63,8 +65,18 @@ class Scene:
     # ---- running ----
 
     @property
+    def video(self):
+        """Another name for `self.recorder`."""
+        return self.recorder
+
+    @video.setter
+    def video(self, recorder) -> None:
+        self.recorder = recorder
+
+    @property
     def time(self) -> float:
-        return self.video.count / self.fps
+        """Video time so far, across every clip."""
+        return self.recorder.total / self.fps
 
     def run(self, session, video) -> None:
         """Play this scene on a booted session, into an open recorder."""
@@ -72,7 +84,8 @@ class Scene:
             raise NotImplementedError(f"clock {self.clock!r}: only 'free' exists so far")
         if self.desktop not in DESKTOPS:
             raise ValueError(f"desktop {self.desktop!r}: use one of {', '.join(DESKTOPS)}")
-        self.session, self.video = session, video
+        self.session, self.recorder = session, video
+        self.sections = []
         self.guest, self.vm = session.bridge, session.vm
         if self.state is not None:
             self.set_state(self.state)
@@ -178,9 +191,29 @@ class Scene:
         """Record something that moves by itself, such as a screensaver.
 
         Frames follow the host clock and skip the repaint wait, so this
-        stretch depends on host speed. It wraps `FrameRecorder.live`.
+        stretch depends on host speed. It wraps `Recorder.live`.
         """
         timeline.live(self, seconds, stop_condition)
+
+    def cut(self, path: Path | str | None = None) -> Path | None:
+        """End the current clip here and start a new one, between two frames.
+
+        `render` keeps the clips beside the output, as `<stem>-01.mp4` and
+        on, and joins them into the output. It wraps `Recorder.cut`.
+        """
+        return self.recorder.cut(path)
+
+    def next_section(self, name: str) -> Path | None:
+        """Start a new section here: end the current clip and begin the next, between two frames.
+
+        A thin wrapper around cut(). `name` labels the section in `self.sections`
+        as (name, video time it starts at); clip files stay numbered. Returns the
+        closed clip's path, or None when nothing was recorded since the last cut.
+        """
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("next_section needs a name")
+        self.sections.append((name, self.time))
+        return self.cut()
 
     def wait_until(self, stop_condition, max_time: float = 60.0) -> None:
         """Hold until stop_condition() is true, giving up after max_time."""

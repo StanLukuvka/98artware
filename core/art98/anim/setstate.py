@@ -17,10 +17,11 @@ from ..win32 import (  # noqa: F401  (SW_*, cursor_pos, screen_size stay importa
     SW_MAXIMIZE, SW_SHOWMINNOACTIVE, cursor_pos, repaint_window, screen_size, show_window, work_area,
 )
 from ..actions.pointer import Pointer
+from ..actions.programs.notepad import Notepad
 from ..actions.window.picture import Picture
 
 BITSPIXEL = 12
-APPS = {"picture": Picture}
+APPS = {"picture": Picture, "notepad": Notepad}
 
 
 class StateMismatch(StateError):
@@ -45,8 +46,7 @@ def apply_state(scene, state: State) -> dict:
         scene.prepare_desktop()
     props = {}
     for window in state.windows:
-        prop = APPS[window.app](window.title, image=window.open.path if window.open else None,
-                                at=window.at, size=window.size)
+        prop = APPS[window.app].from_state(window)
         scene.add(prop)
         props[window.id] = prop
         # Maximizing activates the window, so it's done before the next one

@@ -18,6 +18,11 @@ BAD_NAME_CHARS = set('\\/:*?"<>|')
 BMP_HEADER_SIZES = {12, 40, 52, 56, 108, 124}
 BMP_DEPTHS = {1, 4, 8, 16, 24, 32}
 BI_RGB, BI_BITFIELDS = 0, 3
+TEXT_LIMIT = 50_000  # Windows 98 Notepad offers WordPad above this
+
+
+class GuestBuildMissing(FileNotFoundError):
+    """guest/build has no programs: make hasn't run."""
 
 
 def guest_build() -> Path:
@@ -25,10 +30,54 @@ def guest_build() -> Path:
     return Path(__file__).resolve().parents[2] / "guest" / "build"
 
 
+def _not_cp1252(text: str) -> bool:
+    """True if protocol.py would turn part of it into "?" (it encodes with errors="replace")."""
+    try:
+        text.encode("cp1252")
+    except UnicodeEncodeError:
+        return True
+    return False
+
+
+def name_problem(name: str) -> str | None:
+    """Why this can't be a file name on the guest command line, or None if it can."""
+    if not name:
+        return "is empty"
+    if set(name) & BAD_NAME_CHARS:
+        return "has one of \\ / : * ? \" < > |"
+    if any(ord(c) < 0x20 for c in name):
+        return "has a control character"
+    if name[-1] in " .":
+        return "ends in a space or a dot, which Windows drops"
+    if _not_cp1252(name):
+        return "has characters outside Windows 1252, which would become '?'"
+    return None
+
+
+def title_problem(title: str) -> str | None:
+    """Why this can't be a window title on the guest command line, or None if it can."""
+    if '"' in title:
+        return "has a double quote"
+    if any(ord(c) < 0x20 for c in title):
+        return "has a control character"
+    if title.endswith("\\"):
+        return "ends in a backslash, which would escape the closing quote"
+    if _not_cp1252(title):
+        return "has characters outside Windows 1252, which would become '?'"
+    return None
+
+
+def check_name(name: str) -> str:
+    """Return the file name, or raise ValueError saying what is wrong with it."""
+    problem = name_problem(name)
+    if problem:
+        raise ValueError(f"{name!r} can't be a file name on the guest: it {problem}")
+    return name
+
+
 def guest_path(data: bytes, name: str) -> str:
     """The guest path for these bytes: C:\\ART98\\F<7 hex digits>\\<name>."""
-    if not name or set(name) & BAD_NAME_CHARS:
-        raise ValueError(f"{name!r} can't be a file name on the guest")
+    check_name(name)
     return rf"{GUEST_DIR}\F{hashlib.sha256(data).hexdigest()[:7]}\{name}"
 
 
@@ -45,7 +94,7 @@ def viewer() -> bytes:
     """VIEW.EXE, the picture window, as built in guest/build."""
     path = guest_build() / "view.exe"
     if not path.exists():
-        raise FileNotFoundError(f"{path} missing; run make in guest/")
+        raise GuestBuildMissing(f"{path} missing; run make in guest/")
     return path.read_bytes()
 
 
@@ -73,3 +122,17 @@ def check_bmp(data: bytes, source: str = "image") -> tuple[int, int]:
     if pixels >= len(data):
         raise ValueError(f"{source} is cut short: its pixels would start past the end")
     return width, abs(height)
+
+
+def check_text(data: bytes, source: str = "text") -> bytes:
+    """Check a text file Windows 98 Notepad can open, and return it with CRLF line ends."""
+    if b"\0" in data:
+        raise ValueError(f"{source} has NUL bytes, so it isn't a text file")
+    if len(data) > TEXT_LIMIT:
+        raise ValueError(f"{source} is {len(data)} bytes; Notepad on Windows 98 takes at most {TEXT_LIMIT}")
+    try:
+        data.decode("cp1252")
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{source} has bytes outside Windows 1252 (at {error.start})") from None
+    # A bare LF shows as a box in Windows 98 Notepad.
+    return data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")

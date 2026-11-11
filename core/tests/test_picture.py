@@ -160,8 +160,19 @@ def test_a_bad_picture_fails_before_the_guest_is_asked(folder):
     (folder / "cut.bmp").write_bytes(bmp()[:60])
     with pytest.raises(ValueError, match="cut short"):
         Picture(image=folder / "cut.bmp")
-    with pytest.raises(ValueError, match="double quote"):
-        Picture('a "quoted" title')
+    for title, match in (('a "quoted" title', "double quote"), ("ends\\", "backslash"),
+                         ("a\nb", "control"), ("\u4e2d", "1252")):
+        with pytest.raises(ValueError, match=match):
+            Picture(title)
+    Picture("a\\b caf\u00e9")  # accepted: inner backslash, cp1252 accent
+
+
+def test_a_bad_image_file_name_fails_before_the_guest_is_asked(folder):
+    (folder / "x.bmp.").write_bytes(bmp())
+    with pytest.raises(ValueError, match="space or a dot"):
+        Picture(image=folder / "x.bmp.")
+    (folder / "my caf\u00e9.bmp").write_bytes(bmp())
+    Picture(image=folder / "my caf\u00e9.bmp")
 
 
 def test_teleport_moves_and_resizes_in_one_frame(guest):

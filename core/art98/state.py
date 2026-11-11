@@ -7,7 +7,7 @@ touched, so a mistake in the file never leaves a half-made desktop.
       "version": 1,
       "display": [800, 600, 16],
       "windows": [
-        {"id": "flower", "app": "picture", "title": "Flower",
+        {"id": "flower", "app": "picture" | "notepad", "title": "Flower",
          "at": [60, 60], "size": [300, 220], "show": "normal",
          "open": {"file": "assets/flower.bmp", "sha256": "..."}}
       ],
@@ -26,7 +26,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from .guestfiles import check_bmp
+from .guestfiles import check_bmp, check_text, name_problem, title_problem
 
 VERSION = 1
 SHOWS = ("normal", "minimized", "maximized")
@@ -150,9 +150,11 @@ class _Reader:
         apps = programs()
         if app not in apps:
             self.fail(f"{where}.app", f"should be one of {', '.join(apps)}, not {app!r}")
-        title = value.get("title", "Picture")
-        if not isinstance(title, str) or '"' in title:
-            self.fail(f"{where}.title", "needs text without double quotes")
+        title = value.get("title")
+        if title is not None and not isinstance(title, str):
+            self.fail(f"{where}.title", "needs text")
+        elif title is not None and title_problem(title):
+            self.fail(f"{where}.title", f"{title!r} {title_problem(title)}")
         at = self.numbers(value.get("at"), 2, f"{where}.at")
         size = self.numbers(value.get("size"), 2, f"{where}.size", positive=True)
         show = value.get("show", "normal")
@@ -161,13 +163,20 @@ class _Reader:
         opened = None
         if "open" in value:
             opened = self.file(value["open"], f"{where}.open")
-            if opened is not None and app == "picture":
+            if opened is not None and name_problem(opened.path.name):
+                self.fail(f"{where}.open.file", f"{opened.path.name!r} can't be a file name on the"
+                          f" guest: it {name_problem(opened.path.name)}")
+            elif opened is not None and app in apps:
                 try:
-                    check_bmp(opened.data, str(opened.path))
+                    (check_bmp if app == "picture" else check_text)(opened.data, str(opened.path))
                 except ValueError as error:
                     self.fail(f"{where}.open", str(error))
         if len(self.problems) > problems:
             return None
+        if title is None:
+            from .actions.programs.notepad import notepad_title  # lazy, like programs()
+
+            title = "Picture" if app == "picture" else notepad_title(opened.path if opened else None)
         return WindowState(id_, app, title, at, size, show, opened)
 
     def state(self, value) -> State | None:

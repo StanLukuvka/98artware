@@ -18,6 +18,7 @@ from art98.container import host as container
 HERE = Path(__file__).resolve().parents[2]
 WORK = Path(os.environ.get("ART98_TEST_WORK") or HERE / "work")
 MVP = HERE / "examples" / "mvp" / "mvp.py"
+BLANK_START = HERE / "examples" / "blank_start" / "blank_start.py"
 
 
 def _container_ready() -> bool:
@@ -73,3 +74,14 @@ def test_a_scene_renders(backend, tmp_path):
 
     out = render(_load_scene(MVP, "Mvp"), tmp_path / "mvp.mp4", work=WORK, backend=backend)
     assert out.stat().st_size > 10_000
+
+
+@pytest.mark.qemu
+@pytest.mark.skipif(shutil.which(QEMU_BINARY) is None, reason="needs QEMU")
+def test_the_proof_scene_renders(tmp_path):
+    from art98.anim import render
+    from art98.cli import _load_scene
+
+    out = render(_load_scene(BLANK_START, "BlankStart"), tmp_path / "blank_start.mp4", work=WORK, backend="local")
+    assert out.stat().st_size > 10_000
+    assert [(tmp_path / f"blank_start-0{n}.mp4").exists() for n in (1, 2, 3)] == [True] * 3

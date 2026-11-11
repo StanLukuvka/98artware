@@ -96,10 +96,10 @@ def test_every_problem_is_reported_at_once(folder):
     assert found == [
         "version: should be 1",
         "display: colour depth should be one of (8, 16, 24, 32)",
-        "windows[0].app: should be one of picture, not 'paint'",
+        "windows[0].app: should be one of picture, notepad, not 'paint'",
         "windows[0].at: needs 2 whole numbers",
         "windows[0].size: needs numbers above 0",
-        "windows[1].title: needs text without double quotes",
+        "windows[1].title: 'say \"hi\"' has a double quote",
         "windows[1].show: should be one of normal, minimized, maximized, not 'hidden'",
         "pointer: should be on the screen",
     ]
@@ -127,3 +127,39 @@ def test_files_that_are_not_states(folder):
     with pytest.raises(StateError, match="not valid JSON"):
         load_state(write(folder, "{version: 1"))
     assert problems(folder, [1, 2]) == ["state: should be an object"]
+
+
+@pytest.mark.parametrize("title, problem", [
+    ("ends\\", "ends in a backslash"),
+    ("a\tb", "control character"),
+    ("\u4e2d", "outside Windows 1252"),
+])
+def test_a_title_that_breaks_the_command_line_is_caught(folder, title, problem):
+    found = problems(folder, {"version": 1, "windows": [flower(folder, title=title)]})
+    assert len(found) == 1 and found[0].startswith("windows[0].title:") and problem in found[0]
+
+
+def test_a_title_with_an_inner_backslash_and_accent_loads(folder):
+    state = load_state(write(folder, {"version": 1, "windows": [flower(folder, title="a\\b caf\u00e9")]}))
+    assert state.windows[0].title == "a\\b caf\u00e9"
+
+
+def named(folder, name):
+    """A window whose image is the flower copied to assets/<name>."""
+    data = (folder / "assets" / "flower.bmp").read_bytes()
+    (folder / "assets" / name).write_bytes(data)
+    return flower(folder, open={"file": f"assets/{name}", "sha256": hashlib.sha256(data).hexdigest()})
+
+
+@pytest.mark.parametrize("name, problem", [
+    ("a*.bmp", "one of"), ("a\tb.bmp", "control character"), ("a.bmp.", "space or a dot"),
+    ("a.bmp ", "space or a dot"), ("\u4e2d.bmp", "outside Windows 1252"),
+])
+def test_a_file_name_the_guest_cannot_take_is_caught(folder, name, problem):
+    found = problems(folder, {"version": 1, "windows": [named(folder, name)]})
+    assert any(p.startswith("windows[0].open.file:") and problem in p for p in found), found
+
+
+def test_a_file_name_with_a_space_and_an_accent_loads(folder):
+    state = load_state(write(folder, {"version": 1, "windows": [named(folder, "my caf\u00e9.bmp")]}))
+    assert state.windows[0].open.path.name == "my caf\u00e9.bmp"

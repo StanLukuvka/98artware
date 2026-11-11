@@ -13,11 +13,15 @@ from typing import Iterator
 
 from .bridge import Bridge
 from .qemu import VM, VMConfig
-from .recorder import GIF_COLORS, GIF_FPS, H264, FrameRecorder  # noqa: F401  (old names stay importable from here)
+from .recorder import GIF_COLORS, GIF_FPS, H264, Recorder  # noqa: F401  (old names stay importable from here)
 
 SNAPSHOT = "ready"
 IMAGE_FILE = "image.json"
 BACKENDS = ("local", "container")
+
+
+class BackendError(ValueError):
+    """ART98_BACKEND (or the argument) names no backend."""
 
 
 class ImageMissing(FileNotFoundError):
@@ -28,7 +32,7 @@ def backend_name(backend: str | None = None) -> str:
     """The backend to use: the argument, else ART98_BACKEND, else "local"."""
     name = backend or os.environ.get("ART98_BACKEND") or "local"
     if name not in BACKENDS:
-        raise ValueError(f"unknown backend {name!r}; choose from {', '.join(BACKENDS)}")
+        raise BackendError(f"unknown backend {name!r}; choose from {', '.join(BACKENDS)}")
     return name
 
 
@@ -48,8 +52,8 @@ class Session:
         self.vm = vm
         self.bridge = bridge
 
-    def record(self, path: Path | str, fps: int = 30, lossless: bool = False) -> FrameRecorder:
-        return FrameRecorder(self, path, fps, lossless)
+    def record(self, path: Path | str, fps: int = 30, lossless: bool = False) -> Recorder:
+        return Recorder(self, path, fps, lossless)
 
     def revert(self, snapshot: str = SNAPSHOT) -> None:
         """Put the running guest back to the snapshot, keeping the bridge.

@@ -25,14 +25,20 @@ class Picture(Win):
 
     def __init__(self, title: str = "Picture", *, image: Path | str | None = None,
                  at: tuple[int, int] | None = None, size: tuple[int, int] | None = None):
-        if '"' in title:
-            raise ValueError("a picture window's title can't contain a double quote")
+        if guestfiles.title_problem(title):
+            raise ValueError(f"{title!r} can't be a picture window's title: it {guestfiles.title_problem(title)}")
         super().__init__(title, at=at or DEFAULT_AT, size=size or DEFAULT_SIZE)
         self.image = Path(image) if image is not None else None
         self._image_data = None
         if self.image is not None:
+            guestfiles.check_name(self.image.name)
             self._image_data = self.image.read_bytes()
             self.image_size = guestfiles.check_bmp(self._image_data, str(self.image))
+
+    @classmethod
+    def from_state(cls, window) -> "Picture":
+        return cls(window.title, image=window.open.path if window.open else None,
+                   at=window.at, size=window.size)
 
     def attach(self, scene) -> None:
         guest = scene.guest

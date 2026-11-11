@@ -127,11 +127,20 @@ class FakeVideo:
         self.guest = guest
         self.count = 0
         self.frames = []
+        self.cuts = []
         self.live_calls = []
+
+    @property
+    def total(self):
+        return self.count
 
     def frame(self, hold=1):
         self.frames.append((hold, len(self.guest.calls), self.guest.cursor))
         self.count += hold
+
+    def cut(self, path=None):
+        self.cuts.append((self.count, path))
+        return Path(f"clip{len(self.cuts)}.mp4")
 
     def live(self, seconds, stop_condition=None):
         self.live_calls.append(seconds)
@@ -144,6 +153,10 @@ class FakeVideo:
 class FakeSession:
     def __init__(self, guest):
         self.bridge, self.vm = guest, FakeVM()
+        self.reverts = 0
+
+    def revert(self, snapshot="ready"):
+        self.reverts += 1
 
 
 class Stage(Scene):
@@ -477,6 +490,12 @@ def test_pointer_follows_real_position_at_begin(guest, scene):
     assert [args for _, args in guest.named("SetCursorPos")][-1] == (20, 10)
 
 
+def test_attach_sends_one_set_cursor_pos_to_the_read_position(guest, scene):
+    guest.cursor = (33, 44)
+    Pointer().attach(scene)
+    assert guest.named("SetCursorPos") == [("SetCursorPos", (33, 44))]
+
+
 def test_pointer_animate_goes_through_the_frame_loop(guest, scene):
     scene.play(scene.pointer.animate.shift(10 * RIGHT), run_time=0.1, rate_func=linear)
     assert guest.cursor == (410, 300)
@@ -618,6 +637,15 @@ def test_typing_sends_each_letter_to_the_edit_control(guest, scene):
     assert guest.named("SendMessageA") == [
         ("SendMessageA", (0x11, WM_CHAR, code, 1)) for code in (97, 13, 98)]
     assert scene.video.count == 9
+
+
+def test_typing_invalidates_the_edit_so_the_frame_shows_the_text(guest, scene):
+    pad = notepad(guest, scene)
+    scene.play(TypeWithCursor(pad, "ab", run_time=0.2))
+    redraws = guest.named("RedrawWindow")
+    assert redraws and all(args == (0x11, 0, 0, 0x585) for _, args in redraws)
+    calls = [name for name, _ in guest.calls if name in ("SendMessageA", "RedrawWindow")]
+    assert calls[-1] == "RedrawWindow" and calls[0] == "SendMessageA"
 
 
 def test_typing_spreads_letters_over_the_frames(guest, scene):
@@ -830,31 +858,6 @@ def test_private_stage_copies_and_cleans_up(tmp_path):
     assert not stage.exists()
 
 
-def test_recorder_picks_a_lossless_codec_for_gif_sources(monkeypatch):
-    commands = []
-
-    class FakePopen:
-        def __init__(self, command, stdin=None):
-            commands.append(command)
-
-    monkeypatch.setattr(session_module.subprocess, "Popen", FakePopen)
-    session_module.FrameRecorder(None, "a.mkv", lossless=True)
-    session_module.FrameRecorder(None, "b.mp4")
-    assert "ffv1" in commands[0] and "libx264" in commands[1]
-
-
-def test_recorder_live_stops_on_its_condition(monkeypatch):
-    recorder = session_module.FrameRecorder.__new__(session_module.FrameRecorder)
-    recorder._fps, recorder.count = 1000, 0
-
-    def capture(hold):
-        recorder.count += hold
-
-    recorder._capture = capture
-    recorder.live(1, stop_condition=lambda: recorder.count >= 3)
-    assert recorder.count == 3
-
-
 def test_render_turns_a_class_into_a_scene_and_routes_a_gif(tmp_path, monkeypatch, guest):
     from art98.anim import renderer as render_module
 
@@ -878,12 +881,14 @@ def test_render_turns_a_class_into_a_scene_and_routes_a_gif(tmp_path, monkeypatc
 
         def record(self, path, fps=30, lossless=False):
             options.update(path=path, fps=fps, lossless=lossless)
-            return Recorder(guest)
+            recorder = Recorder(guest)
+            recorder.clips = recorder.parts = [path]
+            return recorder
 
     options, gifs = {}, []
     monkeypatch.setattr(render_module, "stage",
                         lambda work, display, backend: Booted(guest))
-    monkeypatch.setattr(render_module, "write_gif", lambda *a: gifs.append(a))
+    monkeypatch.setattr(render_module, "write_gif", lambda *a, **k: (gifs.append(a), (tmp_path / "out.part.gif").write_bytes(b"")))
     written = render_module.render(Tiny, tmp_path / "out.gif")
     assert written == tmp_path / "out.gif"
     assert options["lossless"] is True and gifs[0][1] == tmp_path / "out.gif"
@@ -923,3 +928,43 @@ def test_star_import_gives_the_scene_api():
     # Parked program classes come from art98.anim.apps, not the star import.
     assert not set(PARKED) & set(namespace)
     assert set(anim.__all__) <= set(dir(anim))
+
+
+# ---- sections and no revert after boot ----
+
+
+def test_next_section_cuts_and_labels(scene):
+    scene.video.count = 45
+    assert scene.next_section("intro") == Path("clip1.mp4")
+    assert scene.sections == [("intro", 1.5)]
+    assert scene.video.cuts == [(45, None)]
+
+
+@pytest.mark.parametrize("name", ["", "  ", None, 3])
+def test_next_section_needs_a_name(scene, name):
+    with pytest.raises(ValueError):
+        scene.next_section(name)
+    assert scene.video.cuts == []
+
+
+def test_a_scene_without_a_state_is_not_reverted(guest):
+    seen = []
+
+    class Probing(Stage):
+        def setup(self):
+            seen.append(session.reverts)
+
+    session = FakeSession(guest)
+    Probing().run(session, FakeVideo(guest))
+    assert session.reverts == 0 and seen == [0]
+
+
+def test_a_title_bar_drag_repaints_the_window_only_when_it_moved(guest, scene):
+    pad = notepad(guest, scene)
+    guest.do_mouse_event = lambda *a: guest.rects.__setitem__(0x10, (10, 10, 610, 421)) or CallResult(1, 0, [])
+    scene.play(Drag(pad.title_bar, by=(1, 1), run_time=0.5))
+    redraws = [args[0] for _, args in guest.named("RedrawWindow")]
+    assert redraws and set(redraws) == {0x10}
+    guest.calls.clear()
+    scene.play(Drag(pad.title_bar, by=(1, 1), run_time=0.5))  # the window stays put now
+    assert guest.named("RedrawWindow") == []

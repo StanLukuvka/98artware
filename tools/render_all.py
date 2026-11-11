@@ -13,6 +13,7 @@ OUT = ROOT / "docs" / "assets" / "gifs"
 
 # file, scene, GIF options
 SCENES = {
+    "blank_start": ("BlankStart", ["--gif-fps", "15", "--gif-colors", "64"]),
     "mvp": ("Mvp", ["--gif-fps", "15", "--gif-colors", "64"]),
     "hello": ("Hello", ["--gif-fps", "12", "--gif-colors", "32"]),
     "pointer_clicks": ("PointerClicks", ["--gif-fps", "12", "--gif-colors", "64"]),
@@ -30,7 +31,7 @@ SCENES = {
 def render(name: str) -> str:
     scene, options = SCENES[name]
     output = OUT / f"{name.replace('_', '-')}.gif"
-    folders = ("gallery", ".", "mvp")
+    folders = ("gallery", ".", "mvp", "blank_start")
     source = next(path for folder in folders
                   if (path := ROOT / "examples" / folder / f"{name}.py").exists())
     subprocess.run(

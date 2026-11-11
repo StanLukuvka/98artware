@@ -33,7 +33,7 @@ def play(scene, animations, run_time, rate_func, live) -> None:
         scene._apply()
         if live:
             time.sleep(max(0.0, started + index / scene.fps - time.monotonic()))
-        scene.video.frame()
+        scene.recorder.frame()
 
 
 def wait(scene, duration, stop_condition, frozen_frame) -> None:
@@ -45,12 +45,12 @@ def wait(scene, duration, stop_condition, frozen_frame) -> None:
 
 def pause(scene, duration) -> None:
     scene._apply()
-    scene.video.frame(hold=max(1, round(duration * scene.fps)))
+    scene.recorder.frame(hold=max(1, round(duration * scene.fps)))
 
 
 def live(scene, seconds, stop_condition) -> None:
     scene._apply()
-    scene.video.live(seconds, stop_condition)
+    scene.recorder.live(seconds, stop_condition)
 
 
 def wait_until(scene, stop_condition, max_time) -> None:

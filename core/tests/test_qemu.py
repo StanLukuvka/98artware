@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from art98.guestfiles import guest_build
+from art98.recorder import ppm_size
 from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
 from art98.session import Session
 from art98_setup import builder, vm as vm_step
@@ -116,6 +117,20 @@ def test_software_emulation_with_virtual_clock(disk):
         assert MESSAGE in serial_output(vm.serial_path, MESSAGE)
 
 
+def settled(vm, tmp_path, quiet=1.0, timeout=30.0) -> None:
+    """Wait until the screen size has not changed for `quiet` seconds (BIOS 640x480 -> 720x400)."""
+    shot, last, since = tmp_path / "probe.ppm", None, time.monotonic()
+    deadline = since + timeout
+    while time.monotonic() < deadline:
+        size = ppm_size(vm.screenshot(shot, format="ppm").read_bytes())
+        if size != last:
+            last, since = size, time.monotonic()
+        elif time.monotonic() - since >= quiet:
+            return
+        time.sleep(0.2)
+    raise AssertionError(f"the screen size never settled (last {last})")
+
+
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
 def test_recorder_writes_exactly_the_requested_frames(disk, tmp_path):
     class Settled:
@@ -130,6 +145,7 @@ def test_recorder_writes_exactly_the_requested_frames(disk, tmp_path):
     video = tmp_path / "out.mp4"
     bridge = Settled()
     with VM(VMConfig(disk=disk, disk_format="raw")) as vm:
+        settled(vm, tmp_path)
         session = Session(vm, bridge)
         with session.record(video, fps=10) as recorder:
             recorder.frame()

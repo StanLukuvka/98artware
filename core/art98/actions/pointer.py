@@ -25,6 +25,8 @@ class Pointer(Prop):
         super().attach(scene)
         self.refresh()
         self._sent = self.get_center().rounded()
+        # A fresh boot shows a brighter, pointerless desktop until the first move: experiments/first-frame/README.md
+        self.guest.user32.SetCursorPos(*self._sent)
 
     def refresh(self) -> None:
         self.x, self.y = cursor_pos(self.guest)
@@ -165,6 +167,7 @@ class Drag(PointerAction):
         super().__init__(source, **kwargs)
         self.to, self.by, self.button = to, by, button
         self.grab = self.goal = Vec(0, 0)
+        self.window = getattr(source, "window", None)
 
     def schedule(self) -> list:
         self.grab = self.end
@@ -184,8 +187,12 @@ class Drag(PointerAction):
         carried = self.rate_func(_span(progress, self.travel, self.drop))
         self.pointer.place(lerp(self.grab, self.goal, carried))
         self.fire(progress)
+        if self.window is not None:
+            self.window.repaint_if_moved()
 
     def finish(self, scene) -> None:
+        if self.window is not None:
+            self.window.repaint_if_moved()
         scene.refresh_props()
 
 
