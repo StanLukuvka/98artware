@@ -6,9 +6,10 @@ import struct
 from typing import ClassVar
 
 from ... import win32
+from ...win32 import GWL_STYLE
 from ..window.win import Win
 
-STM_SETICON, SS_ICON, GWL_STYLE = 0x0170, 3, -16
+STM_SETICON, SS_ICON = 0x0170, 3
 BASE_ICON = 0x40  # MB_ICONINFORMATION: reserves the icon slot, which is then replaced
 BUTTON_W, BUTTON_H, BUTTON_GAP, BOTTOM_MARGIN = 75, 23, 6, 11
 TEXT_X, RIGHT_MARGIN, LINE_H = 62, 16, 15
@@ -165,6 +166,9 @@ class Dialog(Win):
 
     def _relayout(self, buttons: list[int]) -> None:
         user32 = self.guest.user32
+        self.space.check_rect(
+            self._name(), self.rect, self._size, sizable=False, warned=self._warned
+        )
         win32.place_window(
             self.guest, self.hwnd, 0, 0, *self._size, 0x2 | 0x4
         )  # NOMOVE | NOZORDER

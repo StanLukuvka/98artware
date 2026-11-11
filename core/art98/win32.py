@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import struct
 
+from .base.space import DesktopSpace, Metrics
 from .protocol import Out
 
 # messages / commands
@@ -32,6 +33,10 @@ RDW_REPAINT_ALL = (
 # metrics / system parameters
 SM_CXSCREEN, SM_CYSCREEN = 0, 1
 SM_CYCAPTION, SM_CYSIZEFRAME = 4, 33
+SM_CXMINTRACK, SM_CYMINTRACK = 34, 35
+SM_CXMAXTRACK, SM_CYMAXTRACK = 59, 60
+# window styles (GetWindowLongA: the bridge sends names as they are exported)
+GWL_STYLE, WS_THICKFRAME = -16, 0x00040000
 SPI_SETWORKAREA, SPI_GETWORKAREA = 0x2F, 0x30
 # mouse_event flags: (down, up)
 MOUSE_BUTTONS = {
@@ -69,6 +74,21 @@ def work_area(guest) -> tuple[int, int, int, int]:
         "<4i",
         guest.user32.SystemParametersInfoA(SPI_GETWORKAREA, 0, Out(16), 0).buffers[0],
     )
+
+
+def calibrate(guest, strict: bool = False) -> DesktopSpace:
+    """Read the desktop once: 8 GetSystemMetrics and the work area, 9 calls."""
+    gm = guest.user32.GetSystemMetrics
+
+    def read(*indexes: int) -> tuple[int, ...]:
+        return tuple(gm(index).value for index in indexes)
+
+    metrics = Metrics(
+        *read(SM_CYCAPTION, SM_CYSIZEFRAME),
+        read(SM_CXMINTRACK, SM_CYMINTRACK),
+        read(SM_CXMAXTRACK, SM_CYMAXTRACK),
+    )
+    return DesktopSpace(screen_size(guest), work_area(guest), metrics, strict)
 
 
 def place_window(

@@ -11,8 +11,7 @@ from ...base.vectors import DR, Vec
 from ...bridge import BridgeTimeout, Window
 from ...protocol import Out
 from ...win32 import (
-    SM_CYCAPTION,
-    SM_CYSIZEFRAME,
+    GWL_STYLE,
     SWP_NOACTIVATE,
     SWP_NOMOVE,
     SWP_NOSIZE,
@@ -20,6 +19,7 @@ from ...win32 import (
     WM_GETTEXT,
     WM_GETTEXTLENGTH,
     WM_SETTEXT,
+    WS_THICKFRAME,
     window_rect,
 )
 
@@ -55,18 +55,27 @@ class Win(Prop):
             self.command = command
         self._at, self._size = at, size
         self._sent: tuple[int, int, int, int] | None = None
+        self._top_level = True  # control() sets False: no size checks on children
+        self._sizable = False  # WS_THICKFRAME, read at attach
+        self._maximized = False
+        self._verify = False  # settle is waiting for the next apply
+        self._warned: set[str] = set()
 
     def attach(self, scene) -> None:
         super().attach(scene)
         if self.hwnd is None:
             pid = self.guest.spawn(self.command) if self.command else None
             self.hwnd = self._find(pid).hwnd
+        if self._top_level:
+            style = self.guest.user32.GetWindowLongA(self.hwnd, GWL_STYLE & 0xFFFFFFFF)
+            self._sizable = bool(style.value & WS_THICKFRAME)
         self.refresh()
         if self._size:
             self.width, self.height = self._size
         if self._at:
             self.x, self.y = self._at
         self.apply()
+        self.settle()
         self.ready()
 
     def _find(self, pid: int | None) -> Window:
@@ -134,9 +143,28 @@ class Win(Prop):
         return self.get_center()
 
     def apply(self) -> None:
+        verify, self._verify = self._verify, False  # consumed on every way out
+        self._send()
+        if verify and self.hwnd is not None:
+            self._read_back()
+
+    def _send(self) -> None:
         wanted = (*self.rect[:2], *self.size)
         if wanted == self._sent or self.hwnd is None:
             return
+        if not self._maximized:  # a maximised rect overhangs the screen by the frame
+            size = self.space.check_rect(
+                self._name(),
+                self.rect,
+                self.size,
+                self._sizable and self._top_level,
+                self._warned,
+            )
+            if size != self.size:
+                self.width, self.height = size
+                wanted = (*self.rect[:2], *self.size)
+                if wanted == self._sent:
+                    return
         x, y, width, height = wanted
         flags = SWP_NOZORDER | SWP_NOACTIVATE
         if self._sent and (width, height) == self._sent[2:]:
@@ -147,6 +175,37 @@ class Win(Prop):
         win32.place_window(self.guest, self.hwnd, x, y, width, height, flags)
         self._sent = wanted
 
+    def _name(self) -> str:
+        return f"{type(self).__name__}({self.title_text or self.class_name or hex(self.hwnd or 0)})"
+
+    def settle(self) -> None:
+        """Read the window back once and report a place the guest did not give.
+
+        Run at the end of an animation, not per frame. A change still waiting
+        (the finish hook runs before the frame's apply) is read back right after
+        it is sent, so the frame costs no extra SetWindowPos.
+        """
+        if self.hwnd is None or self.scene is None or self._maximized:
+            return
+        if (*self.rect[:2], *self.size) != self._sent:
+            self._verify = True  # `apply` reads back once it has sent
+        else:
+            self._read_back()
+
+    def _read_back(self) -> None:
+        """What the host asked for is taken before the read, so a clamp only
+        Windows knew about (an app's own minimum size) shows as requested
+        against given, and the prop then holds what the guest has."""
+        wanted = self.rect
+        self.refresh()
+        if self.rect != wanted:
+            self.space.report(
+                self._name(),
+                "settle",
+                f"asked for {wanted}, the guest gave {self.rect}",
+                self._warned,
+            )
+
     # ---- places to aim at ----
 
     @property
@@ -155,9 +214,7 @@ class Win(Prop):
 
         def locate():
             self.refresh()
-            frame = self.guest.user32.GetSystemMetrics(SM_CYSIZEFRAME).value
-            caption = self.guest.user32.GetSystemMetrics(SM_CYCAPTION).value
-            return self.x + self.width / 2, self.y + frame + caption / 2
+            return self.x + self.width / 2, self.y + self.space.title_bar_offset
 
         spot = Spot(locate)
         spot.window = self  # a Drag from here knows which window it moves
@@ -210,6 +267,7 @@ class Win(Prop):
                 f"no {class_name or 'child'} {title or ''} in window {self.hwnd:#x}"
             )
         child = Win(hwnd=found[0].hwnd)
+        child._top_level = False
         child.attach(self.scene)
         return child
 
@@ -271,4 +329,4 @@ class Win(Prop):
     def forget(self) -> None:
         # The window went with the revert. Adding the prop again opens a new one.
         super().forget()
-        self.hwnd, self._sent = None, None
+        self.hwnd, self._sent, self._maximized = None, None, False

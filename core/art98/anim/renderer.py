@@ -19,7 +19,6 @@ from ..recorder import (
     require_ffmpeg,
     run_ffmpeg,
 )
-from ..session import stage
 
 
 def write_gif(
@@ -54,22 +53,20 @@ def render(
     scene,
     output: Path | str | None = None,
     *,
+    session,
     gif: Path | str | None = None,
-    work: Path | str = "work",
     gif_fps: int = GIF_FPS,
     gif_colors: int = GIF_COLORS,
     gif_scale: float = 1.0,
     gif_dither: str = "none",
-    display: str = "none",
-    backend: str | None = None,
     keep_clips: bool = True,
 ) -> Path:
-    """Play a scene on a private copy of the prepared image and write the video.
+    """Play a scene on `session` and write the video.
 
-    `output` ends in .mp4 or .gif. `gif` asks for a GIF as well. A GIF is made
-    from a lossless recording, because 4:2:0 video smears 1-pixel coloured
-    text. The prepared image itself is only copied, never written. backend is
-    "local" or "container", as for `boot`.
+    `session` is required, e.g. from `art98.attach()`; render never boots or
+    closes it. `output` ends in .mp4 or .gif. `gif` asks for a GIF as well. A
+    GIF is made from a lossless recording, because 4:2:0 video smears 1-pixel
+    coloured text.
 
     When the scene calls `cut()`, the clips are joined into the output and
     kept beside it as H.264 MP4, `<stem>-01.mp4` and on, even when the output
@@ -97,11 +94,10 @@ def render(
         [],
     )  # part files made; (part, final) clips; (part, final) outputs
     try:
-        with stage(work, display=display, backend=backend) as session:
-            video = session.record(master, fps=scene.fps, lossless=bool(gif))
-            video.defer = True  # the parts stay parts until the render is done
-            with video:
-                scene.run(session, video)
+        video = session.record(master, fps=scene.fps, lossless=bool(gif))
+        video.defer = True  # the parts stay parts until the render is done
+        with video:
+            scene.run(session, video)
         staged += video.parts
         if not video.clips:
             raise RecorderError(f"{type(scene).__name__} recorded no frames")

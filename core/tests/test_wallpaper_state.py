@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 from art98 import desktop
 from art98.anim import setstate
+from art98.base.space import STOCK
 from art98.bridge import CallResult
 from art98.state import DesktopState, State, StateError, WindowState, load_state
 from test_backdrop import DiskGuest
@@ -144,6 +145,7 @@ def stub_scene(guest, log, monkeypatch):
     monkeypatch.setattr(setstate, "APPS", {"picture": App})
     monkeypatch.setattr(setstate, "repaint_window", lambda *a: None)
     return SimpleNamespace(
+        space=STOCK,
         guest=guest,
         session=Session(log),
         pointer=None,
@@ -200,7 +202,7 @@ def checked(tmp_path, guest, desk, windows=()):
     props = {w.id: SimpleNamespace(hwnd=1) for w in windows}
     guest.windows = list
     try:
-        setstate.check_state(SimpleNamespace(guest=guest), state, props)
+        setstate.check_state(SimpleNamespace(guest=guest, space=STOCK), state, props)
     except setstate.StateMismatch as error:
         # the stand-in has no windows, so only the desktop lines matter here
         error.problems = [p for p in error.problems if p.startswith("desktop.")]

@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from .space import STOCK, DesktopSpace
 from .vectors import DL, LEFT, ORIGIN, RIGHT, Vec
 
-DESKTOP_AREA = (0, 0, 800, 572)  # used until a prop is added to a scene
 DEFAULT_BUFF = 8
 
 
@@ -54,7 +54,12 @@ class Box:
 
     def __init__(self, x: float = 0, y: float = 0, width: float = 0, height: float = 0):
         self.x, self.y, self.width, self.height = x, y, width, height
-        self.area = DESKTOP_AREA
+        self._space: DesktopSpace | None = None
+
+    @property
+    def space(self) -> DesktopSpace:
+        """The desktop this box is placed in. A plain box has the stock one."""
+        return self._space or STOCK
 
     @property
     def rect(self) -> tuple[int, int, int, int]:
@@ -83,7 +88,7 @@ class Box:
     def ghost(self) -> Box:
         """A copy to try layout calls on, without touching the prop."""
         ghost = Box(self.x, self.y, self.width, self.height)
-        ghost.area = self.area
+        ghost._space = self.space
         return ghost
 
     def shift(self, *vectors) -> Box:
@@ -98,11 +103,11 @@ class Box:
 
     def center(self) -> Box:
         """Centre in the work area: the whole screen, or above the taskbar."""
-        left, top, right, bottom = self.area
+        left, top, right, bottom = self.space.work_area
         return self.move_to(((left + right) / 2, (top + bottom) / 2))
 
     def to_edge(self, edge=LEFT, buff: float = 0) -> Box:
-        left, top, right, bottom = self.area
+        left, top, right, bottom = self.space.work_area
         if edge[0]:
             self.x = left + buff if edge[0] < 0 else right - buff - self.width
         if edge[1]:
@@ -152,6 +157,11 @@ class Prop(Box):
         return Animate(self)
 
     @property
+    def space(self) -> DesktopSpace:
+        """The scene's space, read through the scene so a re-calibration reaches every prop."""
+        return self.scene.space if self.scene is not None else super().space
+
+    @property
     def guest(self):
         if self.scene is None:
             raise RuntimeError(
@@ -161,7 +171,6 @@ class Prop(Box):
 
     def attach(self, scene) -> None:
         self.scene = scene
-        self.area = scene.work_area
 
     def apply(self) -> None:
         """Send any changed values to the guest."""

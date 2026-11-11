@@ -55,7 +55,11 @@ class Animation:
         pass
 
     def finish(self, scene) -> None:
-        pass
+        """Once, at the end: a window target is read back (not per frame) so a
+        place the guest did not give is reported."""
+        settle = getattr(self.target, "settle", None)  # Box targets and None have none
+        if settle is not None:
+            settle()
 
 
 class Wait(Animation):

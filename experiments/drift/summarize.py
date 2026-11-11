@@ -1,6 +1,6 @@
 """Turn probe_drift.py's JSONL into the README tables.
 
-Run: .venv/bin/python experiments/drift/summarize.py OUTDIR [backend ...]   (default: local podman docker)
+Run: .venv/bin/python experiments/drift/summarize.py OUTDIR [name ...]   (default: drift, i.e. OUTDIR/drift.jsonl)
 Counts per scene and backend: frames audited, frames with a position drift (A), frames whose pixels
 differ from a forced full repaint (B), and how many of the runs had any B frame. Not counted as B:
 the Notepad caret blinking between the two screendumps (a diff of at most 3x20 px in a scene with a
@@ -14,8 +14,13 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "core" / "tests"))
+from drift_check import real_diff as pixel_diff
+
 OUT = Path(sys.argv[1])
-BACKENDS = sys.argv[2:] or ["local", "podman", "docker"]
+BACKENDS = sys.argv[2:] or [
+    "drift"
+]  # a name N reads OUT/N.jsonl and OUT/diffs-N or OUT/diffs
 
 
 def pixels(path):
@@ -28,25 +33,13 @@ def pixels(path):
 def real_diff(backend, scene, run, frame):
     """(count, bbox) of the differing pixels that are not the tray clock (x >= 690, y >= 572, every scene
     but storm's blank desktop shows the taskbar) and not a caret blinking. Read from the saved screendumps."""
-    stem = OUT / f"diffs-{backend}" / f"{scene}-{run}-{frame}"
+    folder = OUT / f"diffs-{backend}"
+    if not folder.exists():
+        folder = OUT / "diffs"
+    stem = folder / f"{scene}-{run}-{frame}"
     w, a = pixels(Path(f"{stem}-a.ppm"))
     _, b = pixels(Path(f"{stem}-b.ppm"))
-    xs, ys = [], []
-    for y in range(len(a) // (3 * w)):
-        if a[y * w * 3 : (y + 1) * w * 3] != b[y * w * 3 : (y + 1) * w * 3]:
-            for x in range(w):
-                if (
-                    a[(y * w + x) * 3 : (y * w + x) * 3 + 3]
-                    != b[(y * w + x) * 3 : (y * w + x) * 3 + 3]
-                ) and not (scene != "storm" and x >= 690 and y >= 572):
-                    xs.append(x)
-                    ys.append(y)
-    if not xs:
-        return 0, None
-    box = (min(xs), min(ys), max(xs), max(ys))
-    if scene != "storm" and box[2] - box[0] <= 3 and box[3] - box[1] <= 20:
-        return 0, None  # a caret blinking between the two dumps
-    return len(xs), box
+    return pixel_diff(a, b, w, taskbar=scene != "storm")
 
 
 def noise(backend, row) -> bool:

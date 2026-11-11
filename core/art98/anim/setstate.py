@@ -32,7 +32,6 @@ from ..win32 import (
     repaint_window,
     screen_size,
     show_window,
-    work_area,
 )
 
 BITSPIXEL = 12
@@ -72,6 +71,7 @@ def apply_state(scene, state: State) -> dict:
         prop = APPS[window.app].from_state(window)
         scene.add(prop)
         props[window.id] = prop
+        prop._maximized = window.show == "maximized"
         # Maximizing activates the window, so it's done before the next one
         # opens on top of it, and the order stays back to front.
         if window.show != "normal":
@@ -114,7 +114,7 @@ def bmp_pixel(data: bytes, x: int, y: int):
     return r, g, b
 
 
-def wallpaper_sample(state: State, width: int, height: int):
+def wallpaper_sample(state: State, width: int, height: int, bottom: int):
     """A screen point no state window covers, or None if windows cover every candidate."""
     shown = [w for w in state.windows if w.show != "minimized"]
     for x, y in (
@@ -123,7 +123,7 @@ def wallpaper_sample(state: State, width: int, height: int):
         (3 * width // 4, height // 4),
         (width // 4, 3 * height // 4),
     ):
-        y = min(y, height - 40)  # above the taskbar of a stock desktop (572 of 600)
+        y = min(y, bottom - 12)  # above the taskbar: `bottom` is the work area's
         if not any(
             w.show == "maximized"
             or (
@@ -155,6 +155,7 @@ def expected_pixel(
 def check_state(scene, state: State, props: dict) -> None:
     """Raise StateMismatch listing every way the guest differs from the state."""
     guest = scene.guest
+    bottom = scene.space.work_area[3]
     problems = []
     if state.display:
         actual = display_mode(guest)
@@ -170,7 +171,7 @@ def check_state(scene, state: State, props: dict) -> None:
                 f"desktop.colour: {colourref(desk.colour):06x} wanted, the guest has {actual:06x} (as BGR)"
             )
     if desk and desk.wallpaper:
-        problem = wallpaper_problem(guest, state, desk)
+        problem = wallpaper_problem(guest, state, desk, bottom)
         if problem:
             problems.append(problem)
     found = {w.hwnd: w for w in guest.windows()}
@@ -227,10 +228,10 @@ def check_state(scene, state: State, props: dict) -> None:
         raise StateMismatch(state.path, problems)
 
 
-def wallpaper_problem(guest, state: State, desk) -> str | None:
+def wallpaper_problem(guest, state: State, desk, bottom: int) -> str | None:
     """The wallpaper can't be read back (SPI_GETDESKWALLPAPER gives nothing), so one pixel is compared."""
     screen = screen_size(guest)
-    point = wallpaper_sample(state, *screen)
+    point = wallpaper_sample(state, *screen, bottom)
     if point is None:
         return None
     colour = guest.user32.GetSysColor(COLOR_DESKTOP).value & 0xFFFFFF
@@ -252,7 +253,9 @@ def wallpaper_problem(guest, state: State, desk) -> str | None:
 
 def set_state(scene, path) -> None:
     state = load_state(scene._find_state(Path(path)))
-    scene.session.revert()
+    if not scene.session.fresh:  # a scene's first Set follows run's revert
+        scene.session.revert()
+    scene.session.fresh = False
     for prop in scene.props:
         prop.forget()
     scene.props.clear()
@@ -284,8 +287,4 @@ def start_desktop(scene) -> None:
 def prepare_desktop(scene) -> None:
     if scene.desktop == "blank":
         blank(scene.guest, pointer=scene.pointer_visible)
-    scene.read_work_area()
-
-
-def read_work_area(scene) -> None:
-    scene.work_area = work_area(scene.guest)
+    scene.calibrate()

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .. import win32
 from ..actions.pointer import Pointer
 from ..base.animation import Animation
-from ..base.props import DESKTOP_AREA, Box, Prop
+from ..base.props import Box, Prop
+from ..base.space import STOCK, DesktopSpace
 from . import setstate, timeline
 
 DESKTOPS = ("blank", "stock")
@@ -39,6 +41,9 @@ class Scene:
     desktop = "blank"
     pointer_visible = False
     state: str | Path | None = None
+    strict_placement = (
+        False  # True: a clamped size or a lost window raises PlacementError
+    )
 
     def __init__(self):
         self.session = None
@@ -47,7 +52,7 @@ class Scene:
         self.vm = None
         self.pointer: Pointer | None = None
         self.props: list[Prop] = []
-        self.work_area = DESKTOP_AREA
+        self.space: DesktopSpace = STOCK
         self._state_props: dict[str, Prop] = {}
         self.sections: list[tuple[str, float]] = []
 
@@ -91,19 +96,32 @@ class Scene:
         self.session, self.recorder = session, video
         self.sections = []
         self.guest, self.vm = session.bridge, session.vm
+        # Every scene starts from the baseline: revert unless nothing has touched
+        # the guest since the last revert. Forget whatever an earlier run left.
+        if not session.fresh:
+            session.revert()
+        for prop in self.props:
+            prop.forget()
+        self.props.clear()
+        self._state_props = {}
+        self.space = STOCK
         if self.state is not None:
-            self.set_state(self.state)
+            self.set_state(self.state)  # owns the flag; reverts only if not fresh
         else:
+            session.fresh = False  # before the start: a half-done start touched it
             self._start_desktop()
         self.setup()
         self.construct()
         self.tear_down()
 
-    def render(self, output: Path | str | None = None, **options) -> Path:
-        """Boot a private VM, play the scene, and write the video."""
+    def render(self, output: Path | str | None = None, *, session, **options) -> Path:
+        """Play the scene on `session` (see `art98.attach`) and write the video.
+
+        `options` are those of `renderer.render`: gif, keep_clips and so on.
+        """
         from .renderer import render
 
-        return render(self, output, **options)
+        return render(self, output, session=session, **options)
 
     # ---- desktop state ----
 
@@ -135,10 +153,15 @@ class Scene:
         """Put the desktop the scene asked for in place, then read the work area."""
         setstate.prepare_desktop(self)
 
-    def read_work_area(self) -> None:
-        """Read the desktop area from the guest: above the taskbar, or the whole
-        screen on a blank desktop."""
-        setstate.read_work_area(self)
+    def calibrate(self) -> None:
+        """Read the desktop from the guest again: screen, work area and metrics.
+        Call it after a script changes any of them with raw guest calls."""
+        self.space = win32.calibrate(self.guest, self.strict_placement)
+
+    @property
+    def work_area(self) -> tuple[int, int, int, int]:
+        """(left, top, right, bottom) above the taskbar, or the whole screen when blank."""
+        return self.space.work_area
 
     def _find_state(self, path: Path) -> Path:
         return setstate.find_state(self, path)

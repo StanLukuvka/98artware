@@ -15,10 +15,15 @@ from ...win32 import (  # noqa: F401
 
 class _SysCommand(Instant):
     command = 0
+    maximized: bool | None = (
+        None  # what the command does to Win._maximized, if anything
+    )
 
     def act(self) -> None:
         sys_command(self.target.guest, self.target.hwnd, self.command)
         self.target.guest.sync(self.target.hwnd)
+        if self.maximized is not None:
+            self.target._maximized = self.maximized
         self.target.refresh()  # Windows moved and sized the window itself
 
 
@@ -32,12 +37,14 @@ class Maximize(_SysCommand):
     """Fill the desktop with a window."""
 
     command = SC_MAXIMIZE
+    maximized = True
 
 
 class RestoreWindow(_SysCommand):
     """Bring a minimized or maximized window back."""
 
     command = SC_RESTORE
+    maximized = False
 
 
 class Close(Instant):
@@ -75,4 +82,4 @@ class Teleport(Instant):
             self.target.resize(*self.new_size)
         if self.to is not None:
             self.target.move_to(self.to, aligned_edge=self.aligned_edge)
-        self.target.apply()
+        self.target.apply()  # `finish` settles it

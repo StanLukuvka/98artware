@@ -107,9 +107,11 @@ class Session:
     def __init__(self, guest):
         self.bridge, self.vm = guest, FakeVM()
         self.reverts = 0
+        self.fresh = True  # as after `attach`
 
     def revert(self):
         self.reverts += 1
+        self.fresh = True
         self.bridge.revert()
 
 
@@ -257,7 +259,7 @@ def test_a_scene_state_is_applied_and_checked_before_setup(guest, folder):
             seen["flower"] = self.prop("flower")
 
     scene, session = run(guest, Start)
-    assert session.reverts == 1
+    assert session.reverts == 0  # attach already reverted
     # Back to front in the state, so front to back on the guest.
     assert seen["windows"] == ["Flower", "Back"]
     assert seen["flower"].rect == (60, 60, 360, 280)

@@ -169,9 +169,11 @@ class FakeSession:
     def __init__(self, guest):
         self.bridge, self.vm = guest, FakeVM()
         self.reverts = 0
+        self.fresh = True  # as after `attach`
 
     def revert(self, snapshot="ready"):
         self.reverts += 1
+        self.fresh = True
 
 
 class QuietBridge:
@@ -980,14 +982,11 @@ def test_render_turns_a_class_into_a_scene_and_routes_a_gif(
 
     options, gifs = {}, []
     monkeypatch.setattr(
-        render_module, "stage", lambda work, display, backend: Booted(guest)
-    )
-    monkeypatch.setattr(
         render_module,
         "write_gif",
         lambda *a, **k: (gifs.append(a), (tmp_path / "out.part.gif").write_bytes(b"")),
     )
-    written = render_module.render(Tiny, tmp_path / "out.gif")
+    written = render_module.render(Tiny, tmp_path / "out.gif", session=Booted(guest))
     assert written == tmp_path / "out.gif"
     assert options["lossless"] is True and gifs[0][1] == tmp_path / "out.gif"
 
@@ -1064,6 +1063,81 @@ def test_a_scene_without_a_state_is_not_reverted(guest):
     assert session.reverts == 0 and seen == [0]
 
 
+def test_a_second_scene_on_one_session_reverts_and_starts_with_no_props(guest):
+    session, seen = FakeSession(guest), []
+
+    class Opens(Stage):
+        def construct(self):
+            self.add(Notepad())
+
+    class Probing(Stage):
+        def setup(self):
+            seen.append((session.reverts, list(self.props), self._state_props))
+
+    guest.add_window(0x10, "Notepad", (92, 88, 692, 499), pid=7000)
+    guest.add_window(0x11, "Edit", (96, 130, 688, 495), parent=0x10)
+    first = Opens()
+    first.run(session, FakeVideo(guest))
+    assert session.reverts == 0 and first.props and not session.fresh
+    probe = Probing()
+    probe.props.append(first.props[0])  # a reused scene object's leftovers
+    probe._state_props = {"x": first.props[0]}
+    probe.run(session, FakeVideo(guest))
+    assert seen == [(1, [], {})]
+
+
+def test_a_desktop_start_that_raises_leaves_the_session_not_fresh(guest, monkeypatch):
+    session = FakeSession(guest)
+
+    def boom(scene):
+        raise RuntimeError("calibrate failed")
+
+    monkeypatch.setattr(Stage, "prepare_desktop", boom)
+    with pytest.raises(RuntimeError):
+        Stage().run(session, FakeVideo(guest))
+    assert not session.fresh
+
+
+def test_a_state_scene_right_after_attach_reverts_once(guest, monkeypatch, tmp_path):
+    from art98.anim import setstate
+
+    monkeypatch.setattr(setstate, "apply_state", lambda scene, state: {})
+    monkeypatch.setattr(setstate, "check_state", lambda *a: None)
+    (tmp_path / "s.json").write_text('{"version": 1}')
+    session = FakeSession(guest)
+
+    class WithState(Stage):
+        state = tmp_path / "s.json"
+
+    WithState().run(session, FakeVideo(guest))
+    assert session.reverts == 0 and not session.fresh  # attach's revert was the one
+    WithState().run(session, FakeVideo(guest))
+    assert session.reverts == 1  # the second scene: one revert, not two
+    session.fresh = False  # a session attached with revert=False
+    WithState().run(session, FakeVideo(guest))
+    assert session.reverts == 2
+
+
+def test_a_set_state_in_the_middle_of_a_scene_still_reverts(
+    guest, monkeypatch, tmp_path
+):
+    from art98.anim import setstate
+
+    monkeypatch.setattr(setstate, "apply_state", lambda scene, state: {})
+    monkeypatch.setattr(setstate, "check_state", lambda *a: None)
+    (tmp_path / "s.json").write_text('{"version": 1}')
+    session = FakeSession(guest)
+
+    class Mid(Stage):
+        state = tmp_path / "s.json"
+
+        def construct(self):
+            self.set_state(tmp_path / "s.json")
+
+    Mid().run(session, FakeVideo(guest))
+    assert session.reverts == 1
+
+
 def test_a_title_bar_drag_repaints_the_window_only_when_it_moved(guest, scene):
     pad = notepad(guest, scene)
     guest.do_mouse_event = lambda *a: (
@@ -1075,3 +1149,41 @@ def test_a_title_bar_drag_repaints_the_window_only_when_it_moved(guest, scene):
     guest.calls.clear()
     scene.play(Drag(pad.title_bar, by=(1, 1), run_time=0.5))  # the window stays put now
     assert guest.named("RedrawWindow") == []
+
+
+def test_render_uses_a_given_session_and_never_closes_it(tmp_path, monkeypatch, guest):
+    from art98.anim import renderer as render_module
+
+    class Tiny(Scene):
+        def construct(self):
+            self.pause(0.1)
+
+    class Recorder(FakeVideo):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            pass
+
+    class Given(FakeSession):
+        closed = False
+
+        def __exit__(self, *exc):
+            self.closed = True
+
+        def close(self):
+            self.closed = True
+
+        def record(self, path, fps=30, lossless=False):
+            recorder = Recorder(guest)
+            recorder.clips = recorder.parts = [path]
+            return recorder
+
+    monkeypatch.setattr(
+        render_module,
+        "write_gif",
+        lambda *a, **k: (tmp_path / "out.part.gif").write_bytes(b""),
+    )
+    session = Given(guest)
+    written = Tiny().render(tmp_path / "out.gif", session=session)
+    assert written == tmp_path / "out.gif" and not session.closed
