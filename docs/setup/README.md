@@ -82,14 +82,13 @@ If setup stops, run the same command again: it resumes, and asks for the key aga
 nothing keeps it between runs. Running `up` again once everything is done only boots the
 desktop and pings the agent.
 
-Then render through the container:
+Then render. The container is the default backend:
 
 ```bash
-ART98_BACKEND=container uv run art98 render examples/mvp/mvp.py
+uv run art98 render examples/mvp/mvp.py
 ```
 
-`--backend container` on `render` or `ping` does the same for one command. The default backend
-is still `local`. See [the container design](../design/container.md) for how it works.
+`--backend local` on `render` or `ping`, or `ART98_BACKEND=local`, runs QEMU on the host instead. See [the container design](../design/container.md) for how it works.
 
 ### By hand
 

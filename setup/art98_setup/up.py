@@ -103,5 +103,5 @@ def up(work: Path | str = "work", iso: Path | str | None = None, watch: bool = F
     log("[up] booting a stage in the container")
     with boot(work, engine=engine) as session:
         log(f"[up] the agent answered: guest tick count {session.bridge.ping()}")
-    log(f"[up] ready. Render with: ART98_BACKEND=container art98 render SCENE.py --work {work}")
+    log(f"[up] ready. Render with: art98 render SCENE.py --work {work}")
     return 0

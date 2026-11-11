@@ -29,8 +29,8 @@ class ImageMissing(FileNotFoundError):
 
 
 def backend_name(backend: str | None = None) -> str:
-    """The backend to use: the argument, else ART98_BACKEND, else "local"."""
-    name = backend or os.environ.get("ART98_BACKEND") or "local"
+    """The backend to use: the argument, else ART98_BACKEND, else "container"."""
+    name = backend or os.environ.get("ART98_BACKEND") or "container"
     if name not in BACKENDS:
         raise BackendError(f"unknown backend {name!r}; choose from {', '.join(BACKENDS)}")
     return name

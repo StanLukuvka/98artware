@@ -45,10 +45,10 @@ def cmd_doctor(_args) -> int:
     if local_ok and container_ok:
         print("\nBoth backends are usable.")
     elif local_ok:
-        print("\nThe local backend is usable. For the container backend install docker "
-              "or podman-docker.")
+        print("\nThe local backend is usable (`--backend local`). For the default container "
+              "backend install docker, or podman-docker on a Podman host.")
     elif container_ok:
-        print("\nThe container backend is usable (`art98 up`, then `--backend container`). "
+        print("\nThe container backend is usable (run `art98 up` first). "
               f"The local backend needs: {', '.join(local_only)}")
     else:
         blockers = sorted(CONTAINER_NEEDS & set(missing)) + ([] if engine else [name])
@@ -171,7 +171,7 @@ def cmd_up(args) -> int:
 def _backend_option(command) -> None:
     command.add_argument("--backend", choices=BACKENDS,
                          help="run QEMU here (local) or in the art98 container; "
-                              "default from ART98_BACKEND, else local")
+                              "default from ART98_BACKEND, else container")
 
 
 def main(argv: list[str] | None = None) -> int:

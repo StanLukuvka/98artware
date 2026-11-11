@@ -309,10 +309,10 @@ def test_a_secret_is_a_private_file_mounted_read_only(tmp_path, monkeypatch):
 
 def test_backend_comes_from_the_argument_then_the_environment(monkeypatch):
     monkeypatch.delenv("ART98_BACKEND", raising=False)
-    assert session_module.backend_name() == "local"
-    monkeypatch.setenv("ART98_BACKEND", "container")
     assert session_module.backend_name() == "container"
-    assert session_module.backend_name("local") == "local"
+    monkeypatch.setenv("ART98_BACKEND", "local")
+    assert session_module.backend_name() == "local"
+    assert session_module.backend_name("container") == "container"
     with pytest.raises(ValueError, match="unknown backend"):
         session_module.backend_name("kvm")
 

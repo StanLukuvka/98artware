@@ -16,7 +16,7 @@ work can pick up from here.
 | Recorder | Built: `Recorder`, with `cut()` to start a new clip during a run, `clips` to list them, and a join into the output. Clips are kept beside the output as MP4 | [Recorder](design/state-and-action.md#recorder), [Clips](scenes/scene-api.md#clips) |
 | Programs | Notepad is the first program, in `actions/programs/notepad.py`. It opens a text file or an empty window and checks its title. Windows 98 drops a trailing `.txt` from the title | [Programs](design/programs.md) |
 | CLI and checks | Errors from `art98` print one clean line, not a traceback. Warnings say when the image or guest programs are older than the code (`freshness.py`). `art98 doctor` works on a host that has only a container engine and ffmpeg. CI runs the unit tests on each push (`.github/workflows/tests.yml`) | [CLI](setup/cli.md) |
-| Container | Built: the backend in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image, runs setup in it and pings; `ART98_BACKEND=container` or `--backend container` runs a stage in it. The default backend is still `local`. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
+| Container | Built: the backend in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image, runs setup in it and pings; It is the default backend; `ART98_BACKEND=local` or `--backend local` runs QEMU on the host instead. Tested on rootful Docker 29.9 and rootless Podman. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
 
 Audio is deferred. art98 is video only.
 
@@ -117,14 +117,11 @@ Audio is deferred. art98 is video only.
 In order, from the layer review of 2026-11-11. See also
 [After the MVP](design/state-and-action.md#after-the-mvp).
 
-1. **Rootful Docker test.** The switch to the host's uid in `entry.py` has only run against a
-   stand-in uid map.
-2. **Default backend.** Decide whether `container` becomes the default instead of `local`.
-3. **Other programs.** Paint, Minesweeper and the rest return one at a time, each as a file in
+1. **Other programs.** Paint, Minesweeper and the rest return one at a time, each as a file in
    `actions/programs/` that subclasses `Win`, following the Notepad pilot. `apps.py` and the
    fixed `APPS` list go when the last one is moved.
-4. **Gallery and showcase port.** Port the showcase and re-render the gallery.
-5. **`--section`.** Render one section of a scene, on top of `next_section`.
+2. **Gallery and showcase port.** Port the showcase and re-render the gallery.
+3. **`--section`.** Render one section of a scene, on top of `next_section`.
 
 ### Known bugs, on hold
 

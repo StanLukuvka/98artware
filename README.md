@@ -55,7 +55,7 @@ class Mvp(Scene):
 ```
 
 ```bash
-ART98_BACKEND=container uv run art98 render examples/mvp/mvp.py -o mvp.mp4
+uv run art98 render examples/mvp/mvp.py -o mvp.mp4
 ```
 
 What happens when it runs:
@@ -102,11 +102,7 @@ uv run art98 up --iso /path/to/win98se.iso
 `ART98_PRODUCT_KEY`), installs Windows into `work/` with no further input, then boots the
 result and checks the agent answers. It takes 25 to 40 minutes, once. `--watch` shows setup
 over VNC on `127.0.0.1:5998`. After that, every render restores the snapshot in about a
-second:
-
-```bash
-export ART98_BACKEND=container
-```
+second. The container is the default backend:
 
 ```bash
 uv run art98 render examples/mvp/mvp.py -o mvp.mp4
@@ -128,7 +124,7 @@ product key in clear text, which matters less for a 1998 key; see
 
 ## Or on the host
 
-The `local` backend, still the default for now, runs QEMU on the host instead. Install the tools. On
+The `local` backend runs QEMU on the host instead (`--backend local`, or `ART98_BACKEND=local`). Install the tools. On
 Fedora:
 
 ```bash
@@ -279,10 +275,6 @@ baud, so files move well above the line rate. Setup quirks that `art98 setup` ha
 ## Not done yet
 
 - Audio is deferred. art98 is video only for now, though the VM keeps its Sound Blaster.
-- The container is tested through Podman's `docker` command, not with real Docker. The real
-  rootful Docker test is still open: Docker's switch to your uid ran only against a stand-in
-  uid map.
-- The default backend is still `local`. Switching it to the container is open.
 - Programs other than Picture and Notepad are parked, and re-recording one section is not built.
 - The Wine suite against the final agent. It needs a Wine prefix on this machine.
 

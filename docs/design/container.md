@@ -142,8 +142,8 @@ leave a VM running. Only a SIGKILL of the container leaves its run copy in `work
   the methods the scene layer uses on `VM`: `screenshot`, `send_keys`, `load_snapshot`,
   `save_snapshot`, `pause`, `resume`, `close`.
 - `session.boot(work, backend=...)`: `"local"` is today's path, `"container"` the new one.
-  `ART98_BACKEND` picks the default, which is still `"local"`. The suite now passes on both, so
-  switching is the owner's call.
+  `ART98_BACKEND` picks the default, which has been `"container"` since the rootful Docker
+  test on 2026-11-11.
 - `session.stage(work, backend=...)` boots on a throwaway copy. The local backend copies the
   disk under `work/runs` itself; the container makes its own. `render` uses it.
 - `revert`, the recorder and every scene are unchanged: they only see `Session.vm` and
@@ -278,9 +278,21 @@ Checked:
 - the new image renders the MVP scene frame for frame the same as the old host-built `work/`:
   0 of 257 frames differ.
 
-Not yet checked: real Docker. The `docker` on the build host is Podman's shim, so the rootful
-switch to the host's uid ran only in the container with a stand-in identity map, where it wrote
-as uid 1000.
+Checked on real rootful Docker (29.9.3, Fedora 44) on 2026-11-11, `/proc/pressure/cpu` some avg10
+under 0.5 throughout:
+
+- `art98 up` on the existing `work/` built the image in about 30 s, skipped setup, booted and
+  pinged;
+- no file in `work/` or `guest/build` came out owned by root or anyone but the user, so the
+  switch to the host's uid works;
+- `doctor` reports both backends usable, and the stage suite passes on the container backend
+  (18 passed);
+- the proof scene `examples/blank_start` renders frame for frame the same as a local render:
+  0 of 263 frames differ. Two local renders can differ from each other, but only in the
+  blinking Notepad caret (a 2 x 15 px box), which depends on timing;
+- no container was left behind.
+
+After this the default backend became `container`.
 
 ## Not in this design
 
@@ -289,5 +301,3 @@ as uid 1000.
 - Audio, which is still deferred.
 - Moving the recorder into the container. It stays on the host; `Recorder`, which replaced
   `FrameRecorder`, was built there.
-- Switching the default backend to `container`. The suite passes on both, so it can be done
-  whenever the owner wants.

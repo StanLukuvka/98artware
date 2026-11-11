@@ -193,7 +193,7 @@ running it. The protocol is in [the container design](../design/container.md#art
 | Variable | Read by | Effect |
 |----------|---------|--------|
 | `ART98_PRODUCT_KEY` | `cmd_setup`, `art98 up` | The product key when `--key` is not given. In the container, setup reads `/run/secrets/art98_key` when neither is there |
-| `ART98_BACKEND` | `session.boot`, `render`, `ping` | `local` (the default) or `container` |
+| `ART98_BACKEND` | `session.boot`, `render`, `ping` | `container` (the default) or `local` |
 | `ART98_ENGINE` | `art98.container.host.Engine`, `doctor` | The binary to run instead of `docker`. It only names the command: art98 drives it the same way |
 | `ART98_HOST_UID`, `ART98_HOST_GID` | `art98.container.entry` | Set by the host on every container it runs. On a rootful engine the container switches to them, so `work/` stays yours |
 | `ART98_IMAGE` | `art98.container.host` | The image name, `localhost/art98:latest` by default |

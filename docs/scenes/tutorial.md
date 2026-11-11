@@ -11,11 +11,7 @@ are [`Picture`](scene-api.md#picture) and [`Notepad`](scene-api.md#notepad).
 ## Before you start
 
 The easy way is the container. Run `art98 up` once, as the [README](../../README.md) says, then
-set the backend and check the host:
-
-```bash
-export ART98_BACKEND=container
-```
+check the host. The container is the default backend:
 
 ```bash
 uv run art98 doctor
