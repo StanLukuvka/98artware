@@ -34,6 +34,10 @@ class ContainerError(RuntimeError):
     pass
 
 
+class ChannelBusy(ContainerError):
+    """serve refused the control channel because another client holds it."""
+
+
 def transport_name(transport: str | None = None, default: str | None = None) -> str:
     """How the host reaches serve: a Unix socket in a mounted folder on Linux,
     which skips the rootless port forward, and loopback TCP everywhere else.
@@ -152,7 +156,9 @@ def open_channel(
             continue
         if answer != "ok":
             sock.close()
-            raise ContainerError(
+            # serve's refusals are `error <reason>`; `error busy...` is the held lock.
+            refused = ChannelBusy if answer.startswith("error busy") else ContainerError
+            raise refused(
                 f"the stage refused the {channel} channel: "
                 f"{answer.removeprefix('error ')}"
             )

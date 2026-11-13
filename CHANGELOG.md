@@ -13,9 +13,11 @@ All notable changes to art98 are listed here. The format follows
   `vnc` and `setup_vnc` keys. Published ports are on `127.0.0.1` only; turn VNC on in
   `compose.override.yaml` (`ART98_VNC: "1"` and a port), as `compose.override.example.yaml`
   shows. An `art98.toml` that still has the keys stops with an error: delete them.
-- `work/vm.cid` and the `art98.work` label check: compose finds the container by its project.
-  After updating, remove an old stopped `art98-vm` container once with `docker rm art98-vm`,
-  or `vm start` stops on the name being in use; delete `work/vm.cid` if it is there.
+- The `[vm] container` key, `work/vm.cid` and the `art98.work` label check. compose names the
+  container `art98-<hash8>-vm-1`, one project per work folder, so two work folders can each run
+  a VM, and art98 finds it by its project. Delete `container` from your `art98.toml` if you
+  copied it. A stopped `art98-vm` container from before is no longer used: remove it with
+  `docker rm art98-vm`, and delete `work/vm.cid` if it is there.
 
 ### Added
 

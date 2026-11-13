@@ -27,7 +27,7 @@ def _tag(settings: Settings) -> str:
 
 
 def socket_dir(settings: Settings) -> Path:
-    """Deterministic per container name and work path, so two checkouts never share one."""
+    """Deterministic per work path, so two checkouts never share one."""
     runtime = os.environ.get("XDG_RUNTIME_DIR")
     base = (
         Path(runtime) / "art98"
@@ -35,7 +35,7 @@ def socket_dir(settings: Settings) -> Path:
         else Path(tempfile.gettempdir())
         / f"art98-{os.getuid() if hasattr(os, 'getuid') else 0}"
     )
-    return base / f"{settings.container}-{_tag(settings)}"
+    return base / f"vm-{_tag(settings)}"
 
 
 def project(settings: Settings) -> str:
@@ -66,7 +66,6 @@ def variables(settings: Settings) -> dict[str, str]:
     """The values compose.yaml reads that art98 owns."""
     values = {
         "ART98_IMAGE": settings.image,
-        "ART98_CONTAINER": settings.container,
         "ART98_WORK": str(settings.work_dir),
         "ART98_TOKEN_PATH": str(settings.token_path),
         "ART98_SOCKET_DIR": str(socket_dir(settings)),

@@ -3,7 +3,6 @@
 # How the containers run (product key, disc, VNC) is in compose.override.yaml instead.
 
 [vm]
-container = "art98-vm"                 # name of the long-lived container
 image     = "localhost/art98:latest"   # image built by `art98 up`
 work      = "work"                     # prepared image and vm.token; relative to this file
 

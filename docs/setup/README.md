@@ -226,7 +226,7 @@ few minutes:
 |------|--------|
 | [stages.md](stages.md) | Each step: inputs, outputs, what happens inside, how it fails, what `--from` redoes |
 | [cli.md](cli.md) | `art98 doctor`, `setup`, `vm`, `render`, `ping`, `up` and `serve`, every flag, environment variables, the work directory |
-| [config.md](config.md) | `art98.toml`: the container name, the image, the work folder and the ports |
+| [config.md](config.md) | `art98.toml`: the image, the work folder and the ports |
 | [image.md](image.md) | What is on the finished image, every setting and why, the snapshot, the VM hardware |
 | [troubleshooting.md](troubleshooting.md) | Setup quirks, the stall rule, recovery, other discs |
 

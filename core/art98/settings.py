@@ -28,7 +28,6 @@ class SettingsError(ValueError):
 
 @dataclass(frozen=True)
 class Settings:
-    container: str = "art98-vm"
     image: str = "localhost/art98:latest"
     work: str = "work"
     connect: str | None = None
@@ -59,7 +58,6 @@ class Settings:
 
 SECTIONS = {
     "vm": {
-        "container": str,
         "image": str,
         "work": str,
         "transport": str,

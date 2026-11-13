@@ -9,7 +9,6 @@ the everyday keys with their defaults, and nothing else. Three more, `[vm] trans
 
 ```toml
 [vm]
-container = "art98-vm"                 # name of the long-lived container
 image     = "localhost/art98:latest"   # image built by `art98 up`
 work      = "work"                     # prepared image and vm.token; relative to this file
 
@@ -24,7 +23,7 @@ Each setting has one home. art98 reads `art98.toml` and hands its values to comp
 
 | Setting | Lives in | Why there |
 |---------|----------|-----------|
-| Container name, image name, work folder, token file | `art98.toml` `[vm]` | Clients need them too, without compose: `render` and `ping` find the VM from them |
+| Image name, work folder, token file | `art98.toml` `[vm]` | Clients need them too, without compose: `render` and `ping` find the VM from them |
 | Transport, the port clients dial (`control`, `connect`) | `art98.toml` | Same: a client in another container has only `art98.toml` |
 | The build, mounts, the socket folder, secrets, healthcheck, the `serve` and `setup` commands | `compose.yaml` | How the containers run, the same on every machine |
 | Loopback-only TCP port | `compose.tcp.yaml` | Added on top of `compose.yaml` when the transport is tcp |
@@ -32,7 +31,8 @@ Each setting has one home. art98 reads `art98.toml` and hands its values to comp
 | Disk size, a one-off disc | `art98 up --disk-mb`, `--iso` | Asked for once, at setup |
 
 compose reads `compose.override.yaml` from the repository root. art98 runs compose with the
-project name `art98-<hash8>` (see below), so two checkouts never share containers.
+project name `art98-<hash8>` (see below), so two work folders never share a container: the VM's
+is `art98-<hash8>-vm-1`.
 
 ## Where the file is found
 
@@ -58,7 +58,6 @@ A relative `work` in the file is taken from the folder that holds the file. A re
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `[vm] container` | `art98-vm` | Name of the long-lived container that runs the VM. |
 | `[vm] image` | `localhost/art98:latest` | The image `art98 up` builds. `ART98_IMAGE` overrides it. |
 | `[vm] work` | `work` | The work folder: the prepared image and `vm.token`. |
 | `[vm] transport` | `unix` on Linux, `tcp` elsewhere | How a client reaches the VM service: `"unix"` or `"tcp"`. `ART98_TRANSPORT` overrides it. |
@@ -76,7 +75,7 @@ then `art98 vm start`.
 
 | Path | Made by | Removed by | What it is |
 |------|---------|------------|------------|
-| `$XDG_RUNTIME_DIR/art98/<container>-<hash8>/` | `art98 vm start` | `art98 vm start` and `vm stop` | The Unix socket `serve.sock`, and the screenshots written into the folder. `hash8` is the first 8 hex digits of the SHA-256 of the work folder's absolute path, so two checkouts never share a folder. Without `XDG_RUNTIME_DIR` the folder is under the system temp directory. |
+| `$XDG_RUNTIME_DIR/art98/vm-<hash8>/` | `art98 vm start` | `art98 vm start` and `vm stop` | The Unix socket `serve.sock`, and the screenshots written into the folder. `hash8` is the first 8 hex digits of the SHA-256 of the work folder's absolute path, so two checkouts never share a folder. Without `XDG_RUNTIME_DIR` the folder is under the system temp directory. |
 
 `vm.token` is in `work/` unless `[vm] token_file` says otherwise: see
 [the work directory](cli.md#the-work-directory). The token is the one real secret: it lets a

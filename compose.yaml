@@ -23,13 +23,14 @@ x-stage: &stage
 
 services:
   # The long-lived VM: boots the `ready` snapshot and serves it on a Unix socket in a
-  # folder of the host's (compose.tcp.yaml swaps that for a loopback TCP port).
+  # folder of the host's (compose.tcp.yaml swaps that for a loopback TCP port). No
+  # container_name: compose names it <project>-vm-1, and art98's project is one per
+  # work folder, so two work folders can each run a VM.
   vm:
     <<: *stage
     build:
       context: .
       dockerfile: setup/Dockerfile
-    container_name: ${ART98_CONTAINER:-art98-vm}
     volumes:
       - ${ART98_WORK:-./work}:/work
       # art98 vm start makes a private folder per work folder and passes it.

@@ -102,3 +102,8 @@ Also checked live: a second `vm start` says `already running`; `vm stop` twice s
 An old container named `art98-vm` from the `docker run` days blocks the default name:
 `vm start` fails with the engine's own `the container name "art98-vm" is already in use ... You
 have to remove that container`. `docker rm art98-vm` once fixes it.
+
+Later, in review: a fixed `container_name` also stops a second work folder's project from
+starting its VM, since container names are global to the engine. So `compose.yaml` has no
+`container_name`; compose names the VM `art98-<hash8>-vm-1`, and the old `art98-vm` no longer
+gets in the way.

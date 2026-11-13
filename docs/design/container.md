@@ -215,9 +215,9 @@ its environment, so a rerun asks for it again. The other steps are in
 The VM is one long-lived container, not a stage booted for each render. The split:
 
 - `art98 up` builds the image and prepares `work/`, then stops and prints `art98 vm start`.
-- `art98 vm start` runs `compose up -d --wait vm`: one container, `art98-vm` by default, in the
-  compose project `art98-<hash8>` of the work folder, so `down` never touches another checkout's
-  VM. It writes `work/vm.token` first (mode 0600, kept between starts). The VM is left paused at
+- `art98 vm start` runs `compose up -d --wait vm`: one container, `art98-<hash8>-vm-1`, in the
+  compose project `art98-<hash8>` of the work folder, so two work folders can each run a VM and
+  `down` never touches another's. art98 finds the container by its project, never by name. It writes `work/vm.token` first (mode 0600, kept between starts). The VM is left paused at
   `ready`.
 - `art98 render` and `art98 ping` attach to the running VM. Without one they fail at once and say
   to run `art98 vm start`. `--wait S` waits for a busy VM.

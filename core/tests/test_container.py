@@ -119,7 +119,7 @@ def test_a_session_reverts_through_the_container(served):
 
 def test_only_one_control_connection_owns_the_stage(served):
     vm = served.remote()
-    with pytest.raises(ContainerError, match="busy"):
+    with pytest.raises(container.ChannelBusy):  # service.attach turns it into Busy
         served.channel("control")
     vm.close()
     served.remote_when_free().close()  # accepted again once the first is released

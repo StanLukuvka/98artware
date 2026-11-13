@@ -62,7 +62,7 @@ class FakeEngine:
         code = 1 if args[0] in self.fail else 0
         if code and check:
             raise ContainerError(f"docker {args[0]} failed")
-        err = b"dependency failed to start: container art98-vm is unhealthy"
+        err = b"dependency failed to start: container art98-1a2b3c4d-vm-1 is unhealthy"
         return SimpleNamespace(returncode=code, stdout=out, stderr=err * code)
 
     def has_image(self, image):
@@ -122,7 +122,7 @@ def test_start_brings_the_vm_service_up_and_waits_for_its_healthcheck(served, li
     args, env = engine.first("up")
     assert args == ("up", "-d", "--wait", "--wait-timeout", "120", "vm")
     work = str(live.work_dir)
-    assert env["ART98_WORK"] == work and env["ART98_CONTAINER"] == "art98-vm"
+    assert env["ART98_WORK"] == work and "ART98_CONTAINER" not in env
     assert env["ART98_IMAGE"] == "localhost/art98:latest"
     assert env["ART98_TOKEN_PATH"] == f"{work}/vm.token"
     assert env["ART98_HOST_UID"] == str(os.getuid())
@@ -131,13 +131,11 @@ def test_start_brings_the_vm_service_up_and_waits_for_its_healthcheck(served, li
 
 
 def test_start_takes_names_and_ports_from_settings(tmp_path, served):
-    settings = make_settings(
-        tmp_path, port=served.address[1], container="other", image="img:1"
-    )
+    settings = make_settings(tmp_path, port=served.address[1], image="img:1")
     engine = FakeEngine()
     service.start(settings, engine=engine, log=lambda m: None)
     env = engine.first("up")[1]
-    assert (env["ART98_CONTAINER"], env["ART98_IMAGE"]) == ("other", "img:1")
+    assert env["ART98_IMAGE"] == "img:1"
     assert env["ART98_CONTROL_PORT"] == str(served.address[1])
 
 
@@ -150,9 +148,7 @@ def test_start_on_unix_makes_a_private_socket_dir(monkeypatch, tmp_path):
     folder = service.socket_dir(settings)
     assert engine.first("up")[1]["ART98_SOCKET_DIR"] == str(folder)
     assert folder.parent == tmp_path / "run" / "art98"
-    assert (
-        folder.name.startswith("art98-vm-") and len(folder.name) == len("art98-vm-") + 8
-    )
+    assert folder.name.startswith("vm-") and len(folder.name) == len("vm-") + 8
     assert not folder.exists()  # the failed start took it down again
 
 

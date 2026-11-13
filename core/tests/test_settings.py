@@ -17,18 +17,14 @@ def write(folder, text):
 
 def test_defaults_without_a_file(tmp_path):
     s = load()
-    assert (s.container, s.image, s.control) == (
-        "art98-vm",
-        "localhost/art98:latest",
-        7598,
-    )
+    assert (s.image, s.control) == ("localhost/art98:latest", 7598)
     assert s.source is None and s.work_dir == (tmp_path / "work").resolve()
 
 
 def test_file_overrides_defaults(tmp_path):
-    write(tmp_path, '[vm]\ncontainer = "x"\n[ports]\ncontrol = 7599\n')
+    write(tmp_path, '[vm]\nimage = "x"\n[ports]\ncontrol = 7599\n')
     s = load()
-    assert (s.container, s.control) == ("x", 7599)
+    assert (s.image, s.control) == ("x", 7599)
     assert s.source == tmp_path / "art98.toml"
 
 
@@ -65,7 +61,8 @@ def test_discovery_walks_up_and_relative_work_follows_the_file(tmp_path, monkeyp
         "[ports]\ncontrol = true\n",
         "[ports]\ncontrol = 0\n",
         "[ports]\ncontrol = 70000\n",
-        # compose.override.yaml holds these now
+        # gone with compose: the container name is compose's, VNC is in the override
+        '[vm]\ncontainer = "art98-vm"\n',
         '[ports]\nbind = "127.0.0.1"\n',
         "[ports]\nvnc = 5900\n",
         "[ports]\nsetup_vnc = 5998\n",
@@ -82,8 +79,7 @@ def test_the_committed_file_matches_the_defaults(monkeypatch):
     monkeypatch.chdir(settings.__file__.rsplit("/core/", 1)[0])
     s = load()
     assert s.source is not None
-    assert (s.container, s.image, s.work, s.control) == (
-        "art98-vm",
+    assert (s.image, s.work, s.control) == (
         "localhost/art98:latest",
         "work",
         7598,

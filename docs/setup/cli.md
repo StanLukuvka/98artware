@@ -121,7 +121,7 @@ uv run art98 vm stop
 
 Runs `docker compose up -d --wait vm`: the `vm` service of [compose.yaml](../../compose.yaml),
 in the compose project `art98-<hash8>` of this work folder, so the container is named
-`[vm] container` (`art98-vm` by default) and runs `[vm] image`. Before that it writes
+`art98-<hash8>-vm-1` and two work folders can each run a VM. It runs `[vm] image`. Before that it writes
 `work/vm.token` (or the file `[vm] token_file` names), mode 0600, made once and reused, which
 compose mounts as a secret. `--wait` returns once the healthcheck sees serve listening; then
 art98 checks the `ready` snapshot and the guest agent, and leaves the VM paused.
@@ -151,7 +151,6 @@ the VM is up and paused; render with `art98 render`
 | `the container image is older than the code; run art98 up --rebuild` | The image holds an older copy of `core/art98` than the checkout |
 | `the VM has no ready snapshot; run art98 up ...` | The image's disk has no `ready` snapshot |
 | `the VM did not start: <compose's last line>` | `compose up` failed, or the healthcheck did not pass within 120 s. The message ends with the last 20 lines of the container's log, and the project is taken down |
-| `... the container name "art98-vm" is already in use ...` | A container of that name that compose did not make, such as one from an art98 before compose. Remove it once with `docker rm art98-vm` |
 
 ### art98 vm status
 
@@ -293,7 +292,7 @@ it. The protocol is in [the container design](../design/container.md#art98-serve
 | `ART98_ENGINE` | `art98.container.host.Engine`, `doctor` | The binary to run instead of `docker`, such as `podman`. It only names the command: art98 runs `ART98_ENGINE compose` the same way |
 | `ART98_HOST_UID`, `ART98_HOST_GID` | `art98.container.entry` | Passed by art98 to compose, which sets them on every container. On a rootful engine the container switches to them, so `work/` stays yours |
 | `ART98_VNC` | `art98 serve`, `art98 setup` | Set to `1` (in `compose.override.yaml`) to turn on `serve --vnc` or `setup --watch` |
-| `ART98_IMAGE`, `ART98_CONTAINER`, `ART98_WORK`, `ART98_TOKEN_PATH`, `ART98_SOCKET_DIR`, `ART98_CONTROL_PORT`, `ART98_ISO`, `ART98_DISK_MB` | `compose.yaml` | Set by art98 from `art98.toml` and the flags when it runs compose. Don't set them yourself, except `ART98_IMAGE` |
+| `ART98_IMAGE`, `ART98_WORK`, `ART98_TOKEN_PATH`, `ART98_SOCKET_DIR`, `ART98_CONTROL_PORT`, `ART98_ISO`, `ART98_DISK_MB` | `compose.yaml` | Set by art98 from `art98.toml` and the flags when it runs compose. Don't set them yourself, except `ART98_IMAGE` |
 | `ART98_IMAGE` | `art98.settings` | The image name. Overrides `[vm] image` in [art98.toml](config.md), `localhost/art98:latest` by default |
 | `ART98_TRANSPORT` | `art98.container.host.transport_name` | `unix` (the default on Linux) or `tcp` (the default elsewhere): how a client reaches the VM service. Overrides `[vm] transport` in [art98.toml](config.md#keys). See [timing](../design/container.md#timing) |
 | `ART98_WATCH_DISPLAY` | `Setup._config` | The QEMU display for `--watch`, `gtk` by default. compose.yaml sets it to VNC in the container |

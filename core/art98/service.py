@@ -1,6 +1,6 @@
 """The long-lived VM: start it in a container, stop it, ask how it is, and attach
 a Session to it for one render. compose.yaml says how the container runs (see
-art98.container.compose); names, ports and the image come from Settings."""
+art98.container.compose); the work folder, ports and the image come from Settings."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from .bridge import Bridge, BridgeError
 from .container import compose
 from .container.compose import socket_dir
 from .container.host import (
+    ChannelBusy,
     ContainerError,
     Engine,
     RemoteVM,
@@ -270,9 +271,9 @@ def _connect(settings: Settings) -> Session:
         raise NotRunning(
             f"the VM is not running (nothing answers on {_where(address)}); run `art98 vm start`"
         ) from None
+    except ChannelBusy:
+        raise Busy("the VM is busy: another render holds it") from None
     except ContainerError as error:
-        if "channel: busy" in str(error):
-            raise Busy("the VM is busy: another render holds it") from None
         raise Unhealthy(str(error)) from None
     shared = socket_dir(settings) if isinstance(address, str) else None
     vm = RemoteVM(control, shared_dir=shared)
