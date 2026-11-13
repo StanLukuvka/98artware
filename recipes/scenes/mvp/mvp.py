@@ -1,6 +1,6 @@
 """The MVP sample: picture windows, set from state files and moved on camera.
 
-art98 render examples/mvp/mvp.py
+art98 render recipes/scenes/mvp/mvp.py
 """
 
 from pathlib import Path

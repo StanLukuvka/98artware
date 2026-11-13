@@ -153,7 +153,7 @@ A guest reboot ends the QEMU process. This is on purpose, see
 ## On a busy host
 
 When the host is under CPU pressure, a render is slower but gives the same video. Measured on a
-20-CPU host with 28 busy loops running, on host QEMU (before the VM service), with `examples/blank_start/blank_start.py`
+20-CPU host with 28 busy loops running, on host QEMU (before the VM service), with `recipes/scenes/blank_start/blank_start.py`
 (3 clips, 263 frames). The pressure column is `some avg10` from `/proc/pressure/cpu`, before, during
 (min to max) and after the render.
 

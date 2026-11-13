@@ -32,6 +32,11 @@ dev = ["pytest>=8", "pycdlib>=1.14", "ruff==0.17.4"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build]
+# Editable installs put these folders on the path. `recipes` is there so scenes can
+# `from helpers.<module> import ...`; the wheel below ships only the two packages.
+dev-mode-dirs = ["core", "setup", "recipes"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["core/art98", "setup/art98_setup"]
 

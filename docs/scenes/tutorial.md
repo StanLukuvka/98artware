@@ -16,11 +16,11 @@ uv run art98 doctor
 
 ## Your first scene
 
-The repo has one that needs nothing typed: [examples/hello.py](../../examples/hello.py). Notepad
+The repo has one that needs nothing typed: [recipes/scenes/hello.py](../../recipes/scenes/hello.py). Notepad
 opens, types a line, drifts across the desktop and closes. Render it:
 
 ```bash
-uv run art98 render examples/hello.py Hello -o hello.mp4
+uv run art98 render recipes/scenes/hello.py Hello -o hello.mp4
 ```
 
 `art98 render` restores the `ready` snapshot (about a second), plays the scene and writes the
@@ -51,7 +51,7 @@ Fill in `sha256` with the output of `sha256sum` on the file, for example
 at that path, relative to the state file.
 
 Then save this as `first.py`. It is shaped like
-[examples/blank_start](../../examples/blank_start/blank_start.py), which has the whole state,
+[recipes/scenes/blank_start](../../recipes/scenes/blank_start/blank_start.py), which has the whole state,
 with the real hash and its files:
 
 ```python
@@ -120,7 +120,7 @@ from art98.anim import *
 class AddOne(Scene):
     def construct(self):
         sky = Picture(
-            "Sky", image="examples/mvp/assets/sky.bmp", at=(100, 100), size=(240, 200)
+            "Sky", image="recipes/scenes/mvp/assets/sky.bmp", at=(100, 100), size=(240, 200)
         )
         self.add(sky)
         self.play(sky.animate.shift(200 * RIGHT), run_time=1)
@@ -207,7 +207,7 @@ class Draw(Scene):
 
 The fill stays inside because the stroke is closed. Paint floods whatever is connected, as it
 would for a person. A path can also be a function from 0..1 to a point.
-[`examples/showcase.py`](../../examples/showcase.py) draws a rose that way.
+[`recipes/scenes/showcase.py`](../../recipes/scenes/showcase.py) draws a rose that way.
 
 ## Go under the scene layer
 

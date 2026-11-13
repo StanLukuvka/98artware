@@ -73,7 +73,7 @@ than a copy.
 ## What is left
 
 Built: `Dialog` with its options (B3 to B7), `Backdrop` (B1), the stock desktop at a new colour
-(B9) and a tiled wallpaper (B2). [examples/dialog_storm](../../examples/dialog_storm/dialog_storm.py)
+(B9) and a tiled wallpaper (B2). [recipes/scenes/dialog_storm](../../recipes/scenes/dialog_storm/dialog_storm.py)
 uses all of them.
 
 Not built, most useful first:

@@ -40,8 +40,8 @@ pointer. The `True` rows are the documented behaviour, not a bug.
 I could not tell which scenes showed it, so I ran both named ones, scanning every frame for the exact
 arrow pixels (a 58 px template cut from the idle-visible clip):
 
-- `examples/mvp` (`pointer_visible` unset, two Pictures): no arrow in any of the 257 frames.
-- `examples/blank_start` (`pointer_visible = True`, state pointer (400, 540)): the arrow is in every
+- `recipes/scenes/mvp` (`pointer_visible` unset, two Pictures): no arrow in any of the 257 frames.
+- `recipes/scenes/blank_start` (`pointer_visible = True`, state pointer (400, 540)): the arrow is in every
   frame it is not hidden behind a window, from frame 0 (box x 401-408, y 542-557) through the
   glide and the drag. Frames 45-50 of clip 1 match no arrow because it is over the Notepad.
   This is the pointer the scene asked for.
@@ -63,15 +63,15 @@ cursor (a 7x7 px box up and right of the hotspot, from Paint's own resource, not
 Crops (8x, nearest) were kept outside the repo, not under `experiments/stray-pointer/`:
 - `own-paint-f1.png`, `own-paint-f4.png`: Paint's pencil, pointer hidden.
 - `idle-visible-f0.png`: the arrow when `pointer_visible = True`, frame 0.
-- `blank_start-01-f0.png`: the arrow in the first frame of `examples/blank_start`.
+- `blank_start-01-f0.png`: the arrow in the first frame of `recipes/scenes/blank_start`.
 
 ## Conclusion
 
 Candidate 3. Candidates 1 and 2 do not reproduce: on a blank desktop with the pointer hidden, no
 frame from frame 0 on has a non-black pixel, with or without a move, a sync or a same-spot
 `SetCursorPos`. What shows is (a) the arrow in scenes that set `pointer_visible = True`
-(`examples/blank_start`), by design, and (b) a program's own cursor, shown by Paint on its canvas.
-`examples/mvp` shows no pointer. Not tested: other programs with own cursors (Minesweeper, Picture
+(`recipes/scenes/blank_start`), by design, and (b) a program's own cursor, shown by Paint on its canvas.
+`recipes/scenes/mvp` shows no pointer. Not tested: other programs with own cursors (Minesweeper, Picture
 dialogs), and the wait/hourglass cursor while a program starts.
 
 ## Recommended fix

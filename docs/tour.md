@@ -15,7 +15,7 @@ puts them on an image, the core drives that image, and scenes and samples sit on
 | 5 | [Core: VM and bridge](#5-core-vm-and-bridge) | `core/art98/` | Starts the VM and talks to the agent. |
 | 6 | [Core: scene layer](#6-core-scene-layer) | `core/art98/anim/` | The Manim-style API scenes are written in. |
 | 7 | [Tests](#7-tests) | `*/tests/` | What is checked, and what needs a VM. |
-| 8 | [Samples and experiments](#8-samples-and-experiments) | `examples/`, `tools/`, `experiments/` | Scenes to render, the tools that render them, and throwaway probes. |
+| 8 | [Samples and experiments](#8-samples-and-experiments) | `recipes/scenes/`, `tools/`, `experiments/` | Scenes to render, the tools that render them, and throwaway probes. |
 | 9 | [Docs](#9-docs) | `docs/` | Guides, design pages, diagrams, status. |
 
 Two folders aren't in git: `work/` holds the disk images (installed copies of Windows, so it is never
@@ -176,16 +176,18 @@ says which tests a change needs. Tests that need QEMU, Wine or the prepared imag
 
 ## 8. Samples and experiments
 
-- [ ] [hello.py](../examples/hello.py): the smallest scene. Renders to `hello.mp4`.
-- [ ] [showcase.py](../examples/showcase.py): a longer tour of the desktop.
-- [ ] [blank_start/blank_start.py](../examples/blank_start/blank_start.py): the proof scene: a Picture and a
+- [ ] [hello.py](../recipes/scenes/hello.py): the smallest scene. Renders to `hello.mp4`.
+- [ ] [showcase.py](../recipes/scenes/showcase.py): a longer tour of the desktop.
+- [ ] [blank_start/blank_start.py](../recipes/scenes/blank_start/blank_start.py): the proof scene: a Picture and a
   Notepad on the blank desktop, three sections.
-- [ ] [mvp/mvp.py](../examples/mvp/mvp.py): picture windows set from
-  [state files](../examples/mvp/states/two_windows.json), then moved on camera.
-- [ ] [dialog_storm/dialog_storm.py](../examples/dialog_storm/dialog_storm.py): message boxes, the
+- [ ] [mvp/mvp.py](../recipes/scenes/mvp/mvp.py): picture windows set from
+  [state files](../recipes/scenes/mvp/states/two_windows.json), then moved on camera.
+- [ ] [dialog_storm/dialog_storm.py](../recipes/scenes/dialog_storm/dialog_storm.py): message boxes, the
   desktop colour and a wallpaper from a state.
-- [ ] [gallery/](../examples/gallery/): one short scene per feature;
+- [ ] [gallery/](../recipes/scenes/gallery/): one short scene per feature;
   [render_all.py](../tools/render_all.py) makes the GIFs in `docs/assets/gifs`.
+- [ ] [recipes/helpers/](../recipes/helpers/__init__.py): modules that scenes import, as
+  `from helpers.<module> import ...`. On the path for `uv run`; not in the wheel.
 - [ ] [check_docs.py](../tools/check_docs.py): renders every sample in `docs/scenes`
   on the real image.
 - [ ] [experiments/](https://github.com/StanLukuvka/98artware/tree/dev/experiments): throwaway probes behind design decisions, each with a

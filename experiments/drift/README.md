@@ -155,7 +155,7 @@ guest agent change is proposed.
 
 ## Dialog storm across backends
 
-`art98 render examples/dialog_storm/dialog_storm.py DialogStorm --backend {local,container}` (Podman,
+`art98 render recipes/scenes/dialog_storm/dialog_storm.py DialogStorm --backend {local,container}` (Podman,
 Docker via `env -u DOCKER_HOST sg docker -c`), 126 frames, `ffmpeg -f framemd5` of each: the three
 frame lists are identical (local = Podman = Docker), and so are the five section clips byte for
 byte. Render time 5.1 s local, 5.8 s Podman, 6.9 s Docker, CPU pressure 0.00. This was not so

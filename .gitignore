@@ -15,4 +15,5 @@ dist/
 *.qcow2
 *.img
 .ruff_cache/
-examples/inspiration/
+recipes/scenes/inspiration/
+recipes/helpers/storm.py

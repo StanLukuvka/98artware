@@ -17,6 +17,9 @@ All notable changes to art98 are listed here. The format follows
 
 ### Changed
 
+- `examples/` is now `recipes/`. Scenes are in `recipes/scenes/`, and modules that scenes import are in
+  `recipes/helpers/` (`from helpers.<module> import ...`). The folder is on the path for `uv run`
+  and is not part of the wheel.
 - The guest-program freshness check compares source digests (`guest/build/sources.sha256`,
   written by `make -C guest`) instead of file times, and the image check uses git commit times
   in a git checkout. A fresh `art98 up` no longer warns that the guest programs are out of date.
@@ -28,7 +31,7 @@ All notable changes to art98 are listed here. The format follows
 
 ### Fixed
 
-- `examples/hello.py` and its copies in the scene docs place Notepad clear of the desktop icons.
+- `recipes/scenes/hello.py` and its copies in the scene docs place Notepad clear of the desktop icons.
 
 ## [0.1.0] - 2026-11-11
 

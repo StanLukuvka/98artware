@@ -258,9 +258,9 @@ if __name__ == "__main__":
         ("corner-visible", CornerVisible), ("sync", Sync),
         ("samespot", SameSpot), ("samespot-visible", SameSpotVisible)]]
     extra = []
-    sys.path.insert(0, str(HERE / "examples" / "blank_start"))
-    for label, path, cls in (("blank_start", "examples/blank_start/blank_start.py", "BlankStart"),
-                             ("mvp", "examples/mvp/mvp.py", "Mvp")):
+    sys.path.insert(0, str(HERE / "recipes" / "scenes" / "blank_start"))
+    for label, path, cls in (("blank_start", "recipes/scenes/blank_start/blank_start.py", "BlankStart"),
+                             ("mvp", "recipes/scenes/mvp/mvp.py", "Mvp")):
         extra.append((label, path, cls))
     for name, cls in variants:
         with stage(WORK) as s:

@@ -21,7 +21,7 @@ from pathlib import Path
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)
 busy_runs = int(sys.argv[2]) if len(sys.argv) > 2 else 2
-SCENE = "examples/blank_start/blank_start.py"
+SCENE = "recipes/scenes/blank_start/blank_start.py"
 HERE = Path(__file__).parent
 
 

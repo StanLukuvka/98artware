@@ -1,8 +1,8 @@
 """A dialog storm: a cascade of message boxes, a jittered pair, typing text, a new
 desktop colour and a wallpaper (docs/design/inspiration.md, B3 to B7).
 
-    art98 render examples/dialog_storm/dialog_storm.py DialogStorm
-    art98 render examples/dialog_storm/dialog_storm.py DialogStormStock
+    art98 render recipes/scenes/dialog_storm/dialog_storm.py DialogStorm
+    art98 render recipes/scenes/dialog_storm/dialog_storm.py DialogStormStock
 """
 
 import random

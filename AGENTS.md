@@ -110,7 +110,8 @@ image. Which tests a change needs:
 | `setup/art98_setup/` | `art98 setup` (four steps) and `art98 up`; `setup/Dockerfile` |
 | `guest/` | C and assembly built with `make -C guest` into `guest/build/` (gitignored): `agent.exe`, `view.exe`, `mbr.bin` |
 | `core/tests/`, `setup/tests/` | Tests. `pythonpath` in `pyproject.toml` puts `core` and `setup` on the path |
-| `examples/` | Maintained scenes the docs embed. Keep them rendering |
+| `recipes/scenes/` | Maintained scenes the docs embed. Keep them rendering |
+| `recipes/helpers/` | Action modules that scenes import (`from helpers.<module> import ...`) |
 | `tools/` | `render_all.py` (gallery GIFs), `check_docs.py` (renders doc samples on the real VM) |
 | `experiments/` | Throwaway probes. No tests, not imported by art98. On `dev` only |
 | `docs/` | Every page; index in `docs/README.md`. `docs/status.md` is the pick-up point |

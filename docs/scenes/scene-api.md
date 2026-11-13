@@ -111,7 +111,7 @@ path inside a state is relative to the state file.
 }
 ```
 
-Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256sum examples/mvp/assets/flower.bmp`.
+Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256sum recipes/scenes/mvp/assets/flower.bmp`.
 
 | Field | Meaning |
 | --- | --- |
@@ -144,18 +144,18 @@ from art98.anim import *
 
 
 class TwoStates(Scene):
-    state = "examples/mvp/states/two_windows.json"
+    state = "recipes/scenes/mvp/states/two_windows.json"
 
     def construct(self):
         flower = self.prop("flower")
         self.play(flower.animate.shift(200 * RIGHT), run_time=2)
-        self.set_state("examples/mvp/states/gallery.json")
+        self.set_state("recipes/scenes/mvp/states/gallery.json")
         self.pause(1)
         self.play(self.prop("picture").animate.shift(100 * DOWN), run_time=2)
 ```
 
 These paths are from the repository's root. The whole sample is
-[examples/mvp](../../examples/mvp/mvp.py), with its states beside it.
+[recipes/scenes/mvp](../../recipes/scenes/mvp/mvp.py), with its states beside it.
 
 ### Playing
 
@@ -509,7 +509,7 @@ The file must be plain text. `title` is optional there too.
 
 ![Typing](../assets/gifs/typing.gif)
 
-Source: [typing.py](../../examples/gallery/typing.py).
+Source: [typing.py](../../recipes/scenes/gallery/typing.py).
 
 ## Paint
 
@@ -546,7 +546,7 @@ prompt, which isn't handled.
 
 ![Paint drawing](../assets/gifs/paint-drawing.gif)
 
-Source: [paint_drawing.py](../../examples/gallery/paint_drawing.py).
+Source: [paint_drawing.py](../../recipes/scenes/gallery/paint_drawing.py).
 
 ## Minesweeper
 
@@ -571,7 +571,7 @@ takes no video time. No window may cover the top left corner of the screen.
 
 ![Minesweeper win](../assets/gifs/minesweeper-win.gif)
 
-Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py).
+Source: [minesweeper_win.py](../../recipes/scenes/gallery/minesweeper_win.py).
 
 ## Screensaver
 
@@ -589,7 +589,7 @@ Channel Screen Saver is on the image but left out, because moving the pointer do
 
 ![Screensaver](../assets/gifs/screensaver.gif)
 
-Source: [screensaver.py](../../examples/gallery/screensaver.py).
+Source: [screensaver.py](../../recipes/scenes/gallery/screensaver.py).
 
 ## Backdrop
 
@@ -680,7 +680,7 @@ buttons.
 
 ![Hover and dialog](../assets/gifs/hover-dialog.gif)
 
-Source: [hover_dialog.py](../../examples/gallery/hover_dialog.py).
+Source: [hover_dialog.py](../../recipes/scenes/gallery/hover_dialog.py).
 
 ```python
 from art98.anim import *

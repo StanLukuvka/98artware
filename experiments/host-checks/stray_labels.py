@@ -118,7 +118,7 @@ class StrayLabels(Scene):
     def construct(self):
         flower = Picture(
             "Flower",
-            image="examples/mvp/assets/flower.bmp",
+            image="recipes/scenes/mvp/assets/flower.bmp",
             at=(200, 120),
             size=(240, 200),
         )

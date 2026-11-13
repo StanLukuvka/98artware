@@ -1,6 +1,6 @@
 """A blank desktop, a state, a picture and Notepad, the pointer, and a cut.
 
-uv run art98 render examples/blank_start/blank_start.py -o blank_start.mp4
+uv run art98 render recipes/scenes/blank_start/blank_start.py -o blank_start.mp4
 """
 
 from art98.anim import *

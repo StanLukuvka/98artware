@@ -182,7 +182,7 @@ about 10 to 14 KB a second, lossless FFV1 about 1.5 to 2.2 MB a second. One GIF 
 joined lossless clips. A GIF per clip would get its own palette, so colours would shift from clip
 to clip.
 
-Checked: a copy of `examples/mvp/mvp.py` with `self.cut()` right after
+Checked: a copy of `recipes/scenes/mvp/mvp.py` with `self.cut()` right after
 `set_state("states/gallery.json")` gave `mvpcut-01.mp4` 152 frames, `-02` 105, and a joined 257,
 the same as the uncut scene. The GIF had 128 frames at 15 fps. CPU pressure some avg10 0.00.
 

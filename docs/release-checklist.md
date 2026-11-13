@@ -14,8 +14,8 @@ A hand-run list for checking a release. A release is a git tag `vX.Y.Z` and a Gi
 
 ## Renders
 
-- [ ] `uv run art98 render examples/blank_start/blank_start.py -o out/blank_start.mp4 --gif out/blank_start.gif`
-- [ ] `uv run art98 render examples/mvp/mvp.py -o out/mvp.mp4`
+- [ ] `uv run art98 render recipes/scenes/blank_start/blank_start.py -o out/blank_start.mp4 --gif out/blank_start.gif`
+- [ ] `uv run art98 render recipes/scenes/mvp/mvp.py -o out/mvp.mp4`
 
 ## Frames
 
@@ -28,7 +28,7 @@ A hand-run list for checking a release. A release is a git tag `vX.Y.Z` and a Gi
 ## VM service
 
 - [ ] `uv run art98 vm start`, then `uv run art98 vm status` prints `up since` and `ready snapshot: yes`.
-- [ ] `uv run art98 render examples/mvp/mvp.py -o out/mvp.mp4`, then `uv run art98 vm stop`.
+- [ ] `uv run art98 render recipes/scenes/mvp/mvp.py -o out/mvp.mp4`, then `uv run art98 vm stop`.
 
 ## Tests
 
@@ -57,7 +57,7 @@ A hand-run list for checking a release. A release is a git tag `vX.Y.Z` and a Gi
 
 ## Busy host
 
-- [ ] With another heavy job running on the host, run `uv run art98 render examples/mvp/mvp.py -o out/mvp.mp4` once. Note the timing next to `/proc/pressure/cpu`.
+- [ ] With another heavy job running on the host, run `uv run art98 render recipes/scenes/mvp/mvp.py -o out/mvp.mp4` once. Note the timing next to `/proc/pressure/cpu`.
 
 ---
 

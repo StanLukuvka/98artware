@@ -113,7 +113,7 @@ boots the VM during a render.
 
 ```bash
 uv run art98 vm start
-uv run art98 render examples/mvp/mvp.py -o mvp.mp4
+uv run art98 render recipes/scenes/mvp/mvp.py -o mvp.mp4
 uv run art98 vm stop
 ```
 

@@ -16,8 +16,8 @@ from art98.settings import load
 
 HERE = Path(__file__).resolve().parents[2]
 WORK = Path(os.environ.get("ART98_TEST_WORK") or HERE / "work")
-MVP = HERE / "examples" / "mvp" / "mvp.py"
-BLANK_START = HERE / "examples" / "blank_start" / "blank_start.py"
+MVP = HERE / "recipes" / "scenes" / "mvp" / "mvp.py"
+BLANK_START = HERE / "recipes" / "scenes" / "blank_start" / "blank_start.py"
 SETTINGS = load(WORK)
 
 pytestmark = [
@@ -285,7 +285,7 @@ def _drift_short_scenes():
         def construct(self):
             pic = Picture(
                 "Sky",
-                image=HERE / "examples" / "mvp" / "assets" / "sky.bmp",
+                image=HERE / "recipes" / "scenes" / "mvp" / "assets" / "sky.bmp",
                 at=(100, 100),
                 size=(240, 200),
             )
@@ -298,11 +298,19 @@ def _drift_short_scenes():
 
 # name -> (file, class or scene factory index, check B too?)
 DRIFT_SCENES = {
-    "motion": ("examples/gallery/window_motion.py", "WindowMotion", False),
-    "drag": ("examples/gallery/drag_window.py", "DragWindow", False),
-    "typing": ("examples/gallery/typing.py", "Typing", True),  # Notepad, with a caret
-    "menus": ("examples/gallery/menus_keys.py", "MenusKeys", False),
-    "storm": ("examples/dialog_storm/dialog_storm.py", "DialogStorm", True),  # Dialog
+    "motion": ("recipes/scenes/gallery/window_motion.py", "WindowMotion", False),
+    "drag": ("recipes/scenes/gallery/drag_window.py", "DragWindow", False),
+    "typing": (
+        "recipes/scenes/gallery/typing.py",
+        "Typing",
+        True,
+    ),  # Notepad, with a caret
+    "menus": ("recipes/scenes/gallery/menus_keys.py", "MenusKeys", False),
+    "storm": (
+        "recipes/scenes/dialog_storm/dialog_storm.py",
+        "DialogStorm",
+        True,
+    ),  # Dialog
     "cmds": (None, "Commands", False),
     "paint": (None, "PaintShort", True),
     "minesweeper": (None, "MinesweeperShort", True),

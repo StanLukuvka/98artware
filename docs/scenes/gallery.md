@@ -17,12 +17,12 @@ The pointer drags Notepad by its title bar, and a Yes/No message box is answered
 
 ![The README clip](../assets/gifs/hero.gif)
 
-Source: [hero.py](../../examples/readme/hero.py)
+Source: [hero.py](../../recipes/scenes/readme/hero.py)
 
 ```py
 """The README's opening clip: Notepad, Paint, Minesweeper and a message box in one take.
 
-uv run art98 render examples/readme/hero.py -o hero.mp4 --gif hero.gif
+uv run art98 render recipes/scenes/readme/hero.py -o hero.mp4 --gif hero.gif
 """
 
 import math
@@ -100,13 +100,13 @@ desktop, and its window moves down.
 
 ![The MVP](../assets/gifs/mvp.gif)
 
-Source: [mvp.py](../../examples/mvp/mvp.py), with its
-[states](../../examples/mvp/states/two_windows.json) beside it
+Source: [mvp.py](../../recipes/scenes/mvp/mvp.py), with its
+[states](../../recipes/scenes/mvp/states/two_windows.json) beside it
 
 ```py
 """The MVP sample: picture windows, set from state files and moved on camera.
 
-art98 render examples/mvp/mvp.py
+art98 render recipes/scenes/mvp/mvp.py
 """
 
 from pathlib import Path
@@ -147,14 +147,14 @@ Notepad opens, types a line, moves across the desktop and closes.
 
 ![Hello](../assets/gifs/hello.gif)
 
-Source: [hello.py](../../examples/hello.py)
+Source: [hello.py](../../recipes/scenes/hello.py)
 
 ```py
 """The Windows 98 equivalent of a triangle on screen.
 
 Notepad opens, types a line, drifts across the desktop and closes.
 
-    uv run art98 render examples/hello.py Hello -o hello.mp4
+    uv run art98 render recipes/scenes/hello.py Hello -o hello.mp4
 """
 
 from art98.anim import *
@@ -181,7 +181,7 @@ A double click on the desktop icon opens My Computer. A right click opens the de
 
 ![Pointer and clicks](../assets/gifs/pointer-clicks.gif)
 
-Source: [pointer_clicks.py](../../examples/gallery/pointer_clicks.py)
+Source: [pointer_clicks.py](../../recipes/scenes/gallery/pointer_clicks.py)
 
 ```py
 """Pointer and clicks: a double click opens My Computer, a right click a menu."""
@@ -209,7 +209,7 @@ Each letter is a `WM_CHAR` sent to Notepad's Edit control, so the real caret mov
 
 ![Typing](../assets/gifs/typing.gif)
 
-Source: [typing.py](../../examples/gallery/typing.py)
+Source: [typing.py](../../recipes/scenes/gallery/typing.py)
 
 ```py
 """Typing: letters reach a real Edit control, and the caret moves with them."""
@@ -242,7 +242,7 @@ A move, a resize, both at once, and a path. Each frame is one `SetWindowPos`.
 
 ![Window motion](../assets/gifs/window-motion.gif)
 
-Source: [window_motion.py](../../examples/gallery/window_motion.py)
+Source: [window_motion.py](../../recipes/scenes/gallery/window_motion.py)
 
 ```py
 """Window motion: a move, a resize, and both at once, as one SetWindowPos a frame."""
@@ -279,7 +279,7 @@ The pointer holds the title bar, then the frame corner, and Windows does the mov
 
 ![Dragging](../assets/gifs/drag-window.gif)
 
-Source: [drag_window.py](../../examples/gallery/drag_window.py)
+Source: [drag_window.py](../../recipes/scenes/gallery/drag_window.py)
 
 ```py
 """Dragging: Windows moves the window itself, because the pointer holds its title bar."""
@@ -307,7 +307,7 @@ class DragWindow(Scene):
 
 ![Menus and keys](../assets/gifs/menus-keys.gif)
 
-Source: [menus_keys.py](../../examples/gallery/menus_keys.py)
+Source: [menus_keys.py](../../recipes/scenes/gallery/menus_keys.py)
 
 ```py
 """Menus and keys: real menu clicks select and stamp, real key presses delete and type."""
@@ -338,7 +338,7 @@ The tray clock's tooltip comes up on the guest's own timer, so `Hover` runs on t
 
 ![Tooltip and dialog](../assets/gifs/hover-dialog.gif)
 
-Source: [hover_dialog.py](../../examples/gallery/hover_dialog.py)
+Source: [hover_dialog.py](../../recipes/scenes/gallery/hover_dialog.py)
 
 ```py
 """A tooltip, which the guest times itself, and a real message box."""
@@ -372,15 +372,15 @@ frames were the same on host QEMU, Podman and Docker, measured before the VM ser
 
 ![Dialog storm](../assets/gifs/dialog-storm.gif)
 
-Source: [dialog_storm.py](../../examples/dialog_storm/dialog_storm.py), with its
-[state](../../examples/dialog_storm/states/wall.json) beside it
+Source: [dialog_storm.py](../../recipes/scenes/dialog_storm/dialog_storm.py), with its
+[state](../../recipes/scenes/dialog_storm/states/wall.json) beside it
 
 ```py
 """A dialog storm: a cascade of message boxes, a jittered pair, typing text, a new
 desktop colour and a wallpaper (docs/design/inspiration.md, B3 to B7).
 
-    art98 render examples/dialog_storm/dialog_storm.py DialogStorm
-    art98 render examples/dialog_storm/dialog_storm.py DialogStormStock
+    art98 render recipes/scenes/dialog_storm/dialog_storm.py DialogStorm
+    art98 render recipes/scenes/dialog_storm/dialog_storm.py DialogStormStock
 """
 
 import random
@@ -479,7 +479,7 @@ Paint is moved and resized first. The tools, swatches and canvas are then found 
 
 ![Paint](../assets/gifs/paint-drawing.gif)
 
-Source: [paint_drawing.py](../../examples/gallery/paint_drawing.py)
+Source: [paint_drawing.py](../../recipes/scenes/gallery/paint_drawing.py)
 
 ```py
 """Paint: real strokes and real fills, with buttons found from the live window.
@@ -534,7 +534,7 @@ class PaintDrawing(Scene):
 
 ![Minesweeper](../assets/gifs/minesweeper-win.gif)
 
-Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py)
+Source: [minesweeper_win.py](../../recipes/scenes/gallery/minesweeper_win.py)
 
 ```py
 """Minesweeper: the board is read through the XYZZY cheat, then played by hand."""
@@ -560,7 +560,7 @@ A screensaver is started with `/s` and recorded on the host clock. A pointer nud
 
 ![Screensaver](../assets/gifs/screensaver.gif)
 
-Source: [screensaver.py](../../examples/gallery/screensaver.py)
+Source: [screensaver.py](../../recipes/scenes/gallery/screensaver.py)
 
 ```py
 """A screensaver, launched directly and recorded live, then dismissed."""

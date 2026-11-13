@@ -6,7 +6,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(HERE / "examples"))
+sys.path.insert(0, str(HERE / "recipes" / "scenes"))
 
 from art98.anim import Close, Notepad, Scene, TypeWithCursor
 from art98.settings import load

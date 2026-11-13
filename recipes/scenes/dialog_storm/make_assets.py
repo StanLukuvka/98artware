@@ -1,6 +1,6 @@
 """Draw the wallpaper tile and print its hash for states/wall.json.
 
-python examples/dialog_storm/make_assets.py
+python recipes/scenes/dialog_storm/make_assets.py
 """
 
 import hashlib
