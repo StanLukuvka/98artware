@@ -346,3 +346,13 @@ def test_up_leaves_work_to_art98_toml_unless_the_flag_is_given(monkeypatch):
     assert cli.main(["up"]) == 0
     assert cli.main(["up", "--work", "flag"]) == 0
     assert seen == [None, Path("flag")]
+
+
+def test_a_scene_outside_its_folder_can_import_helpers(tmp_path):
+    scene = tmp_path / "uses_helpers.py"
+    scene.write_text("import helpers\n\n" + SCENE)
+    assert cli._load_scene(scene, None).__name__ == "Demo"
+    import helpers
+
+    root = Path(__file__).resolve().parents[2]
+    assert Path(helpers.__file__) == root / "recipes" / "helpers" / "__init__.py"

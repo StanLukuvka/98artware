@@ -42,7 +42,7 @@ def render(name: str) -> str:
     source = next(
         path
         for folder in folders
-        if (path := ROOT / "examples" / folder / f"{name}.py").exists()
+        if (path := ROOT / "recipes" / "scenes" / folder / f"{name}.py").exists()
     )
     # The clips cut() writes beside the output stay in this folder.
     folder = Path(tempfile.mkdtemp(prefix=f"render-{name}-"))

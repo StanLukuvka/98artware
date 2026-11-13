@@ -19,7 +19,7 @@ STRAY_OUT=DIR .venv/bin/art98 render experiments/host-checks/stray_labels.py \
   (`ps` checked), psi back to 0.00 a minute later. The "quiet again" run used `busy_check.py OUT 0`, which still starts and kills the hogs after the render (no render under them).
 - `stray_labels.py` is the M7b scratch scene.
 
-## M7a. `examples/blank_start/blank_start.py` on a busy host
+## M7a. `recipes/scenes/blank_start/blank_start.py` on a busy host
 
 Scene: state with a Picture and a Notepad, Glide, TypeWithCursor, a Drag, a Teleport, Close; 3 clips
 (`next_section`). No `live`/`wait`. mp4 only. 800x600, 30 fps, libx264 crf 12.

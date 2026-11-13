@@ -189,7 +189,7 @@ control in `ready()`, and adds `text`, `set_text` and a `close()` that skips the
    is missing), and add a line to the [app catalog](docs/scenes/app-catalog.md).
 6. Add unit tests on a stand-in guest, beside `core/tests/test_notepad.py`, and a VM test that
    opens it on the real image, beside the ones in `core/tests/test_stage.py`.
-7. Add a short scene to `examples/gallery/` and its GIF to the
+7. Add a short scene to `recipes/scenes/gallery/` and its GIF to the
    [gallery](docs/scenes/gallery.md) if it shows something new.
 
 That makes a program a scene can add in `construct`. To let a state file open it as well, add

@@ -41,7 +41,7 @@ def lay_out_state(page: str, code: str, folder: Path) -> None:
     """The tutorial has the reader save states/desk.json and a picture beside the scene."""
     if 'state = "states/desk.json"' not in code:
         return
-    picture = ROOT / "examples/mvp/assets/flower.bmp"
+    picture = ROOT / "recipes/scenes/mvp/assets/flower.bmp"
     text = (ROOT / "docs/scenes" / page).read_text()
     start = text.find(code)
     before = [m for m in JSON.finditer(text) if start != -1 and m.start() < start]

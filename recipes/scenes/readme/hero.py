@@ -1,6 +1,6 @@
 """The README's opening clip: Notepad, Paint, Minesweeper and a message box in one take.
 
-uv run art98 render examples/readme/hero.py -o hero.mp4 --gif hero.gif
+uv run art98 render recipes/scenes/readme/hero.py -o hero.mp4 --gif hero.gif
 """
 
 import math

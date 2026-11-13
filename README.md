@@ -7,7 +7,7 @@ every window, letter and brush stroke is drawn by Windows itself.
 
 ![Notepad types a line, Paint draws and fills a heart, Minesweeper opens with one click, a Notepad is dragged by its title bar, and a message box is answered](docs/assets/gifs/hero.gif)
 
-That clip is [examples/readme/hero.py](examples/readme/hero.py): one short scene, played on
+That clip is [recipes/scenes/readme/hero.py](recipes/scenes/readme/hero.py): one short scene, played on
 real Windows 98 programs. Each clip below is one scene from the [gallery](docs/scenes/gallery.md),
 which has the source of every one.
 
@@ -92,7 +92,7 @@ It stays up, paused, until `art98 vm stop`. `uv run art98 vm status` says how it
 **4. Render a scene.**
 
 ```bash
-uv run art98 render examples/mvp/mvp.py -o mvp.mp4
+uv run art98 render recipes/scenes/mvp/mvp.py -o mvp.mp4
 ```
 
 You get `mvp.mp4`. Give `-o` a `.gif` name for a GIF instead, or add `--gif mvp.gif` for both.
@@ -142,7 +142,7 @@ It says which windows are open, where they sit, what they show, and where the po
 ```
 
 A file a state opens is named by path and by its hash, so a changed file is caught. Fill in
-`sha256` with the output of `sha256sum`, for example `sha256sum examples/mvp/assets/flower.bmp`.
+`sha256` with the output of `sha256sum`, for example `sha256sum recipes/scenes/mvp/assets/flower.bmp`.
 
 Everything after that is **actions**: free Python that moves windows, types, clicks or makes
 any Win32 call. This is the MVP scene, without its pauses:
@@ -214,7 +214,7 @@ clips are kept as `<stem>-01.mp4` and on, and joined into the output.
 | --- | --- |
 | Write your first scene | [Tutorial](docs/scenes/tutorial.md) |
 | Look up a class or option | [Scene API](docs/scenes/scene-api.md), [Animations](docs/scenes/animations.md) |
-| Copy from working examples | [Gallery](docs/scenes/gallery.md), [examples/](examples/) |
+| Copy from working examples | [Gallery](docs/scenes/gallery.md), [recipes/scenes/](recipes/scenes/) |
 | Call Win32 directly | [Bridge](docs/scenes/bridge.md), [Win32 recipes](docs/scenes/win32-recipes.md) |
 | Understand the install | [Part 1: preparing the VM](docs/setup/README.md) |
 | Look up a command or setting | [CLI](docs/setup/cli.md), [Configuration](docs/setup/config.md) |
@@ -246,7 +246,8 @@ frames straight into that folder; elsewhere they are a loopback TCP port. The de
 | [core/](core/art98/) | The `art98` package. `anim/` is what scenes import; it sits on `base/` (animations, props, vectors, the desktop space) and `actions/` (the pointer, the keyboard, windows and programs). Beside them: the bridge, QEMU control, state files, and the VM service in `service.py` and `container/` |
 | [setup/](setup/art98_setup/) | `art98 setup` and `art98 up`, which turn a disc into `work/golden.qcow2`, and the `Dockerfile` |
 | [guest/](guest/) | The programs that run inside Windows 98: `AGENT.EXE`, the `VIEW.EXE` picture viewer and the install disk's boot record |
-| [examples/](examples/) | Maintained scenes: the MVP, the dialog storm, the blank-start proof scene, the gallery, `hello.py` and `showcase.py`. The docs embed them |
+| [recipes/scenes/](recipes/scenes/) | Maintained scenes: the MVP, the dialog storm, the blank-start proof scene, the gallery, `hello.py` and `showcase.py`. The docs embed them |
+| [recipes/helpers/](recipes/helpers/) | Action modules that scenes import with `from helpers.<module> import ...` |
 | [tools/](tools/) | `render_all.py` makes the gallery GIFs, `check_docs.py` renders the doc samples |
 | [experiments/](https://github.com/StanLukuvka/98artware/tree/dev/experiments) | Throwaway probes behind design decisions. Not part of art98, with no tests. Lives on the `dev` branch only. |
 | [docs/](docs/README.md) | Every page, starting from [docs/README.md](docs/README.md) |

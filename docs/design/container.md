@@ -277,7 +277,7 @@ measured results that still hold:
   scene with 0 of 257 frames different from the host-built one.
 - On rootful Docker 29.9.3 (Fedora 44, CPU pressure some avg10 under 0.5), `art98 up` on the
   existing `work/` built the image in about 30 s. No file in `work/` or `guest/build` came out
-  owned by root, and `examples/blank_start` gave 0 of 263 frames different from a host QEMU render.
+  owned by root, and `recipes/scenes/blank_start` gave 0 of 263 frames different from a host QEMU render.
   Two host QEMU renders can differ from each other, only in the blinking Notepad caret (a 2 x 15 px
   box), which depends on timing. The stage suite passed in the container (18 passed).
 

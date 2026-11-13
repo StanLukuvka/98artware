@@ -97,7 +97,7 @@ Then start the VM and render. The VM stays up, paused between renders, until you
 
 ```bash
 uv run art98 vm start
-uv run art98 render examples/mvp/mvp.py
+uv run art98 render recipes/scenes/mvp/mvp.py
 uv run art98 vm stop
 ```
 

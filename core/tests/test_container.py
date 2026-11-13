@@ -261,7 +261,7 @@ def test_the_transport_is_a_unix_socket_on_linux_unless_asked(monkeypatch):
 def test_cli_says_the_vm_is_not_running_without_a_traceback(tmp_path, capsys):
     from art98.cli import main
 
-    scene = Path(__file__).resolve().parents[2] / "examples/mvp/mvp.py"
+    scene = Path(__file__).resolve().parents[2] / "recipes/scenes/mvp/mvp.py"
     for argv in (["ping"], ["render", str(scene), "-o", str(tmp_path / "x.mp4")]):
         assert main([*argv, "--work", str(tmp_path)]) == 1
         error = capsys.readouterr().err

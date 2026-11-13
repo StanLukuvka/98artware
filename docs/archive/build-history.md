@@ -71,7 +71,7 @@ now, read [status.md](../status.md) and the [changelog](../../CHANGELOG.md).
     `art98.anim` is the entry point scripts import, with the same names (`f4a5e12`). The frame
     recorder is in `recorder.py` (`79a014a`). `Scene` calls `anim/setstate.py` for the desktop
     state and `anim/timeline.py` for the frames (`62b4634`). A scene loads under its own module
-    name, so `gallery/typing.py` finds its own folder (`0f39d01`). Scenes are in `examples/`,
+    name, so `gallery/typing.py` finds its own folder (`0f39d01`). Scenes are in `recipes/scenes/`,
     the tools in `tools/`, the revert probes in `experiments/`, and render output goes to the
     ignored `out/` (`5579adc`). The lifecycle and architecture diagrams' PNGs were not
     redrawn.
@@ -85,7 +85,7 @@ now, read [status.md](../status.md) and the [changelog](../../CHANGELOG.md).
 18. **Docs, checks and the proof scene, 2026-11-11.** Notepad became the first program in
     `actions/programs/`. `next_section` was built; `--section` was not. Errors from the CLI are
     clean, freshness warnings were added, `art98 doctor` works with only a container engine, and
-    CI runs the unit tests. `examples/blank_start` is the proof scene. Two host checks ran. The
+    CI runs the unit tests. `recipes/scenes/blank_start` is the proof scene. Two host checks ran. The
     first frames of a stock desktop are settled by a pointer nudge, not a revert
     ([first-frame](https://github.com/StanLukuvka/98artware/blob/dev/experiments/first-frame/README.md)). A busy host slows a render about 5
     times with the same frames, and a title-bar Drag no longer leaves stray label pixels
@@ -95,7 +95,7 @@ now, read [status.md](../status.md) and the [changelog](../../CHANGELOG.md).
 19. **Dialog storm, 2026-11-11.** `Dialog` is out of parked: it is in `art98.anim` with `size`,
     `disabled`, `set_message` and `icon`. `Backdrop` sets the desktop colour, and a state's
     `desktop` sets a colour and a wallpaper, which goes to the guest on a CD. The scene is
-    `examples/dialog_storm` (GIF in the [gallery](../scenes/gallery.md#dialog-storm)); its probes
+    `recipes/scenes/dialog_storm` (GIF in the [gallery](../scenes/gallery.md#dialog-storm)); its probes
     are in [experiments/dialog-storm](https://github.com/StanLukuvka/98artware/blob/dev/experiments/dialog-storm/README-p0.md). What they found:
     - **Icons.** `STM_SETICON` on the box's icon slot works and draws 32 x 32. Seven custom
       icons, each seen in a real box: computer `shell32.dll` 15, printer `shell32.dll` 16, mouse
@@ -286,7 +286,7 @@ Built 2026-11-11 as specified, with these additions:
   argument only: `art98 render` has no flag for it.
 - `Recorder` and `RecorderError` are exported from `art98`. The name `FrameRecorder` is gone.
 
-Checked with a copy of `examples/mvp/mvp.py` that calls `self.cut()` right after
+Checked with a copy of `recipes/scenes/mvp/mvp.py` that calls `self.cut()` right after
 `set_state("states/gallery.json")`, rendered with `-o mvpcut.mp4 --gif mvpcut.gif` on both
 backends: `mvpcut-01.mp4` has 152 frames, `mvpcut-02.mp4` 105, and the joined `mvpcut.mp4` 257,
 the same count as the uncut scene. The GIF has 128 frames at 15 fps. Both backends wrote files of
@@ -443,7 +443,7 @@ Run on 2026-11-10 on private copies, with host CPU pressure (some, avg10) betwee
 | 1. Same state 10 times | 10 of 10 screenshots identical, for both sample states |
 | 2. Set under 2 s | Two windows and a 57 KB image: median 1.45 s (1.18 to 1.61). One window and an image: median 0.97 s (0.75 to 1.27) |
 | 3. Clear errors | A bad file lists every problem before the desktop is touched. A window Windows won't make (`"size": [40, 20]`) stops with `size [40, 20] wanted, the guest has [112, 27]`. A cut-short image fails on the host. Unit tests cover a missing window, the wrong order, title, show state, display and pointer |
-| 4. Sample scene | `examples/mvp/mvp.py` renders in 7.7 s, moving, teleporting, closing and opening a picture window, then jumping to a second state |
+| 4. Sample scene | `recipes/scenes/mvp/mvp.py` renders in 7.7 s, moving, teleporting, closing and opening a picture window, then jumping to a second state |
 | 5. Nothing broken | 199 tests pass (32 skip without QEMU set up), all 32 doc samples render, and so do `hello.py`, `showcase.py` and the gallery scenes |
 
 What it's made of:
@@ -609,7 +609,7 @@ under 0.5 throughout:
   switch to the host's uid works;
 - `doctor` reports both host QEMU and the container usable, and the stage suite passes in the
   container (18 passed);
-- the proof scene `examples/blank_start` renders frame for frame the same as a host QEMU render:
+- the proof scene `recipes/scenes/blank_start` renders frame for frame the same as a host QEMU render:
   0 of 263 frames differ. Two host QEMU renders can differ from each other, but only in the
   blinking Notepad caret (a 2 x 15 px box), which depends on timing;
 - no container was left behind.

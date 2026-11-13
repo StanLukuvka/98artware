@@ -37,11 +37,11 @@ RUNS = int(sys.argv[2])
 ONLY = sys.argv[3:]
 ROOT = Path(__file__).resolve().parents[2]
 SCENES = {  # name -> (file, class, fps override or None)
-    "motion": ("examples/gallery/window_motion.py", "WindowMotion", 10),
-    "drag": ("examples/gallery/drag_window.py", "DragWindow", 10),
-    "typing": ("examples/gallery/typing.py", "Typing", 10),
-    "menus": ("examples/gallery/menus_keys.py", "MenusKeys", 10),
-    "storm": ("examples/dialog_storm/dialog_storm.py", "DialogStorm", None),
+    "motion": ("recipes/scenes/gallery/window_motion.py", "WindowMotion", 10),
+    "drag": ("recipes/scenes/gallery/drag_window.py", "DragWindow", 10),
+    "typing": ("recipes/scenes/gallery/typing.py", "Typing", 10),
+    "menus": ("recipes/scenes/gallery/menus_keys.py", "MenusKeys", 10),
+    "storm": ("recipes/scenes/dialog_storm/dialog_storm.py", "DialogStorm", None),
     "cmds": (None, "Commands", 10),
 }
 STORM_PHASES = [

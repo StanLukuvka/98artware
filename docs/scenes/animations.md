@@ -73,7 +73,7 @@ class Chained(Scene):
 
 ![Window motion](../assets/gifs/window-motion.gif)
 
-Source: [window_motion.py](../../examples/gallery/window_motion.py).
+Source: [window_motion.py](../../recipes/scenes/gallery/window_motion.py).
 
 ### Teleport
 
@@ -194,7 +194,7 @@ can run in a `play`; a second raises `ValueError`.
 
 ![Pointer and clicks](../assets/gifs/pointer-clicks.gif)
 
-Source: [pointer_clicks.py](../../examples/gallery/pointer_clicks.py).
+Source: [pointer_clicks.py](../../recipes/scenes/gallery/pointer_clicks.py).
 
 ### Glide
 
@@ -270,7 +270,7 @@ frame corner resizes it. Afterwards every prop reads its real position back.
 
 ![Drag](../assets/gifs/drag-window.gif)
 
-Source: [drag_window.py](../../examples/gallery/drag_window.py).
+Source: [drag_window.py](../../recipes/scenes/gallery/drag_window.py).
 
 ```python
 from art98.anim import *
@@ -330,7 +330,7 @@ turn comes. An unknown label raises `LookupError` listing what is there.
 
 ![Menus and keys](../assets/gifs/menus-keys.gif)
 
-Source: [menus_keys.py](../../examples/gallery/menus_keys.py).
+Source: [menus_keys.py](../../recipes/scenes/gallery/menus_keys.py).
 
 ```python
 from art98.anim import *
