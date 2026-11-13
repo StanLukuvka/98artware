@@ -135,7 +135,7 @@ class Win(Prop):
         before = (*self.rect[:2], *self.size)
         self.refresh()
         if self.hwnd is not None and (*self.rect[:2], *self.size) != before:
-            # Dragging leaves stale icon-label pixels in the frame: experiments/host-checks/README.md (M7b)
+            # Dragging leaves stale icon-label pixels in the frame: experiments/host-checks/README.md (dev branch) (M7b)
             win32.repaint_window(self.guest, self.hwnd)
 
     def point(self) -> Vec:

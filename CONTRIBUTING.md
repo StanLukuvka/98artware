@@ -102,6 +102,33 @@ The [repo tour](docs/tour.md) walks every folder and file, and
 `work/` holds the prepared image, an installed copy of Windows 98. It is gitignored. Never
 commit, attach or upload anything from it.
 
+## Branches
+
+- `dev` is the trunk. Branch off `dev` and keep branches short-lived: a day or two. Open the
+  pull request against `dev`. CI must pass before it merges.
+- `main` only moves at a release, cut from `dev`.
+- `experiments/` lives on `dev` only.
+
+A release goes like this:
+
+```bash
+git switch main
+git merge --no-ff --no-commit dev
+git rm -r -q -f --ignore-unmatch experiments
+git status --short | grep experiments
+git commit
+```
+
+The merge stages the `experiments/` changes from `dev`. Remove the folder before you commit.
+`-f` is needed because the merge has staged those files. Without it, `git rm` refuses and the
+commit keeps them.
+
+If `dev` changed a file in `experiments/`, the merge stops with a modify/delete conflict and
+exits with an error. That is expected. Carry on with `git rm`.
+
+The `grep` line must print nothing before you commit. CI fails on `main` if `experiments/` is
+there.
+
 ## Ways to contribute
 
 ### Reporting a bug

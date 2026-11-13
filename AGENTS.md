@@ -84,6 +84,8 @@ image. Which tests a change needs:
 - **No AI credit lines** in commits, PRs or code: see [CONTRIBUTING.md](CONTRIBUTING.md#commits-and-pull-requests).
 - **Git safety.** Don't commit, push, switch branches or reset unless your user asked you to.
   Never discard changes you did not make.
+- **Branches.** Branch off `dev` and open PRs against `dev`. Never commit to `main`; it only
+  moves at a release.
 - **Kill a stray VM with `art98 vm stop`, or by its PID**, never `pkill -f qemu-system-i386`: the
   pattern can match the shell that runs it.
 - `lazy:` comments mark a known shortcut with its limit. Keep them true; remove one only when you
@@ -110,7 +112,7 @@ image. Which tests a change needs:
 | `core/tests/`, `setup/tests/` | Tests. `pythonpath` in `pyproject.toml` puts `core` and `setup` on the path |
 | `examples/` | Maintained scenes the docs embed. Keep them rendering |
 | `tools/` | `render_all.py` (gallery GIFs), `check_docs.py` (renders doc samples on the real VM) |
-| `experiments/` | Throwaway probes. No tests, not imported by art98 |
+| `experiments/` | Throwaway probes. No tests, not imported by art98. On `dev` only |
 | `docs/` | Every page; index in `docs/README.md`. `docs/status.md` is the pick-up point |
 | `work/` | The prepared image. **Never copy, commit or upload anything from it** |
 

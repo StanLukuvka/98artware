@@ -177,7 +177,7 @@ What to expect:
 - Note `/proc/pressure/cpu` next to any timing you quote. The figures in other docs are quiet-host
   figures.
 
-Details: [host-checks](../../experiments/host-checks/README.md).
+Details: [host-checks](https://github.com/StanLukuvka/98artware/blob/dev/experiments/host-checks/README.md).
 
 ## A different disc
 

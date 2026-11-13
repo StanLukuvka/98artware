@@ -56,7 +56,7 @@ today. See
 **For new work.** Anything that changes the screen goes through a frame that syncs. Don't add a
 capture path that skips the sync, and don't depend on wall-clock timing in the guest for
 something the script should control. Check that a new feature renders the same frames twice
-(compare with ffmpeg's `framemd5`); the [drift audit](../../experiments/drift/README.md) is the
+(compare with ffmpeg's `framemd5`); the [drift audit](https://github.com/StanLukuvka/98artware/blob/dev/experiments/drift/README.md) is the
 model.
 
 ## 3. A thin agent: any Win32 call, nothing more
@@ -248,7 +248,8 @@ Every public name in `art98.anim` must be documented in [Scene API](../scenes/sc
 | Machine | `session.py`, `service.py`, `container/`, `qemu.py`, `recorder.py` | The VM, revert, capture, the recorder |
 
 Programs are action classes: one file per program in `actions/programs/`, each a subclass of
-`Win`. Docs, render output and experiments are kept apart (`docs/`, `out/`, `experiments/`).
+`Win`. Docs, render output and experiments are kept apart (`docs/`, `out/`, and
+`experiments/`, which is on the `dev` branch only).
 
 **Why.** A program is added one at a time, so each needs its own place, and the layers make it
 clear which code talks to the guest.
@@ -397,7 +398,8 @@ what to do next (for example "run `art98 vm start`"), and add it to `RUN_ERRORS`
 ## 18. Measure on the real image, keep the probes
 
 **Decision.** A claim about Windows 98 is checked on the real image before it goes into code or
-docs. Throwaway probes live in `experiments/<topic>/` with a README of what they found. Unit
+docs. Throwaway probes live in `experiments/<topic>/` (on the `dev` branch only) with a
+README of what they found. Unit
 tests run on stand-in guests that do only what the real one was seen to do; VM tests run the real
 image through the VM service. Every timing names the host load.
 
