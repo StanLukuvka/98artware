@@ -29,6 +29,12 @@ def test_encode_request_covers_every_argument_kind():
     assert unframe(line[:-1]) == b'3 CALL "user32" 4294967295 0 1 #ab01 &16'
 
 
+@pytest.mark.parametrize("value", [2**32, -(2**31) - 1])
+def test_numbers_outside_32_bits_are_refused(value):
+    with pytest.raises(ValueError, match="32 bits"):
+        encode_request(1, "CALL", ("user32", value))
+
+
 def test_strings_escape_quotes_backslashes_and_controls():
     line = encode_request(1, "SPAWN", ('say "hi"\\\n',))
     assert unframe(line[:-1]) == b'1 SPAWN "say \\"hi\\"\\\\\\x0a"'

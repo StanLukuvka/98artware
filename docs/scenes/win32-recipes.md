@@ -15,7 +15,7 @@ All recipes share this setup.
 import struct
 import time
 
-from art98 import Out, attach
+from art98 import Out, attach, win32
 
 WM_CLOSE, WM_SETTEXT, WM_GETTEXT, WM_COMMAND, WM_CHAR = 0x10, 0x0C, 0x0D, 0x111, 0x102
 WM_SYSCOMMAND, WM_LBUTTONDOWN, WM_LBUTTONUP = 0x112, 0x201, 0x202
@@ -95,12 +95,13 @@ while u.IsWindow(pad.hwnd):
 
 ### Move and resize
 
-Use `move_window` for moves.
+Use `win32.place_window` for moves. It calls `SetWindowPos`, then repaints the window, because a
+plain move leaves stale pixels on the frame on Windows 98.
 
 ```python
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
-g.move_window(pad.hwnd, 100, 80)
+win32.place_window(g, pad.hwnd, 100, 80, 0, 0, win32.SWP_NOSIZE | win32.SWP_NOZORDER)
 u.SetWindowPos(pad.hwnd, 0, 0, 0, 400, 300, 0x0006)  # SWP_NOMOVE | SWP_NOZORDER
 assert g.find_window(class_name="Notepad").rect == (100, 80, 500, 380)
 u.MoveWindow(pad.hwnd, 50, 50, 300, 200, 1)
@@ -274,7 +275,7 @@ any capture.
 ```python
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
-g.move_window(pad.hwnd, 150, 100)
+win32.place_window(g, pad.hwnd, 150, 100, 0, 0, win32.SWP_NOSIZE | win32.SWP_NOZORDER)
 g.sync(pad.hwnd)
 vm.screenshot("moved.png")
 ```
@@ -1116,7 +1117,8 @@ assert u.CallWindowProcA(address, 0, 0, 0, 0).value > 0
 
 ## Display modes
 
-`set_display_mode` takes a mode the Cirrus driver offers. The change needs no reboot. The modes are:
+`win32.set_display_mode` takes a mode the Cirrus driver offers. The change needs no reboot. It
+raises `BridgeError` if the driver has no such mode. The modes are:
 
 | Width x height | Depths |
 | --- | --- |
@@ -1126,13 +1128,13 @@ assert u.CallWindowProcA(address, 0, 0, 0, 0).value > 0
 | 1280 x 1024 | 8 |
 
 ```python
-g.set_display_mode(1024, 768, 16, persist=False)
+win32.set_display_mode(g, 1024, 768, 16, persist=False)
 assert u.GetSystemMetrics(0).value == 1024
-g.set_display_mode(800, 600, 8, persist=False)
+win32.set_display_mode(g, 800, 600, 8, persist=False)
 screen = u.GetDC(0).value
 assert gdi.GetDeviceCaps(screen, 12).value == 8  # BITSPIXEL
 u.ReleaseDC(0, screen)
-g.set_display_mode(800, 600, 16, persist=False)
+win32.set_display_mode(g, 800, 600, 16, persist=False)
 ```
 
 `persist=True`, the default, writes the mode to the registry. Program exits that restore "the

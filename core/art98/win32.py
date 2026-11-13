@@ -8,6 +8,7 @@ from __future__ import annotations
 import struct
 
 from .base.space import DesktopSpace, Metrics
+from .bridge import BridgeError
 from .protocol import Out
 
 # messages / commands
@@ -45,6 +46,11 @@ MOUSE_BUTTONS = {
     "middle": (0x0020, 0x0040),
 }
 MF_BYPOSITION = 0x0400
+# display modes: EnumDisplaySettingsA / ChangeDisplaySettingsA
+ENUM_SETTINGS_END_OF_LIST = 0
+CDS_UPDATEREGISTRY = 1
+DEVMODE_SIZE = 156
+DM_BITSPERPEL, DM_PELSWIDTH, DM_PELSHEIGHT = 0x00040000, 0x00080000, 0x00100000
 
 
 def window_rect(guest, hwnd: int) -> tuple[int, int, int, int] | None:
@@ -115,6 +121,33 @@ def repaint_all(guest) -> None:
         if window.visible:
             repaint_window(guest, window.hwnd)
     guest.sync()
+
+
+def set_display_mode(
+    guest, width: int, height: int, depth: int, persist: bool = True
+) -> None:
+    """Switch resolution, using a mode the video driver itself reports.
+
+    `persist` also writes the mode to the registry. Raises `BridgeError` if the
+    driver has no such mode or refuses the change.
+    """
+    mode = 0
+    while True:
+        blank = bytearray(DEVMODE_SIZE)
+        struct.pack_into("<H", blank, 36, DEVMODE_SIZE)
+        result = guest.user32.EnumDisplaySettingsA(None, mode, blank)
+        if result.value == ENUM_SETTINGS_END_OF_LIST:
+            raise BridgeError(f"guest has no {width}x{height}x{depth} display mode")
+        devmode = bytearray(result.buffers[0])
+        bpp, w, h = struct.unpack_from("<III", devmode, 104)
+        if (w, h, bpp) == (width, height, depth):
+            break
+        mode += 1
+    struct.pack_into("<I", devmode, 40, DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT)
+    flags = CDS_UPDATEREGISTRY if persist else 0
+    result = guest.user32.ChangeDisplaySettingsA(devmode, flags)
+    if result.signed < 0:
+        raise BridgeError(f"ChangeDisplaySettings failed with {result.signed}")
 
 
 def sys_command(guest, hwnd: int, command: int) -> None:

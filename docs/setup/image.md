@@ -316,7 +316,7 @@ Setup's `BootMulti=1`, `DoubleBuffer=1` and `WinVer=4.10.2222` are kept.
 ## Display
 
 `DISPLAY_MODE` is `(800, 600, 16)`. `docs/archive/PLAN.md` calls it period-correct and reliable.
-`bridge.set_display_mode` picks a mode the driver reports and saves it with
+`win32.set_display_mode` picks a mode the driver reports and saves it with
 `CDS_UPDATEREGISTRY`, so it survives the reboot. Windows reports 800, 600 and 16 from
 `GetDeviceCaps`.
 

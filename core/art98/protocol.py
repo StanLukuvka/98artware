@@ -65,6 +65,8 @@ def encode_arg(arg: object) -> bytes:
     if isinstance(arg, bool):
         return b"1" if arg else b"0"
     if isinstance(arg, int):
+        if not -(2**31) <= arg < 2**32:
+            raise ValueError(f"{arg} does not fit in 32 bits")
         return b"%d" % (arg & 0xFFFFFFFF)
     if isinstance(arg, str):
         return _encode_string(arg)
