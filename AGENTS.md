@@ -57,7 +57,7 @@ commands. Doc samples on the real VM: `uv run python tools/check_docs.py`.
 `make -C guest` needs the mingw cross-compiler.
 
 CI (`.github/workflows/tests.yml`) runs the ruff and unit-test commands above on Python 3.11 and
-3.13, with no VM. Its test command does not ignore `test_stage_scenes.py`, which skips without an
+3.13, with no VM, after `make -C guest` so the guest-program checks run. Its test command does not ignore `test_stage_scenes.py`, which skips without an
 image. Which tests a change needs:
 [CONTRIBUTING.md](CONTRIBUTING.md#which-tests-a-change-needs).
 

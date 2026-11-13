@@ -317,7 +317,8 @@ uv run ruff check .
 uv run ruff format --check core setup tools
 ```
 
-and the unit tests. CI has no VM and no QEMU, so the VM tests skip there. A green CI run does
+and the unit tests, after building `guest/` with mingw so the checks on the guest programs run. CI
+has no VM and no QEMU, so the VM tests skip there. A green CI run does
 not show that a change works on Windows 98.
 
 ### If you could not run the VM tests

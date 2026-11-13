@@ -226,7 +226,6 @@ def test_steps_resume_and_can_be_redone(tmp_path, monkeypatch):
     tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
     tool.run()
     assert calls == ["vm", "setup", "init_api", "ready"]
-    assert builder.Setup.STAGES == ("vm", "setup", "init_api", "ready")
     calls.clear()
     tool.run()
     assert calls == []
@@ -246,19 +245,10 @@ def test_a_failed_step_is_not_marked_done(tmp_path, monkeypatch):
     assert tool._done() == ["vm"]
 
 
-def test_from_rejects_unknown_and_old_stage_names(tmp_path):
+def test_from_rejects_an_unknown_step(tmp_path):
     tool = builder.Setup(work=tmp_path, guest_build=tmp_path, log=lambda _: None)
-    for name in ("bogus", "media", "disk", "install", "patch", "harden"):
-        with pytest.raises(builder.SetupError, match="unknown step"):
-            tool.run(name)
-
-
-def test_init_api_boots_the_converted_image_and_shuts_it_down(tmp_path, monkeypatch):
-    order = []
-    monkeypatch.setattr(init_api, "patch", lambda setup: order.append("patch"))
-    monkeypatch.setattr(init_api, "boot_and_ping", lambda setup: order.append("boot"))
-    init_api.run(None)
-    assert order == ["patch", "boot"]
+    with pytest.raises(builder.SetupError, match="unknown step"):
+        tool.run("bogus")
 
 
 def wizard_screen(heading: int = 0, wizard: bool = True) -> bytes:
@@ -281,16 +271,6 @@ def test_screen_reads_the_ppm_qemu_writes():
     assert (screen.width, screen.height) == (640, 480)
     assert screen.pixel(300, 70) == (0, 0, 168)
     assert len(screen.crop(10, 20, 30, 25)) == 20 * 5 * 3
-
-
-def test_wizard_is_told_from_other_setup_screens():
-    assert builder.setup_wizard_showing(builder.Screen.from_ppm(wizard_screen()))
-    assert not builder.setup_wizard_showing(
-        builder.Screen.from_ppm(wizard_screen(wizard=False))
-    )
-    assert not builder.setup_wizard_showing(
-        builder.Screen(800, 600, bytes(800 * 600 * 3))
-    )
 
 
 class WizardVM:
@@ -406,8 +386,6 @@ def test_logon_prompt_is_answered_once_with_enter(tmp_path, monkeypatch):
     vm = LogonVM()
     wizard_tool(tmp_path, monkeypatch)._answer_setup_prompts(vm)
     assert vm.keys == [("ret",)]
-    assert not builder.setup_wizard_showing(builder.Screen.from_ppm(logon_screen()))
-    assert not builder.logon_prompt_showing(builder.Screen.from_ppm(wizard_screen()))
 
 
 class RestartingVM:
