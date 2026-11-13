@@ -74,7 +74,7 @@ is no password, so keep it on loopback.
 
 Connect a viewer in **view-only** mode. A normal viewer sends its keys and mouse to the guest,
 which changes what the VM does and so the recording. A view-only viewer did not change the
-frames in the probe (see [experiments/vm-service](../../experiments/vm-service/README.md)).
+frames in the probe (see [experiments/vm-service](https://github.com/StanLukuvka/98artware/blob/dev/experiments/vm-service/README.md)).
 
 The `--vnc` choice is fixed at start. Run `art98 vm stop`, then `art98 vm start`, to change it.
 
@@ -134,7 +134,7 @@ can reach. Share that one file and never `work/`, which holds the installed Wind
 
 A client that vanishes frees the lock in about a minute, as above. The probe that checked this
 setup from a second Docker container is
-[`probe_container_client.sh`](../../experiments/vm-service/probe_container_client.sh).
+[`probe_container_client.sh`](https://github.com/StanLukuvka/98artware/blob/dev/experiments/vm-service/probe_container_client.sh).
 
 ## See also
 

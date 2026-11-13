@@ -1,4 +1,4 @@
-"""The host-side drift fixes (experiments/drift/README.md), against stand-in guests."""
+"""The host-side drift fixes (experiments/drift/README.md, dev branch), against stand-in guests."""
 
 from art98 import desktop, win32
 from art98.anim import DR, Drag, Maximize, Minimize, RestoreWindow

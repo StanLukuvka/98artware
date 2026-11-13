@@ -25,7 +25,7 @@ class Pointer(Prop):
         super().attach(scene)
         self.refresh()
         self._sent = self.get_center().rounded()
-        # A fresh boot shows a brighter, pointerless desktop until the first move: experiments/first-frame/README.md
+        # A fresh boot shows a brighter, pointerless desktop until the first move: experiments/first-frame/README.md (dev branch)
         self.guest.user32.SetCursorPos(*self._sent)
 
     def refresh(self) -> None:

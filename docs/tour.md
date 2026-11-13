@@ -188,10 +188,10 @@ says which tests a change needs. Tests that need QEMU, Wine or the prepared imag
   [render_all.py](../tools/render_all.py) makes the GIFs in `docs/assets/gifs`.
 - [ ] [check_docs.py](../tools/check_docs.py): renders every sample in `docs/scenes`
   on the real image.
-- [ ] [experiments/](../experiments/): throwaway probes behind design decisions, each with a
-  README of what it found: [revert-test](../experiments/revert-test/README.md) for the state design,
-  [vm-service](../experiments/vm-service/README.md), [drift](../experiments/drift/README.md) and
-  others. Not part of art98, no tests.
+- [ ] [experiments/](https://github.com/StanLukuvka/98artware/tree/dev/experiments): throwaway probes behind design decisions, each with a
+  README of what it found: [revert-test](https://github.com/StanLukuvka/98artware/blob/dev/experiments/revert-test/README.md) for the state design,
+  [vm-service](https://github.com/StanLukuvka/98artware/blob/dev/experiments/vm-service/README.md), [drift](https://github.com/StanLukuvka/98artware/blob/dev/experiments/drift/README.md) and
+  others. Not part of art98, no tests. On the `dev` branch only.
 
 Explained in: [Gallery](scenes/gallery.md).
 

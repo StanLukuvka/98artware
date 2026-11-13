@@ -85,8 +85,8 @@ buffer), so the check reads one known pixel above the taskbar, with a tolerance 
 
 **On a blank desktop.** A colour change makes Windows show the icons again, so the colour call
 hides them again if they were hidden. Setting a wallpaper doesn't bring them or the taskbar
-back, so it needs no such step. Numbers: [README-p2](../../experiments/dialog-storm/README-p2.md)
-and [README-p3](../../experiments/dialog-storm/README-p3.md).
+back, so it needs no such step. Numbers: [README-p2](https://github.com/StanLukuvka/98artware/blob/dev/experiments/dialog-storm/README-p2.md)
+and [README-p3](https://github.com/StanLukuvka/98artware/blob/dev/experiments/dialog-storm/README-p3.md).
 
 `icons` and `tray` are still later.
 
@@ -193,7 +193,7 @@ windows back to front, because a window moved off another can leave desktop labe
 lower window's frame. Speed depends mostly on host load: a whole Set took 1.6 s from `ready` at
 under 0.4% CPU pressure and 10.3 s at about 30%. The probes, the warm-baseline trial, the decision
 to use `ready` as it is, and the full tables are in
-[revert-test](../../experiments/revert-test/README.md#test-results).
+[revert-test](https://github.com/StanLukuvka/98artware/blob/dev/experiments/revert-test/README.md#test-results).
 
 ## Not proven yet
 

@@ -69,7 +69,7 @@ A scene run on a private copy, 2026-11-10, CPU pressure `some avg10` 0.00 to 0.3
 
 ## The first frame
 
-On a stock desktop, a fresh boot shows brighter, pointerless frames until the first pointer move. The blank desktop hides this. It is settled by one `SetCursorPos` nudge in `Pointer.attach`, not by a revert after boot. See [first-frame](../../experiments/first-frame/README.md).
+On a stock desktop, a fresh boot shows brighter, pointerless frames until the first pointer move. The blank desktop hides this. It is settled by one `SetCursorPos` nudge in `Pointer.attach`, not by a revert after boot. See [first-frame](https://github.com/StanLukuvka/98artware/blob/dev/experiments/first-frame/README.md).
 
 ## Prep changes not made
 

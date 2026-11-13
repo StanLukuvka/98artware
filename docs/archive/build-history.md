@@ -18,12 +18,12 @@ now, read [status.md](../status.md) and the [changelog](../../CHANGELOG.md).
    decisions, lifecycle diagram and MVP are in [the design](../design/state-and-action.md).
 5. **Revert test.** The first MVP step, run on a private copy. Set repeats and a revert leaves
    nothing behind. A Set takes 1.6 to 2.0 s on a quiet host, and 10 s on a busy one. Details are
-   under [Test results](../../experiments/revert-test/README.md#test-results), and the scripts are in
-   [artware_experiments/revert-test](../../experiments/revert-test/README.md).
+   under [Test results](https://github.com/StanLukuvka/98artware/blob/dev/experiments/revert-test/README.md#test-results), and the scripts are in
+   [artware_experiments/revert-test](https://github.com/StanLukuvka/98artware/blob/dev/experiments/revert-test/README.md).
 6. **Stray pixels explained.** The odd Set out was the clean one. Usually Paint moving away leaves
    the "My Documents" label's pixels in Notepad's frame. Repainting the windows back to front at the
    end of Apply made 20 of 20 Sets identical, from `ready` and from a warm baseline. See
-   [Stray pixels, explained](../../experiments/revert-test/README.md#stray-pixels-explained).
+   [Stray pixels, explained](https://github.com/StanLukuvka/98artware/blob/dev/experiments/revert-test/README.md#stray-pixels-explained).
 7. **Warm baseline decided.** The MVP uses `ready` as it is. A warm baseline is only added if Set
    misses 2 s, and then preferably per run on the private copy.
 8. **Recorder specified.** `Recorder` replaces `FrameRecorder` and can cut to a new clip during a
@@ -87,16 +87,16 @@ now, read [status.md](../status.md) and the [changelog](../../CHANGELOG.md).
     clean, freshness warnings were added, `art98 doctor` works with only a container engine, and
     CI runs the unit tests. `examples/blank_start` is the proof scene. Two host checks ran. The
     first frames of a stock desktop are settled by a pointer nudge, not a revert
-    ([first-frame](../../experiments/first-frame/README.md)). A busy host slows a render about 5
+    ([first-frame](https://github.com/StanLukuvka/98artware/blob/dev/experiments/first-frame/README.md)). A busy host slows a render about 5
     times with the same frames, and a title-bar Drag no longer leaves stray label pixels
-    ([host-checks](../../experiments/host-checks/README.md),
+    ([host-checks](https://github.com/StanLukuvka/98artware/blob/dev/experiments/host-checks/README.md),
     [On a busy host](../setup/troubleshooting.md#on-a-busy-host)). The docs were corrected to match.
 
 19. **Dialog storm, 2026-11-11.** `Dialog` is out of parked: it is in `art98.anim` with `size`,
     `disabled`, `set_message` and `icon`. `Backdrop` sets the desktop colour, and a state's
     `desktop` sets a colour and a wallpaper, which goes to the guest on a CD. The scene is
     `examples/dialog_storm` (GIF in the [gallery](../scenes/gallery.md#dialog-storm)); its probes
-    are in [experiments/dialog-storm](../../experiments/dialog-storm/README-p0.md). What they found:
+    are in [experiments/dialog-storm](https://github.com/StanLukuvka/98artware/blob/dev/experiments/dialog-storm/README-p0.md). What they found:
     - **Icons.** `STM_SETICON` on the box's icon slot works and draws 32 x 32. Seven custom
       icons, each seen in a real box: computer `shell32.dll` 15, printer `shell32.dll` 16, mouse
       `main.cpl` 0, telephone `modem.cpl` 0, cd `shell32.dll` 11, globe `shell32.dll` 13, flag
@@ -136,7 +136,7 @@ now, read [status.md](../status.md) and the [changelog](../../CHANGELOG.md).
     resize-corner Spot carries its window so a Drag reads the size back. The dialog storm renders
     frame for frame identical on all three backends (`framemd5`), and its GIF was regenerated. A
     per-frame read-back (3 to 5 ms per prop) or forced repaint (25 to 67 ms) was measured and is
-    not recommended. See [experiments/drift](../../experiments/drift/README.md).
+    not recommended. See [experiments/drift](https://github.com/StanLukuvka/98artware/blob/dev/experiments/drift/README.md).
 
 22. **VM service, 2026-11-11.** The VM is no longer booted for each render. `art98 vm start` runs
     one long-lived container, paused at `ready`. `art98 render` and `art98 ping` attach to it, and
@@ -518,7 +518,7 @@ and `actions/window/`. Programs now live in `actions/programs/`, one file each (
 | A finished run holds the desktop | You can try more sections without a restart |
 | A failed run holds the desktop too | The most useful evidence is the live desktop where it failed |
 | Every restart takes the same path | A run never continues from a half-finished desktop |
-| ~~Revert once after boot, so the first frame matches~~ | Replaced by one `SetCursorPos` nudge in `Pointer.attach`. It gives the same frame without a second boot step. See [first-frame](../../experiments/first-frame/README.md) |
+| ~~Revert once after boot, so the first frame matches~~ | Replaced by one `SetCursorPos` nudge in `Pointer.attach`. It gives the same frame without a second boot step. See [first-frame](https://github.com/StanLukuvka/98artware/blob/dev/experiments/first-frame/README.md) |
 
 An animation is a Python script, so it's arbitrary code. As with Manim, art98 doesn't decide how
 many states or output files one script uses. Set is an ordinary call, and the rest is up to the

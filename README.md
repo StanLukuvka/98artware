@@ -248,7 +248,7 @@ frames straight into that folder; elsewhere they are a loopback TCP port. The de
 | [guest/](guest/) | The programs that run inside Windows 98: `AGENT.EXE`, the `VIEW.EXE` picture viewer and the install disk's boot record |
 | [examples/](examples/) | Maintained scenes: the MVP, the dialog storm, the blank-start proof scene, the gallery, `hello.py` and `showcase.py`. The docs embed them |
 | [tools/](tools/) | `render_all.py` makes the gallery GIFs, `check_docs.py` renders the doc samples |
-| [experiments/](experiments/) | Throwaway probes behind design decisions. Not part of art98, with no tests |
+| [experiments/](https://github.com/StanLukuvka/98artware/tree/dev/experiments) | Throwaway probes behind design decisions. Not part of art98, with no tests. Lives on the `dev` branch only. |
 | [docs/](docs/README.md) | Every page, starting from [docs/README.md](docs/README.md) |
 | `work/` | Your prepared image. Gitignored, never shared |
 | `out/` | Render output from the tools and probes. Gitignored |

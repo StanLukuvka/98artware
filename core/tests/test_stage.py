@@ -254,7 +254,7 @@ def test_render_leaves_the_vm_running_and_paused(tmp_path):
     assert after["running"] and after["paused"] and not after["busy"]
 
 
-# ---- drift: does the host's model of the screen match the guest? (experiments/drift/README.md) ----
+# ---- drift: does the host's model of the screen match the guest? (experiments/drift/README.md, dev branch) ----
 
 
 def _drift_short_scenes():
