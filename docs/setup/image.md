@@ -388,7 +388,7 @@ the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 | `audio_wav` | `None` | `-audiodev wav,...` when set | Deferred |
 | `extra_args` | `[]` | Appended | For extra QEMU options |
 
-**TCG, not KVM.** This costs speed, which is why setup takes 25 to 40 minutes, but the guest
+**TCG, not KVM.** This costs speed, which is why setup takes 20 to 40 minutes, but the guest
 behaves the same on any host CPU.
 
 **`-no-reboot`.** After a warm reset, `IO.SYS` spins on the BIOS tick counter at

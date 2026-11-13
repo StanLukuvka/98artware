@@ -1,6 +1,6 @@
 # Status
 
-Last updated 2026-11-11, for release 0.1.0. This page says what works, what is open and which
+Last updated 2026-11-13, for release 0.1.0. This page says what works, what is open and which
 bugs are on hold. The dated build diary is in [build history](archive/build-history.md); release
 notes are in the [changelog](../CHANGELOG.md).
 
@@ -18,7 +18,7 @@ notes are in the [changelog](../CHANGELOG.md).
 | Programs | Notepad, Dialog, Paint, Minesweeper and Screensaver, one file each in `actions/programs/`. Only Picture and Notepad can be opened from a state. Notepad (`notepad.py`) opens a text file or an empty window and checks its title; Windows 98 drops a trailing `.txt` from the title. `Dialog` (`dialog.py`) is a real message box with icons, a size, greyed buttons and changeable text | [Programs](design/programs.md), [Dialog](scenes/scene-api.md#dialog) |
 | Desktop colour and wallpaper | Built. `Backdrop` and a state's `desktop` (colour, wallpaper, style). A wallpaper reaches the guest on a CD in drive D: | [Colour and wallpaper](design/state-and-action.md#desktop-colour-and-wallpaper) |
 | CLI and checks | Errors from `art98` print one clean line, not a traceback. Warnings say when the image or guest programs are older than the code (`freshness.py`). `art98 doctor` works on a host that has only a container engine and ffmpeg. CI runs `ruff check`, `ruff format --check` and the unit tests on Python 3.11 and 3.13 on each push and pull request (`.github/workflows/tests.yml`) | [CLI](setup/cli.md) |
-| Container | Built: the VM service in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image and runs setup, then stops; `art98 vm start` runs one long-lived VM container that `render` and `ping` attach to. Tested on rootful Docker 29.9 and rootless Podman. Tested from scratch: about 25 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
+| Container | Built: the VM service in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image and runs setup, then stops; `art98 vm start` runs one long-lived VM container that `render` and `ping` attach to. Tested on rootful Docker 29.9 and rootless Podman. Tested from scratch: about 23 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
 
 Audio is deferred. art98 is video only.
 
@@ -27,12 +27,11 @@ Audio is deferred. art98 is video only.
 ### Next
 
 In order, from the layer review of 2026-11-11. See also
-[After the MVP](design/state-and-action.md#after-the-mvp).
+[Not built, on purpose or not yet](design/decisions.md#not-built-on-purpose-or-not-yet).
 
 1. **Other programs.** New programs (Calculator and the rest) go in `actions/programs/`, one
    file each, subclassing `Win`. Paint, Minesweeper and `Dialog` are not state apps yet.
-2. **Gallery and showcase port.** Port the showcase and re-render the gallery.
-3. **`--section`.** Render one section of a scene, on top of `next_section`.
+2. **`--section`.** Render one section of a scene, on top of `next_section`.
 
 ### Leftovers from the dialog storm
 
@@ -51,7 +50,7 @@ handling are the ones a scene author can trigger.
 | --- | --- |
 | Agent | Frames over 16384 bytes are truncated |
 | Agent | An oversize `#` line is dropped |
-| Agent | An `ERR` sent after an `ACALL`'s `OK` is dropped |
+| Host | An `ERR` sent after an `ACALL`'s `OK` is dropped |
 | Agent | A failed `CreateThread` isn't handled |
 | Host | Pending async calls aren't failed when the agent sends `! CRASH` |
 | Host | `_read_loop` only catches `OSError` |

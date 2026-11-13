@@ -58,7 +58,7 @@ system sounds and power saving off, and `C:\ART98\AGENT.EXE` already running.
   with one QEMU version may not restore on another. The container pins the version.
 - **Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).** art98 has no
   runtime Python dependencies.
-- **About 3 GB of free disk space during the build**, and 25 to 40 minutes: about 25 on a
+- **About 3 GB of free disk space during the build**, and 20 to 40 minutes: about 23 on a
   quiet host, up to 40 on a busy one. The raw
   install disk is 2 GB, and it exists next to the qcow2 until the `ready` step deletes it.
 
@@ -209,15 +209,16 @@ scriptable desktop: VM, setup, init api, ready. Each one is recorded in
 
 ![The four setup steps, their inputs and their outputs](../diagrams/prep-pipeline.png)
 
-| Step | Two earlier runs | Newest run, quiet host, in the container | Result |
-|------|------------------|------------------------------------------|--------|
-| `vm` | 1 s, then 0 to 9 s | not logged | Setup files unpacked, boot floppy patched, raw disk with Setup, the answer file and the agent on it |
-| `setup` | 2083 s and 2268 s | 1326 s | Windows installed |
-| `init_api` | 1 to 2 s, without the extra boot | 13 s, with it | `MSDOS.SYS` edited, disk converted to qcow2, the agent seen answering |
-| `ready` | 78 s and 106 s | 55 s | Settings applied, snapshot saved |
+| Step | Two earlier runs | 2026-11-11, container | 2026-11-12, container, newest | Result |
+|------|------------------|-----------------------|-------------------------------|--------|
+| `vm` | 1 s, then 0 to 9 s | not logged | 1 s | Setup files unpacked, boot floppy patched, raw disk with Setup, the answer file and the agent on it |
+| `setup` | 2083 s and 2268 s | 1326 s | 1294 s | Windows installed |
+| `init_api` | 1 to 2 s, without the extra boot | 13 s, with it | 13 s | `MSDOS.SYS` edited, disk converted to qcow2, the agent seen answering |
+| `ready` | 78 s and 106 s | 55 s | 59 s | Settings applied, snapshot saved |
 
-The times cover three full runs. The newest took about 25 minutes end to end, with
+The times cover four full runs. The 2026-11-11 run took about 23 minutes end to end, with
 `/proc/pressure/cpu` at 0.00 throughout ([container design](../design/container.md#what-was-built)).
+The newest, a release check on 2026-11-12 with CPU pressure near 0, took about 22.8 minutes.
 The two earlier runs did not have the extra boot in `init_api`.
 
 This is Setup running, from file copy to the first desktop, with one frame every

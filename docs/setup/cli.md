@@ -89,11 +89,11 @@ The steps print progress as they go:
   answering the first-boot wizard, accepting the license agreement
   Setup restarted the machine (boot 2)
   answering the logon prompt with a blank password
-[setup] done in 2083s
+[setup] done in 1294s
 [init_api] starting
-[init_api] done in 40s
+[init_api] done in 13s
 [ready] starting
-[ready] done in 78s
+[ready] done in 59s
 Ready: /home/you/98artware/work
 ```
 

@@ -560,4 +560,5 @@ See [threading](bridge.md#threading) for what this means in practice.
 
 - `MAX_BLOB` can't be reached in a request or a reply, because hex takes twice the space. An 8193-byte `#` buffer can't fit in a line at all, so only `&` can get that error.
 - If `CreateThread` fails in an `ACALL`, the `OK` has gone out and no `DONE` follows.
+- An `ERR` the agent sends after an `ACALL`'s `OK` never reaches the caller: the host stops listening for that id once the `OK` arrives, so the error is dropped.
 - `PUT` does not report a short write as an error. Compare `written` if it matters.

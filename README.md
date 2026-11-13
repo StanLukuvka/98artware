@@ -51,7 +51,7 @@ New words are in the [glossary](docs/glossary.md).
 - Your own Windows 98 SE disc image (an `.iso`) and its product key. The disc must boot from
   an emulated floppy and hold a `WIN98` folder; see [other discs](docs/setup/troubleshooting.md#a-different-disc).
   Setup has been run on one OEM disc only, so another disc may fail.
-- About 3 GB of free disk space, and 25 to 40 minutes for the one-time install.
+- About 3 GB of free disk space, and 20 to 40 minutes for the one-time install.
 
 art98 runs from a checkout with `uv run`. There is no package to install and no `pip install`.
 
@@ -78,7 +78,7 @@ uv run art98 up --iso /path/to/win98se.iso
 
 This builds the container image, asks for your product key at a visible prompt (or reads
 `ART98_PRODUCT_KEY`), installs Windows into `work/` with no further input, and stops. It takes
-25 to 40 minutes. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the install.
+20 to 40 minutes. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the install.
 If it stops part way, run the same command again: it resumes.
 
 **3. Start the VM.**
@@ -287,7 +287,7 @@ replies, so call it with `acall`.
 ## Installing on the host instead
 
 `art98 setup` can install Windows with QEMU on your own machine instead of in the container,
-in 25 to 40 minutes. Renders still use the container, so run `uv run art98 up` afterwards. The
+in 20 to 40 minutes. Renders still use the container, so run `uv run art98 up` afterwards. The
 `ready` snapshot only loads on the QEMU version that saved it, and the container pins QEMU
 10.2.2, so a host-made image may not load. Packages and steps:
 [Quick path on the host](docs/setup/README.md#quick-path-on-the-host).
@@ -299,8 +299,8 @@ were taken before the VM service, when a render could still run QEMU on the host
 
 | What | Result |
 |------|--------|
-| Full `art98 up` in the container, quiet host | About 25 min, of which Windows Setup 22 min |
-| Full `art98 setup` on the host | About 40 min |
+| Full `art98 up` in the container, quiet host | About 23 min, of which Windows Setup 22 min |
+| Full `art98 setup` on the host | About 36 min |
 | Snapshot restore to a working agent | About 1 s |
 | A Set with two windows and an image | 1.2 to 1.6 s |
 | The MVP scene, 257 frames | 5.5 s on host QEMU, 6.2 s through the container |

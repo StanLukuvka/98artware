@@ -6,7 +6,7 @@ The words art98 uses, in plain terms. Each one links to where it is explained in
 | --- | --- |
 | **Guest** | The Windows 98 SE system running inside the virtual machine. "Host" is your own computer. |
 | **VM** | The virtual machine: QEMU emulating a 1998-era PC in software, with Windows 98 SE installed on its disk. |
-| **Prepared image** | The disk `art98 up` (or `art98 setup`) builds from your own Windows 98 disc: `work/golden.qcow2`. It is made once, takes 25 to 40 minutes, and is never changed by a render. See [Part 1](setup/README.md). |
+| **Prepared image** | The disk `art98 up` (or `art98 setup`) builds from your own Windows 98 disc: `work/golden.qcow2`. It is made once, takes 20 to 40 minutes, and is never changed by a render. See [Part 1](setup/README.md). |
 | **`ready` snapshot** | A saved moment of the running VM, stored inside the prepared image: Windows booted, settings applied, the agent running. Every scene starts by restoring it, which takes about a second, so nothing one scene did is left for the next. See [The image](setup/image.md). |
 | **Revert** | Restoring the `ready` snapshot. Every window, process and copied file from before is gone afterwards. |
 | **VM service** | The VM running in one long-lived container, started with `art98 vm start` and stopped with `art98 vm stop`. It sits paused between renders. `art98 render` attaches to it, uses it for one render, and pauses it again. Only one render can hold it at a time; another one gets `busy`. See [The VM service](design/container.md#the-vm-service). |

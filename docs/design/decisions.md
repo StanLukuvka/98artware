@@ -35,7 +35,7 @@ captured, the host sends the agent a `SYNC`, which waits until the guest's windo
 repainted, and only then takes QEMU's screenshot.
 
 **Why.** A render should give the same frames on any machine; consistency was put ahead of
-speed, even though setup takes 25 to 40 minutes. Software emulation behaves the same everywhere
+speed, even though setup takes 20 to 40 minutes. Software emulation behaves the same everywhere
 and needs no `/dev/kvm` or extra privileges in a container. It also avoids two Windows 98
 problems: under KVM on a recent CPU, Windows 9x hits a TLB bug that needs a patched VMM, and on a
 fast processor it hits timing bugs that an emulated Pentium III keeps it away from. The machine
@@ -101,7 +101,7 @@ up after itself. A snapshot restore is fast, complete (every window, process and
 gone) and the same every time. It was tested: Set repeats, and a revert leaves nothing behind
 (see [Test results](state-and-action.md#test-results)).
 
-**What follows.** Changing the image is expensive for everyone: it means a new 25 to 40 minute
+**What follows.** Changing the image is expensive for everyone: it means a new 20 to 40 minute
 `art98 up`, and the snapshot only loads on the QEMU machine type that saved it, which is why the
 container pins QEMU 10.2.2. So art98 does at run time, after each revert, what it can: the
 [blank start](blank-start.md) hides the taskbar and icons in memory, files are copied into the
@@ -356,7 +356,7 @@ it first, because `loadvm` restores the guest's empty tray but not QEMU's medium
 
 **Why.** `put_file` over the emulated serial port runs at roughly 90 to 190 KB/s on a quiet host
 and far slower on a busy one (about 12 KB/s was measured), so a full-screen BMP could add 15 s or more to every Set. The CD
-takes about a second for 1.4 MB and leaves the image unchanged. Putting the images on the image
+takes under a second for 1.4 MB and leaves the image unchanged. Putting the images on the image
 itself would change prep and `ready`.
 
 **For new work.** Small files (programs, text, small BMPs) go through `guestfiles.ensure`, named by

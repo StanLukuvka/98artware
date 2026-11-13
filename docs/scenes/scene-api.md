@@ -133,7 +133,7 @@ Windows won't make a window smaller than 112 x 27, so `"size": [40, 20]` stops w
 `size [40, 20] wanted, the guest has [112, 27]`.
 
 The wallpaper reaches the guest on a CD in drive D:, not through `put_file`, so a 1.4 MB BMP
-costs about a second (see [Desktop colour and wallpaper](#desktop-colour-and-wallpaper)).
+costs under a second (see [Desktop colour and wallpaper](#desktop-colour-and-wallpaper)).
 Icons and the tray are not in a state yet. `Dialog` is not an `app` either: add it in `construct`.
 
 A Set with two windows and a 57 KB image took 1.2 to 1.6 s on a quiet host, mostly reverting and
@@ -582,7 +582,8 @@ Starts `<name>.scr /s`. Follow it with `self.live(seconds)`, because a screensav
 exit.
 
 `NAMES` lists what works: 3D Flower Box, 3D Flying Objects, 3D Maze, 3D Pipes, 3D Text, Blank
-Screen, Curves and Colors, Flying Through Space, Flying Windows, Mystify Your Mind.
+Screen, Curves and Colors, Flying Through Space, Flying Windows, Mystify Your Mind, Scrolling
+Marquee.
 
 Channel Screen Saver is on the image but left out, because moving the pointer doesn't dismiss it.
 

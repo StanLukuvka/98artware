@@ -43,7 +43,7 @@ runs from a checkout with `uv run`.
 - Python 3.11 or newer, [uv](https://docs.astral.sh/uv/) and ffmpeg.
 - Your own Windows 98 SE disc image and product key. art98 ships no Windows files. Running
   setup accepts the Windows licence agreement on your behalf.
-- About 3 GB of free disk space and 25 to 40 minutes for the one-time install.
+- About 3 GB of free disk space and 20 to 40 minutes for the one-time install.
 
 ### Known limits
 

@@ -6,7 +6,7 @@ is left out.
 
 ## Architecture
 
-Every part of art98 after the MVP, host and guest, and which link carries what. A second page in
+Every part of art98, host and guest, and which link carries what. A second page in
 the same file puts it next to Manim. See [Architecture, and how it compares with
 Manim](../design/architecture.md).
 

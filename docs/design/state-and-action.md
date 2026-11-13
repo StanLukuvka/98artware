@@ -204,12 +204,7 @@ Each of these needs a test on the real image before the schema is final.
 | Icon positions | Another program owns them, and Windows 98 has refused some calls that reach into other programs' windows |
 | Tray | Adding icons is likely. Removing another program's icon is unproven |
 | Window order and focus | Taskbar order follows the order windows opened, so it may not match the JSON |
-| Opening files in programs | After the MVP. Titles change, and Paint may not show the image at the expected zoom or size |
-| Paint with an opened file | After the MVP. `canvas_size` assumes a blank canvas, so canvas positions and `resize_canvas` would be wrong. `ready()` must also run on an adopted window |
+| Opening files in programs | Not built yet. Titles change, and Paint may not show the image at the expected zoom or size |
+| Paint with an opened file | Not built yet. `canvas_size` assumes a blank canvas, so canvas positions and `resize_canvas` would be wrong. `ready()` must also run on an adopted window |
 | Capture off | Some actions depend on real time, so a run with capture off may differ from a recorded one |
 | Clock and randomness | A new Minesweeper board differs each run unless these are fixed |
-
-## After the MVP
-
-Open work is in [status](../status.md#next). What is left out on purpose is in
-[decisions](decisions.md#not-built-on-purpose-or-not-yet).

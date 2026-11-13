@@ -273,7 +273,7 @@ measured results that still hold:
   The existing `ready` snapshot restores in the container on a run copy in `work/runs`: agent ready
   in 0.11 s, revert 0.05 s.
 - From scratch, `art98 up` on an empty work folder took setup 1326 s, init_api 13 s and ready 55 s,
-  about 25 minutes, with `/proc/pressure/cpu` at 0.00. The container-built image renders the MVP
+  about 23 minutes, with `/proc/pressure/cpu` at 0.00. The container-built image renders the MVP
   scene with 0 of 257 frames different from the host-built one.
 - On rootful Docker 29.9.3 (Fedora 44, CPU pressure some avg10 under 0.5), `art98 up` on the
   existing `work/` built the image in about 30 s. No file in `work/` or `guest/build` came out

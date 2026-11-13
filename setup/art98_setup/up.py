@@ -167,7 +167,7 @@ def up(
         secret, cleanup = engine.secret_args(_read_key(), KEY_SECRET)
         if watch:
             log(f"[up] watch setup with a VNC viewer at {load().bind}:{vnc_port}")
-        log("[up] running setup in the container; this takes about 40 minutes")
+        log("[up] running setup in the container; this takes 20 to 40 minutes")
         try:
             code = subprocess.run(  # noqa: PLW1510
                 setup_argv(engine, work, iso, image, secret, watch, vnc_port, disk_mb)

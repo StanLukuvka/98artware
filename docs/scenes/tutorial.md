@@ -1,7 +1,6 @@
 # Tutorial
 
 This takes you from nothing to a scene with a picture, Notepad and the pointer, and then to a GIF.
-The first scene was rendered on the real image.
 
 ## Before you start
 
@@ -17,8 +16,21 @@ uv run art98 doctor
 
 ## Your first scene
 
-A scene starts from a state, a JSON file that describes a still desktop. This one has a picture
-window and a Notepad window on the blank desktop, with the pointer near the bottom. Save it as
+The repo has one that needs nothing typed: [examples/hello.py](../../examples/hello.py). Notepad
+opens, types a line, drifts across the desktop and closes. Render it:
+
+```bash
+uv run art98 render examples/hello.py Hello -o hello.mp4
+```
+
+`art98 render` restores the `ready` snapshot (about a second), plays the scene and writes the
+video. The scene itself is on the [Scenes page](README.md#a-first-scene).
+
+## Start from a state
+
+A scene can start from a state, a JSON file that describes a still desktop. This one has a picture
+window and a Notepad window on a blank desktop, with the pointer near the bottom. Unlike
+`hello.py`, which shows the stock desktop, the video starts on a black screen. Save it as
 `states/desk.json` beside your scene:
 
 ```json
@@ -34,7 +46,9 @@ window and a Notepad window on the blank desktop, with the pointer near the bott
 }
 ```
 
-Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256sum assets/flower.bmp` from the folder beside `first.py`. The file must exist at that path, relative to the state file.
+Fill in `sha256` with the output of `sha256sum` on the file, for example
+`sha256sum assets/flower.bmp` run in the folder where you saved the state file. The file must exist
+at that path, relative to the state file.
 
 Then save this as `first.py`. It is shaped like
 [examples/blank_start](../../examples/blank_start/blank_start.py), which has the whole state,
@@ -63,8 +77,7 @@ Render it:
 uv run art98 render first.py First -o first.mp4
 ```
 
-`art98 render` restores the `ready` snapshot (about a second), plays the scene and writes the
-video. What the lines do:
+What the lines do:
 
 - `state` is read before the scene starts. The windows open off camera, and the video begins
   with them in place.
@@ -76,15 +89,15 @@ video. What the lines do:
 - `Teleport` moves a window in one frame.
 - `self.pause(1)` holds the last frame for one second.
 
-The video starts on a black screen: no icons and no taskbar. Only what the state puts there
-shows. `pointer_visible = True` shows the pointer, and `desktop = "stock"` gives the Windows 98
-desktop as it is. See [Blank start](../design/blank-start.md).
+Unlike `hello.py`, which sets `desktop = "stock"`, this video starts on a black screen: no icons
+and no taskbar. Only what the state puts there shows. `pointer_visible = True` shows the pointer,
+and `desktop = "stock"` gives the Windows 98 desktop as it is. See [Blank start](../design/blank-start.md).
 
 ## States
 
-A state is plain JSON. It lists the windows back to front, and each has an `id`, an `app`, a
-place and size, and what it shows. `app` is `"picture"` or `"notepad"`. The file is checked as a
-whole before the desktop is touched, so every mistake is listed at once.
+A state is the JSON file from the step above. It lists the windows back to front, and each has an
+`id`, an `app`, a place and size, and what it shows. `app` is `"picture"` or `"notepad"`. The
+file is checked as a whole before the desktop is touched, so every mistake is listed at once.
 
 `set_state` swaps to another state at any point, off camera, and the guest ends up the same
 every time. Props from before are gone after it. The fields are in the
@@ -113,29 +126,6 @@ class AddOne(Scene):
         self.play(sky.animate.shift(200 * RIGHT), run_time=1)
         self.play(Close(sky))
 ```
-
-## Cuts and sections
-
-`self.cut()` ends the current video clip and starts the next one, between two frames. Nothing
-is lost or repeated. `self.next_section("name")` does the same and also records a label in
-`self.sections`. The name is only a label: clips stay numbered.
-
-```python
-from art98.anim import *
-
-
-class TwoParts(Scene):
-    def construct(self):
-        self.pause(0.5)
-        self.next_section("second part")
-        self.pause(0.5)
-        self.cut()
-        self.pause(0.5)
-```
-
-`art98 render two.py -o two.mp4` writes `two-01.mp4`, `two-02.mp4` and `two-03.mp4`, and joins
-them into `two.mp4`. Old clips from an earlier render are not deleted; see
-[Clips](scene-api.md#clips).
 
 ## Move a window
 
@@ -267,6 +257,29 @@ class Counting(Scene):
         self.play(CountInTitle(pad, 100, run_time=2))
         self.pause(1)
 ```
+
+## Cuts and sections
+
+`self.cut()` ends the current video clip and starts the next one, between two frames. Nothing
+is lost or repeated. `self.next_section("name")` does the same and also records a label in
+`self.sections`. The name is only a label: clips stay numbered.
+
+```python
+from art98.anim import *
+
+
+class TwoParts(Scene):
+    def construct(self):
+        self.pause(0.5)
+        self.next_section("second part")
+        self.pause(0.5)
+        self.cut()
+        self.pause(0.5)
+```
+
+`art98 render two.py -o two.mp4` (a file with one scene needs no scene name) writes `two-01.mp4`, `two-02.mp4` and `two-03.mp4`, and joins
+them into `two.mp4`. Old clips from an earlier render are not deleted; see
+[Clips](scene-api.md#clips).
 
 ## Make a GIF
 

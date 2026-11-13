@@ -51,7 +51,7 @@ That is enough for the unit tests, lint and docs. To render on the real guest yo
 - ffmpeg.
 - Your own Windows 98 SE disc image (an `.iso`) and its product key. art98 does not include
   Windows, and can't. The [README](README.md#what-you-need) says what the disc must be like.
-- About 3 GB of free disk space, and 25 to 40 minutes for the one-time install.
+- About 3 GB of free disk space, and 20 to 40 minutes for the one-time install.
 
 ## Getting started
 
@@ -209,7 +209,7 @@ say what the change is for and why it can't be done at run time. The blank start
 wallpaper CD are both done at run time for that reason.
 
 Such a change also needs a full `art98 up` from an empty work folder to test it, which takes
-25 to 40 minutes and a disc:
+20 to 40 minutes and a disc:
 
 ```bash
 uv run art98 up --iso /path/to/win98se.iso --work /path/to/empty-folder
