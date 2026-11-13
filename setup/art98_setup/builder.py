@@ -21,6 +21,7 @@ from pathlib import Path
 from art98.bridge import Bridge, BridgeError, BridgeTimeout
 from art98.guestfiles import GUEST_DIR
 from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
+from art98.win32 import EWX_FORCE, EWX_REBOOT
 
 SECTOR = 512
 SECTORS_PER_TRACK = 63
@@ -33,7 +34,6 @@ AGENT_RUN_VALUE = "Art98Agent"
 STALL_LIMIT = 20 * 60
 WIZARD_PAGE_TIMEOUT = 2 * 60
 SHUTDOWN_TIMEOUT = 5 * 60
-EWX_REBOOT, EWX_FORCE = 2, 4
 SHOT_INTERVAL = 30
 
 HOST_TOOLS = {

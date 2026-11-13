@@ -11,11 +11,9 @@ import time
 
 from ..base.animation import Animation
 from ..base.rate_functions import linear
-from ..win32 import repaint_window
+from ..win32 import VK_BACK, WM_CHAR, repaint_window
 from .window.win import Win
 
-WM_CHAR = 0x0102
-VK_BACK = 8
 KEY_HOLD_MS = 40
 KEY_SETTLE = 0.1  # time for a key press to reach the guest and be handled
 

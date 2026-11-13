@@ -6,11 +6,9 @@ import struct
 from typing import ClassVar
 
 from ... import win32
-from ...win32 import GWL_STYLE
+from ...win32 import GWL_STYLE, MB_ICONINFORMATION, SS_ICON, STM_SETICON
 from ..window.win import Win
 
-STM_SETICON, SS_ICON = 0x0170, 3
-BASE_ICON = 0x40  # MB_ICONINFORMATION: reserves the icon slot, which is then replaced
 BUTTON_W, BUTTON_H, BUTTON_GAP, BOTTOM_MARGIN = 75, 23, 6, 11
 TEXT_X, RIGHT_MARGIN, LINE_H = 62, 16, 15
 
@@ -83,9 +81,9 @@ class Dialog(Win):
             self._custom = self.CUSTOM_ICONS[icon]
         elif icon not in self.ICONS:
             raise ValueError(f"unknown icon {icon!r}")
-        self.style = (BASE_ICON if self._custom else self.ICONS[icon]) | self.BUTTONS[
-            buttons
-        ]
+        # A custom icon reserves the information icon's slot, which is then replaced.
+        base = MB_ICONINFORMATION if self._custom else self.ICONS[icon]
+        self.style = base | self.BUTTONS[buttons]
         self._call = None
         self._hicon = None
         self._text_hwnd = None

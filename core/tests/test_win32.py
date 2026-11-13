@@ -1,6 +1,8 @@
 """The win32 helpers send the guest calls they always did."""
 
+import ast
 import struct
+from pathlib import Path
 
 from art98 import win32
 from art98.protocol import Out
@@ -60,3 +62,37 @@ def test_menu_item_rect_is_none_when_the_menu_is_closed():
     guest = Guest(Result(1, [rect]))
     assert win32.menu_item_rect(guest, 1, 2, 3) == (5, 6, 7, 8)
     assert isinstance(guest.calls[0][1][3], Out)
+
+
+ROOT = Path(__file__).resolve().parents[2]
+WIN32_PREFIXES = (
+    "WM_", "SW_", "SWP_", "RDW_", "SM_", "SPI_", "SPIF_", "GWL_", "WS_", "VK_", "MF_",
+    "SC_", "EM_", "STM_", "SS_", "MB_", "REG_", "EWX_", "DRIVE_", "COLOR_",
+)  # fmt: skip
+
+
+def module_constants(path: Path) -> set[str]:
+    names = set()
+    for node in ast.parse(path.read_text()).body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                elements = target.elts if isinstance(target, ast.Tuple) else [target]
+                names |= {e.id for e in elements if isinstance(e, ast.Name)}
+    return {name for name in names if name.isupper()}
+
+
+def test_win32_constants_live_only_in_win32_py():
+    home = ROOT / "core/art98/win32.py"
+    defined_here = module_constants(home)
+    sources = [
+        *(ROOT / "core/art98").rglob("*.py"),
+        *(ROOT / "setup/art98_setup").rglob("*.py"),
+    ]
+    strays = sorted(
+        f"{path.relative_to(ROOT)}: {name}"
+        for path in sources
+        if path != home
+        for name in module_constants(path)
+        if name in defined_here or name.startswith(WIN32_PREFIXES)
+    )
+    assert strays == [], "import these from art98.win32 instead"

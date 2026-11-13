@@ -17,7 +17,7 @@ from art98.bridge import Bridge, BridgeError
 from art98.protocol import Out
 from art98.qemu import VM
 from art98.session import IMAGE_FILE, SNAPSHOT
-from art98.win32 import set_display_mode
+from art98.win32 import HKCU, HKLM, REG_BINARY, REG_SZ, set_display_mode
 
 from .builder import AGENT_RUN_VALUE, Setup, SetupError
 
@@ -25,10 +25,6 @@ DISPLAY_MODE = (800, 600, 16)
 KEPT_RUN_VALUES = {AGENT_RUN_VALUE.lower(), "systemtray"}
 SETTLE_SECONDS = 30
 
-HKCU = 0x80000001
-HKLM = 0x80000002
-REG_SZ = 1
-REG_BINARY = 3
 
 RUN_KEYS = [
     (HKLM, r"Software\Microsoft\Windows\CurrentVersion\Run"),
