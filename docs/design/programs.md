@@ -58,7 +58,7 @@ itself, from a `MessageBoxA` call on a guest thread of the agent. It has no comm
 file, so it has no `from_state`. A scene adds it in `construct`. It takes an `icon` (stock, one of
 seven custom icons, or a `(dll, index)` pair), `buttons`, `size`, `disabled` and `set_message`.
 The options are in the [Scene API](../scenes/scene-api.md#dialog), and the probes behind them are
-in [experiments/dialog-storm](../../experiments/dialog-storm/README-p1.md).
+in [experiments/dialog-storm](https://github.com/StanLukuvka/98artware/blob/dev/experiments/dialog-storm/README-p1.md).
 
 Two things are worth knowing if you build a program like it. Every box is a window of the same
 class (`#32770`) from the same process, so a title can't say which box is yours: `Dialog` notes

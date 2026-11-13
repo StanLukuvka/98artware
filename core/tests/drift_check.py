@@ -1,4 +1,4 @@
-"""The drift checks, shared by the VM tests (test_stage.py) and experiments/drift/probe_drift.py.
+"""The drift checks, shared by the VM tests (test_stage.py) and experiments/drift/probe_drift.py (dev branch).
 
 A: the host's rect for every window prop, and the pointer, against GetWindowRect / GetCursorPos.
 B: the frame against the same moment after a forced full repaint, minus the two things that change

@@ -222,7 +222,7 @@ last. The client's close waits until the lock is free, so the next attach can't 
 Freeing the lock last fixes a release race that the VM tests found; `test_serve.py` covers it.
 
 **A lost client and a VNC viewer.** See [Configuration](../setup/config.md#transport-and-a-lost-client).
-The probes are in [experiments/vm-service](../../experiments/vm-service/README.md): the run copy
+The probes are in [experiments/vm-service](https://github.com/StanLukuvka/98artware/blob/dev/experiments/vm-service/README.md): the run copy
 stayed flat over 30 renders, and the next attach worked about 0.05 s after a `kill -9`. A view-only
 VNC viewer did not change the frames. A normal viewer sends input and was not tested; it would
 change the frames. See [configuration](../setup/config.md#vnc).
@@ -261,7 +261,7 @@ Podman, real Docker and host QEMU, at CPU pressure avg10 1.3 to 2.0, an insert t
 110 ms, setting a 1.44 MB wallpaper took 0.5 to 0.8 s and a revert with an eject took 75 to 145 ms
 (a quiet-host set is in [Scene API](../scenes/scene-api.md)). A revert's eject opens the tray with force, removes the medium and closes the tray. The drive's QEMU id is read from `query-block` each time, because it was `device[5]` on one host and `device[4]` in the plan.
 `RemoteVM` has no `disc_state()`, which the host-side `VM` class has. See
-[README-p3](../../experiments/dialog-storm/README-p3.md).
+[README-p3](https://github.com/StanLukuvka/98artware/blob/dev/experiments/dialog-storm/README-p3.md).
 
 ## What was built
 

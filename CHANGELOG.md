@@ -23,6 +23,8 @@ All notable changes to art98 are listed here. The format follows
   After updating, run `make -C guest` once, or `art98 up --rebuild` on a host with only a
   container engine, so `sources.sha256` exists.
 - `art98 up` says setup usually takes 20 to 30 minutes.
+- Development moves to the `dev` branch; `main` changes only at a release, and
+  `experiments/` lives on `dev` only.
 
 ### Fixed
 

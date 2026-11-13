@@ -34,7 +34,7 @@ class Dialog(Win):
         "warning": 0x30,
         "info": 0x40,
     }
-    # Each one seen in a real box (experiments/dialog-storm/README-p1.md).
+    # Each one seen in a real box (experiments/dialog-storm/README-p1.md, dev branch).
     CUSTOM_ICONS: ClassVar[dict[str, tuple[str, int]]] = {
         "computer": (r"C:\WINDOWS\SYSTEM\shell32.dll", 15),
         "printer": (r"C:\WINDOWS\SYSTEM\shell32.dll", 16),
