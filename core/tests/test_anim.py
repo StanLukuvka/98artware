@@ -905,6 +905,7 @@ def test_minesweeper_clear_never_opens_a_mine(guest, scene):
 
 def test_screensaver_needs_a_real_name():
     assert '"C:\\WINDOWS\\SYSTEM\\3D Pipes.scr" /s' == Screensaver("3D Pipes").command
+    assert "Scrolling Marquee" in Screensaver("Scrolling Marquee").command
     with pytest.raises(ValueError):
         Screensaver("Starfield")
 

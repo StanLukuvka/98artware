@@ -28,6 +28,7 @@ class Screensaver(Win):
         "Flying Through Space",
         "Flying Windows",
         "Mystify Your Mind",
+        "Scrolling Marquee",
     )
 
     def __init__(self, name: str = "3D Pipes"):
