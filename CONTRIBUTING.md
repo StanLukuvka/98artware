@@ -105,29 +105,49 @@ commit, attach or upload anything from it.
 ## Branches
 
 - `dev` is the trunk. Branch off `dev` and keep branches short-lived: a day or two. Open the
-  pull request against `dev`. CI must pass before it merges.
-- `main` only moves at a release, cut from `dev`.
+  pull request against `dev`. CI must pass. PRs into `dev` are squash-merged, so `dev`'s
+  history is linear.
+- `main` only moves at a release, through a pull request from a `release/*` branch. Nobody
+  pushes to `dev` or `main` directly, maintainers included.
 - `experiments/` lives on `dev` only.
 
 A release goes like this:
 
 ```bash
-git switch main
-git merge --no-ff --no-commit dev
+VERSION=0.1.2
+git fetch origin
+git switch -c release/$VERSION origin/main
+git merge --no-ff --no-commit origin/dev
 git rm -r -q -f --ignore-unmatch experiments
 git status --short | grep experiments
-git commit
+git commit -m "Release $VERSION"
+git push -u origin release/$VERSION
+gh pr create --base main --title "Release $VERSION"
 ```
 
-The merge stages the `experiments/` changes from `dev`. Remove the folder before you commit.
-`-f` is needed because the merge has staged those files. Without it, `git rm` refuses and the
-commit keeps them.
+The merge stages the `experiments/` changes from `origin/dev`. Remove the folder before you
+commit. `-f` is needed because the merge has staged those files. Without it, `git rm` refuses
+and the commit keeps them.
 
-If `dev` changed a file in `experiments/`, the merge stops with a modify/delete conflict and
-exits with an error. That is expected. Carry on with `git rm`.
+If `origin/dev` changed a file in `experiments/`, the merge stops with a modify/delete conflict
+and exits with an error. That is expected. Carry on with `git rm`.
 
 The `grep` line must print nothing before you commit. CI fails on `main` if `experiments/` is
 there.
+
+Set `VERSION` to the release's number before you run the block. Merge the release pull request
+with a merge commit, not a squash, so `main` keeps `dev` as a parent and the next release
+merges cleanly.
+
+The rules on GitHub:
+
+- `dev` and `main` take changes only by pull request. `unit (3.11)` and `unit (3.13)` must pass.
+- No force-push or deletion on either branch.
+- Nobody bypasses the rules, maintainers included.
+- `dev` allows squash merges only, so its history is linear.
+- `main` allows merge commits only. It also requires `no-experiments-on-main` and
+  `release-source`, which fails a pull request whose branch is not `release/*`.
+- Merged branches are deleted on GitHub.
 
 ## Ways to contribute
 
