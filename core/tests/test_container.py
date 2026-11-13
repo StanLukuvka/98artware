@@ -2,8 +2,8 @@
 host client, a fake VM and a fake agent behind a Unix socket like QEMU's COM1."""
 
 import json
+import re
 import socket
-import stat
 import threading
 import time
 from pathlib import Path
@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from art98 import session as session_module
 from art98.bridge import Bridge, BridgeError
+from art98.container import compose
 from art98.container import host as container
 from art98.container.host import (
     ContainerError,
@@ -20,6 +21,7 @@ from art98.container.host import (
 )
 from art98.container.serve import MAX_DISC, Server
 from art98.qemu import VM, QemuError, VMConfig
+from art98.settings import Settings
 from serve_harness import PPM, TOKEN, FakeSerial, FakeVM, Served
 
 
@@ -185,16 +187,61 @@ def test_the_engine_is_docker_unless_art98_engine_names_another_binary(monkeypat
         Engine()
 
 
-def test_a_secret_is_a_private_file_mounted_read_only(tmp_path, monkeypatch):
-    engine = fake_engine(monkeypatch, None)
-    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
-    args, cleanup = engine.secret_args(b"tok", "art98_token")
-    source = Path(args[1].split(":")[0])
-    assert args[0] == "-v" and args[1].endswith(":/run/secrets/art98_token:ro")
-    assert source.read_bytes() == b"tok"
-    assert stat.S_IMODE(source.stat().st_mode) == 0o600
-    cleanup()
-    assert not source.exists()
+# ---- compose ----
+
+
+def test_compose_picks_the_tcp_file_for_tcp_and_adds_the_override_last(
+    tmp_path, monkeypatch
+):
+    settings = Settings(work=str(tmp_path / "work"), root=tmp_path)
+    monkeypatch.setattr(compose, "OVERRIDE_FILE", tmp_path / "compose.override.yaml")
+    monkeypatch.setenv("ART98_TRANSPORT", "unix")
+    assert compose.files(settings) == [compose.FILE]
+    monkeypatch.setenv("ART98_TRANSPORT", "tcp")
+    assert compose.files(settings) == [compose.FILE, compose.TCP_FILE]
+    compose.OVERRIDE_FILE.write_text("services: {}\n")
+    assert compose.files(settings)[-1] == compose.OVERRIDE_FILE
+    args = compose.command(settings)
+    assert args[:3] == ["compose", "-p", compose.project(settings)]
+    assert args[args.index("--project-directory") + 1] == str(compose.ROOT)
+
+
+def test_each_work_dir_is_its_own_compose_project(tmp_path):
+    one = Settings(work=str(tmp_path / "a"), root=tmp_path)
+    assert compose.project(one) == compose.project(Settings(work="a", root=tmp_path))
+    assert compose.project(one) != compose.project(Settings(work="b", root=tmp_path))
+    assert re.fullmatch(r"art98-[0-9a-f]{8}", compose.project(one))
+
+
+def compose_text():
+    return "\n".join(p.read_text() for p in (compose.FILE, compose.TCP_FILE))
+
+
+def test_compose_reads_only_variables_art98_passes_or_the_user_sets():
+    settings = Settings()
+    read = set(re.findall(r"\$\{(ART98_\w+)", compose_text()))
+    passed = set(compose.variables(settings)) | {"ART98_ISO", "ART98_DISK_MB"}
+    assert read and read <= passed, read - passed
+    assert "environment: ART98_PRODUCT_KEY" in compose.FILE.read_text()
+
+
+def test_every_published_port_is_on_loopback():
+    files = [
+        compose.FILE,
+        compose.TCP_FILE,
+        compose.ROOT / "compose.override.example.yaml",
+    ]
+    lines = [line.strip() for p in files for line in p.read_text().splitlines()]
+    published = [
+        line for line in lines if re.match(r"- .*:\d+$", line) and ":/" not in line
+    ]
+    assert published and all(line.startswith("- 127.0.0.1:") for line in published)
+
+
+def test_the_override_and_key_file_stay_out_of_git_and_the_image():
+    for name in (".gitignore", ".dockerignore"):
+        kept_out = (compose.ROOT / name).read_text().splitlines()
+        assert {"compose.override.yaml", "product-key.txt"} <= set(kept_out)
 
 
 # ---- session ----

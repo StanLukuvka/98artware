@@ -1,5 +1,5 @@
-"""art98.service: start/stop argv with a fake Engine, attach/status against the real
-serve.Server (serve_harness) over loopback TCP. No docker, no VM."""
+"""art98.service: start/stop's compose calls with a fake Engine, attach/status against
+the real serve.Server (serve_harness) over loopback TCP. No docker, no VM."""
 
 import os
 import socket
@@ -8,7 +8,6 @@ import threading
 import time
 from contextlib import ExitStack
 from dataclasses import replace
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -23,42 +22,48 @@ from serve_harness import TOKEN, Served
 CID = "c0ffee" * 10
 
 
+def subcommand(args):
+    """The compose subcommand and its arguments, after the global options."""
+    if args[0] != "compose":
+        return args
+    i = 1
+    while args[i] in ("-p", "--project-directory", "-f"):
+        i += 2
+    return args[i:]
+
+
 class FakeEngine:
-    """Records every argv. `running` and `stopped` are the container ids `ps` reports;
-    `labels` maps an id to its art98.work label."""
+    """Records every call as (compose subcommand, env). `running` and `stopped` are the
+    container ids `compose ps` reports for the vm service; `up` starts one, `down`
+    removes them all. Verbs in `fail` exit non-zero."""
 
     path = "/usr/bin/docker"
     name = "docker"
 
-    def __init__(self, work, running=(), stopped=(), label=None, image=True, fail=()):
+    def __init__(self, running=(), stopped=(), image=True, fail=()):
         self.calls = []
-        self.work = str(work)
         self.running = list(running)
         self.stopped = list(stopped)
-        self.label = self.work if label is None else label
         self.image = image
-        self.alive = True
-        self.fail = set(fail)  # verbs that exit non-zero
-        self.cidfile_existed = None
+        self.fail = set(fail)
 
-    def __call__(self, *args, check=True, input=None, capture=True):
-        self.calls.append(args)
+    def __call__(self, *args, check=True, input=None, capture=True, env=None):
+        args = subcommand(args)
+        self.calls.append((args, env))
         out = b""
         if args[0] == "ps":
-            if "-aq" in args:
-                out = " ".join(self.running + self.stopped).encode()
-            elif any(a.startswith("label=") for a in args):
-                out = " ".join(self.running).encode()
-            else:
-                out = b"x" if self.alive else b""
-        elif args[0] == "run":
-            path = args[args.index("--cidfile") + 1]
-            self.cidfile_existed = os.path.exists(path)
-            Path(path).write_text(CID)
-        elif args[0] == "inspect":
-            out = self.label.encode()
+            out = "\n".join(self.running + self.stopped * ("-aq" in args)).encode()
+        elif args[0] == "down":
+            self.running, self.stopped = [], []
+        elif args[0] == "up" and args[0] not in self.fail:
+            self.running = [CID]
+        elif args[0] == "logs":
+            out = b"[serve] the last words"
         code = 1 if args[0] in self.fail else 0
-        return SimpleNamespace(returncode=code, stdout=out, stderr=b"")
+        if code and check:
+            raise ContainerError(f"docker {args[0]} failed")
+        err = b"dependency failed to start: container art98-vm is unhealthy"
+        return SimpleNamespace(returncode=code, stdout=out, stderr=err * code)
 
     def has_image(self, image):
         return self.image
@@ -67,10 +72,10 @@ class FakeEngine:
         raise ContainerError("no port")
 
     def verbs(self):
-        return [c[0] for c in self.calls]
+        return [args[0] for args, _ in self.calls]
 
     def first(self, verb):
-        return next(c for c in self.calls if c[0] == verb)
+        return next(call for call in self.calls if call[0][0] == verb)
 
 
 @pytest.fixture(autouse=True)
@@ -107,82 +112,57 @@ def live(tmp_path, served):
     return make_settings(tmp_path, port=served.address[1])
 
 
-# ---- start: argv ----
+# ---- start: the compose calls ----
 
 
-def test_start_runs_a_labelled_detached_container_without_rm(tmp_path, served, live):
-    engine = FakeEngine(live.work_dir)
-    service.start(live, vnc=True, engine=engine, log=lambda m: None)
-    argv = list(engine.first("run"))
+def test_start_brings_the_vm_service_up_and_waits_for_its_healthcheck(served, live):
+    engine = FakeEngine()
+    service.start(live, engine=engine, log=lambda m: None)
+    assert engine.verbs() == ["ps", "down", "up"]
+    args, env = engine.first("up")
+    assert args == ("up", "-d", "--wait", "--wait-timeout", "120", "vm")
     work = str(live.work_dir)
-    assert argv[:3] == ["run", "-d", "--init"]
-    assert "--rm" not in argv
-    assert argv[argv.index("--name") + 1] == "art98-vm"
-    assert argv[argv.index("--label") + 1] == f"art98.work={work}"
-    assert argv[argv.index("--cidfile") + 1] == f"{work}/vm.cid"
-    assert f"{work}:/work" in argv
-    assert not any("art98_token" in a or "secrets" in a for a in argv)  # no token mount
-    tail = argv[argv.index(live.image) :]
-    assert tail[:6] == [
-        "localhost/art98:latest",
-        "serve",
-        "--work",
-        "/work",
-        "--token-file",
-        "/work/vm.token",
-    ]
-    assert tail[-1] == "--vnc"
-    assert f"127.0.0.1:{live.control}:7598" in argv
-    assert "127.0.0.1:5900:5900" in argv
-    assert "--unix" not in argv
-    assert engine.cidfile_existed is False
+    assert env["ART98_WORK"] == work and env["ART98_CONTAINER"] == "art98-vm"
+    assert env["ART98_IMAGE"] == "localhost/art98:latest"
+    assert env["ART98_TOKEN_PATH"] == f"{work}/vm.token"
+    assert env["ART98_HOST_UID"] == str(os.getuid())
+    assert env["ART98_CONTROL_PORT"] == str(live.control)
+    assert env["PATH"] == os.environ["PATH"]  # on top of the environment
 
 
 def test_start_takes_names_and_ports_from_settings(tmp_path, served):
     settings = make_settings(
-        tmp_path, port=served.address[1], container="other", image="img:1", vnc=5901
+        tmp_path, port=served.address[1], container="other", image="img:1"
     )
-    engine = FakeEngine(settings.work_dir)
-    service.start(settings, vnc=True, engine=engine, log=lambda m: None)
-    argv = list(engine.first("run"))
-    assert argv[argv.index("--name") + 1] == "other"
-    assert "img:1" in argv
-    assert "127.0.0.1:5901:5900" in argv
+    engine = FakeEngine()
+    service.start(settings, engine=engine, log=lambda m: None)
+    env = engine.first("up")[1]
+    assert (env["ART98_CONTAINER"], env["ART98_IMAGE"]) == ("other", "img:1")
+    assert env["ART98_CONTROL_PORT"] == str(served.address[1])
 
 
-def test_start_without_vnc_publishes_no_vnc_port(tmp_path, served, live):
-    engine = FakeEngine(live.work_dir)
-    service.start(live, engine=engine, log=lambda m: None)
-    argv = list(engine.first("run"))
-    assert "--vnc" not in argv
-    assert not any(a.endswith(":5900") for a in argv)
-
-
-def test_start_on_unix_mounts_the_socket_dir(monkeypatch, tmp_path):
+def test_start_on_unix_makes_a_private_socket_dir(monkeypatch, tmp_path):
     monkeypatch.setenv("ART98_TRANSPORT", "unix")
-    monkeypatch.setattr(service, "START_TIMEOUT", 0.5)
     settings = make_settings(tmp_path)
-    engine = FakeEngine(settings.work_dir)
-    with pytest.raises(service.ServiceError):
+    engine = FakeEngine()
+    with pytest.raises(service.ServiceError):  # nothing serves the socket
         service.start(settings, engine=engine, log=lambda m: None)
-    argv = list(engine.first("run"))
     folder = service.socket_dir(settings)
-    assert f"{folder}:/run/art98" in argv
-    assert argv[argv.index("--unix") + 1] == "/run/art98/serve.sock"
-    assert not any(a.startswith("127.0.0.1:") for a in argv)  # no published port
+    assert engine.first("up")[1]["ART98_SOCKET_DIR"] == str(folder)
     assert folder.parent == tmp_path / "run" / "art98"
     assert (
         folder.name.startswith("art98-vm-") and len(folder.name) == len("art98-vm-") + 8
     )
+    assert not folder.exists()  # the failed start took it down again
 
 
 def test_start_needs_the_prepared_image_and_the_container_image(tmp_path, live):
     (live.work_dir / "image.json").unlink()
     with pytest.raises(ImageMissing, match="art98 up"):
-        service.start(live, engine=FakeEngine(live.work_dir))
+        service.start(live, engine=FakeEngine())
     (live.work_dir / "image.json").write_text("{}")
     with pytest.raises(ContainerError, match="art98 up"):
-        service.start(live, engine=FakeEngine(live.work_dir, image=False))
+        service.start(live, engine=FakeEngine(image=False))
 
 
 # ---- start: what it deletes ----
@@ -195,40 +175,31 @@ def runs(settings):
     return folder
 
 
-def test_start_deletes_run_copies_and_a_stale_cidfile_when_nothing_runs(served, live):
+def test_start_takes_down_a_stopped_container_and_its_run_copies(served, live):
     folder = runs(live)
-    (live.work_dir / "vm.cid").write_text("stale")
-    engine = FakeEngine(live.work_dir, stopped=["dead1"])
+    engine = FakeEngine(stopped=["dead1"])
     service.start(live, engine=engine, log=lambda m: None)
     assert not (folder / "vm-old").exists()
     assert (folder / "render-keep").exists()  # only vm-* goes
-    assert engine.cidfile_existed is False
-    # the stopped one was removed by id, after `stop -t`
-    assert ("stop", "-t", "20", "dead1") in engine.calls
-    assert (
-        engine.verbs().index("stop")
-        < engine.verbs().index("rm")
-        < engine.verbs().index("run")
-    )
+    assert engine.verbs().index("down") < engine.verbs().index("up")
 
 
-def test_start_keeps_run_copies_while_a_labelled_container_answers(served, live):
+def test_start_keeps_run_copies_while_a_running_container_answers(served, live):
     folder = runs(live)
-    engine = FakeEngine(live.work_dir, running=["live1"])
+    engine = FakeEngine(running=["live1"])
     logs = []
     service.start(live, engine=engine, log=logs.append)
     assert "already running" in logs
     assert (folder / "vm-old").exists()
-    assert "run" not in engine.verbs() and "rm" not in engine.verbs()
+    assert engine.verbs() == ["ps"]
 
 
-def test_start_replaces_a_running_container_that_does_not_answer(tmp_path, monkeypatch):
-    monkeypatch.setattr(service, "START_TIMEOUT", 0.3)
+def test_start_replaces_a_running_container_that_does_not_answer(tmp_path):
     settings = make_settings(tmp_path, port=free_port())
-    engine = FakeEngine(settings.work_dir, running=["sick1"])
+    engine = FakeEngine(running=["sick1"])
     with pytest.raises(service.ServiceError):  # the new one never answers either
         service.start(settings, engine=engine, log=lambda m: None)
-    assert ("stop", "-t", "20", "sick1") in engine.calls
+    assert engine.verbs()[:3] == ["ps", "down", "up"]
 
 
 # ---- start: failures ----
@@ -260,12 +231,10 @@ def test_an_old_image_fails_start_at_once_with_the_image_older_message(tmp_path)
     listener = old_serve(port)
     try:
         settings = make_settings(tmp_path, port=port[0])
-        engine = FakeEngine(settings.work_dir)
-        began = time.monotonic()
+        engine = FakeEngine()
         with pytest.raises(service.Unhealthy, match="older than the code.*--rebuild"):
             service.start(settings, engine=engine, log=lambda m: None)
-        assert time.monotonic() - began < 10  # not a 120 s poll
-        assert ("stop", "-t", "20", CID) in engine.calls  # and the container is gone
+        assert engine.verbs()[-1] == "down"  # and the container is gone
     finally:
         listener.close()
 
@@ -274,47 +243,43 @@ def test_start_without_a_ready_snapshot_stops_the_container(tmp_path):
     served = Served(tmp_path, snapshots=())
     try:
         settings = make_settings(tmp_path, port=served.address[1])
-        engine = FakeEngine(settings.work_dir)
+        engine = FakeEngine()
         with pytest.raises(service.Unhealthy, match="no `ready` snapshot"):
             service.start(settings, engine=engine, log=lambda m: None)
-        assert "rm" in engine.verbs()
+        assert engine.verbs()[-1] == "down"
     finally:
         served.close()
+
+
+def test_a_failed_up_names_compose_and_the_logs_then_takes_it_down(live):
+    engine = FakeEngine(fail={"up"})
+    with pytest.raises(service.ServiceError) as caught:
+        service.start(live, engine=engine, log=lambda m: None)
+    message = str(caught.value)
+    assert message.startswith("the VM did not start: dependency failed")
+    assert "[serve] the last words" in message
+    assert engine.verbs()[-2:] == ["logs", "down"]
 
 
 # ---- stop ----
 
 
-def test_stop_stops_before_rm_by_id_and_keeps_the_token(live):
-    cid_file = live.work_dir / "vm.cid"
-    cid_file.write_text("abc123")
+def test_stop_takes_the_project_down_and_keeps_the_token(live):
     folder = service.socket_dir(live)
     folder.mkdir(parents=True)
-    engine = FakeEngine(live.work_dir)
-    service.stop(live, engine=engine, log=lambda m: None)
-    assert ("stop", "-t", "20", "abc123") in engine.calls
-    assert ("rm", "abc123") in engine.calls
-    assert engine.verbs().index("stop") < engine.verbs().index("rm")
-    assert not any(
-        "art98-vm" in a for c in engine.calls for a in c
-    )  # never the bare name
-    assert not cid_file.exists() and not folder.exists()
+    engine = FakeEngine(running=["abc123"])
+    logs = []
+    service.stop(live, engine=engine, log=logs.append)
+    assert engine.first("down")[0] == ("down", "--remove-orphans")
+    assert logs == ["stopped abc123"]
+    assert not folder.exists()
     assert (live.work_dir / "vm.token").exists()
 
 
-def test_stop_refuses_a_container_labelled_for_another_work_dir(live):
-    (live.work_dir / "vm.cid").write_text("abc123")
-    engine = FakeEngine(live.work_dir, label="/somewhere/else")
-    with pytest.raises(service.ServiceError, match="refusing to stop abc123"):
-        service.stop(live, engine=engine, log=lambda m: None)
-    assert "stop" not in engine.verbs() and "rm" not in engine.verbs()
-    assert (live.work_dir / "vm.cid").exists()
-
-
-def test_stop_without_a_cidfile_finds_the_container_by_label(live):
-    engine = FakeEngine(live.work_dir, running=["byLabel"])
-    service.stop(live, engine=engine, log=lambda m: None)
-    assert ("stop", "-t", "20", "byLabel") in engine.calls
+def test_stop_with_nothing_there_says_so(live):
+    logs = []
+    service.stop(live, engine=FakeEngine(), log=logs.append)
+    assert logs == ["nothing to stop"]
 
 
 # ---- attach ----
@@ -381,7 +346,7 @@ def test_attach_resumes_reverts_then_pings_and_releases_paused(served, live):
         assert names.index("resume") < names.index("load_snapshot")
         assert session.bridge.ping() >= 1
     deadline = time.monotonic() + 5
-    while not service.status(live, engine=FakeEngine(live.work_dir))["paused"]:
+    while not service.status(live, engine=FakeEngine())["paused"]:
         assert time.monotonic() < deadline
         time.sleep(0.01)
     assert served.thread.is_alive()  # release leaves serve running
@@ -488,7 +453,7 @@ def test_wait_never_retries_unhealthy(tmp_path):
 
 
 def test_status_takes_no_lock_while_a_render_holds_the_vm(served, live):
-    engine = FakeEngine(live.work_dir)
+    engine = FakeEngine()
     with service.attach(live):
         reply = service.status(live, engine=engine)
         assert reply["running"] and reply["busy"] and not reply["paused"]
@@ -497,9 +462,17 @@ def test_status_takes_no_lock_while_a_render_holds_the_vm(served, live):
         assert reply["vnc"] is None
 
 
+def test_status_reads_the_vnc_port_off_the_vm_services_container(served, live):
+    engine = FakeEngine(running=["abc123"])
+    ports = {("abc123", 5900): ("127.0.0.1", 5900)}
+    engine.port = lambda cid, port: ports[cid, port]
+    reply = service.status(live, engine=engine)
+    assert (reply["container"], reply["vnc"]) == ("abc123", "127.0.0.1:5900")
+
+
 def test_status_of_a_dead_port_is_down_not_an_error(tmp_path):
     settings = make_settings(tmp_path, port=free_port())
-    reply = service.status(settings, engine=FakeEngine(settings.work_dir))
+    reply = service.status(settings, engine=FakeEngine())
     assert reply["running"] is False
 
 
@@ -587,36 +560,8 @@ def test_start_creates_the_token_0600(served, tmp_path):
     token.unlink()
     # start creates a random token, which the harness rejects: it must still be 0600
     with pytest.raises(service.ServiceError):
-        service.start(
-            settings, engine=FakeEngine(settings.work_dir), log=lambda m: None
-        )
+        service.start(settings, engine=FakeEngine(), log=lambda m: None)
     assert stat.S_IMODE(token.stat().st_mode) == 0o600
-
-
-# ---- stop and remove safety ----
-
-
-def test_remove_treats_a_failed_inspect_as_already_gone(live):
-    engine = FakeEngine(live.work_dir, fail={"inspect"})
-    service._remove(engine, "gone1", live.work_dir, log=lambda m: None)
-    assert "stop" not in engine.verbs() and "rm" not in engine.verbs()
-
-
-def test_start_refuses_a_label_mismatch_and_keeps_the_run_copies(served, live):
-    folder = runs(live)
-    engine = FakeEngine(live.work_dir, stopped=["other1"], label="/somewhere/else")
-    with pytest.raises(service.ServiceError, match="refusing to stop other1"):
-        service.start(live, engine=engine, log=lambda m: None)
-    assert (folder / "vm-old").exists()
-    assert "run" not in engine.verbs() and "stop" not in engine.verbs()
-
-
-def test_stop_falls_back_to_rm_f_when_stop_times_out(live):
-    (live.work_dir / "vm.cid").write_text("abc123")
-    engine = FakeEngine(live.work_dir, fail={"stop"})
-    service.stop(live, engine=engine, log=lambda m: None)
-    assert ("rm", "-f", "abc123") in engine.calls
-    assert ("rm", "abc123") not in engine.calls
 
 
 @pytest.mark.parametrize(
@@ -643,13 +588,10 @@ def test_an_unanswering_guest_is_named_for_the_step_that_failed(
 # ---- container clients: connect host, token_file, transport ----
 
 
-def test_a_client_dials_the_connect_host_not_bind(tmp_path):
-    s = make_settings(tmp_path, bind="0.0.0.0", connect="vm.example")
+def test_a_client_dials_the_connect_host_else_loopback(tmp_path):
+    s = make_settings(tmp_path, connect="vm.example")
     assert service._address(s) == ("vm.example", 7598)
-    assert service._address(make_settings(tmp_path, bind="0.0.0.0")) == (
-        "127.0.0.1",
-        7598,
-    )
+    assert service._address(make_settings(tmp_path)) == ("127.0.0.1", 7598)
 
 
 def test_the_settings_transport_picks_unix_and_the_env_still_wins(
@@ -662,18 +604,16 @@ def test_the_settings_transport_picks_unix_and_the_env_still_wins(
     assert isinstance(service._address(s), tuple)
 
 
-def test_start_writes_the_token_to_token_file_and_mounts_it(served, tmp_path):
+def test_start_writes_the_token_to_token_file_and_hands_it_to_compose(served, tmp_path):
     outside = tmp_path / "keys" / "deep" / "vm.token"
     settings = make_settings(tmp_path, port=served.address[1], token_file=str(outside))
     (settings.work_dir / "vm.token").unlink()
-    engine = FakeEngine(settings.work_dir)
+    engine = FakeEngine()
     with pytest.raises(service.ServiceError):  # the harness rejects a random token
         service.start(settings, engine=engine, log=lambda m: None)
     assert stat.S_IMODE(outside.stat().st_mode) == 0o600
     assert not (settings.work_dir / "vm.token").exists()
-    argv = list(engine.first("run"))
-    assert f"{outside}:/run/secrets/art98_token:ro" in argv
-    assert argv[argv.index("--token-file") + 1] == "/run/secrets/art98_token"
+    assert engine.first("up")[1]["ART98_TOKEN_PATH"] == str(outside)
 
 
 def test_attach_reads_the_token_from_token_file_without_work(served, tmp_path):
@@ -688,7 +628,7 @@ def test_attach_reads_the_token_from_token_file_without_work(served, tmp_path):
     assert not settings.work_dir.exists()
     with service.attach(settings, revert=False) as session:
         assert session.bridge.ping() is not None
-    assert service.status(settings, engine=FakeEngine(tmp_path))["running"]
+    assert service.status(settings, engine=FakeEngine())["running"]
 
 
 def test_a_given_token_beats_the_env_and_the_file(served, tmp_path, monkeypatch):
@@ -709,7 +649,7 @@ def test_a_given_token_beats_the_env_and_the_file(served, tmp_path, monkeypatch)
 
 
 def test_not_running_names_the_connect_host_and_port(tmp_path):
-    s = make_settings(tmp_path, port=free_port(), connect="127.0.0.1", bind="0.0.0.0")
+    s = make_settings(tmp_path, port=free_port(), connect="127.0.0.1")
     with (
         pytest.raises(service.NotRunning, match=rf"127\.0\.0\.1:{s.control}\b"),
         service.attach(s),

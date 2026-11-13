@@ -45,7 +45,8 @@ New words are in the [glossary](docs/glossary.md).
 ## What you need
 
 - Linux. Other systems may work through Docker Desktop but have not been tried.
-- Docker, or Podman with the `podman-docker` package. art98 only ever runs the `docker` command.
+- Docker with its compose plugin, or Podman with the `podman-docker` and `docker-compose`
+  packages. art98 only ever runs `docker compose`, on the committed `compose.yaml`.
 - Python 3.11 or newer, and [uv](https://docs.astral.sh/uv/).
 - ffmpeg.
 - Your own Windows 98 SE disc image (an `.iso`) and its product key. The disc must boot from
@@ -78,8 +79,12 @@ uv run art98 up --iso /path/to/win98se.iso
 
 This builds the container image, asks for your product key at a visible prompt (or reads
 `ART98_PRODUCT_KEY`), installs Windows into `work/` with no further input, and stops. It takes
-20 to 40 minutes. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the install.
-If it stops part way, run the same command again: it resumes.
+20 to 40 minutes. If it stops part way, run the same command again: it resumes.
+
+To keep the key, the disc path or a VNC view of the install on your machine, copy
+`compose.override.example.yaml` to `compose.override.yaml` and edit it. That file and
+`product-key.txt` are gitignored: never commit a key. See
+[configuration](docs/setup/config.md#where-each-setting-lives).
 
 **3. Start the VM.**
 

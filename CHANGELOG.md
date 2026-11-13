@@ -7,6 +7,16 @@ All notable changes to art98 are listed here. The format follows
 
 ## [Unreleased]
 
+### Removed
+
+- `art98 vm start --vnc`, `art98 up --watch` and `art98 up --vnc-port`, and the `[ports] bind`,
+  `vnc` and `setup_vnc` keys. Published ports are on `127.0.0.1` only; turn VNC on in
+  `compose.override.yaml` (`ART98_VNC: "1"` and a port), as `compose.override.example.yaml`
+  shows. An `art98.toml` that still has the keys stops with an error: delete them.
+- `work/vm.cid` and the `art98.work` label check: compose finds the container by its project.
+  After updating, remove an old stopped `art98-vm` container once with `docker rm art98-vm`,
+  or `vm start` stops on the name being in use; delete `work/vm.cid` if it is there.
+
 ### Added
 
 - A client can be handed the VM token instead of reading a token file: `Settings.token` (for a
@@ -17,6 +27,16 @@ All notable changes to art98 are listed here. The format follows
 
 ### Changed
 
+- The containers run from a committed `compose.yaml` instead of `docker run` commands built in
+  Python. `art98 up` runs `docker compose build` and `docker compose run --rm setup`, and
+  `art98 vm start`/`stop` run `docker compose up -d --wait`/`down`, one compose project per work
+  folder. art98 now needs Docker's compose plugin, or `podman-docker` and `docker-compose` on a
+  Podman host (`podman-compose` does not work). Your own settings for the containers (a product
+  key file, the disc, VNC) go in a gitignored `compose.override.yaml`; start from
+  `compose.override.example.yaml`. See [configuration](docs/setup/config.md#where-each-setting-lives).
+- `art98 up` checks the disc and the key before it starts setup, and `--iso` together with a disc
+  mounted in `compose.override.yaml` is an error.
+- `[ports] connect` defaults to `127.0.0.1`.
 - `examples/` is now `recipes/`. Scenes are in `recipes/scenes/`, and modules that scenes import are in
   `recipes/helpers/` (`from helpers.<module> import ...`). The folder is on the path for `uv run`
   and is not part of the wheel.

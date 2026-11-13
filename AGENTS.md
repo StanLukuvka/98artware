@@ -67,8 +67,10 @@ image. Which tests a change needs:
   share. Never copy, commit or upload anything from `work/`, including `work/runs/`. Reading your
   own setup logs and screenshots there is fine. `.gitignore` and `.dockerignore` keep it out;
   keep them that way.
-- **Windows 98 product keys** are public and reusable, not secrets; still never add one to the
-  repo: you supply your own.
+- **Windows 98 product keys** are public and reusable, not secrets; still never put one in the
+  repo, in any file, test or doc: you supply your own. A key lives in `ART98_PRODUCT_KEY`, the
+  `art98 up` prompt, or a key file named in `compose.override.yaml` (`product-key.txt` by
+  convention). Both files are in `.gitignore` and `.dockerignore`; keep them there.
 - **Prep and the `ready` snapshot need an issue first**, as in
   [CONTRIBUTING.md](CONTRIBUTING.md#scope). That means `setup/art98_setup/` steps that change the
   image, the answer file, `ready.py`, and anything that would need a new `art98 setup` run. Do at
@@ -102,7 +104,9 @@ image. Which tests a change needs:
 | `core/art98/win32.py` | Win32 constants and small named guest reads. Put a new constant or a repeated guest read here, not inline |
 | `core/art98/bridge.py`, `protocol.py` | The host side of the agent protocol. Transport only |
 | `core/art98/session.py` | `Session`: a VM and a bridge, with `revert`. `boot_local`/`stage` are host QEMU for experiments only |
-| `core/art98/service.py`, `container/` | The VM service: `start`, `stop`, `status`, and `attach()` for Python callers; `serve.py` runs inside the container, `host.py` on the host |
+| `core/art98/service.py`, `container/` | The VM service: `start`, `stop`, `status`, and `attach()` for Python callers; `serve.py` runs inside the container, `host.py` and `compose.py` on the host |
+| `compose.yaml`, `compose.tcp.yaml` | How the containers run (`vm`, and `setup` behind a profile). A new mount, port or container variable goes here, not in Python; every published port stays on `127.0.0.1` |
+| `compose.override.example.yaml` | The start for a user's own `compose.override.yaml` (gitignored): key file, disc, VNC |
 | `core/art98/recorder.py` | `Recorder`: frames to clips, `cut()`, the join |
 | `core/art98/state.py` | Reading and checking state JSON files |
 | `core/art98/desktop.py` | The blank start |

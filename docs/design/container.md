@@ -1,8 +1,9 @@
 # Container
 
 The Windows 98 VM runs in a Docker container. The host keeps Python and ffmpeg and
-needs nothing else. art98 calls only `docker`; on a Podman host the `podman-docker` package
-provides that command, and art98 never asks which engine is behind it. One command goes from your
+needs nothing else. How the containers run is written down in [compose.yaml](../../compose.yaml),
+and art98 calls only `docker compose`; on a Podman host the `podman-docker` and `docker-compose`
+packages provide that command, and art98 never asks which engine is behind it. One command goes from your
 disc image and product key to a prepared image, and `art98 vm start` runs the VM.
 [The VM service](#the-vm-service) explains the split.
 
@@ -27,7 +28,7 @@ None of them go into the image. The image holds only programs, so it can be rebu
 | What | Size | How it gets in |
 | --- | --- | --- |
 | Disc image (ISO) | about 650 MB | Bind-mounted read-only, for `up` and `setup` only. |
-| Product key | | A file mounted read-only at `/run/secrets/art98_key`, where setup reads it. The file is deleted when setup ends, so a resumed setup asks again. Windows 98 product keys are public and reusable, so this is about keeping the image clean, not about secrecy. |
+| Product key | | The compose secret `art98_key`, a file mounted read-only at `/run/secrets/art98_key`, where setup reads it. It comes from `ART98_PRODUCT_KEY` or the prompt, or from a key file named in the gitignored `compose.override.yaml`. Windows 98 product keys are public and reusable, so this is about keeping the image and the repository clean, not about secrecy. |
 | `work/` | about 1.6 GB here | Bind-mounted read-write. It keeps the existing `golden.qcow2` and its `ready` snapshot. |
 | Run copies | 416 MB each, mostly shared | Made inside the mounted `work/runs` with `cp --reflink=auto`, so on btrfs or XFS they cost almost nothing. Elsewhere it is a full copy. |
 
@@ -44,6 +45,10 @@ The container code is split by job:
 
 | File | Job |
 | --- | --- |
+| [compose.yaml](../../compose.yaml) | The `vm` and `setup` services: build, mounts, secrets, healthcheck, commands |
+| [compose.tcp.yaml](../../compose.tcp.yaml) | On top of it for the tcp transport: the loopback port instead of the socket folder |
+| [compose.override.example.yaml](../../compose.override.example.yaml) | A start for your own `compose.override.yaml`: the key file, the disc, VNC |
+| [core/art98/container/compose.py](../../core/art98/container/compose.py) | The compose project name, files and `ART98_*` variables art98 passes it |
 | [setup/Dockerfile](../../setup/Dockerfile) | The image, built with the repository root as its context |
 | [.dockerignore](../../.dockerignore) | What stays out of that context: `work/` above all |
 | [setup/art98_setup/up.py](../../setup/art98_setup/up.py) | `art98 up`: builds the image, runs setup in it, copies the guest programs out |
@@ -104,8 +109,8 @@ On start it makes the run copy under `work/runs/vm-*`, starts QEMU with `-loadvm
 answer a ping. It then listens on port 7598 inside the container, or with `--unix PATH` on a
 Unix socket. Each connection starts with two lines:
 
-1. the token from `work/vm.token`, which `art98 vm start` makes once and mounts (at
-   `/run/secrets/art98_token` when `[vm] token_file` puts it elsewhere). A wrong token
+1. the token from `work/vm.token` (or `[vm] token_file`), which `art98 vm start` makes once
+   and compose mounts as the secret at `/run/secrets/art98_token`. A wrong token
    gets `error wrong token` and the connection closes;
 2. the channel: `agent`, `control` or `status`.
 
@@ -138,15 +143,17 @@ The `status` channel answers one JSON line with `busy`, `paused`, `snapshots` an
 then closes. It takes no lock and asks QEMU nothing, so it is safe during a render.
 
 serve runs until `art98 vm stop` or until QEMU dies. The VM outlives the host script and stays
-paused until `vm stop`. The container has `--init` and no `--rm`: `vm stop` sends SIGTERM through
-`--init`, serve deletes its run copy on the way out, and then the container is removed. A crashed
-container keeps its logs for `docker logs`. Only a SIGKILL of the container leaves its run copy in
+paused until `vm stop`. The container has `init: true`: `vm stop` runs `compose down`, which sends
+SIGTERM through init, serve deletes its run copy on the way out, and then the container is
+removed. A container that crashed during `vm start` has its last 20 log lines printed before it
+is taken down. Only a SIGKILL of the container leaves its run copy in
 `work/runs/vm-*`, and the next `vm start` deletes it.
 
 ### On the host
 
 - `art98/container/host.py`: `Engine` runs `docker`, or the binary `ART98_ENGINE` names, and
-  `open_channel` opens the token handshake. `RemoteVM` has the methods the scene layer uses on
+  `open_channel` opens the token handshake. `art98/container/compose.py` puts `compose`, the
+  project and the files in front of each command. `RemoteVM` has the methods the scene layer uses on
   `VM`: `screenshot`, `send_keys`, `load_snapshot`, `insert_disc`, `eject_disc`, `pause`, `resume`,
   `close`. `close` releases the VM; it does not stop it.
 - `art98/service.py`: `start`, `stop` and `status` for the container, and `attach`, which a render
@@ -159,16 +166,20 @@ container keeps its logs for `docker logs`. Only a SIGKILL of the container leav
 - `revert`, the recorder and every scene are unchanged: they only see `Session.vm` and
   `Session.bridge`.
 
-On Linux the host makes a private folder under `$XDG_RUNTIME_DIR/art98/` (mode 0700) and mounts it at
-`/run/art98`, and serve listens on `/run/art98/serve.sock`. Elsewhere, or with
-`ART98_TRANSPORT=tcp`, the port is published as `-p <bind>:<control>:7598`, by default `-p 127.0.0.1:7598:7598`, a fixed host port on
-loopback only. The agent runs any Win32 call it's given, so the link must never be reachable
-from the network, and the token stops other local users from connecting. A client in another
-container attaches by setting `bind` to an address that container can reach, such as the
-`docker0` gateway, and is given only the token file
-([how](../setup/config.md#attach-from-another-container)).
+On Linux the host makes a private folder under `$XDG_RUNTIME_DIR/art98/` (mode 0700), compose
+mounts it at `/run/art98`, and serve listens on `/run/art98/serve.sock`. Elsewhere, or with
+`ART98_TRANSPORT=tcp`, art98 adds `compose.tcp.yaml`, which publishes `127.0.0.1:<control>:7598`,
+a fixed host port on loopback only. The agent runs any Win32 call it's given, so the link must
+never be reachable from the network, and the token stops other local users from connecting. A
+client in another container attaches through a port the user adds in `compose.override.yaml`
+on an address that container can reach, such as the `docker0` gateway, and is given only the
+token file ([how](../setup/config.md#attach-from-another-container)).
 
-`work/` is mounted with `--security-opt label=disable`, so SELinux doesn't need the files in it
+The healthcheck passes once the socket (or port) exists, and serve listens only after the guest
+agent has answered, so `compose up --wait` is the readiness gate. It checks every 5 s, and every
+second while starting on Docker; Podman ignores `start_interval`.
+
+`work/` is mounted with `security_opt: [label=disable]`, so SELinux doesn't need the files in it
 relabelled.
 
 ### Who owns what the container writes
@@ -179,7 +190,8 @@ it is the host's real root, and they would come out root's. `--user $(id -u)` is
 rootless Podman that uid maps to a subordinate id that can't write your files.
 
 So the decision is made inside the container, and the host never asks which engine it has.
-The host passes `-e ART98_HOST_UID=$(id -u) -e ART98_HOST_GID=$(id -g)` on every run. The image's
+art98 passes `ART98_HOST_UID` and `ART98_HOST_GID` (your uid and gid) to compose, which sets
+them on every container. The image's
 entry point, [entry.py](../../core/art98/container/entry.py), reads `/proc/self/uid_map`. The
 identity map, `0 0 4294967295`, means the container shares the host's user namespace, so it
 drops to that uid and gid (`setgroups([])`, `setgid`, `setuid`) and sets `HOME=/tmp` before
@@ -189,11 +201,13 @@ user's and mode 0600, so they stay readable after the switch.
 
 ### `art98 up`, on the host
 
-It builds the image if it isn't there (or with `--rebuild`), reads the key, runs setup in the
-container, and copies the guest programs out. It passes `--load` when `docker build` has it, since
-Docker CE's CLI against a Podman socket otherwise leaves the image in a buildx cache, and fails if
-the engine's image isn't the ID the build reported. The key file is deleted when setup ends,
-finished or not, so a rerun asks for the key again. The other steps are in
+It builds the image with `compose build vm` if it isn't there (or with `--rebuild`), copies
+the guest programs out, and runs setup with `compose run --rm setup`. It fails if the engine
+holds no image under the name after the build: Docker CE's CLI against a Podman socket used to
+leave it in a buildx cache. Before the run it reads compose's resolved config and checks the disc
+and the key, because compose stops only after it has made the container, and leaves it behind.
+A key that is not in a file comes from `ART98_PRODUCT_KEY` or a prompt, and reaches compose in
+its environment, so a rerun asks for it again. The other steps are in
 [art98 up](../setup/cli.md). `up` stops before starting the VM and prints `art98 vm start`.
 
 ## The VM service
@@ -201,12 +215,13 @@ finished or not, so a rerun asks for the key again. The other steps are in
 The VM is one long-lived container, not a stage booted for each render. The split:
 
 - `art98 up` builds the image and prepares `work/`, then stops and prints `art98 vm start`.
-- `art98 vm start` starts one container, `art98-vm` by default, from the image. It carries the
-  label `art98.work=<work folder>`, and writes `work/vm.token` (mode 0600, kept between starts)
-  and `work/vm.cid`. The VM is left paused at `ready`.
+- `art98 vm start` runs `compose up -d --wait vm`: one container, `art98-vm` by default, in the
+  compose project `art98-<hash8>` of the work folder, so `down` never touches another checkout's
+  VM. It writes `work/vm.token` first (mode 0600, kept between starts). The VM is left paused at
+  `ready`.
 - `art98 render` and `art98 ping` attach to the running VM. Without one they fail at once and say
   to run `art98 vm start`. `--wait S` waits for a busy VM.
-- `art98 vm stop` stops the container, removes it and deletes the run copy.
+- `art98 vm stop` runs `compose down`: it stops the container, removes it and deletes the run copy.
 - `art98 vm status` reads the `status` channel and the engine. It takes no lock.
 
 **The lock.** The control connection is the lock. The first one wins, and the others are refused

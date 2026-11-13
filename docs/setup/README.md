@@ -38,8 +38,8 @@ system sounds and power saving off, and `C:\ART98\AGENT.EXE` already running.
   disc only, see [what a different disc needs](troubleshooting.md#a-different-disc).
 - **Docker and ffmpeg**, for the [container path](#quick-path-in-a-container).
   The container holds QEMU 10.2.2, mtools, 7-Zip and the guest programs, so the host needs
-  nothing else. art98 calls only `docker`. On a Podman host, install `podman-docker`, which
-  provides that command.
+  nothing else. art98 calls only `docker compose`. On a Podman host, install `podman-docker`
+  and `docker-compose`, which provide that command.
 - **Or, for [setup on the host](#quick-path-on-the-host), Linux with these tools.** Rendering
   still runs the VM in the container, so the host path also needs the image from `art98 up`.
   `art98 doctor` checks them.
@@ -87,8 +87,9 @@ uv run art98 up --iso /path/to/win98se.iso
 ```
 
 Give it your product key at the prompt (the key is shown as you type), or set
-`ART98_PRODUCT_KEY` first. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the
-screen. If setup stops, read the error and run the same command again: it resumes, and asks for
+`ART98_PRODUCT_KEY` first, or name a key file in `compose.override.yaml` (start from
+`compose.override.example.yaml`; it is gitignored, and a key never goes in the repository). The
+same file can turn on VNC, so a viewer at `127.0.0.1:5998` shows the screen. If setup stops, read the error and run the same command again: it resumes, and asks for
 the key again. For `Windows rejected the product key`, see
 [troubleshooting](troubleshooting.md#windows-rejected-the-product-key). Once setup is done, `up`
 skips it and prints `art98 vm start`.
@@ -106,32 +107,25 @@ how it works, and [configuration](config.md) for the ports and the work folder.
 
 ### By hand
 
-`art98 up` runs these. Build the image from the repository root:
+`art98 up` runs these, on [compose.yaml](../../compose.yaml) at the repository root. Build the
+image from there:
 
 ```bash
-docker build -t localhost/art98:latest -f setup/Dockerfile .
+docker compose build vm
 ```
 
-Put the key in a file. The container reads it from `/run/secrets/art98_key`, so the file is
-mounted read-only there:
+Run setup, with `work/` and the disc mounted and the key as the compose secret `art98_key`
+(mounted read-only at `/run/secrets/art98_key`). `ART98_HOST_UID` and `ART98_HOST_GID` make the
+files setup writes in `work/` yours on rootful Docker. Rootless engines ignore them, since their
+root is you already. Leave out `ART98_PRODUCT_KEY=...` if `compose.override.yaml` names a key
+file:
 
 ```bash
-printf %s "XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" > "$XDG_RUNTIME_DIR/art98_key"
+ART98_HOST_UID=$(id -u) ART98_HOST_GID=$(id -g) ART98_ISO=/path/to/win98se.iso ART98_PRODUCT_KEY=XXXXX-XXXXX-XXXXX-XXXXX-XXXXX docker compose run --rm setup
 ```
 
-Run setup, with `work/`, the disc and the key mounted. `ART98_HOST_UID` and `ART98_HOST_GID`
-make the files setup writes in `work/` yours on rootful Docker. Rootless engines ignore them,
-since their root is you already:
-
-```bash
-docker run --rm --init --security-opt label=disable -v "$PWD/work:/work" -e ART98_HOST_UID=$(id -u) -e ART98_HOST_GID=$(id -g) -v /path/to/win98se.iso:/media/win98.iso:ro -v "$XDG_RUNTIME_DIR/art98_key:/run/secrets/art98_key:ro" localhost/art98:latest setup --work /work --iso /media/win98.iso
-```
-
-Then delete the file; it is only a copy of the key:
-
-```bash
-rm "$XDG_RUNTIME_DIR/art98_key"
-```
+A key typed on a command line stays in your shell history; `art98 up` asks for it at a prompt
+instead.
 
 `art98 vm start` then runs the VM ([art98 serve](cli.md#art98-serve)). Which file does what is in
 [the container design](../design/container.md#the-image).

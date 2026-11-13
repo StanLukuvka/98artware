@@ -1,149 +1,111 @@
 """`art98 up`: build the container image, then the Windows image inside it.
 
-The image is built from setup/Dockerfile, with the repository root as the build
-context. Running a stage in the container afterwards is core's job, in
-art98.container.
+Both run through compose (see compose.yaml and art98.container.compose): the
+image is built from setup/Dockerfile with the repository root as the build
+context, and the install runs once in the `setup` service. Running the VM
+afterwards is core's job, in art98.service.
 """
 
 from __future__ import annotations
 
+import json
 import os
-import subprocess
-import tempfile
 from pathlib import Path
 
-from art98.container.host import ContainerError, Engine, image_name, mount_args
-from art98.container.serve import VNC_PORT
+from art98.container import compose
+from art98.container.host import ContainerError, Engine
 from art98.freshness import container_warning, inspect_created
-from art98.settings import load
+from art98.settings import Settings, load
 
-KEY_SECRET = "art98_key"
-ROOT = Path(__file__).resolve().parents[2]
-DOCKERFILE = ROOT / "setup" / "Dockerfile"
+KEY_ENV = "ART98_PRODUCT_KEY"
+DISC = "/media/win98.iso"  # where the setup service mounts the disc
+ROOT = compose.ROOT
 
 
-def build_image(engine: Engine, image: str, context: Path = ROOT) -> None:
+def build_image(engine: Engine, settings: Settings) -> None:
     """Build the image from setup/Dockerfile. .dockerignore at the root of the
     context keeps work/ and its disk images out.
 
-    Docker CE's CLI talking to a Podman socket builds in a buildx container
-    builder and keeps the result in its cache, exit code 0. So the build asks
-    for --load where the CLI has it (Podman's own CLI has no such flag), and
-    afterwards the engine's image must carry the ID the build reported."""
-    dockerfile = Path(context) / "setup" / "Dockerfile"
-    if not dockerfile.exists():
-        raise ContainerError(f"{dockerfile} not found; build from an art98 checkout")
-    load = (
-        ["--load"] if b"--load" in engine("build", "--help", check=False).stdout else []
-    )
-    with tempfile.TemporaryDirectory(prefix="art98-build-") as folder:
-        iidfile = Path(folder) / "iid"
-        engine(
-            "build",
-            *load,
-            "--iidfile",
-            str(iidfile),
-            "-t",
-            image,
-            "-f",
-            str(dockerfile),
-            str(context),
-            capture=False,
-        )
-        built = iidfile.read_text().strip() if iidfile.exists() else ""
-    have = engine("image", "inspect", "--format", "{{.Id}}", image, check=False)
-    if not built or have.returncode or _bare(have.stdout.decode()) != _bare(built):
+    A build that leaves no image under the name fails loudly: Docker's CLI against
+    a Podman socket used to keep the result in a buildx builder's cache."""
+    compose.run(engine, settings, "build", "vm", capture=False)
+    if not engine.has_image(settings.image):
         raise ContainerError(
-            f"{engine.name} built {image} but did not store it: its image is not the one just "
-            f"built. Docker's CLI against a Podman socket needs buildx's --load; try "
-            f"`podman build -t {image} -f {dockerfile} {context}`, or point DOCKER_HOST at the "
-            f"engine that should hold the image"
+            f"{engine.name} built {settings.image} but did not store it; point "
+            "DOCKER_HOST at the engine that should hold the image"
         )
 
 
-def _bare(image_id: str) -> str:
-    return image_id.strip().removeprefix("sha256:")
-
-
-def _read_key() -> bytes:
-    """The product key, from ART98_PRODUCT_KEY or a visible prompt.
-
-    Nothing keeps it between runs, so resuming a setup asks again.
-    """
-    key = os.environ.get("ART98_PRODUCT_KEY", "").strip()
-    if not key:
-        key = input("Windows 98 product key: ").strip()
+def _read_key() -> str:
+    """The product key from a visible prompt. Nothing keeps it between runs, so
+    resuming a setup asks again, unless compose.override.yaml names a key file."""
+    key = input("Windows 98 product key: ").strip()
     if not key:
         raise ContainerError(
-            "setup needs your product key: set ART98_PRODUCT_KEY or type it"
+            f"setup needs your product key: type it, set {KEY_ENV}, or name a key "
+            "file in compose.override.yaml"
         )
-    return key.encode()
+    return key
 
 
-def setup_argv(
-    engine: Engine,
-    work: Path,
-    iso: Path,
-    image: str,
-    secret: list[str],
-    watch: bool = False,
-    vnc_port: int | None = None,
-    disk_mb: int = 2047,
-) -> list[str]:
-    vnc_port = vnc_port or load().setup_vnc
-    watching = (
-        [
-            "-p",
-            f"{load().bind}:{vnc_port}:{VNC_PORT}",
-            "-e",
-            f"ART98_WATCH_DISPLAY=vnc=0.0.0.0:{VNC_PORT - 5900}",
-        ]
-        if watch
-        else []
-    )
-    return [
-        engine.path,
-        "run",
-        "--rm",
-        "--init",
-        *mount_args(work),
-        "-v",
-        f"{iso.resolve()}:/media/win98.iso:ro",
-        *secret,
-        *watching,
-        image,
-        "setup",
-        "--work",
-        "/work",
-        "--iso",
-        "/media/win98.iso",
-        "--disk-mb",
-        str(disk_mb),
-        *(["--watch"] if watch else []),
-    ]
+def setup_inputs(engine: Engine, settings: Settings, iso, disk_mb: int) -> dict:
+    """The variables `compose run setup` needs, once the disc and key are known to
+    be there. Compose would otherwise fail half way and leave a container behind.
+
+    The disc is --iso, or the mount in compose.override.yaml. The key is the key
+    file compose.override.yaml names, else ART98_PRODUCT_KEY, else a prompt."""
+    extra = {"ART98_DISK_MB": str(disk_mb)}
+    if iso is not None:
+        extra["ART98_ISO"] = str(Path(iso).resolve())
+    done = compose.run(
+        engine, settings, "--profile", "setup", "config", "--format", "json",
+        extra=extra,
+    )  # fmt: skip
+    config = json.loads(done.stdout)
+    disc = next(
+        (v.get("source") for v in config["services"]["setup"].get("volumes", [])
+         if v.get("target") == DISC),
+        None,
+    )  # fmt: skip
+    if iso is not None and disc != extra["ART98_ISO"]:
+        raise ContainerError(
+            f"compose.override.yaml mounts the disc {disc}; drop --iso or that mount"
+        )
+    if not disc or not Path(disc).is_file():
+        raise FileNotFoundError(
+            f"no disc at {disc}: pass --iso with your Windows 98 SE disc image, or "
+            "mount it in compose.override.yaml"
+        )
+    secret = config.get("secrets", {}).get("art98_key", {})
+    if "file" in secret:
+        if not Path(secret["file"]).is_file():
+            raise FileNotFoundError(
+                f"no product key file at {secret['file']}, which "
+                "compose.override.yaml names"
+            )
+    elif not os.environ.get(KEY_ENV, "").strip():
+        extra[KEY_ENV] = _read_key()  # compose.yaml's art98_key reads KEY_ENV
+    return extra
 
 
 def up(
     work: Path | str | None = None,
     iso: Path | str | None = None,
-    watch: bool = False,
     rebuild: bool = False,
-    vnc_port: int | None = None,
     disk_mb: int = 2047,
     engine: Engine | None = None,
     log=print,
 ) -> int:
     """`art98 up`: image, key and setup, skipping what is done."""
     engine = engine or Engine()
-    image = image_name()
-    vnc_port = vnc_port or load().setup_vnc
-    work = load(work=work).work_dir  # None: [vm] work from art98.toml
+    settings = load(work=work)  # None: [vm] work from art98.toml
+    image, work = settings.image, settings.work_dir
     exists, created = inspect_created(
         engine, image
     )  # one inspect: has_image would be a second
     if rebuild or not exists:
-        log(f"[up] building {image} with {engine.name}")
-        build_image(engine, image)
+        log(f"[up] building {image} with {engine.name} compose")
+        build_image(engine, settings)
     else:
         log(f"[up] image {image} is built")
         for line in container_warning(created, image):
@@ -155,35 +117,24 @@ def up(
         log(f"[up] copying the guest programs out of the image into {guest}")
         engine.copy_out(image, "/opt/art98/guest/build", guest)
 
-    if not (work / "image.json").exists():
-        if iso is None:
-            raise ContainerError(
-                f"{work} has no prepared image yet; pass --iso with your disc"
-            )
-        iso = Path(iso)
-        if not iso.is_file():
-            raise FileNotFoundError(f"{iso} not found")
+    if (work / "image.json").exists():
+        log(f"[up] {work / 'image.json'} exists, so setup is done")
+    else:
+        extra = setup_inputs(engine, settings, iso, disk_mb)
         work.mkdir(parents=True, exist_ok=True)
-        secret, cleanup = engine.secret_args(_read_key(), KEY_SECRET)
-        if watch:
-            log(f"[up] watch setup with a VNC viewer at {load().bind}:{vnc_port}")
         log(
             "[up] running setup in the container; this usually takes 20 to 30 minutes, longer on a busy host"
         )
-        try:
-            code = subprocess.run(  # noqa: PLW1510
-                setup_argv(engine, work, iso, image, secret, watch, vnc_port, disk_mb)
-            ).returncode
-        finally:
-            cleanup()
+        code = compose.run(
+            engine, settings, "run", "--rm", "--service-ports", "setup",
+            extra=extra, check=False, capture=False,
+        ).returncode  # fmt: skip
         if code != 0:
             log(
                 f"[up] setup stopped with status {code}; see the error above, then run "
                 "`art98 up` again"
             )
             return code
-    else:
-        log(f"[up] {work / 'image.json'} exists, so setup is done")
 
     log(f"[up] ready. Start the VM with: art98 vm start --work {work}")
     return 0

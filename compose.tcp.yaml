@@ -1,0 +1,11 @@
+# Loaded by art98 on top of compose.yaml when the transport is tcp ([vm] transport in
+# art98.toml, or ART98_TRANSPORT): serve listens on TCP, published on loopback only.
+services:
+  vm:
+    volumes: !override
+      - ${ART98_WORK:-./work}:/work
+    ports:
+      - 127.0.0.1:${ART98_CONTROL_PORT:-7598}:7598
+    command: [serve, --work, /work]
+    healthcheck:
+      test: [CMD, python3, -c, "import socket; socket.create_connection(('127.0.0.1', 7598), 2)"]
