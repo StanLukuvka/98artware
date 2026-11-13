@@ -303,6 +303,9 @@ def test_ping_warns_about_stale_programs_before_the_error(
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b"x")
             os.utime(path, (when, when))
+    (root / "guest" / "build" / "sources.sha256").write_text(
+        "0" * 64 + "  call_proxy/agent.c\n"  # a digest that no longer matches
+    )
     monkeypatch.setattr(freshness, "warn", REAL_WARN)
     monkeypatch.setattr(
         freshness,

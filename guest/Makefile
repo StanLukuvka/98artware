@@ -21,13 +21,17 @@ LDFLAGS = -nostdlib -nostartfiles -s -Wl,-e,_entry \
           -Wl,--no-insert-timestamp
 LIBS    = -lkernel32 -luser32 -lgdi32
 
-all: $(OUT)/agent.exe $(OUT)/view.exe $(OUT)/mbr.bin
+all: $(OUT)/agent.exe $(OUT)/view.exe $(OUT)/mbr.bin $(OUT)/sources.sha256
 
 $(OUT)/agent.exe: call_proxy/agent.c | $(OUT)
 	$(MINGW) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
 
 $(OUT)/view.exe: picture_viewer/view.c | $(OUT)
 	$(MINGW) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LIBS)
+
+# What the exes were built from; freshness.py compares these digests to the sources.
+$(OUT)/sources.sha256: call_proxy/agent.c picture_viewer/view.c | $(OUT)
+	sha256sum call_proxy/agent.c picture_viewer/view.c > $@
 
 $(OUT)/mbr.bin: boot_record/mbr.S | $(OUT)
 	$(HOSTAS) --32 -o $(OUT)/mbr.o $<

@@ -35,13 +35,15 @@ from art98.anim import *
 
 
 class Hello(Scene):
+    desktop = "stock"  # made before the blank start, and it shows the pointer
+
     def construct(self):
-        pad = Notepad()
+        pad = Notepad(at=(100, 60), size=(420, 260))
         self.add(pad)
         self.pause(0.5)
         self.play(TypeWithCursor(pad, "hello from 1998"))
         self.wait(1)
-        self.play(pad.animate.shift(280 * RIGHT + 120 * DOWN), run_time=2)
+        self.play(pad.animate.shift(200 * RIGHT + 120 * DOWN), run_time=2)
         self.pause(1)
         self.play(Close(pad))
         self.pause(1)

@@ -15,6 +15,19 @@ All notable changes to art98 are listed here. The format follows
 - `ART98_GUEST_BUILD` points art98 at the guest programs when the library is a copy outside
   the checkout, and `tools/vendor_to_hermes.py` makes that copy for the Hermes plugin.
 
+### Changed
+
+- The guest-program freshness check compares source digests (`guest/build/sources.sha256`,
+  written by `make -C guest`) instead of file times, and the image check uses git commit times
+  in a git checkout. A fresh `art98 up` no longer warns that the guest programs are out of date.
+  After updating, run `make -C guest` once, or `art98 up --rebuild` on a host with only a
+  container engine, so `sources.sha256` exists.
+- `art98 up` says setup usually takes 20 to 30 minutes.
+
+### Fixed
+
+- `examples/hello.py` and its copies in the scene docs place Notepad clear of the desktop icons.
+
 ## [0.1.0] - 2026-11-11
 
 The first release. It is a git tag and a GitHub release. There is no wheel and no sdist: art98

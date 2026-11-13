@@ -150,7 +150,7 @@ def up(
             log(f"[up] warning: {line}")
 
     guest = ROOT / "guest" / "build"
-    if not (guest / "view.exe").exists():
+    if not (guest / "view.exe").exists() or not (guest / "sources.sha256").exists():
         # Scenes copy VIEW.EXE to the guest from the host, so the host needs it too.
         log(f"[up] copying the guest programs out of the image into {guest}")
         engine.copy_out(image, "/opt/art98/guest/build", guest)
@@ -167,7 +167,9 @@ def up(
         secret, cleanup = engine.secret_args(_read_key(), KEY_SECRET)
         if watch:
             log(f"[up] watch setup with a VNC viewer at {load().bind}:{vnc_port}")
-        log("[up] running setup in the container; this takes 20 to 40 minutes")
+        log(
+            "[up] running setup in the container; this usually takes 20 to 30 minutes, longer on a busy host"
+        )
         try:
             code = subprocess.run(  # noqa: PLW1510
                 setup_argv(engine, work, iso, image, secret, watch, vnc_port, disk_mb)

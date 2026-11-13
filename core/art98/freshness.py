@@ -1,12 +1,15 @@
 """Warnings when the image or the guest programs are older than the code.
 
-Warnings only: nothing here stops a render. Mtimes are compared, and an
-installed package (no guest/ or setup/Dockerfile beside it) gets none. The
+Warnings only: nothing here stops a render. The guest programs are checked by
+content (guest/build/sources.sha256), the rest by git commit time, because a clone
+or pull resets file mtimes. An installed package (no guest/ or setup/Dockerfile beside it) gets none. The
 engine image check (`container_warning`) is for `vm status` and `up`.
 """
 
 from __future__ import annotations
 
+import hashlib
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -51,16 +54,88 @@ def inspect_created(engine, image: str) -> tuple[bool, float | None]:
     return True, parse_created(done.stdout.decode(errors="replace"))
 
 
+def digests(path: Path) -> dict[str, str] | None:
+    """Parse `sha256sum` output into {name: hex}. None when the file is absent or unreadable."""
+    try:
+        text = path.read_text()
+    except (OSError, UnicodeDecodeError):
+        return None
+    found = {}
+    for line in text.splitlines():
+        hexsum, _, name = line.partition("  ")
+        if hexsum and name:
+            found[name.lstrip("*")] = hexsum
+    return found
+
+
+def source_digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _git(root: Path, *args: str) -> str | None:
+    """Stdout of `git -C root ...`, None on any failure."""
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(root), *args],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return done.stdout.decode(errors="replace") if done.returncode == 0 else None
+
+
+def _content_commit_time(root: Path, path: str) -> float | None:
+    """Time of the newest commit that changed `path`'s content: pure moves (R100) are skipped.
+    0 when no commit has it, None on a git failure."""
+    log = _git(
+        root, "log", "--follow", "-M", "--name-status", "--format=%ct", "--", path
+    )
+    if log is None:
+        return None
+    when = 0.0
+    for line in log.splitlines():
+        if line.isdigit():
+            when = float(line)
+        elif line and not line.startswith("R100"):
+            return when
+    return 0.0
+
+
+def code_changed_since(root: Path, paths: list[str], since: float) -> bool:
+    """True when a listed file (relative to root) changed after `since`.
+
+    In a git checkout of root: the last commit time of the files, plus the mtime of files
+    git lists as modified or untracked (a pull resets mtimes but not commit times).
+    Otherwise (no git, not root's own repo, any git failure): the mtime rule, only for
+    files over 60 s newer than `since`."""
+    files = [p for p in paths if (root / p).is_file()]
+    if not files:
+        return False
+    top = _git(root, "rev-parse", "--show-toplevel")
+    if top is not None and Path(top.strip()).resolve() == root.resolve():
+        times = [_content_commit_time(root, f) for f in files]
+        status = _git(root, "status", "--porcelain", "--", *files)
+        if None not in times and status is not None:
+            if max(times) > since:  # type: ignore[type-var]
+                return True
+            dirty = [ln[3:].split(" -> ")[-1].strip('"') for ln in status.splitlines()]
+            return any(
+                (root / d).is_file() and (root / d).stat().st_mtime > since
+                for d in dirty
+            )
+    # lazy: without git a pull still reads as a change after 60 s; upgrade: image.json digest
+    return any((root / p).stat().st_mtime > since + 60 for p in files)
+
+
 def container_warning(
     created: float | None, image: str, root: Path = ROOT
 ) -> list[str]:
     if created is None or not (root / "setup" / "Dockerfile").exists():
         return []
-    newest = max(
-        (p.stat().st_mtime for g in CODE_GLOBS for p in root.glob(g) if p.is_file()),
-        default=0,
-    )
-    if newest > created:
+    code = [str(p.relative_to(root)) for g in CODE_GLOBS for p in root.glob(g)]
+    if code_changed_since(root, code, created):
         return [
             (
                 f"the container image {image} is older than the code in this checkout: "
@@ -76,22 +151,21 @@ def stale_warnings(work: Path | str, root: Path = ROOT) -> list[str]:
     if not guest.is_dir():
         return []
     out = []
+    built_from = digests(guest / "build" / "sources.sha256") or {}
     for built, source in PROGRAMS:
-        binary, text = guest / "build" / built, guest / source
+        text = guest / source
         if (
-            binary.exists()
-            and text.exists()
-            and binary.stat().st_mtime < text.stat().st_mtime
+            (guest / "build" / built).exists()
+            and text.is_file()
+            and built_from.get(source) not in (None, source_digest(text))
         ):
             out.append(
-                f"guest/build/{built} is older than {source}: run `make -C guest`, "
-                "or `art98 up --rebuild` on a container-only host"
+                f"guest/build/{built} was built from an older {source}: run "
+                "`make -C guest`, or `art98 up --rebuild` on a container-only host"
             )
-    image, agent = Path(work) / "image.json", guest / "call_proxy" / "agent.c"
-    if (
-        image.exists()
-        and agent.exists()
-        and image.stat().st_mtime < agent.stat().st_mtime
+    image = Path(work) / "image.json"
+    if image.exists() and code_changed_since(
+        root, ["guest/call_proxy/agent.c"], image.stat().st_mtime
     ):
         out.append(
             "the prepared image was built before the agent changed; scenes run the old "

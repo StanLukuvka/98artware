@@ -108,6 +108,7 @@ def test_up_warns_when_it_reuses_an_old_image(tmp_path, monkeypatch):
     monkeypatch.setattr(up, "ROOT", tmp_path)  # the guest programs are "there"
     (tmp_path / "guest" / "build").mkdir(parents=True)
     (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")
+    (tmp_path / "guest" / "build" / "sources.sha256").write_text("")
     calls = []
     monkeypatch.setattr(Engine, "__call__", lambda self, *a, **k: calls.append(a))
     monkeypatch.setattr(up.subprocess, "run", lambda *a, **k: calls.append(a))
@@ -116,6 +117,20 @@ def test_up_warns_when_it_reuses_an_old_image(tmp_path, monkeypatch):
     assert not hasattr(up, "boot")
     assert "[up] warning: old image" in lines
     assert "art98 vm start" in lines[-1]
+
+
+def test_up_copies_out_when_the_digest_file_is_missing(tmp_path, monkeypatch):
+    engine = fake_engine(monkeypatch, "docker")
+    monkeypatch.setattr(up, "inspect_created", lambda eng, image: (True, 1.0))
+    monkeypatch.setattr(up, "container_warning", lambda created, image: [])
+    monkeypatch.setattr(up, "ROOT", tmp_path)
+    (tmp_path / "guest" / "build").mkdir(parents=True)
+    (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")  # an old build
+    (tmp_path / "image.json").write_text("{}")
+    copied = []
+    monkeypatch.setattr(Engine, "copy_out", lambda self, *a: copied.append(a))
+    assert up.up(tmp_path, engine=engine, log=lambda _: None) == 0
+    assert len(copied) == 1
 
 
 def test_up_resolves_a_missing_work_through_art98_toml(tmp_path, monkeypatch):
@@ -127,6 +142,7 @@ def test_up_resolves_a_missing_work_through_art98_toml(tmp_path, monkeypatch):
     monkeypatch.setattr(up, "ROOT", tmp_path)
     (tmp_path / "guest" / "build").mkdir(parents=True)
     (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")
+    (tmp_path / "guest" / "build" / "sources.sha256").write_text("")
     (tmp_path / "elsewhere").mkdir()
     (tmp_path / "elsewhere" / "image.json").write_text("{}")
     lines = []
@@ -162,6 +178,7 @@ def test_a_failed_setup_hint_does_not_promise_a_clean_resume(tmp_path, monkeypat
     monkeypatch.setattr(up, "ROOT", tmp_path)
     (tmp_path / "guest" / "build").mkdir(parents=True)
     (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")
+    (tmp_path / "guest" / "build" / "sources.sha256").write_text("")
     iso = tmp_path / "win98.iso"
     iso.write_bytes(b"x")
     monkeypatch.setenv("ART98_PRODUCT_KEY", "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE")
