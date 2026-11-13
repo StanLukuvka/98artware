@@ -30,3 +30,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: test ! -e experiments || { echo "experiments/ lives on dev only"; exit 1; }
+
+  release-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: github.base_ref == 'main'
+    steps:
+      - env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            release/*) ;;
+            *) echo "A pull request into main must come from a release/* branch"; exit 1 ;;
+          esac
