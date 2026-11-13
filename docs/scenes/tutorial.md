@@ -3,10 +3,6 @@
 This takes you from nothing to a scene with a picture, Notepad and the pointer, and then to a GIF.
 The first scene was rendered on the real image.
 
-Every program on the image is an action class in `core/art98/actions/programs/`, one file each, and `from art98.anim import *` gives them all: [`Notepad`](scene-api.md#notepad), [`Dialog`](scene-api.md#dialog),
-[`Paint`](scene-api.md#paint), [`Minesweeper`](scene-api.md#minesweeper) and
-[`Screensaver`](scene-api.md#screensaver). [`Picture`](scene-api.md#picture) shows an image.
-
 ## Before you start
 
 Run `art98 up` once, as the [README](../../README.md) says. Then start the VM with
@@ -18,9 +14,6 @@ uv run art98 doctor
 
 `doctor` passes on a host that has only Docker and ffmpeg. Run everything from a checkout with
 `uv run`.
-
-A scene is a Python file. It does not run by itself: `art98 render` restores the `ready` snapshot
-on the running VM, plays the scene on it, and writes a video.
 
 ## Your first scene
 
@@ -70,7 +63,8 @@ Render it:
 uv run art98 render first.py First -o first.mp4
 ```
 
-The restore takes about a second before the scene starts. What the lines do:
+`art98 render` restores the `ready` snapshot (about a second), plays the scene and writes the
+video. What the lines do:
 
 - `state` is read before the scene starts. The windows open off camera, and the video begins
   with them in place.
@@ -101,7 +95,8 @@ the Windows 98 one: a trailing `.txt` is dropped, so `note.txt` gives "note - No
 
 ## Pictures
 
-`Picture` is art98's own small window that shows one BMP. In a state it takes `open`, with the
+[`Picture`](scene-api.md#picture) is art98's own small window that shows one BMP, since Windows 98
+has no small image viewer. In a state it takes `open`, with the
 file and its `sha256`, so a changed file is caught. In a scene you can also add one while it
 runs:
 
@@ -118,8 +113,6 @@ class AddOne(Scene):
         self.play(sky.animate.shift(200 * RIGHT), run_time=1)
         self.play(Close(sky))
 ```
-
-Windows 98 has no small image viewer, so there is nothing else to show a picture with.
 
 ## Cuts and sections
 
@@ -141,8 +134,8 @@ class TwoParts(Scene):
 ```
 
 `art98 render two.py -o two.mp4` writes `two-01.mp4`, `two-02.mp4` and `two-03.mp4`, and joins
-them into `two.mp4`. A render doesn't delete clips from an earlier render. If a longer one left
-`two-04.mp4` behind, you get a warning naming it. See [Clips](scene-api.md#clips).
+them into `two.mp4`. Old clips from an earlier render are not deleted; see
+[Clips](scene-api.md#clips).
 
 ## Move a window
 
@@ -189,9 +182,8 @@ class UseTheMouse(Scene):
         self.pause(0.5)
 ```
 
-`Menu` finds "Edit" and "Select All" in the live menu and clicks them. `pad.title_bar` is a
-`Spot`, a place worked out when the animation begins. So the `Drag` aims at where the window is
-after the move, and Windows carries the window because the pointer holds its title bar.
+`Menu` finds "Edit" and "Select All" in the live menu and clicks them. The `Drag` aims at
+where the window is after the move, and Windows carries the window because the pointer holds its title bar.
 
 ## Draw in Paint
 

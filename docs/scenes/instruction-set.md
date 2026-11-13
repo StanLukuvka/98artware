@@ -403,7 +403,7 @@ Events start with `!` and have no id.
 
 The agent sends this when it starts, then every 3 s until it receives its first valid frame.
 
-`boot` does not use it. It sends `PING` instead. Setup uses `HELLO` to see the installed agent come
+`Bridge.wait_ready` does not use it. It sends `PING` instead. Setup uses `HELLO` to see the installed agent come
 up.
 
 ```text
@@ -420,7 +420,7 @@ That one came 11.5 s after a cold boot started.
 
 An unhandled exception reached the agent's filter. It sends this, closes COM1, starts a new copy of
 itself and exits. Windows and other programs carry on. The new agent says `HELLO` about 0.25 s
-later. Any open request gets no reply. Requests sent during the gap are lost, and the new agent can
+after the crash (0.27 to 0.31 s until it answers a request, see [Timings](bridge.md#timings)). Any open request gets no reply. Requests sent during the gap are lost, and the new agent can
 see a partial frame, which gives a `BADFRAME`.
 
 Here a call jumps to unmapped memory:
@@ -540,15 +540,11 @@ These were all tried on the real agent.
 | --- | --- |
 | Empty payload, or just an id | `<id> ERR BADVERB ""`, with id 0 if none was given. |
 | Verb with no id | `0 OK ...`. |
-| Lower-case verb, `ping` | `BADVERB`. |
 | Hex id, `0x1f8 PING` | Accepted. The reply has id 504. |
-| Extra spaces between fields | Accepted. |
-| Upper-case CRC digits | Accepted. |
-| `-1`, `0X10`, a bare word | `BADARG malformed argument`. |
+| `0X10`, a bare word | `BADARG malformed argument`. |
 | An unterminated string, a bad `\x`, a trailing backslash | `BADARG malformed argument`. |
 | Text straight after a closing quote, `"abc"x` | `BADARG malformed argument`. |
 | Odd or non-hex digits in a `#` blob, `&x` | `BADARG malformed argument`. |
-| Too few or too many arguments for the Win32 function | Runs. The stack is restored. |
 
 ## Threads
 
@@ -562,8 +558,6 @@ See [threading](bridge.md#threading) for what this means in practice.
 
 ## Known gaps
 
-- `ACALL` errors after `OK` have no way to reach the caller through `Bridge`.
-- A dropped request line produces no error at all.
 - `MAX_BLOB` can't be reached in a request or a reply, because hex takes twice the space. An 8193-byte `#` buffer can't fit in a line at all, so only `&` can get that error.
 - If `CreateThread` fails in an `ACALL`, the `OK` has gone out and no `DONE` follows.
 - `PUT` does not report a short write as an error. Compare `written` if it matters.

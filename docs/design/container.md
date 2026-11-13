@@ -1,10 +1,10 @@
 # Container
 
-Built on the `container` branch, 2026-11-10, and tested from scratch.
-The Windows 98 VM moves into a Docker container. The host keeps Python and ffmpeg and
+The Windows 98 VM runs in a Docker container. The host keeps Python and ffmpeg and
 needs nothing else. art98 calls only `docker`; on a Podman host the `podman-docker` package
-provides that command, and art98 never asks which engine is behind it. One command goes from your disc image and product key to a prepared image, and
-`art98 vm start` runs the VM. [The VM service](#the-vm-service) explains the split. [What was built](#what-was-built) at the end lists where the build differs from the plan.
+provides that command, and art98 never asks which engine is behind it. One command goes from your
+disc image and product key to a prepared image, and `art98 vm start` runs the VM.
+[The VM service](#the-vm-service) explains the split.
 
 ```bash
 uv run art98 up --iso ~/isos/win98se.iso
@@ -12,37 +12,31 @@ uv run art98 up --iso ~/isos/win98se.iso
 
 ## Why
 
-Today the VM runs on QEMU 10.2.2 from Fedora 44, unpacked by hand into `.tools/`. Nothing records
-that build, and the `ready` snapshot only loads on the QEMU machine type that saved it
-(`pc-i440fx-10.2`). A container pins QEMU, firmware and tools in one image that anyone can rebuild,
-on any Linux distribution, and later on macOS or Windows through Docker Desktop.
+Why the VM is in a container: [decision 5](decisions.md#5-qemu-in-a-container-python-the-recorder-and-ffmpeg-on-the-host). The `ready` snapshot only loads on the QEMU
+machine type that saved it, `pc-i440fx-10.2`, so the image pins
+`qemu-system-x86-core-10.2.2-1.fc44`. The same image runs on any Linux distribution, and later on
+macOS or Windows through Docker Desktop.
 
 QEMU runs the guest in software (TCG), so the container needs no `/dev/kvm` and no extra
 privileges.
 
 ## Large files and the key
 
-None of them go into the image. The image holds only programs, so it can be rebuilt, shared or
-pushed without leaking anything.
+None of them go into the image. The image holds only programs, so it can be rebuilt and shared.
 
 | What | Size | How it gets in |
 | --- | --- | --- |
 | Disc image (ISO) | about 650 MB | Bind-mounted read-only, for `up` and `setup` only. |
-| Product key | | A file mounted read-only at `/run/secrets/art98_key`, where setup reads it. The file is deleted when setup ends, so a resumed setup asks again. |
+| Product key | | A file mounted read-only at `/run/secrets/art98_key`, where setup reads it. The file is deleted when setup ends, so a resumed setup asks again. Windows 98 product keys are public and reusable, so this is about keeping the image clean, not about secrecy. |
 | `work/` | about 1.6 GB here | Bind-mounted read-write. It keeps the existing `golden.qcow2` and its `ready` snapshot. |
 | Run copies | 416 MB each, mostly shared | Made inside the mounted `work/runs` with `cp --reflink=auto`, so on btrfs or XFS they cost almost nothing. Elsewhere it is a full copy. |
 
-Why not the other ways:
+A `COPY` of the ISO would keep 650 MB in a layer even after a later step deletes it. The key goes
+in a mounted file, not a build `ARG` or `ENV`, so it is never in `docker history` or
+`docker inspect`. The real secret is the VM token, a file too: see [The VM service](#the-vm-service).
 
-- `COPY` of the ISO bakes 650 MB into an image layer, and it stays in the layer even if a later
-  step deletes it.
-- A build `ARG` or `ENV` with the key is saved in the image history (`docker history`), so anyone
-  with the image can read it.
-- An environment variable at `run` time shows in `docker inspect`. A mounted file's contents don't.
-
-`work/` still holds the finished disk, an installed copy of Windows with the key in it, as it
-does today. It is mounted, never copied, and `.dockerignore` lists it so a build can't pick it up by
-accident.
+`work/` stays private because it holds the finished disk, an installed copy of Windows 98. It is
+mounted, never copied, and `.dockerignore` lists it so a build can't pick it up by accident.
 
 ## The image
 
@@ -75,7 +69,14 @@ long-lived container from the image, and each render attaches to it with `art98.
 
 Fedora 44's release repository is frozen, so pinning the exact package version keeps the same
 build available. It's the build that saved the current `ready` snapshot, so that snapshot should
-load in the container with no new setup run. Checking this is the first step below.
+Fedora 44's release repository is frozen, so pinning the exact package version keeps the same
+build available. It's the build that saved the current `ready` snapshot, so that snapshot loads in
+the container with no new setup run.
+
+The image is `localhost/art98:latest` (`ART98_IMAGE`), 385 MB. Its guest programs are byte for
+byte the ones built on the host. `.dockerignore` leaves out `work/`, `.tools/`, `.venv/`, `.git/`,
+`.claude/`, `guest/build/`, `*.mp4`, `*.iso`, `*.qcow2` and `*.img`; a probe build confirmed a decoy
+`work/`, `.iso` and `.qcow2` don't reach the build context.
 
 ## Who runs what
 
@@ -94,13 +95,8 @@ loopback and the frame bytes follow the reply. See [Timing](#timing).
 
 The container is the bridge between the host and the VM. It owns QEMU and the run copy of the
 disk, and it relays the agent's protocol out to the host. The host keeps the client half:
-`bridge.py`, which tracks request ids, events and timeouts, stays as it is and just connects over
-TCP instead of a Unix socket.
-
-Why a relay and not a remote procedure call for every `Bridge` method: the agent protocol already
-carries ids, rows, events and a checksum, so passing it through needs no new format. Every scene,
-prop and test keeps working against the same class. An RPC layer would need remote handles for
-async calls, event forwarding and its own error mapping, and would repeat all of that.
+`bridge.py`, which tracks request ids, events and timeouts, stays as it is; only the socket it
+connects to changes. Why a relay: [decision 5](decisions.md#5-qemu-in-a-container-python-the-recorder-and-ffmpeg-on-the-host).
 
 ### `art98 serve`, in the container
 
@@ -108,7 +104,8 @@ On start it makes the run copy under `work/runs/vm-*`, starts QEMU with `-loadvm
 answer a ping. It then listens on port 7598 inside the container, or with `--unix PATH` on a
 Unix socket. Each connection starts with two lines:
 
-1. a token, which the host generates for each stage and passes in as a secret. A wrong token
+1. the token from `work/vm.token`, which `art98 vm start` makes once and mounts (at
+   `/run/secrets/art98_token` when `[vm] token_file` puts it elsewhere). A wrong token
    gets `error wrong token` and the connection closes;
 2. the channel: `agent`, `control` or `status`.
 
@@ -133,11 +130,9 @@ forward accepts a connection before anything listens behind it and then hangs up
 
   Errors come back as `{"ok": false, "error": "..."}` and are raised as `QemuError` on the host.
 
-One control connection owns the VM at a time. A second one is refused with `busy: the control
-channel is held by another client`. When the owner goes away, serve cleans up in this order: drop
-the agent relay, eject the disc, pause the VM, and only then free the slot. A client that connects
-during the cleanup is refused, so it never has its relay dropped or its disc ejected by the
-previous owner. A render that crashed or was killed releases the VM when its socket closes.
+One control connection owns the VM; a second gets `busy: the control channel is held by another
+client`. Release is described under [The VM service](#the-vm-service). A render that crashed or was
+killed releases the VM when its socket closes.
 
 The `status` channel answers one JSON line with `busy`, `paused`, `snapshots` and `started_at`,
 then closes. It takes no lock and asks QEMU nothing, so it is safe during a render.
@@ -156,6 +151,9 @@ container keeps its logs for `docker logs`. Only a SIGKILL of the container leav
   `close`. `close` releases the VM; it does not stop it.
 - `art98/service.py`: `start`, `stop` and `status` for the container, and `attach`, which a render
   uses to take the VM for one run. See [the VM service](#the-vm-service).
+- `image.json` records an absolute disk path (`/work/golden.qcow2` when prepared in the container).
+  The VM service and `boot_local()` fall back to the file of that name beside `image.json`
+  (`session.image_disk`).
 - `session.boot_local(work)` and `session.stage(work)` are QEMU on this host, for experiments only.
   No render path uses them.
 - `revert`, the recorder and every scene are unchanged: they only see `Session.vm` and
@@ -191,25 +189,16 @@ user's and mode 0600, so they stay readable after the switch.
 
 ### `art98 up`, on the host
 
-1. Builds the image if it isn't there (or with `--rebuild`). It passes `--load` when `docker build` has it, since Docker CE's CLI against a Podman socket otherwise leaves the result in a buildx cache, and it fails if the engine's image isn't the ID the build reported.
-2. Reads the key from `ART98_PRODUCT_KEY`, or asks for it at a visible prompt, and writes it to a
-   file to mount at `/run/secrets/art98_key`.
-3. If `work/image.json` is missing, runs `art98 setup` in the container with the ISO mounted:
-   about 40 minutes, resumable like today. `--watch` shows the screen through VNC on
-   `127.0.0.1:5998` (`[ports] setup_vnc`, or `--vnc-port`), since GTK can't open from inside a container. Setup reads
-   `ART98_WATCH_DISPLAY` for that. The key file is deleted when setup ends, finished or not, so
-   a rerun asks for the key again.
-4. Copies the guest programs out of the image into `guest/build` if they aren't
-   there, since scenes send `VIEW.EXE` to the guest from the host.
-5. Stops here and prints `art98 vm start`. The VM is started by that command, not by `up`.
-
-Running `art98 up` again skips what's done. Everything in it can also be run by hand with
-`docker build` and `docker run`, written out in the setup guide.
+It builds the image if it isn't there (or with `--rebuild`), reads the key, runs setup in the
+container, and copies the guest programs out. It passes `--load` when `docker build` has it, since
+Docker CE's CLI against a Podman socket otherwise leaves the image in a buildx cache, and fails if
+the engine's image isn't the ID the build reported. The key file is deleted when setup ends,
+finished or not, so a rerun asks for the key again. The other steps are in
+[art98 up](../setup/cli.md). `up` stops before starting the VM and prints `art98 vm start`.
 
 ## The VM service
 
-The VM is one long-lived container, not a stage booted for each render. This replaced the stage
-that every render booted, on 2026-11-11. The split:
+The VM is one long-lived container, not a stage booted for each render. The split:
 
 - `art98 up` builds the image and prepares `work/`, then stops and prints `art98 vm start`.
 - `art98 vm start` starts one container, `art98-vm` by default, from the image. It carries the
@@ -232,38 +221,17 @@ killed render is fixed first. `art98 ping` skips the revert.
 last. The client's close waits until the lock is free, so the next attach can't race the cleanup.
 Freeing the lock last fixes a release race that the VM tests found; `test_serve.py` covers it.
 
-**A lost client.** The Unix socket, the default on Linux, frees the lock as soon as the client's
-process dies. Over TCP, both ends turn on keepalive (20 s idle, then 3 probes 10 s apart), so a
-client that vanishes without closing its connection frees the lock in about a minute. Until
-2026-11-11 such a client kept the lock until `vm stop` and `vm start`.
-
-**Probes.** On real Docker and Podman, in [experiments/vm-service](../../experiments/vm-service/README.md):
-the run copy's size stayed flat over 30 renders; a render killed with `kill -9` left the next attach
-working, in about 0.05 s; a view-only VNC viewer did not change the frames. A normal viewer sends
-input and was not tested; it would change the frames. See [configuration](../setup/config.md#vnc).
-
-## Steps
-
-1. **Image.** The Dockerfile and its ignore file. Check the QEMU version inside, then
-   restore `ready` from the existing `work/` in the container and ping the agent. If the snapshot
-   doesn't load, stop: making a new one changes the `ready` image and needs the owner's go-ahead.
-2. **Stage.** `art98 serve`, `container.py` and the `boot` backend (replaced on 2026-11-11 by [the VM service](#the-vm-service)). Tests against a fake
-   server, with no VM, plus a real test marked `container`.
-3. **Timing.** Frames are 1.44 MB each. Measure a 300-frame recording through the rootless
-   port forward against QEMU on the host, noting `/proc/pressure/cpu`. If the forward is too
-   slow, switch the transport to a Unix socket in a mounted folder (Linux only), keeping TCP for
-   other hosts.
-4. **Up.** `art98 up` and setup in the container, tested from scratch on a separate work folder
-   (`work-container/`), so the current `work/` and its snapshot are never touched.
-5. **Docs.** The setup guide, the README, `status.md` and the tour. `.tools/` and `env.sh`
-   become optional, kept for setup on the host and for experiments.
+**A lost client and a VNC viewer.** See [Configuration](../setup/config.md#transport-and-a-lost-client).
+The probes are in [experiments/vm-service](../../experiments/vm-service/README.md): the run copy
+stayed flat over 30 renders, and the next attach worked about 0.05 s after a `kill -9`. A view-only
+VNC viewer did not change the frames. A normal viewer sends input and was not tested; it would
+change the frames. See [configuration](../setup/config.md#vnc).
 
 ## Timing
 
-300 frames recorded with `FrameRecorder.frame()`, since replaced by `Recorder` (sync, capture,
-write to ffmpeg), on the existing `work/`, two rounds each. Measured before the VM service, so
-"host QEMU" is QEMU run on the host, which renders no longer do. `/proc/pressure/cpu` read some avg10 0.00 before and after
-every run.
+300 frames, each a sync, a capture and an ffmpeg write, on the existing `work/`, two rounds each.
+`/proc/pressure/cpu` read some avg10 0.00 before and after every run. "Host QEMU" is QEMU run on
+the host, measured before renders moved to the VM service.
 
 | Backend | 300 frames | Per frame | Sync | Capture | ffmpeg write |
 | --- | --- | --- | --- | --- | --- |
@@ -279,95 +247,43 @@ second period, and the port forward added a little more. Writing the frame into 
 brings the container within about 10% of host QEMU, so that is the default on Linux. TCP stays for
 Docker Desktop, where a Unix socket can't cross the VM boundary. A boot takes
 about 0.3 s in the container against 0.1 s locally.
+In the revert test, `loadvm ready` in a running VM took 0.06 to 0.2 s and kept the bridge
+connected. Capture over serial would take about 3 s per frame, against about 6.5 ms through QMP,
+so capture stays outside the guest.
 
 ## The CD drive
 
-A scene's wallpaper goes to the guest on a disc, not through `put_file`. The host sends the
-ISO on the serve channel: a JSON header line with the size (`insert_disc`, at most 64 MiB), then the raw bytes. Serve puts it in the guest's CD drive with QMP. `eject_disc` takes no
+A scene's wallpaper goes to the guest on a disc, not through `put_file`. The host builds a small
+ISO 9660 level 1 disc (`disc.py`, 8.3 capital names) and sends it on the serve channel: a JSON header line with the size (`insert_disc`, at most 64 MiB), then the raw bytes. Serve puts it in the guest's CD drive, `D:`, with QMP. There is no AutoPlay and no Explorer window. After the insert the scene polls every 50 ms and gives up after 2 s; the first read succeeded at once in every run. `eject_disc` takes no
 bytes. A revert sends `eject_disc` first, because `loadvm` doesn't remove QEMU's medium; a
 session that never inserted a disc never sends it, so an older container image still works. On
-Podman, real Docker and host QEMU, an insert took 5 to 8 ms, the guest saw it in 60 to
+Podman, real Docker and host QEMU, at CPU pressure avg10 1.3 to 2.0, an insert took 5 to 8 ms, the guest saw it in 60 to
 110 ms, setting a 1.44 MB wallpaper took 0.5 to 0.8 s and a revert with an eject took 75 to 145 ms
-(CPU pressure avg10 1.3 to 2.0). The drive's QEMU id is read from `query-block` each time.
+(a quiet-host set is in [Scene API](../scenes/scene-api.md)). A revert's eject opens the tray with force, removes the medium and closes the tray. The drive's QEMU id is read from `query-block` each time, because it was `device[5]` on one host and `device[4]` in the plan.
 `RemoteVM` has no `disc_state()`, which the host-side `VM` class has. See
 [README-p3](../../experiments/dialog-storm/README-p3.md).
 
 ## What was built
 
-Where the build differs from, or adds to, the plan above:
+The build notes and the lists of checks, with their dates, are in
+[build history](../archive/build-history.md#container-build-plan-and-as-built-notes). The
+measured results that still hold:
 
-- The handshake answers `ok` or `error <reason>`, so the host can tell a refused connection from
-  a guest still booting.
-- The Unix socket and shared-folder screenshots on Linux, from [Timing](#timing).
-  `ART98_TRANSPORT` picks `unix` or `tcp`.
-- A `save_snapshot` op, for the revert-test experiments. It only touched the run copy. Removed on
-  2026-11-11 with the VM service: serve refuses it now.
-- A 120 s limit for the first control connection, so a host that dies before connecting still
-  ends the stage. Removed on 2026-11-11: the VM now stays up until `art98 vm stop`.
-- serve handles SIGTERM, and stages run with `--init`. Python as PID 1 ignored SIGTERM, so
-  `docker stop` had to fall back to SIGKILL.
-- The token is `work/vm.token`, mode 0600, kept between starts and mounted with `work/`. On
-  2026-11-11 this replaced the per-stage token file. `[vm] token_file` can put it elsewhere, and
-  then it is mounted read-only on its own.
-- On 2026-11-11 the two engine paths became one. art98 calls only `docker`, with Podman behind
-  `podman-docker`. Both secrets are mounted files on every engine, and the container decides who
-  owns what it writes ([above](#who-owns-what-the-container-writes)). Podman secrets, and the
-  resume that reused the stored key, went with it.
-- `image.json` records an absolute disk path. A work folder prepared in the container records
-  `/work/golden.qcow2`, one prepared on the host records the host path. The VM service and `boot_local()` both fall
-  back to the file of that name beside `image.json` (`session.image_disk`).
-- The image is `localhost/art98:latest` (`ART98_IMAGE`), 385 MB. The guest programs built in it
-  are byte for byte the ones built on the host.
-- The ignore file is `.dockerignore` at the repository root, the build context, where
-  `docker build` reads it by itself. Besides `work/`, `.tools/`, `.venv/`, `*.mp4` and `*.iso` it leaves out
-  `.git/`, `.claude/`, `*.qcow2`, `*.img` and `guest/build/`. A probe build
-  confirmed a decoy `work/`, `.iso` and `.qcow2` don't reach the build context.
-- The code was first its own package, `art98_container` in `98artware_container/`. On
-  2026-11-11 it was split by job: the backend moved into core as `art98.container`, and `up`
-  and the Dockerfile into setup.
-
-The checks below were run before the VM service. Then `art98 up` booted and pinged, and the
-backend was a switch set by an environment variable. Both changed on 2026-11-11, see
-[the VM service](#the-vm-service). The results stand for the code they ran on.
-
-Checked:
-
-- the image builds;
-- `qemu-system-i386 --version` in it is 10.2.2 (`qemu-10.2.2-1.fc44`), with default machine
-  `pc-i440fx-10.2`;
-- the existing `ready` snapshot restores in the container on a run copy in `work/runs` (agent
-  ready in 0.11 s, revert 0.05 s);
-- the suite passes with the backend switch (since removed) set to `local` and to `container`;
-- the MVP scene renders through the container;
-- `art98 up` on the existing `work/` skips setup, boots and pings;
-- VNC answers on loopback for a stage booted with a display;
-- `art98 up` from scratch on an empty `work-container/`, with the key typed at the prompt:
-  setup 1326 s, init_api 13 s, ready 55 s, about 25 minutes end to end with `/proc/pressure/cpu`
-  at 0.00 throughout. The key secret was removed afterwards and no container was left behind.
-  The stage tests pass on the new image, on host QEMU and in the container;
-- the new image renders the MVP scene frame for frame the same as the old host-built `work/`:
-  0 of 257 frames differ.
-
-Checked on real rootful Docker (29.9.3, Fedora 44) on 2026-11-11, `/proc/pressure/cpu` some avg10
-under 0.5 throughout:
-
-- `art98 up` on the existing `work/` built the image in about 30 s, skipped setup, booted and
-  pinged;
-- no file in `work/` or `guest/build` came out owned by root or anyone but the user, so the
-  switch to the host's uid works;
-- `doctor` reports both host QEMU and the container usable, and the stage suite passes in the
-  container (18 passed);
-- the proof scene `examples/blank_start` renders frame for frame the same as a host QEMU render:
-  0 of 263 frames differ. Two host QEMU renders can differ from each other, but only in the
-  blinking Notepad caret (a 2 x 15 px box), which depends on timing;
-- no container was left behind.
-
-After this the default backend became `container`. The switch itself was removed on 2026-11-11.
+- The image builds, with QEMU 10.2.2 (`qemu-10.2.2-1.fc44`) and default machine `pc-i440fx-10.2`.
+  The existing `ready` snapshot restores in the container on a run copy in `work/runs`: agent ready
+  in 0.11 s, revert 0.05 s.
+- From scratch, `art98 up` on an empty work folder took setup 1326 s, init_api 13 s and ready 55 s,
+  about 25 minutes, with `/proc/pressure/cpu` at 0.00. The container-built image renders the MVP
+  scene with 0 of 257 frames different from the host-built one.
+- On rootful Docker 29.9.3 (Fedora 44, CPU pressure some avg10 under 0.5), `art98 up` on the
+  existing `work/` built the image in about 30 s. No file in `work/` or `guest/build` came out
+  owned by root, and `examples/blank_start` gave 0 of 263 frames different from a host QEMU render.
+  Two host QEMU renders can differ from each other, only in the blinking Notepad caret (a 2 x 15 px
+  box), which depends on timing. The stage suite passed in the container (18 passed).
 
 ## Not in this design
 
 - VMs on another machine. Only a published port on loopback is covered; across a network the
   link would need TLS.
 - Audio, which is still deferred.
-- Moving the recorder into the container. It stays on the host; `Recorder`, which replaced
-  `FrameRecorder`, was built there.
+- Moving the recorder into the container. It stays on the host.

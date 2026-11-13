@@ -5,9 +5,6 @@ An animation is one change over time. You pass it to [`Scene.play`](scene-api.md
 Every animation takes `run_time` and `rate_func` as keywords. A value given to `play` overrides
 both.
 
-Every program on the image is an action class in `core/art98/actions/programs/`, one file each, and `from art98.anim import *` gives them all: [`Notepad`](scene-api.md#notepad), [`Dialog`](scene-api.md#dialog),
-[`Paint`](scene-api.md#paint), [`Minesweeper`](scene-api.md#minesweeper) and
-[`Screensaver`](scene-api.md#screensaver). [`Picture`](scene-api.md#picture) is the window states use most.
 Most samples here use Notepad as the window to act on.
 
 ## How one runs
@@ -55,8 +52,8 @@ works, and calls chain. Default run time 1 s.
 The end state is worked out when it begins, on a copy of the prop. Only the fields that change
 are driven, so two `.animate` calls on one window can share a `play`.
 
-For a window, each frame is one `SetWindowPos` plus a `RedrawWindow`. That is a real resize: the
-app gets `WM_SIZE` and lays itself out again.
+For a window, each frame is a real move or resize ([`Win`](scene-api.md#win)): the app gets
+`WM_SIZE` and lays itself out again.
 
 Call the result to set its timing, which is handy inside a group:
 `pad.animate.shift(100 * DOWN)(run_time=2)`.
@@ -191,11 +188,9 @@ class Staggered(Scene):
 
 ## The pointer
 
-Pointer moves use `SetCursorPos` and buttons use `mouse_event`, which is real input. Windows
-decides what it means: a press on a title bar starts a drag, a click on a menu opens it.
-
-A target is a point, a [`Spot`](scene-api.md#spot) or a prop. Any two of these in one `play` raise
-`ValueError`, since there is only one pointer.
+These are real input ([Pointer](scene-api.md#pointer)), so Windows decides what each press
+means. A target is a point, a [`Spot`](scene-api.md#spot) or a prop. Only one pointer animation
+can run in a `play`; a second raises `ValueError`.
 
 ![Pointer and clicks](../assets/gifs/pointer-clicks.gif)
 

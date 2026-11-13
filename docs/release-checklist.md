@@ -61,4 +61,4 @@ A hand-run list for checking a release. A release is a git tag `vX.Y.Z` and a Gi
 
 ---
 
-`work/` holds the product key and must never be committed or uploaded.
+`work/` holds installed copies of Windows 98 and must never be committed or uploaded.

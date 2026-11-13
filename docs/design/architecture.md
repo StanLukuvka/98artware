@@ -1,6 +1,6 @@
 # Architecture, and how it compares with Manim
 
-Drawn on 2026-11-10, after the MVP. Both pictures come from
+Both pictures come from
 [architecture.drawio](../diagrams/architecture.drawio), one page each.
 
 This page says what the parts are and how a render flows through them. Why each part is built
@@ -50,21 +50,9 @@ art98 has the same jobs in other places:
 - `anim/` holds the scene, the renderer and the state code as well as animations. `state.py` sits
   at the top level, and `setstate.py` in `anim/`.
 
-The [Manim mapping plan](../archive/MANIM_MAPPING_PLAN.md), now archived, proposed a
-`Win98Renderer`, updaters and partial movies. None of that is built. The
-[recorder](state-and-action.md#recorder) spec covers clips, which are the nearest thing to
-Manim's partial movies.
-
 ## Desktop space
 
-Window actions place against one calibrated space, `scene.space`. `win32.calibrate` reads the
-screen, the work area and the metrics from the guest in 9 calls. It runs at these points:
-
-1. `prepare_desktop`, which runs after a revert (`start_desktop`) and so covers the blank start.
-2. `apply_state`, after a state switches the display mode. The blank start runs first inside
-   `prepare_desktop`, so the read sees the whole screen.
-3. `scene.calibrate()`, when a scene has changed the desktop with a raw guest call.
-
-Props read the space through the scene each time they need it, so a new read reaches every prop
-at once. A box that is not on a scene uses a stock space that no scene uses. The rules for
-placement are in [Desktop space](../scenes/scene-api.md#desktop-space).
+Window actions place against one calibrated space, `scene.space`. `win32.calibrate` fills it in 9
+guest calls, from `prepare_desktop` after each revert (after the blank start, so it sees the whole
+screen). Rules and when to re-read: [Desktop space](../scenes/scene-api.md#desktop-space); why:
+[decision 13](decisions.md#13-one-desktop-space-for-every-window-action).

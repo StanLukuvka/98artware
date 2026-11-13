@@ -76,7 +76,7 @@ is usable once you have run `art98 up`; the other tools are only for installing 
 uv run art98 up --iso /path/to/win98se.iso
 ```
 
-This builds the container image, asks for your product key without showing it (or reads
+This builds the container image, asks for your product key at a visible prompt (or reads
 `ART98_PRODUCT_KEY`), installs Windows into `work/` with no further input, and stops. It takes
 25 to 40 minutes. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the install.
 If it stops part way, run the same command again: it resumes.
@@ -109,15 +109,19 @@ Renders take turns: while one runs, another fails with `busy`, unless you give i
 to wait up to S seconds. If something goes wrong, [troubleshooting](docs/setup/troubleshooting.md)
 covers the install. art98's own errors are one line starting with `error:`.
 
+The unit tests need no VM and run in CI on every push;
+[Contributing](CONTRIBUTING.md#tests) has the commands and says which suite covers what.
+
 ### Before you share anything
 
 Running `art98 up` (or `art98 setup`) accepts the Windows 98 licence agreement on your behalf:
 the answer file asks to skip it, and OEM discs that show it anyway get "I accept" by keystroke.
 Only run it with a disc and key you are licensed to use.
 
-**Don't publish `work/`.** It holds an installed copy of Windows 98 and your product key in
-clear text. `work/` is gitignored for that reason. See
-[the key on the image](docs/setup/image.md#your-product-key-is-on-the-image).
+**Don't publish `work/`.** It holds an installed copy of Windows 98, which is not yours to
+share, and your key in clear text. `work/` is gitignored for that reason. Product keys are public
+and reusable, not secrets, but never add one to the repo. The real secret is the VM token,
+`work/vm.token`. See [the key on the image](docs/setup/image.md#your-product-key-is-on-the-image).
 
 ## A scene: a state, then actions
 
@@ -237,8 +241,6 @@ container. On Linux the two channels are a Unix socket in a mounted folder, and 
 frames straight into that folder; elsewhere they are a loopback TCP port. The details are in
 [the container design](docs/design/container.md).
 
-![System overview](docs/diagrams/system-overview.png)
-
 | Folder | What it holds |
 | --- | --- |
 | [core/](core/art98/) | The `art98` package. `anim/` is what scenes import; it sits on `base/` (animations, props, vectors, the desktop space) and `actions/` (the pointer, the keyboard, windows and programs). Beside them: the bridge, QEMU control, state files, and the VM service in `service.py` and `container/` |
@@ -284,48 +286,11 @@ replies, so call it with `acall`.
 
 ## Installing on the host instead
 
-`art98 setup` can install Windows with QEMU on your own machine instead of in the container.
-Renders still use the container, so you need `art98 up` afterwards either way. On Fedora:
-
-```bash
-sudo dnf install qemu-system-x86 qemu-img mtools 7zip ffmpeg make binutils mingw32-gcc
-```
-
-On Debian or Ubuntu:
-
-```bash
-sudo apt install qemu-system-x86 qemu-utils mtools 7zip ffmpeg make binutils gcc-mingw-w64-i686
-```
-
-Then build the guest programs, check the tools, and install:
-
-```bash
-make -C guest
-```
-
-```bash
-uv run art98 doctor
-```
-
-```bash
-uv run art98 setup --iso /path/to/win98se.iso
-```
-
-Setup runs four steps, `vm`, `setup`, `init_api` and `ready`, saving progress after each, so
-rerunning resumes. [Part 1](docs/setup/README.md) explains each one. Then run `uv run art98 up`,
-which builds the container image and skips the install, and `uv run art98 vm start`. The
-`ready` snapshot only loads on the QEMU machine type that saved it, so an image made with
-another QEMU version may not load in the container, which pins QEMU 10.2.2.
-
-## Tests
-
-```bash
-uv run python -m pytest core/tests setup/tests -q --ignore=core/tests/test_stage.py --ignore=core/tests/test_stage_scenes.py --ignore=core/tests/test_qemu.py
-```
-
-That is the unit suite. It needs no VM and runs in CI on every push. The tests that drive the
-real image need `art98 vm start` first. [Contributing](CONTRIBUTING.md#tests) says which suite
-covers what and when each is needed.
+`art98 setup` can install Windows with QEMU on your own machine instead of in the container,
+in 25 to 40 minutes. Renders still use the container, so run `uv run art98 up` afterwards. The
+`ready` snapshot only loads on the QEMU version that saved it, and the container pins QEMU
+10.2.2, so a host-made image may not load. Packages and steps:
+[Quick path on the host](docs/setup/README.md#quick-path-on-the-host).
 
 ## Measured on real Windows 98
 

@@ -57,17 +57,7 @@ To change art98 itself, read [Contributing](../CONTRIBUTING.md), the
 | [Programs](design/programs.md) | What a program class is, how a state opens one, and how to add the next. |
 | [Inspiration](design/inspiration.md) | A Windows 98 lyric video, mapped to what art98 can do. |
 
-[All diagrams](diagrams/README.md), each with an editable `.drawio` file:
-
-- [Architecture](diagrams/architecture.png) and [art98 vs Manim](diagrams/manim-comparison.png)
-- [System overview](diagrams/system-overview.png)
-- [Setup pipeline](diagrams/prep-pipeline.png)
-- [Install boot chain](diagrams/install-boot-chain.png)
-- [Action stack](diagrams/action-stack.png)
-- [Request lifecycle](diagrams/request-lifecycle.png)
-- [Frame loop](diagrams/frame-loop.png)
-- [VM service flow](diagrams/vm-service-flow.png)
-- [Function tree](diagrams/function-tree.png)
+[All diagrams](diagrams/README.md), each with an editable `.drawio` file.
 
 ## Working on art98
 
@@ -76,7 +66,7 @@ To change art98 itself, read [Contributing](../CONTRIBUTING.md), the
 | [Contributing](../CONTRIBUTING.md) | Setup, tests, lint, adding a program or a state feature, doc rules, scope, licence. |
 | [AGENTS.md](../AGENTS.md) | The same for coding agents, with the house rules spelled out. |
 | [Repo tour](tour.md) | Every folder and file in reading order, with what each does and where it is explained. |
-| [Status](status.md) | What works, what is open, and the bugs on hold. Start here when picking work up. The dated build diary is in [build history](archive/build-history.md). |
+| [Status](status.md) | What works, what is open, and the bugs on hold. Start here when picking work up. |
 | [Changelog](../CHANGELOG.md) | What each release holds, and its known limits. |
 | [Release checklist](release-checklist.md) | A hand-run list for checking a release: clean clone, renders, frames, the VM service, tests, tree hygiene. |
 

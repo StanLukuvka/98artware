@@ -68,11 +68,7 @@ uv sync
 `uv sync` installs the `dev` group: pytest, pycdlib and ruff. art98 has no runtime
 dependencies and runs from the checkout with `uv run`. There is nothing to `pip install`.
 
-Run the unit tests. This takes well under a minute and needs no VM:
-
-```bash
-uv run python -m pytest core/tests setup/tests -q --ignore=core/tests/test_stage.py --ignore=core/tests/test_stage_scenes.py --ignore=core/tests/test_qemu.py
-```
+Run the [unit tests](#tests). They take well under a minute and need no VM.
 
 Some tests skip themselves when a tool they need is missing. That is expected. If anything
 fails on a fresh checkout, that is a bug: please [report it](#reporting-a-bug).
@@ -89,48 +85,22 @@ have no image, send it anyway and [say so in the pull request](#if-you-could-not
 
 ### Your first render
 
-With a Windows 98 SE disc image and key, build the prepared image once, start the VM, and
-render an example:
-
-```bash
-uv run art98 doctor
-```
-
-```bash
-uv run art98 up --iso /path/to/win98se.iso
-```
-
-```bash
-uv run art98 vm start
-```
-
-```bash
-uv run art98 render examples/mvp/mvp.py -o mvp.mp4
-```
-
-```bash
-uv run art98 vm stop
-```
-
-`art98 up` asks for your product key, installs Windows into `work/` with no further input, and
-stops. Running it accepts the Windows 98 licence agreement on your behalf, so only use a disc
-and key you are licensed to use. The [README](README.md#from-nothing-to-a-video) walks through
-each step, and [troubleshooting](docs/setup/troubleshooting.md) covers an install that stops.
+With a Windows 98 SE disc image and key, follow
+[From nothing to a video](README.md#from-nothing-to-a-video): `art98 up` once, then
+`art98 vm start` and `art98 render`. Running `art98 up` accepts the Windows 98 licence agreement
+on your behalf, so only use a disc and key you are licensed to use.
+[Troubleshooting](docs/setup/troubleshooting.md) covers an install that stops.
 
 To write a scene of your own, follow the [tutorial](docs/scenes/tutorial.md).
 
 ## Where things live
 
-The code is in `core/art98/` (the scene layer, the actions, the bridge to the guest, the VM
-service and the CLI), `setup/art98_setup/` (building the image) and `guest/` (the C programs
-that run inside Windows). Tests are in `core/tests/` and `setup/tests/`, maintained scenes in
-`examples/`, throwaway probes in `experiments/`, and every doc page in `docs/`.
+The [repo tour](docs/tour.md) walks every folder and file, and
+[AGENTS.md](AGENTS.md#where-things-live) has a table of paths. New words are in the
+[glossary](docs/glossary.md).
 
-[AGENTS.md](AGENTS.md#where-things-live) has the table of paths, and the
-[repo tour](docs/tour.md) walks every file. New words are in the [glossary](docs/glossary.md).
-
-`work/` holds the prepared image: an installed copy of Windows 98 and your product key in clear
-text. It is gitignored. Never commit, attach or upload anything from it.
+`work/` holds the prepared image, an installed copy of Windows 98. It is gitignored. Never
+commit, attach or upload anything from it.
 
 ## Ways to contribute
 
@@ -151,7 +121,7 @@ acted on has:
   [on a busy host](docs/setup/troubleshooting.md#on-a-busy-host).
 - For a wrong picture, the frame or a short GIF that shows it.
 
-Don't attach files from `work/`, and remove your product key from anything you paste.
+Don't attach files from `work/`.
 
 If Windows 98 does something you did not expect, that is worth an issue too. Say which
 program, what you saw, and that you saw it on the real image.
@@ -412,11 +382,7 @@ fine in the docs and gallery.
 
 ## Questions and security
 
-Ask questions in a
-[GitHub issue](https://github.com/StanLukuvka/98artware/issues). There is no chat or mailing
-list.
+Ask questions in a [GitHub issue](https://github.com/StanLukuvka/98artware/issues). There is no
+chat or mailing list.
 
-For a security problem, use **Report a vulnerability** on the repository's Security tab if it
-is there; that opens a private advisory. If it is not, open an issue that says only that you
-have a security problem to report, with no details, and a maintainer will arrange a private
-way to send them.
+Report security problems privately, as [SECURITY.md](SECURITY.md) says.

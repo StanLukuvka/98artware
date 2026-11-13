@@ -61,13 +61,11 @@ then `art98 vm start`.
 
 | Path | Made by | Removed by | What it is |
 |------|---------|------------|------------|
-| `<work>/vm.token`, or `[vm] token_file` | `art98 vm start`, once | Kept by `vm stop` | The token every connection sends first. Mode 0600. Mounted into the container. |
-| `<work>/vm.cid` | `art98 vm start` | `art98 vm stop` | The id of the running container. `vm stop` uses it, after checking the container's label. |
 | `$XDG_RUNTIME_DIR/art98/<container>-<hash8>/` | `art98 vm start` | `art98 vm start` and `vm stop` | The Unix socket `serve.sock`, and the screenshots written into the folder. `hash8` is the first 8 hex digits of the SHA-256 of the work folder's absolute path, so two checkouts never share a folder. Without `XDG_RUNTIME_DIR` the folder is under the system temp directory. |
 
-The container carries the label `art98.work=<absolute work folder>`. `vm start`, `vm stop` and
-`vm status` find it by that label, and `vm stop` will not stop a container labelled for
-another folder.
+`vm.token` and `vm.cid` are in `work/` unless `[vm] token_file` says otherwise: see
+[the work directory](cli.md#the-work-directory). The token is the one real secret: it lets a
+client run any Win32 call in the guest.
 
 ## VNC
 
@@ -132,8 +130,7 @@ plain IPv4 addresses.
 
 The token is what lets a client drive the VM, and the VM runs any Win32 call it's sent. Give
 the token file only to containers you trust, and keep `bind` off any address the outside network
-can reach. Share that one file and never `work/`, which holds the installed Windows and your
-product key.
+can reach. Share that one file and never `work/`, which holds the installed Windows.
 
 A client that vanishes frees the lock in about a minute, as above. The probe that checked this
 setup from a second Docker container is

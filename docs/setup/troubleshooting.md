@@ -34,7 +34,7 @@ the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 
 ## The stall rule
 
-**A stall means no disk writes for 20 minutes.** `STALL_LIMIT` is `20 * 60`.
+**A stall means no disk writes for 20 minutes**; screen changes don't count. `STALL_LIMIT` is `20 * 60`.
 
 Every `SHOT_INTERVAL`, 30 seconds, `_wait_for_agent` reads the modified time of the
 disk file on the host. When it changes, the timer resets. When it has not changed for
@@ -43,9 +43,6 @@ disk file on the host. When it changes, the timer resets. When it has not change
 ```
 no disk writes for 20 minutes during install2; see .../shots/install2-0049.png, or rerun with --watch to see the VM
 ```
-
-Screen changes don't count, because a blinking caret keeps the screen changing while a
-dialog waits forever.
 
 The screenshot named in the message is usually the answer. Look for a dialog. If the
 guest looks busy instead, 20 minutes of no disk writes on a slow host is possible but
@@ -70,10 +67,10 @@ Fix the cause, then:
 
 | Failed in | Do this | Why |
 |-----------|---------|-----|
-| `vm` (old `media` or `disk`) | `art98 setup --iso ... ` again, with a key | Both parts rerun and start clean. A `state.json` that holds only `media` does not count as `vm` done |
-| `setup` (old `install`) | `art98 setup --from vm` | A plain rerun boots Setup again over the partly installed disk. `--from vm` starts from a blank one. It needs the ISO and a key |
-| `init_api` (old `patch`) | `art98 setup` again | `install.img` is still there |
-| `ready` (old `harden`) | `art98 setup` again | It boots `golden.qcow2` again, and `install.img` is still there |
+| `vm` | `art98 setup --iso ... ` again, with a key | Both parts rerun and start clean. A `state.json` with only the old names (`media`, `disk`) counts as nothing done, see [the step names](stages.md#how-steps-are-tracked) |
+| `setup` | `art98 setup --from vm` | A plain rerun boots Setup again over the partly installed disk. `--from vm` starts from a blank one. It needs the ISO and a key |
+| `init_api` | `art98 setup` again | `install.img` is still there |
+| `ready` | `art98 setup` again | It boots `golden.qcow2` again, and `install.img` is still there |
 | `--from setup` or `--from init_api` after a finished build | `art98 setup --from vm` | `install.img` is gone, and `state.json` was already shortened |
 
 Common causes:
@@ -84,7 +81,6 @@ Common causes:
 | `Failed to get "write" lock` in `qemu.log` | Another VM has that disk open, possibly left over from a crash | Stop it. Check with `pgrep -a qemu-system`. See [several VMs](cli.md#moving-the-image-and-running-several-vms) |
 | `FileNotFoundError` for `mbr.bin` | The guest was not built | `make -C guest` |
 | `image.json not found` | No finished image in `--work` | Check `--work`, or finish `art98 setup` |
-| `ping` can't open the disk after moving the repository | `image.json` holds an absolute path | [Edit `disk`](cli.md#moving-the-image-and-running-several-vms) |
 | `guest speaks protocol N, host M` | The agent on the image is older or newer than the Python code | Rebuild the agent and redo the install, see below |
 | Snapshot fails to load after a QEMU upgrade | The image's device state doesn't match the new QEMU | Rebuild from `vm` |
 | `unexpected windows on the desktop` | Something opened at startup | See `shots/ready.png`, deal with its cause, then `--from ready` |
@@ -98,8 +94,6 @@ make -C guest
 ```bash
 uv run art98 setup --from vm --iso /path/to/win98se.iso
 ```
-
-`--from disk` also copies the new agent, but only the `media` part of `vm` runs `pecheck` on it.
 
 ### Windows rejected the product key
 
@@ -121,8 +115,7 @@ uv run art98 setup --from vm --iso /path/to/win98se.iso --key XXXXX-XXXXX-XXXXX-
 ## QEMU only
 
 art98 works only with QEMU. It depends on QMP for screenshots, keys and snapshots, on a
-Unix socket as COM1, and on `-no-reboot`. `docs/archive/PLAN.md` considered VirtualBox and shared
-folders, and neither is used. See the status note at the top of that file.
+Unix socket as COM1, and on `-no-reboot`.
 
 The binary is `qemu-system-i386`, the constant `QEMU_BINARY`. It can't be set with a
 flag, but it is found on `PATH`.
@@ -138,8 +131,8 @@ Don't unpack into `/tmp`. It is cleared when the host reboots, and every tool in
 with it. Setup would then fail with a missing program, or `doctor` would report it
 missing, even though nothing about the image changed.
 
-Keep the same QEMU version for the life of an image, because a snapshot may not load on
-another one. `image.json` pins the machine version, not the QEMU build.
+Keep one QEMU version for the life of an image: see [the snapshot](image.md#the-snapshot).
+`image.json` pins the machine version, not the QEMU build.
 
 The sockets live in `XDG_RUNTIME_DIR`, or the temp directory. Each VM makes its own
 folder and removes it on a clean exit, so a crashed run can leave an `art98-*` folder

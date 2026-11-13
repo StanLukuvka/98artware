@@ -35,8 +35,6 @@ Tests that need a missing tool or image skip themselves. If you keep a local QEM
 
 ## Commands
 
-The unit-test and lint commands are above; CI runs the same commands, except that its test command has no
-`test_stage_scenes.py` ignore (that file skips without an image).
 VM tests drive the real prepared image. `art98 vm start` must be running, and they skip without
 `work/image.json` (or the folder `ART98_TEST_WORK` names):
 
@@ -56,10 +54,12 @@ commands. Doc samples on the real VM: `uv run python tools/check_docs.py`.
 | `core/tests/test_agent_wine.py` | Wine |
 | Everything else in `core/tests` and `setup/tests` | Nothing |
 
-`make -C guest` needs the mingw cross-compiler. CI (`.github/workflows/tests.yml`) runs on Python
-3.11 and 3.13: `uv run ruff check .`, `uv run ruff format --check core setup tools`, and the unit
-tests (it ignores only `test_stage.py` and `test_qemu.py`; `test_stage_scenes.py` skips without an image). It has no VM. Which tests a change
-needs: [CONTRIBUTING.md](CONTRIBUTING.md#which-tests-a-change-needs).
+`make -C guest` needs the mingw cross-compiler.
+
+CI (`.github/workflows/tests.yml`) runs the ruff and unit-test commands above on Python 3.11 and
+3.13, with no VM. Its test command does not ignore `test_stage_scenes.py`, which skips without an
+image. Which tests a change needs:
+[CONTRIBUTING.md](CONTRIBUTING.md#which-tests-a-change-needs).
 
 ## Rules
 
@@ -157,27 +157,11 @@ Formatting is ruff's: `uv run ruff format core setup tools`.
 
 **Docs**
 
-- Plain, short sentences. Define a term the first time a page uses it, or link the
-  [glossary](docs/glossary.md).
-- Docs follow the code. If they disagree, fix the doc, or report the bug.
-- Every timing names its conditions (host load, engine); on Linux, `/proc/pressure/cpu` is one way
-  to record load.
-- Link design docs instead of repeating them. Don't edit `docs/status.md` in a feature PR; the
-  maintainer updates it at release time.
-- No personal details: no names, emails, or details of one machine beyond what setup needs.
+Follow [CONTRIBUTING.md](CONTRIBUTING.md#docs). Docs follow the code: if they disagree, fix the
+doc or report the bug. On Linux, note `/proc/pressure/cpu` next to any timing. Don't edit
+`docs/status.md` in a feature PR.
 
 ## Pull requests
 
-- One change per PR, with its tests and docs. Imperative commit message: "Add Calculator as a
-  program".
-- Run the unit tests, `ruff check` and `ruff format --check` before you open it.
-- Say which tests you ran and on which engine (Docker or Podman).
-- If you touched anything that talks to the guest or the container and did not run the VM tests,
-  write this line in the PR description: `VM tests: not run (no prepared image on this machine)`.
-- If a result is uncertain, say what you ran, what you saw and what you did not check.
-
-## Related guides
-
-A separate scene-author guide lives outside this repo; say in the PR when a change alters what
-scene authors see (a tool, the state format, an error). Also: [CONTRIBUTING.md](CONTRIBUTING.md),
-[docs/design/decisions.md](docs/design/decisions.md), [docs/status.md](docs/status.md).
+Follow [CONTRIBUTING.md](CONTRIBUTING.md#commits-and-pull-requests), including the
+`VM tests: not run (no prepared image on this machine)` line when it applies.

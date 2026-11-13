@@ -1,17 +1,12 @@
 # Scene API
 
-Programs are action classes in `core/art98/actions/programs/`, one file each:
-[`Notepad`](#notepad), [`Dialog`](#dialog), [`Paint`](#paint), [`Minesweeper`](#minesweeper)
-and [`Screensaver`](#screensaver).
-
 Everything here comes from `from art98.anim import *`. For what you pass to `play`, see
 [Animations](animations.md).
 
 Positions are screen pixels, with `(0, 0)` at the top left and y running down. The screen is
-800 x 600 unless the desktop is set to another [display mode](../setup/image.md#display). A scene
-starts on a black screen with no icons, taskbar or pointer, so the whole screen is the work area.
-On the stock desktop the taskbar takes the bottom of the screen. Its height is read from the
-guest, not assumed.
+800 x 600 unless the desktop is set to another [display mode](../setup/image.md#display). The
+[work area](#desktop-space) is the whole screen on the default blank desktop, and above the
+taskbar on the stock one.
 
 ## Scene
 
@@ -129,7 +124,7 @@ Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256
 | `title` | Default `"Picture"` for a picture. A Notepad takes the Windows 98 title for its file. No double quotes. |
 | `at`, `size` | The top left corner, and the outer size. |
 | `show` | `"normal"` (the default), `"minimized"` or `"maximized"`. |
-| `open` | A BMP to show (or a text file for Notepad): its `file`, and its `sha256` (compute it with `sha256sum`) so a changed file is caught. |
+| `open` | A BMP to show (or a text file for Notepad): its `file`, and its `sha256` so a changed file is caught. |
 | `pointer` | `[x, y]`, placed last. |
 
 Every mistake in the file is listed at once, as a `StateError`, before the desktop is touched. If
@@ -202,13 +197,12 @@ class Together(Scene):
 | Method | What the guest does | Frames |
 | --- | --- | --- |
 | `pause(duration=1.0)` | Keeps running, unseen | One capture, repeated |
-| `wait(duration=1.0, stop_condition=None, frozen_frame=False)` | Keeps running, seen | Captured at host speed |
+| `wait(duration=1.0, stop_condition=None, frozen_frame=False)` | Keeps running, seen | Captured at host speed, with no repaint wait |
 | `live(seconds, stop_condition=None)` | Keeps running, seen | Captured at host speed, with no repaint wait |
 | `wait_until(stop_condition, max_time=60.0)` | Keeps running, seen | Until the condition is true |
 
 Use `pause` for a beat, `wait` to let a caret blink, and `live` for something that moves by
-itself. `wait(frozen_frame=True)` is `pause`. `wait` and `live` are the same call today. `live`
-wraps `Recorder.live`.
+itself. `wait` is `live` with a default length, and `wait(frozen_frame=True)` is `pause`.
 
 `stop_condition` is a function, tried before each capture. `wait_until` warns if it gives up.
 
@@ -231,7 +225,7 @@ class WaitForCalculator(Scene):
 no frame is lost or repeated, and `time` carries on across it. It returns the path of the clip it
 closed.
 
-- A scene that never cuts writes one file, the output, as before.
+- A scene that never cuts writes one file, the output.
 - After a cut, `render` keeps each clip beside the output as H.264 MP4, named `<stem>-01.mp4`,
   `<stem>-02.mp4` and so on, and joins them into the output. That holds when the output is a GIF
   too: the render still makes one GIF, from the joined clips. `render(..., keep_clips=False)`
@@ -251,18 +245,13 @@ closed.
 
 #### Temp files and old clips
 
-- Every clip and every output is written to a temporary `.part` file beside it, such as
-  `out-01.part.mp4`, and all of them are renamed to their final names only once the whole render
-  has worked, the output last. A render that fails at any step, whether the scene raises, the
-  join fails or an encode fails, leaves nothing under a real name that it made, and the output
-  and clips of an earlier render are left exactly as they were.
+- Every clip and the output are written as `.part` files, such as `out-01.part.mp4`, and renamed
+  only once the whole render has worked, the output last. A render that fails at any step
+  deletes the `.part` files it made, and only those. An earlier render's output and clips stay
+  as they were.
 - If ffmpeg fails, `RecorderError` carries ffmpeg's own message.
-- A render that fails deletes the `.part` files it made, and only those.
-- A render never deletes clips from an earlier one. If `<stem>-NN.mp4` files are left beside the
-  output that this render did not write, say because the earlier scene cut more often, `render`
-  prints a warning on stderr that names them. Delete them yourself.
-- `keep_clips` is a Python argument of `render` only. `art98 render` has no flag for it and keeps
-  the clips.
+- A render never deletes clips from an earlier one. `<stem>-NN.mp4` files beside the output that
+  this render did not write are named in a warning on stderr. Delete them yourself.
 
 ```python
 from art98.anim import *
@@ -516,15 +505,13 @@ In a state, it is `"app": "notepad"`:
  "open": {"file": "../assets/note.txt", "sha256": "<sha256 of the file>"}}
 ```
 
-The file must be plain text. `title` is optional there too. Fill in `sha256` with the output of `sha256sum` on the file.
+The file must be plain text. `title` is optional there too.
 
 ![Typing](../assets/gifs/typing.gif)
 
 Source: [typing.py](../../examples/gallery/typing.py).
 
 ## Paint
-
-In `actions/programs/paint.py`.
 
 `Paint(at=None, size=None)`
 
@@ -563,8 +550,6 @@ Source: [paint_drawing.py](../../examples/gallery/paint_drawing.py).
 
 ## Minesweeper
 
-In `actions/programs/minesweeper.py`.
-
 `Minesweeper(at=None, size=None)`
 
 Starts `WINMINE.EXE`. The cell positions come from the client area.
@@ -589,8 +574,6 @@ takes no video time. No window may cover the top left corner of the screen.
 Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py).
 
 ## Screensaver
-
-In `actions/programs/screensaver.py`.
 
 `Screensaver(name="3D Pipes")`
 
@@ -752,7 +735,7 @@ never boots or closes it. Returns the path written. `keep_clips` is for scenes t
 `RecorderError`.
 
 A render does not copy the image. It plays on the VM that `art98 vm start` runs, from its copy
-under `work/runs/vm-*`, and restores `ready` first. One render runs at a time.
+under `work/runs/vm-*`. One render runs at a time. See [`ready` snapshot](../glossary.md).
 
 `write_gif(source, output, fps=15, colors=128, scale=1.0, dither="none")` converts a video to a
 GIF with `palettegen` and `paletteuse`.

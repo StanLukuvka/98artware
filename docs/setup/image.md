@@ -39,15 +39,16 @@ Eight processes run in the snapshot, all listed in the
 
 ### Your product key is on the image
 
-Your key is stored in clear text in at least two places inside `golden.qcow2`:
+Windows 98 product keys are public and reusable, so the key is a plain fact here, not the
+risk. Your key is stored in clear text in at least two places inside `golden.qcow2`:
 
 - `C:\WIN98\MSBATCH.INF`, the answer file. Setup leaves `C:\WIN98` in place.
 - The `ProductKey` value under `HKLM\Software\Microsoft\Windows\CurrentVersion`,
   written by Setup.
 
-Both were confirmed present on the private copy. The values were not printed. An old
-Windows 98 key is rarely worth guarding, but the disk is still an installed copy of Windows,
-so don't publish `golden.qcow2`, a copy of it, or `install.img`.
+Both were confirmed present on the private copy. The values were not printed. The risk is
+the disk itself, an installed copy of Windows 98: don't share `golden.qcow2`, a copy of it,
+`install.img` or `work/`.
 
 ## The answer file
 
@@ -112,7 +113,7 @@ There are two ways to check a component on an image:
 Not installed, because setup does not ask for them and Typical leaves them out:
 Accessibility Tools (so no Magnifier), System Resource Meter, System Monitor, Net
 Watcher, Clipboard Viewer, Quick View, HyperTerminal, Backup, Microsoft Chat, Web TV.
-To add one, add its Setup name to `OPTIONAL_COMPONENTS` and rebuild from `disk`.
+To add one, add its Setup name to `OPTIONAL_COMPONENTS` and rebuild with `art98 setup --from vm`.
 
 Also there from the Typical install: Outlook Express, Address Book, NetMeeting, Dial-Up
 Networking, Phone Dialer, Imaging, CD Player, Windows Scripting Host, and the online
@@ -185,7 +186,7 @@ Eleven are in `C:\WINDOWS\SYSTEM`, and one is in `C:\WINDOWS`. All have long nam
 | Path | What |
 |------|------|
 | `C:\ART98\AGENT.EXE` | The agent, 10,240 bytes |
-| `C:\WIN98\` | Setup files, 103 from the disc plus `MSBATCH.INF`. Windows can add components from here without a disc. Holds your key |
+| `C:\WIN98\` | Setup files, 103 from the disc plus `MSBATCH.INF`. Windows can add components from here without a disc. Holds the key |
 | `C:\WINDOWS\`, `C:\Program Files\`, `C:\My Documents\` | As Setup left them |
 | `C:\SETUPLOG.TXT`, `DETLOG.TXT`, `NETLOG.TXT`, `BOOTLOG.TXT` | Setup's logs |
 | `C:\AUTOEXEC.BAT` | Empty |
@@ -387,7 +388,7 @@ the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 | `audio_wav` | `None` | `-audiodev wav,...` when set | Deferred |
 | `extra_args` | `[]` | Appended | For extra QEMU options |
 
-**TCG, not KVM.** This costs speed, which is why Setup takes 40 minutes, but the guest
+**TCG, not KVM.** This costs speed, which is why setup takes 25 to 40 minutes, but the guest
 behaves the same on any host CPU.
 
 **`-no-reboot`.** After a warm reset, `IO.SYS` spins on the BIOS tick counter at

@@ -11,12 +11,12 @@ puts them on an image, the core drives that image, and scenes and samples sit on
 | 1 | [Front door](#1-front-door) | repo root | What art98 is, how to install and run it. |
 | 2 | [Guest programs](#2-guest-programs) | `guest/` | C and assembly that run inside Windows 98. |
 | 3 | [Setup tool](#3-setup-tool) | `setup/` | Builds the prepared image, once. |
-| 4 | [Core: VM and bridge](#4-core-vm-and-bridge) | `core/art98/` | Starts the VM and talks to the agent. |
-| 5 | [Core: scene layer](#5-core-scene-layer) | `core/art98/anim/` | The Manim-style API scenes are written in. |
-| 6 | [Tests](#6-tests) | `*/tests/` | What is checked, and what needs a VM. |
-| 7 | [Samples and experiments](#7-samples-and-experiments) | `examples/`, `tools/`, `experiments/` | Scenes to render, the tools that render them, and throwaway probes. |
-| 8 | [Docs](#8-docs) | `docs/` | Guides, design pages, diagrams, status. |
-| 9 | [Container and VM service](#9-container-and-vm-service) | `core/art98/container/`, `core/art98/service.py`, `setup/` | Runs QEMU in Docker, as the long-lived VM every render uses. |
+| 4 | [Container and VM service](#4-container-and-vm-service) | `core/art98/container/`, `core/art98/service.py`, `setup/` | Runs QEMU in Docker, as the long-lived VM every render uses. |
+| 5 | [Core: VM and bridge](#5-core-vm-and-bridge) | `core/art98/` | Starts the VM and talks to the agent. |
+| 6 | [Core: scene layer](#6-core-scene-layer) | `core/art98/anim/` | The Manim-style API scenes are written in. |
+| 7 | [Tests](#7-tests) | `*/tests/` | What is checked, and what needs a VM. |
+| 8 | [Samples and experiments](#8-samples-and-experiments) | `examples/`, `tools/`, `experiments/` | Scenes to render, the tools that render them, and throwaway probes. |
+| 9 | [Docs](#9-docs) | `docs/` | Guides, design pages, diagrams, status. |
 
 Two folders aren't in git: `work/` holds the disk images (installed copies of Windows, so it is never
 committed), and `.tools/`, if you have one, holds a local QEMU build. Load it in a shell with
@@ -25,8 +25,8 @@ committed), and `.tools/`, if you have one, holds a local QEMU build. Load it in
 
 ## 1. Front door
 
-- [ ] [README.md](../README.md): install, `art98 doctor`, `art98 setup`, a first render, the test
-  command, timings.
+- [ ] [README.md](../README.md): what art98 is, the container install with `art98 up`, a first
+  render, timings.
 - [ ] [pyproject.toml](../pyproject.toml): one `art98` package built from three folders, the
   `art98` command, and the pytest paths.
 - [ ] [docs/README.md](README.md): the index of every doc page.
@@ -66,7 +66,30 @@ Explained in: [Setup overview](setup/README.md), [Steps](setup/stages.md), [CLI]
 [The image](setup/image.md), [Troubleshooting](setup/troubleshooting.md).
 Diagrams: [setup pipeline](diagrams/prep-pipeline.png), [install boot chain](diagrams/install-boot-chain.png).
 
-## 4. Core: VM and bridge
+## 4. Container and VM service
+
+Every render uses it. QEMU, the setup tool and the guest programs are packed into one image, so a
+host only needs Docker, Python and ffmpeg. The host still runs the bridge, the recorder and
+ffmpeg; only QEMU moves. Building the image is part of setup; running the VM in it is the VM service
+in core.
+
+- [ ] [Dockerfile](../setup/Dockerfile): builds the guest programs, then a small Fedora image
+  with QEMU 10.2.2. [.dockerignore](../.dockerignore) keeps `work/` out of the build.
+- [ ] [up.py](../setup/art98_setup/up.py): `art98 up`. Builds the image, runs setup in it, and
+  stops.
+- [ ] [serve.py](../core/art98/container/serve.py): runs in the container. Boots
+  the run copy, relays the agent's serial port and answers screenshot, keys and revert.
+- [ ] [entry.py](../core/art98/container/entry.py): the image's entry point. On a rootful
+  engine it switches to your uid before running art98, so `work/` stays yours.
+- [ ] [host.py](../core/art98/container/host.py): runs on the host. `Engine` runs `docker`, and
+  `RemoteVM` gives the scene layer the same methods as a VM on the host would have.
+- [ ] [service.py](../core/art98/service.py): `art98 vm start`, `stop` and `status`, and
+  `attach()`, which takes the running VM for one render and reverts it to `ready`.
+
+Explained in: [Container](design/container.md),
+[Quick path in a container](setup/README.md#quick-path-in-a-container), [CLI](setup/cli.md).
+
+## 5. Core: VM and bridge
 
 The plumbing under every scene. Read in this order, bottom up:
 
@@ -90,7 +113,7 @@ Explained in: [Bridge](scenes/bridge.md), [Blank start](design/blank-start.md),
 [State and action design](design/state-and-action.md).
 Diagrams: [request lifecycle](diagrams/request-lifecycle.png), [architecture](diagrams/architecture.png).
 
-## 5. Core: scene layer
+## 6. Core: scene layer
 
 What a scene author imports with `from art98.anim import *`.
 
@@ -124,7 +147,7 @@ Explained in: [Tutorial](scenes/tutorial.md) (start here), [Scene API](scenes/sc
 Diagrams: [frame loop](diagrams/frame-loop.png), [action stack](diagrams/action-stack.png),
 [scene lifecycle](design/scene-lifecycle.png).
 
-## 6. Tests
+## 7. Tests
 
 The unit tests run with no VM; [CONTRIBUTING.md](../CONTRIBUTING.md#tests) has the commands and
 says which tests a change needs. Tests that need QEMU, Wine or the prepared image skip without them.
@@ -151,7 +174,7 @@ says which tests a change needs. Tests that need QEMU, Wine or the prepared imag
   each start from a fresh `ready` desktop. Needs the VM, like `test_stage.py`.
 - [ ] [conftest.py](../core/tests/conftest.py): pins test scenes to the stock desktop.
 
-## 7. Samples and experiments
+## 8. Samples and experiments
 
 - [ ] [hello.py](../examples/hello.py): the smallest scene. Renders to `hello.mp4`.
 - [ ] [showcase.py](../examples/showcase.py): a longer tour of the desktop.
@@ -172,7 +195,7 @@ says which tests a change needs. Tests that need QEMU, Wine or the prepared imag
 
 Explained in: [Gallery](scenes/gallery.md).
 
-## 8. Docs
+## 9. Docs
 
 - [ ] [setup/](setup/README.md): Part 1, preparing the image.
 - [ ] [scenes/](scenes/README.md): Part 2, writing and rendering scenes.
@@ -181,26 +204,3 @@ Explained in: [Gallery](scenes/gallery.md).
   design, the container, the blank start, programs.
 - [ ] [diagrams/](diagrams/README.md): every diagram, each with an editable `.drawio`.
 - [ ] [archive/](archive/PLAN.md): the original plan and the Manim mapping, kept for their reasoning.
-
-## 9. Container and VM service
-
-Every render uses it. QEMU, the setup tool and the guest programs are packed into one image, so a
-host only needs Docker, Python and ffmpeg. The host still runs the bridge, the recorder and
-ffmpeg; only QEMU moves. Building the image is part of setup; running the VM in it is the VM service
-in core.
-
-- [ ] [Dockerfile](../setup/Dockerfile): builds the guest programs, then a small Fedora image
-  with QEMU 10.2.2. [.dockerignore](../.dockerignore) keeps `work/` out of the build.
-- [ ] [up.py](../setup/art98_setup/up.py): `art98 up`. Builds the image, runs setup in it, and
-  stops.
-- [ ] [serve.py](../core/art98/container/serve.py): runs in the container. Boots
-  the run copy, relays the agent's serial port and answers screenshot, keys and revert.
-- [ ] [entry.py](../core/art98/container/entry.py): the image's entry point. On a rootful
-  engine it switches to your uid before running art98, so `work/` stays yours.
-- [ ] [host.py](../core/art98/container/host.py): runs on the host. `Engine` runs `docker`, and
-  `RemoteVM` gives the scene layer the same methods as a VM on the host would have.
-- [ ] [service.py](../core/art98/service.py): `art98 vm start`, `stop` and `status`, and
-  `attach()`, which takes the running VM for one render and reverts it to `ready`.
-
-Explained in: [Container](design/container.md),
-[Quick path in a container](setup/README.md#quick-path-in-a-container), [CLI](setup/cli.md).

@@ -74,7 +74,7 @@ On a stock desktop, a fresh boot shows brighter, pointerless frames until the fi
 ## Prep changes not made
 
 These would make the snapshot itself start closer to blank. Each changes the `ready` step and
-needs the snapshot rebuilt, so none is done without the owner's go-ahead.
+needs the snapshot rebuilt, so none is done without an issue first ([Scope](../../CONTRIBUTING.md#scope)).
 
 - Fix the name `UserPreferencesMask`. Windows 98 reads `UserPreferencemask`, so today the menu
   and gradient effects are still on in the snapshot, and `blank` turns them off at run time.

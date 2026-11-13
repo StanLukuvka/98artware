@@ -1,7 +1,7 @@
 # Win32 recipes
 
 Short recipes for driving Windows 98 from the host. Every code block on this page ran on the real
-image. Each block ran on its own, from a freshly restored `ready` snapshot.
+image, each on its own from a freshly restored `ready` snapshot.
 
 For the calls themselves, see [Bridge](bridge.md). For the programs on the image, see
 [App catalog](app-catalog.md). Scenes get the same bridge as `self.guest`, and the scene layer
@@ -52,8 +52,7 @@ with attach() as session:
     ...
 ```
 
-`attach` restores the same desktop every time, so nothing a recipe does survives the next run. The
-desktop is 800 x 600 in 16-bit colour.
+The desktop is 800 x 600 in 16-bit colour.
 
 Three rules cover most surprises:
 
@@ -65,9 +64,6 @@ Three rules cover most surprises:
 
 ### Find a window
 
-`find_window` waits up to `timeout` seconds and only sees visible windows. `title` is a
-case-insensitive substring. `class_name` is a case-insensitive exact match.
-
 ```python
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad", timeout=5)
@@ -76,9 +72,6 @@ assert g.find_window(title="notepad").hwnd == pad.hwnd
 ```
 
 ### List windows and children
-
-`windows()` lists every top-level window, hidden ones included. `windows(hwnd)` lists all
-descendants, not only direct children.
 
 ```python
 top = g.windows()
@@ -102,7 +95,7 @@ while u.IsWindow(pad.hwnd):
 
 ### Move and resize
 
-`move_window` keeps the size and stacking order, and repaints the frame. Use it for moves.
+Use `move_window` for moves.
 
 ```python
 g.spawn("notepad.exe")
@@ -135,9 +128,6 @@ assert edit.rect[:2] == (left, top)
 ### Minimise, maximise, hide
 
 `ShowWindow` takes `SW_HIDE` 0, `SW_SHOW` 5, `SW_MINIMIZE` 6, `SW_RESTORE` 9 and `SW_MAXIMIZE` 3.
-
-A minimised window stays visible and reports a rectangle at (3000, 3000). A maximised one reports
-(-4, -4, 804, 576).
 
 ```python
 g.spawn("notepad.exe")
@@ -286,7 +276,7 @@ g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
 g.move_window(pad.hwnd, 150, 100)
 g.sync(pad.hwnd)
-vm.screenshot(stage / "moved.png")
+vm.screenshot("moved.png")
 ```
 
 ## Mouse
@@ -431,40 +421,12 @@ assert get_text(edit.hwnd) == ""
 
 ### Type a string with real keys
 
-This map covers the keys on a US layout. A key takes about 2 x `hold_ms`, and a shifted key about
-4 x `hold_ms`. At `hold_ms=10` that is 20 ms a key. Leave that time between calls: QEMU's queue
-overflows and drops keys if about 300 are queued at once.
+`char_chord` gives the keys that type one character on a US layout. Pace the keys: see
+[Keys](bridge.md#keys) for how long each takes and when QEMU drops them. At `hold_ms=10` leave 20 ms
+per key. In a scene, use [`TypeKeys`](animations.md#typekeys).
 
 ```python
-NAMES = {
-    " ": "spc",
-    "\n": "ret",
-    "\t": "tab",
-    ".": "dot",
-    ",": "comma",
-    "-": "minus",
-    "=": "equal",
-    "/": "slash",
-    ";": "semicolon",
-    "'": "apostrophe",
-    "[": "bracket_left",
-    "]": "bracket_right",
-    "\\": "backslash",
-    "`": "grave_accent",
-}
-SHIFTED = dict(zip('!@#$%^&*()_+{}|:"<>?~', "1234567890-=[]\\;',./`"))
-
-
-def press(char, hold_ms=10):
-    keys = []
-    if char.isupper():
-        keys, char = ["shift"], char.lower()
-    elif char in SHIFTED:
-        keys, char = ["shift"], SHIFTED[char]
-    keys.append(NAMES.get(char, char))
-    vm.send_keys(*keys, hold_ms=hold_ms)
-    time.sleep(len(keys) * hold_ms * 0.002)
-
+from art98.actions.keyboard import char_chord
 
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
@@ -472,7 +434,9 @@ edit = g.find_window(class_name="Edit", parent=pad.hwnd)
 time.sleep(0.5)
 line = 'Hello, "World"! 100% [ok] C:\\TEMP'
 for char in line:
-    press(char)
+    keys = char_chord(char)
+    vm.send_keys(*keys, hold_ms=10)
+    time.sleep(len(keys) * 0.02)
 time.sleep(0.2)
 assert get_text(edit.hwnd) == line
 ```
@@ -627,8 +591,9 @@ assert cstring(line).startswith('"C:\\ART98\\AGENT.EXE"')
 
 ### Copy files in and out
 
-`put_file` and `get_file` split the transfer into 4 KB chunks. `PUT` runs at 100 to 190 KB/s and
-`GET` at about 325 KB/s.
+`put_file` and `get_file` split the transfer into 4 KB chunks. The rates are quiet-host figures,
+in [Timings](bridge.md#timings). On a busy host they are far lower: see
+[On a busy host](../setup/troubleshooting.md#on-a-busy-host).
 
 ```python
 data = bytes(range(256)) * 40
@@ -1151,8 +1116,7 @@ assert u.CallWindowProcA(address, 0, 0, 0, 0).value > 0
 
 ## Display modes
 
-`set_display_mode` takes a mode the Cirrus driver offers. The change takes 65 to 150 ms and needs
-no reboot. The modes are:
+`set_display_mode` takes a mode the Cirrus driver offers. The change needs no reboot. The modes are:
 
 | Width x height | Depths |
 | --- | --- |
@@ -1358,8 +1322,6 @@ while u.IsWindow(player.hwnd):
     time.sleep(0.2)
 ```
 
-Audio is deferred, so this page covers picture only.
-
 ## Games
 
 ### Read Minesweeper's mines
@@ -1431,8 +1393,8 @@ u.ReleaseDC(game.hwnd, dc)
 
 ## Crashes
 
-A proxied call is free to crash. The agent reports it with `! CRASH`, restarts itself and says
-`! HELLO`. The whole round trip takes about 0.3 s. Windows and programs carry on.
+A proxied call is free to crash. See [CRASH](instruction-set.md#crash) for what the agent does and
+[Timings](bridge.md#timings) for how long it takes.
 
 ### Survive a crash
 
@@ -1509,33 +1471,15 @@ g.wait_ready(5)
 `QUIT` ends the agent and nothing restarts it. Type its path into the Run box with real keys.
 
 ```python
+from art98.actions.keyboard import char_chord
+
 g.request("QUIT")
 time.sleep(0.3)
 
 vm.send_keys("meta_l", "r")
 time.sleep(0.5)
-for key in (
-    ["c"],
-    ["shift", "semicolon"],
-    ["backslash"],
-    ["a"],
-    ["r"],
-    ["t"],
-    ["9"],
-    ["8"],
-    ["backslash"],
-    ["a"],
-    ["g"],
-    ["e"],
-    ["n"],
-    ["t"],
-    ["dot"],
-    ["e"],
-    ["x"],
-    ["e"],
-    ["ret"],
-):
-    vm.send_keys(*key)
+for char in "c:\\art98\\agent.exe\n":
+    vm.send_keys(*char_chord(char))
     time.sleep(0.2)
 g.wait_ready(10)
 ```
@@ -1544,35 +1488,51 @@ g.wait_ready(10)
 
 ### Reboot
 
-QEMU runs with `-no-reboot`, so a guest reboot ends the VM. `EWX_REBOOT` is 2 and `EWX_FORCE` is 4.
-Use `acall`, because the agent dies with Windows. QEMU exits within a second.
+These recipes end QEMU, so they need a local VM from `stage` (experiments only). Under `attach` a
+reboot would end the VM service's QEMU, and `vm` has no `wait_exit`. `EWX_REBOOT` is 2 and `EWX_FORCE` is 4. QEMU runs with
+`-no-reboot`, so a guest reboot ends it. Use `acall`, because the agent dies with Windows. QEMU
+exits within a second.
 
 ```python
-g.acall("user32", "ExitWindowsEx", 2 | 4, 0)
-assert vm.wait_exit(10)
+from art98.session import stage
+
+with stage("work") as local:
+    g, vm = local.bridge, local.vm
+    g.acall("user32", "ExitWindowsEx", 2 | 4, 0)
+    assert vm.wait_exit(10)
 ```
 
 Without `EWX_FORCE`, a program with unsaved work can stop the reboot with its save prompt.
 
 ```python
-g.spawn("notepad.exe")
-pad = g.find_window(class_name="Notepad")
-edit = g.find_window(class_name="Edit", parent=pad.hwnd)
-u.PostMessageA(edit.hwnd, WM_CHAR, ord("x"), 0)
-g.sync(pad.hwnd)
-g.acall("user32", "ExitWindowsEx", 2, 0)
-assert not vm.wait_exit(4)
-g.find_window(class_name="#32770", timeout=3)
+from art98.session import stage
+
+with stage("work") as local:
+    g, vm = local.bridge, local.vm
+    u = g.user32
+    g.spawn("notepad.exe")
+    pad = g.find_window(class_name="Notepad")
+    edit = g.find_window(class_name="Edit", parent=pad.hwnd)
+    u.PostMessageA(edit.hwnd, 0x102, ord("x"), 0)  # WM_CHAR
+    g.sync(pad.hwnd)
+    g.acall("user32", "ExitWindowsEx", 2, 0)
+    assert not vm.wait_exit(4)
+    g.find_window(class_name="#32770", timeout=3)
 ```
 
 ### Shut down
 
-`EWX_SHUTDOWN` (1) leaves a black screen and QEMU keeps running. Close the VM from the host.
+`EWX_SHUTDOWN` (1) leaves a black screen and QEMU keeps running. Close the VM from the host. This
+also needs a local VM.
 
 ```python
-g.acall("user32", "ExitWindowsEx", 1, 0)
-assert not vm.wait_exit(5)
-vm.close()
+from art98.session import stage
+
+with stage("work") as local:
+    g, vm = local.bridge, local.vm
+    g.acall("user32", "ExitWindowsEx", 1, 0)
+    assert not vm.wait_exit(5)
+    vm.close()
 ```
 
 ### Save and restore a moment
@@ -1581,13 +1541,13 @@ The VM service only reverts to `ready`. It refuses `save_snapshot`, so the `read
 be changed by accident. To get back to a known point, end the run and attach again, or replay the
 steps after the revert.
 
-To try saving a moment, use `boot_local` on a private copy. This is for experiments only. It runs
-QEMU on this host, and the copy is deleted afterwards.
+To try saving a moment, use `stage`, which is `private_stage` and `boot_local` together. This is for
+experiments only. It runs QEMU on this host, and the copy is deleted afterwards.
 
 ```python
-from art98.session import boot_local, private_stage
+from art98.session import stage
 
-with private_stage("work") as copy, boot_local(copy) as local:
+with stage("work") as local:
     g, vm = local.bridge, local.vm
     vm.save_snapshot("mine")
     g.spawn("notepad.exe")
@@ -1605,7 +1565,7 @@ While paused the agent cannot answer, but screenshots still work.
 from art98 import BridgeTimeout
 
 vm.pause()
-vm.screenshot(stage / "frozen.png")
+vm.screenshot("frozen.png")
 try:
     g.ping(timeout=0.3)
 except BridgeTimeout:
@@ -1622,8 +1582,7 @@ Each of these was tried on the real image. They fail for the reason given.
 | --- | --- | --- |
 | `SetWindowTextA` on another program's Edit | Returns 1, text unchanged | Windows 9x updates the window's own title only. Use `WM_SETTEXT`. |
 | `SetWindowLongA` on another program's window, such as to remove a title bar | Returns 0, style unchanged | It works only on the agent's own windows. `SetWindowPos` still sets topmost. |
-| `SendMessageA` with a private struct pointer, such as `LVM_GETITEMPOSITION` with an `Out` | Timed out, agent stayed hung | The target gets a pointer into the wrong process. Use [shared memory](#pass-a-struct-to-another-process). |
-| `SendMessageA` that opens a modal dialog | `BridgeTimeout`, agent blocked until the dialog closes | Use `PostMessageA`. |
+| `SendMessageA` that blocks, such as a private struct pointer (`LVM_GETITEMPOSITION` with an `Out`) or a modal dialog | `BridgeTimeout`, agent stayed hung | See [threading](bridge.md#threading). For a struct, use [shared memory](#pass-a-struct-to-another-process). |
 | `WM_CHAR` or `keybd_event` to a DOS box | No effect | DOS boxes read the virtual keyboard. Use `vm.send_keys`. |
 | Alt+Enter in a DOS box, via `vm.send_keys` | The window stayed a window | No way found. |
 | `InvertRect`, or `PatBlt` and `BitBlt` with `DSTINVERT` or `BLACKNESS`, on the screen or a window DC | Returns 1, nothing drawn | They work on a memory DC. `WHITENESS`, `PATCOPY`, `PATINVERT` and `NOTSRCCOPY` work on the screen. Use those, or `Rectangle` with a black brush. |

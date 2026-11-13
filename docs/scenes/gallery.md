@@ -6,10 +6,8 @@ Each GIF is a real scene on the real image, cut down to keep the file small. To 
 uv run python tools/render_all.py
 ```
 
-Every program in these samples (Notepad, Paint, Minesweeper, Screensaver, Dialog) is an action
-class in `core/art98/actions/programs/`, and `from art98.anim import *` gives them all.
-
 Give scene names to render only those, such as `render_all.py typing`. A GIF's frame rate and colours are set in that file.
+
 
 ## The README clip
 
@@ -98,7 +96,7 @@ class Hero(Scene):
 
 Two picture windows are set from a state file, off camera. The Flower window glides right,
 teleports to the corner and closes, and a Sky window opens. Then a second state replaces the
-desktop, and its window moves down. This one was rendered through the container.
+desktop, and its window moves down.
 
 ![The MVP](../assets/gifs/mvp.gif)
 
@@ -369,7 +367,7 @@ class HoverDialog(Scene):
 A cascade of eight `???` boxes on a teal desktop, a jittered pair of greyed boxes with a custom
 icon, a box that types its own text, then the colour changes to dark red. A state then adds a
 tiled wallpaper, and one more box. The wallpaper comes from a CD in the guest's drive D:. The
-frames are the same on host QEMU, Podman and Docker (measured before the VM service, when a render could still run QEMU on the host). The file also holds a second scene,
+frames were the same on host QEMU, Podman and Docker, measured before the VM service. The file also holds a second scene,
 `DialogStormStock`, for the stock desktop.
 
 ![Dialog storm](../assets/gifs/dialog-storm.gif)

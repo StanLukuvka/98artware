@@ -64,7 +64,7 @@ uv run art98 setup --iso /path/to/win98se.iso
 | Flag | Default | Effect |
 |------|---------|--------|
 | `--iso PATH` | None | Your disc image. Only the `vm` step reads it |
-| `--key KEY` | `ART98_PRODUCT_KEY` | Your product key. Only `vm` needs it, and it is used when the answer file is written. `--key` wins over the variable |
+| `--key KEY` | `ART98_PRODUCT_KEY` | Your product key. `art98 setup` never prompts for it. Only `vm` needs it, and it is used when the answer file is written. `--key` wins over the variable |
 | `--work PATH` | `[vm] work` | The work directory, relative to where you run the command. Created if missing |
 | `--disk-mb N` | 2047 | Size of the Windows disk. Only the `vm` step reads it, and it rounds down to whole cylinders. Only the default has been run |
 | `--from STEP` | None | Redo `vm`, `setup`, `init_api` or `ready`, and everything after it. See [what `--from` needs](stages.md#what---from-needs) |
@@ -189,16 +189,18 @@ Plays a scene on the running VM and writes the video. It attaches to the VM, rev
 | `--work PATH` | `[vm] work` | The work folder |
 | `--wait S` | 0 | If the VM is busy, retry for up to `S` seconds, then fail with `busy`. Only "busy" is retried |
 
-Without a running VM it fails at once with `error: the VM is not running ... run art98 vm start`.
-A busy VM fails with `error: the VM is busy: another render holds it`, unless `--wait` is given.
+Errors:
 
-When an art98 error (a state that doesn't match, a failed guest call, a recorder failure and so
-on) comes through a line of the scene file, the message ends with where: `error: <message>
-(scene.py:LINE, in func)`, the innermost line of the scene file in the traceback. An error with
-no scene line in its traceback, such as a bad `state` file named as a class attribute, prints
-without it. Other
-Python errors print the usual traceback. `ART98_TRACE=1` gives the full traceback for every
-error.
+| Message | Cause |
+|---------|-------|
+| `the VM is not running (nothing answers on <socket>); run art98 vm start` | No VM is running for this work folder |
+| `the VM is busy: another render holds it` | A render holds the VM. Use `--wait S` |
+| `the guest agent did not answer after the revert; run art98 vm stop then art98 vm start` | The guest hangs. Restart the VM |
+
+An art98 error raised from a line of the scene file ends with the innermost such line:
+`error: <message> (scene.py:LINE, in func)`. One with no scene line, such as a bad `state` file
+named as a class attribute, prints without it. Other Python errors print the usual traceback.
+`ART98_TRACE=1` prints the full traceback for every error.
 
 ## art98 ping
 
@@ -218,13 +220,7 @@ uv run art98 ping
 Right after `art98 vm start`, the tick count is about 54,400, the moment the snapshot was saved.
 It then moves on with each render.
 
-Errors are the same as for `render`:
-
-| Message | Cause |
-|---------|-------|
-| `the VM is not running (nothing answers on <socket>); run art98 vm start` | No VM is running for this work folder |
-| `the VM is busy: another render holds it` | A render holds the VM. Use `--wait S` |
-| `the guest agent did not answer after the revert; run art98 vm stop then art98 vm start` | The guest hangs. Restart the VM |
+Errors are as for [render](#art98-render).
 
 ## art98 up
 
@@ -306,10 +302,10 @@ Everything setup makes goes under `--work`. `work/` is in `.gitignore`.
 | `media/win98/` | `vm` | | Setup files from your disc. Microsoft's files, so keep them out of anything you publish |
 | `boot.img` | `vm` | | Patched boot floppy |
 | `AUTOEXEC.BAT`, `CONFIG.SYS` | `vm` | | Scratch copies of what went on the floppy. No key in them, and nothing reads them again |
-| `install.img` | `vm` | End of `ready` | Raw disk. **Holds your key** |
-| `MSBATCH.INF` | `vm` | Same stage | Answer file. **Holds your key.** Left behind only if the copy to the disk fails |
+| `install.img` | `vm` | End of `ready` | Raw disk. An installed copy of Windows: never share it |
+| `MSBATCH.INF` | `vm` | Same stage | Answer file, with your key. Left behind only if the copy to the disk fails |
 | `MSDOS.SYS` | `init_api` | Same stage | Edited copy |
-| `golden.qcow2` | `init_api` | | The prepared disk and, after `ready`, the snapshot. **Holds your key** |
+| `golden.qcow2` | `init_api` | | The prepared disk and, after `ready`, the snapshot. An installed copy of Windows: never share it |
 | `image.json` | `ready` | | `VMConfig` as JSON |
 | `qemu.log` | Every VM | | QEMU's stdout and stderr. Appended, never cleared |
 | `shots/install<boot>-<n>.png` | `setup` | | One frame every 30 seconds |
@@ -344,7 +340,7 @@ give it its own directory (for experiments, with `boot_local()`):
 3. Set `disk` in the copy to the absolute path of the new `golden.qcow2`.
 4. Pass the new folder to `boot_local()`.
 
-Each copy is a full installed Windows with your key in it, so keep it as private as the original.
+Each copy is a full installed Windows: never share it.
 
 `setup` and `boot_local("work")` write to `work/golden.qcow2` itself, so the file's time
 and size change. That is expected. The snapshot inside is not touched, and the next

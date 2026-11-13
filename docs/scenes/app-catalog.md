@@ -4,10 +4,8 @@ What is on the prepared image, and how each program behaves when driven. Everyth
 probed on the real guest: paths, classes, control ids and quirks. Code blocks use the setup from
 [Win32 recipes](win32-recipes.md#setup), and each one ran from the `ready` snapshot.
 
-For the scene props that wrap some of these programs, see the [Scene API](scene-api.md). Every program
-class lives in `core/art98/actions/programs/` and comes from `art98.anim`. Notepad is the only one
-that is also in a state, as `"app": "notepad"`. `Dialog`, the message box, has
-[its own section](#message-box) below. It is not in a state.
+For the props that wrap some of these programs, see the [Scene API](scene-api.md). Of these, only
+Notepad can be opened by a state. `Dialog` is under [Message box](#message-box).
 
 Sound Recorder is not covered, because audio is deferred.
 
@@ -524,9 +522,7 @@ have the same title.
 | Resize | `SetWindowPos(box, 0, 0, 0, w, h, 0x2 \| 0x4)` changes the frame only. The children stay where they were, and the box grows right and down. |
 | Close | Yes/No boxes ignore `WM_CLOSE`. Post `WM_COMMAND` (`0x111`) with 7 (`IDNO`) to close one. |
 
-Icons that were seen in a real box: `shell32.dll` 11 (CD), 13 (globe), 15 (computer), 16 (printer)
-in `C:\WINDOWS\SYSTEM`, `main.cpl` 0 (mouse), `modem.cpl` 0 (telephone) and `user.exe` 0
-(flag). The full table is in the [Scene API](scene-api.md#dialog). The CD drive is `D:`: see
+The icons seen in a real box are in the [Scene API](scene-api.md#dialog). The CD drive is `D:`: see
 [Desktop colour and wallpaper](scene-api.md#desktop-colour-and-wallpaper).
 
 ## Screensavers

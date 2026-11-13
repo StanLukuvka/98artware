@@ -35,7 +35,7 @@ captured, the host sends the agent a `SYNC`, which waits until the guest's windo
 repainted, and only then takes QEMU's screenshot.
 
 **Why.** A render should give the same frames on any machine; consistency was put ahead of
-speed, even when it made setup take 40 minutes. Software emulation behaves the same everywhere
+speed, even though setup takes 25 to 40 minutes. Software emulation behaves the same everywhere
 and needs no `/dev/kvm` or extra privileges in a container. It also avoids two Windows 98
 problems: under KVM on a recent CPU, Windows 9x hits a TLB bug that needs a patched VMM, and on a
 fast processor it hits timing bugs that an emulated Pentium III keeps it away from. The machine
@@ -116,7 +116,7 @@ stall is detected from disk writes, not the screen, because a blinking caret loo
 See [Steps](../setup/stages.md).
 
 **For new work.** Do it at run time after the revert if you can. A change to setup or the `ready`
-snapshot needs the maintainer's agreement first, and a rebuild tested from scratch in a separate
+snapshot needs an issue first ([Scope](../../CONTRIBUTING.md#scope)), and a rebuild tested from scratch in a separate
 work folder. Never save a snapshot over `ready`; the VM service refuses `save_snapshot`.
 
 ## 5. QEMU in a container; Python, the recorder and ffmpeg on the host
@@ -140,9 +140,10 @@ channel for screenshots, keys, revert, pause and the CD. art98 calls only the `d
 - **One engine path.** Podman works through `podman-docker`, so there is one code path. The
   container itself decides who owns the files it writes, by reading its uid map, so rootful
   Docker and rootless Podman both leave `work/` owned by you.
-- **Secrets stay out of images.** The disc and `work/` are bind-mounted, the product key is a
-  private file mounted read-only and deleted after setup. Nothing large or secret is baked into
-  an image layer or shows in `docker inspect`.
+- **Nothing personal in an image.** The disc and `work/` are bind-mounted, and the product key
+  and VM token are files mounted read-only. So an image holds only programs and can be shared,
+  and the token never shows in `docker inspect`. (Windows 98 product keys are public; the real
+  secret is the token.)
 
 **For new work.** Keep the host's view of the VM to the methods `RemoteVM` has. A new control op
 goes in `serve.py` and `RemoteVM` together, with a test in `test_container.py`, and must keep
@@ -166,14 +167,10 @@ clean up: a render killed with `kill -9` left the next attach working in about 0
 release the server drops the relay, ejects the disc, pauses the VM and frees the lock last, so
 the next client never races the cleanup. Pausing matters because an idle Windows 98 under software
 emulation keeps a whole CPU core busy. Fixed ports make a clash an error you can see instead of
-a silent fallback. The design was chosen as the lean option of several: one `service.py`, and on
-disk only `work/vm.token` and `work/vm.cid`. The token can live outside `work/` (`[vm] token_file`), so
+a silent fallback. On disk it needs only `work/vm.token` and
+`work/vm.cid`. The token can live outside `work/` (`[vm] token_file`), so
 a client in another container needs only that file and a small `art98.toml`, never `work/`
 ([how](../setup/config.md#attach-from-another-container)).
-
-A live view is opt-in: `art98 vm start --vnc` serves the screen on loopback only. Screenshots
-don't go through VNC, and a view-only viewer was measured not to change the frames; a viewer that
-sends input would.
 
 **What follows.** Rendering on host QEMU is gone, along with the backend switch.
 `session.boot_local()` and `private_stage()` remain for experiments that need a fresh boot. Over
@@ -253,10 +250,8 @@ Every public name in `art98.anim` must be documented in [Scene API](../scenes/sc
 Programs are action classes: one file per program in `actions/programs/`, each a subclass of
 `Win`. Docs, render output and experiments are kept apart (`docs/`, `out/`, `experiments/`).
 
-**Why.** Everything used to sit in one `anim/` folder, and programs piled up in one module. A
-program is added one at a time, so each needs its own place, and the layers make it clear which
-code talks to the guest. When the programs were reworked, they were parked first and then
-brought back one by one as action classes, starting with a Notepad pilot.
+**Why.** A program is added one at a time, so each needs its own place, and the layers make it
+clear which code talks to the guest.
 
 **For new work.** A new program is `actions/programs/<name>.py`, subclassing `Win`; a new kind of
 action that is not a window gets its own file or folder in `actions/`. A constant or a guest
@@ -273,13 +268,11 @@ them, and an add-on or plugin system are out of scope. Audio is deferred: art98 
 plugin system is a project of its own. Audio is deferred to keep the focus on getting video right;
 the VM keeps its Sound Blaster only because removing it would change the image.
 
-Two more things are out for now: animated desktop icons, and widescreen output. The Cirrus card
-offers no 1280 x 720 or 1920 x 1080 mode, and another display adapter would change the image;
-scenes are 4:3, 800 x 600 by default (see [Display modes](../scenes/scene-api.md#display-modes)).
-The set of resolutions stays fixed to the Cirrus modes (640 x 480, 800 x 600, 1024 x 768,
-1280 x 1024). Arbitrary or custom resolutions, upscaling to 720p or 1080p, and a different display
-driver are deferred (decided 2026-11-11): a fixed set means nothing has to check or adapt to an
-unknown resolution.
+Two more things are out for now: animated desktop icons, and widescreen output. Resolutions stay
+the four Cirrus modes (640 x 480, 800 x 600, 1024 x 768, 1280 x 1024), so nothing has to adapt to an
+unknown size. The card has no 1280 x 720 or 1920 x 1080 mode, and another adapter, a custom mode or
+upscaling would change the image or the pipeline. Scenes are 4:3, 800 x 600 by default
+([Display modes](../scenes/scene-api.md#display-modes)).
 
 **For new work.** Don't plan install steps or extension points for non-base programs, and don't
 add audio capture, sound in scenes, or audio tracks in the output.
@@ -336,8 +329,7 @@ action. A scene that changes the work area or display mode with raw calls must c
 `self.next_section(name)` does the same with a label. The clips are kept beside the output as
 `<stem>-01.mp4` and on, and joined into it.
 
-**Why.** A scene should control its own capture as it runs. The four recorder choices made then
-still stand:
+**Why.** A scene should control its own capture as it runs. Four rules follow:
 
 - **One GIF from the joined lossless clips,** because 4:2:0 H.264 smears Windows' 1-pixel
   coloured text.
@@ -363,7 +355,7 @@ container, which puts it in the guest's CD drive (`D:`) after the revert. The ne
 it first, because `loadvm` restores the guest's empty tray but not QEMU's medium.
 
 **Why.** `put_file` over the emulated serial port runs at roughly 90 to 190 KB/s on a quiet host
-and far slower on a busy one, so a full-screen BMP could add 15 s or more to every Set. The CD
+and far slower on a busy one (about 12 KB/s was measured), so a full-screen BMP could add 15 s or more to every Set. The CD
 takes about a second for 1.4 MB and leaves the image unchanged. Putting the images on the image
 itself would change prep and `ready`.
 
@@ -424,12 +416,9 @@ package and out of the test suite.
 use asks for it. When code moves or a feature is replaced, the old path is deleted: no
 compatibility shims, no old import paths, no commented-out or parked code left to drift.
 
-**Why.** art98 is young, and keeping old paths alive costs more than updating the callers. When the VM service was designed, the lean option (fewer settings,
-one server mode, one module) was picked over a more general one, and features that wait on a
-number, such as recreating the run copy of the disk, were left until a probe showed a need (it
-didn't: the run copy stayed the same size over 30 renders). When the programs were reworked,
-parking them as commented-out code was rejected in favour of keeping them live and tested, and
-then rebuilding each one properly.
+**Why.** art98 is young, and keeping old paths alive costs more than updating the callers.
+Features that wait on a number wait for the probe: recreating the run copy of the disk was left
+out, and the run copy stayed the same size over 30 renders.
 
 **For new work.** Prefer one module and one code path. Delete what you replace in the same change,
 and move its callers. Write a `lazy:` comment for a known shortcut, with its limit.

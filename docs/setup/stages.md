@@ -1,6 +1,6 @@
 # The setup steps
 
-`Setup.STAGES` is `vm`, `setup`, `init_api`, `ready`, in that order, named after the
+`art98 setup` runs `Setup.STAGES`: `vm`, `setup`, `init_api`, `ready`, in that order, named after the
 path from a blank machine to a desktop you can script: a VM to install onto, Windows
 Setup, the agent's first call, and the `ready` snapshot. Each step is a module in
 `setup/art98_setup/` with a `run` function, and `Setup` in `builder.py`
@@ -15,8 +15,6 @@ runs them.
 
 ![The four setup steps, their inputs and their outputs](../diagrams/prep-pipeline.png)
 
-The command is `art98 setup`.
-
 ## How steps are tracked
 
 `Setup.run` reads `work/state.json`, a JSON list of finished steps, and skips what
@@ -27,6 +25,9 @@ checkpoints of its own.
 `--from STEP` cuts the list down to the steps before `STEP`, writes that to
 `state.json`, and then runs as usual. The file is rewritten before any work
 starts, so if the redo fails, the later steps stay forgotten. `STEP` must be one of the four step names.
+The steps were once named `media` and `disk` (now `vm`), `install` (now `setup`), `patch` (now
+`init_api`) and `harden` (now `ready`). `--from` takes only the new names, and a `state.json` from
+before the rename is ignored, so setup starts again from `vm`.
 
 The list is cut by position, so `--from` never skips a step that has not run. On
 a `state.json` holding `["vm"]`, `--from ready` runs `setup` next.
@@ -38,23 +39,16 @@ file, so what you can redo depends on how far setup got.
 
 | `--from` | Needs | Before `ready` has finished | After `ready` has finished |
 |----------|-------|-----------------------------|----------------------------|
-| `vm` (or `media`, `disk`) | `--iso`, a key | New disk, then a new install | New disk, then a new install. Use this one to rebuild |
-| `setup` (or `install`) | `work/install.img`, `work/boot.img` | Runs Setup again over whatever is on the disk, see the warning under [setup](#setup) | **Fails.** QEMU can't find `install.img`, which ends in a `QemuError` and an `error:` line |
-| `init_api` (or `patch`) | `work/install.img` | Redoes `init_api` and `ready` | **Fails** with `mtype failed: ...` |
-| `ready` (or `harden`) | `work/golden.qcow2` | Redoes `ready` | Works, with a catch, see [ready](#ready) |
+| `vm` | `--iso`, a key | New disk, then a new install | New disk, then a new install. Use this one to rebuild |
+| `setup` | `work/install.img`, `work/boot.img` | Runs Setup again over whatever is on the disk, see the warning under [setup](#setup) | **Fails.** QEMU can't find `install.img`, which ends in a `QemuError` and an `error:` line |
+| `init_api` | `work/install.img` | Redoes `init_api` and `ready`. Overwrites `golden.qcow2` | **Fails** with `mtype failed: ...` |
+| `ready` | `work/golden.qcow2` | Redoes `ready` | Works, with a catch, see [ready](#ready) |
 
-`disk` used to skip the disc and need only a key. It now means `vm`, which runs both
-of its parts, so `--from disk` needs `--iso` too.
-
-A failed `--from setup` or `--from init_api` has already shortened `state.json`.
-Run `--from vm` afterwards, not a plain `art98 setup`, because a plain run would
-retry the failed step.
+If a redo fails, see [recovering from a failed step](troubleshooting.md#recovering-from-a-failed-step).
 
 ## vm
 
-Step 1. Checks the agent, unpacks Setup, makes a boot floppy that starts it, then
-builds a blank hard disk and copies in what Setup needs. It was two stages, `media`
-and `disk`, and runs them one after the other in `vm.py`.
+Step 1, in `vm.py`. It runs two parts, `media` then `disk`.
 
 ### media
 
@@ -106,8 +100,7 @@ Checks the agent, unpacks Setup, and makes a boot floppy that starts it.
    SETUP.EXE C:\WIN98\MSBATCH.INF /IS /IE /IM /IQ /IV /NF
    ```
 
-   The floppy loads no CD driver, because Setup runs from a copy on `C:`. The VM has
-   no CD drive at all.
+   The floppy loads no CD driver, because Setup runs from a copy on `C:`.
 
    | Switch | Effect |
    |--------|--------|
@@ -135,8 +128,6 @@ Checks the agent, unpacks Setup, and makes a boot floppy that starts it.
 | `... WIN98 folder lacks [...]` | `SETUP.EXE` or `PRECOPY1.CAB` missing |
 | `the disc's boot floppy has no HIMEM.SYS` | Unexpected floppy |
 | `7z failed: ...` | `7z` could not read the file |
-
-**`--from media`** means `--from vm`, which redoes everything.
 
 ### disk
 
@@ -174,7 +165,7 @@ Builds a blank hard disk and copies in what Setup needs.
 4. **Copies the files.** `disk_spec` addresses the partition as `path@@32256`,
    where 32256 is `PARTITION_OFFSET`.
 5. **Writes the answer file.** `render_msbatch` builds `MSBATCH.INF` with CRLF line
-   ends. Its local copy holds your key and is deleted right after the copy. The
+   ends. Its local copy is deleted right after the copy. The
    copy inside the disk stays, see
    [the key on the image](image.md#your-product-key-is-on-the-image).
 
@@ -186,24 +177,17 @@ Builds a blank hard disk and copies in what Setup needs.
 
 - `the disk stage needs --key`
 - `mformat failed: ...` or `mcopy failed: ...`, for example if the host disk is
-  full. If it fails on the `MSBATCH.INF` copy, `work/MSBATCH.INF` is left behind
-  with your key in it. Delete it.
+  full. If it fails on the `MSBATCH.INF` copy, `work/MSBATCH.INF` is left behind.
+  Delete it or rerun.
 - `boot code is N bytes, over the 440 byte limit`
 - A `FileNotFoundError` traceback if `guest/build/mbr.bin` is missing. `media`
   checks only `agent.exe`.
 - A `FileNotFoundError` or `StopIteration` traceback if `work/media` is missing or
   has no `WIN98` folder.
 
-**`--from disk`** now means `--from vm`: it runs `media` again, then makes a new
-`install.img`, replacing any old one, then runs `setup`, `init_api` and `ready`. It
-needs `--iso` and a key. Before the regroup `disk` could be redone alone, without
-`--iso`.
-
 ## setup
 
-Step 2. This was the `install` stage, in `setup.py`.
-
-Runs Windows 98 Setup to the end, across several boots.
+Step 2, in `setup.py`. Runs Windows 98 Setup to the end, across several boots.
 
 **Inputs:** `work/install.img`, `work/boot.img`.
 
@@ -271,15 +255,10 @@ floppy, which runs Setup again. If you rerun after a failure, plain or with
 answer file sets `NoDirWarn=1`, so it will not stop to warn you. Nothing in the code
 or tests covers this case. Use `--from vm` to start from a clean disk.
 
-**`--from setup`** is only useful straight after `vm`. See
-[what `--from` needs](#what---from-needs).
-
 ## init_api
 
-Step 3. Gets the installed system ready to be called, and proves the agent answers.
-It was the `patch` stage, followed by a boot that did not exist before: the first
-call to the agent now happens here instead of at the start of `ready`. The module
-is `init_api.py`.
+Step 3, in `init_api.py`. Gets the installed system ready to be called, and proves the
+agent answers. Two parts: `patch`, then a boot and ping.
 
 ### patch
 
@@ -328,16 +307,11 @@ rebooted during init_api before the agent started`, or `Windows did not shut dow
 This is the first boot of the converted disk, so a bad `MSDOS.SYS` shows up here and
 not after the hardening.
 
-**`--from init_api`** works only while `install.img` exists, so only if `ready` has not
-finished. It overwrites `golden.qcow2`.
-
 ## ready
 
-Step 4. This was the `harden` stage, in `ready.py`. The registry settings that make the
-desktop quiet and deterministic live here, so this is where any future blank-start
-settings go.
-
-Applies the settings, proves the desktop is clean, and saves the snapshot.
+Step 4, in `ready.py`. Applies the settings, proves the desktop is clean, and saves the
+snapshot. The registry settings that make the desktop quiet and deterministic live here, so
+this is where any future blank-start settings go.
 
 **Inputs:** `work/golden.qcow2`.
 

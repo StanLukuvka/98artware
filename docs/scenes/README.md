@@ -19,7 +19,7 @@ The words you will meet:
 - A **state** is a JSON file that describes a still starting desktop. A scene can start from
   one, and the windows it opens become props.
 - An **action** is anything the scene does from there: free Python, animations and raw Win32
-  calls. The code for it lives in action classes, one per kind of thing on screen.
+  calls.
 
 The [glossary](../glossary.md) has the rest.
 
@@ -70,7 +70,9 @@ uv run art98 render examples/hello.py Hello -o hello.mp4
 
 A scene talks to `art98.anim`. That layer turns each frame into Win32 calls through the bridge.
 The agent makes those calls inside Windows and sends the results back over COM1. Real key
-presses and screen captures go to QEMU over QMP instead.
+presses and screen captures go to QEMU over QMP instead. `art98 render` reverts the running VM
+to the [`ready` snapshot](../glossary.md) before each scene, so no scene sees another's
+leftovers.
 
 ![Action stack](../diagrams/action-stack.png)
 
@@ -100,10 +102,6 @@ Scenes run under the `free` clock, the only one so far. The guest runs all the t
 So a `play` is repeatable to the frame, but the guest's own animations depend on how fast the
 host renders. `self.wait` and `self.live` record at host speed for that reason, and `self.pause`
 holds a single capture. See [`Scene`](scene-api.md#time).
-
-A scene never touches the prepared image. `art98 render` attaches to the running VM and reverts
-it to the `ready` snapshot first. Every scene starts from a fresh `ready` desktop, even when
-several scenes are rendered one after another in one attach from Python.
 
 ## How it differs from Manim
 

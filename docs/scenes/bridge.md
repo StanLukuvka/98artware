@@ -2,7 +2,7 @@
 
 The bridge is the host's side of the link to the guest. It lets Python call any Win32 function
 inside Windows 98. Scenes reach it as `self.guest`. This page is the full reference, from `attach`
-down to `VM` and QMP. Audio is deferred, so only picture is covered.
+down to `VM` and QMP. Audio is not supported yet, so only picture is covered.
 
 The scene layer sits on top of this and has its own page, the [Scene API](scene-api.md). The wire
 format is in the [Instruction set](instruction-set.md). Tested calls are in
@@ -59,7 +59,7 @@ agent. Pass it a private copy of the work folder, never the golden one. Raises `
 
 ### private_stage
 
-`art98.session.private_stage(work="work")`
+`art98.session.private_stage(work="work", prefix="render-")`
 
 A context manager that gives a throwaway copy-on-write copy of the image in `work/runs/`, and
 deletes it afterwards. `art98 vm start` uses it with the prefix `vm-` for the VM's own copy. Pass
@@ -83,6 +83,8 @@ One running stage. `with` closes it on exit.
 | `vm` | The [`VM`](#vm). |
 | `bridge` | The [`Bridge`](#bridge-1). |
 | `record(path, fps=30, lossless=False)` | Opens a [`Recorder`](#recorder). |
+| `revert(snapshot="ready")` | Restores the snapshot and keeps the bridge. Open calls fail at once. |
+| `attach_disc(files)` | Puts an ISO of `files` in drive `D:`. See [Desktop colour and wallpaper](../design/state-and-action.md#desktop-colour-and-wallpaper). |
 | `close()` | Closes the bridge, then the VM. |
 
 ### Recorder
@@ -91,7 +93,6 @@ One running stage. `with` closes it on exit.
 
 Encodes frames to video clips. Frames are taken when the script asks, so a slow host makes the same
 video as a fast one. Use it as a context manager, because a clip is only complete after `close`.
-It replaced `FrameRecorder` on 2026-11-11.
 
 ![Frame loop](../diagrams/frame-loop.png)
 
@@ -136,7 +137,7 @@ Calling `frame` after `close` raises `QemuError`, because the capture folder has
 
 `class Bridge(sock, timeout=10.0)`
 
-Requests to the agent. `sock` is a connected socket. Most code gets a `Bridge` from `boot`.
+Requests to the agent. `sock` is a connected socket. Most code gets one from `attach`, as `session.bridge`.
 `timeout` is the default in seconds for every request, and can be changed at any time through
 `bridge.timeout`.
 
@@ -303,6 +304,8 @@ Returned by `acall`.
 
 The result is handed over once. After `wait` returns, `done` is false, and a second `wait` times out.
 
+With no `timeout`, `wait` uses the bridge's `timeout` (10 s by default) and raises `BridgeTimeout` when it runs out.
+
 `wait` raises `BridgeTimeout` in two more cases, and each looks like a slow call. So set a short
 timeout, and read `CRASH` events if a crash matters.
 
@@ -325,15 +328,15 @@ After `BridgeTimeout` the request may still be running in the guest, and its rep
 it arrives. A `Sleep(1500)` with a 0.3 s timeout keeps the agent busy for the full 1.5 s, and later
 requests queue behind it.
 
-After `GuestCrashed` the agent is back in about 0.3 s. Windows and other programs carry on. Call
+After `GuestCrashed` the agent is back in 0.27 to 0.31 s. Windows and other programs carry on. Call
 `wait_ready`, because requests sent in that gap are lost.
 
 After the VM exits, every call raises `BridgeError("link to the guest closed")`.
 
 ## Threading
 
-The agent has one UI thread that pumps messages. Every `CALL`, and every verb but `ACALL`, runs on
-it, one at a time. While a `CALL` runs, nothing else does.
+Every request but `ACALL` runs on the agent's one UI thread, in order
+([Threads](instruction-set.md#threads)). While a `CALL` runs, nothing else does.
 
 | Measured | Result |
 | --- | --- |
@@ -374,7 +377,10 @@ guard them with a lock.
 
 `class VM(config, log=None)`
 
-Runs QEMU. `log` is a file for its output. `boot` builds this for you.
+Runs QEMU on this host. Only `boot_local` makes one. Under `attach`, `session.vm` is a `RemoteVM` that
+the VM service carries out. It has `screenshot`, `send_keys`, `pause`, `resume`, `load_snapshot`,
+`insert_disc`, `eject_disc` and `close`, and none of `qmp`, `save_snapshot`, `wait_exit` or `quit`.
+`log` is a file for QEMU's output.
 
 | Member | Meaning |
 | --- | --- |
@@ -475,13 +481,13 @@ The QEMU settings, kept in `image.json`. `to_json()` and `from_json(data)` conve
 | `cpu` | `"pentium3"` | CPU model. |
 | `memory_mb` | 128 | Guest memory. |
 | `vga` | `"cirrus"` | Video card. |
-| `sound` | True | Keeps the Sound Blaster in the machine. Audio capture is deferred. |
+| `sound` | True | Keeps the Sound Blaster in the machine. Audio is not supported yet. |
 | `rtc_base` | `"1998-06-25T09:00:00"` | Guest clock at power on. The clock runs from there on guest time. |
 | `icount_shift` | None | Sets QEMU's `-icount` for deterministic time. |
 | `floppy` | None | Floppy image. |
 | `boot_once` | None | Boot device for the first boot. |
-| `loadvm` | None | Snapshot to start from. `boot` sets `"ready"`. None is a cold boot, which reaches `HELLO` in 11.5 s. |
-| `audio_wav` | None | Audio output file. Audio is deferred. |
+| `loadvm` | None | Snapshot to start from. `boot_local` sets `"ready"`. None is a cold boot, which reaches `HELLO` in 11.5 s. |
+| `audio_wav` | None | Audio output file. Not supported yet. |
 | `display` | `"none"` | QEMU's `-display` value. |
 | `extra_args` | `[]` | More QEMU arguments. |
 
@@ -509,16 +515,19 @@ one host, so treat them as a guide.
 
 | Other | Time |
 | --- | --- |
-| `boot`, to first reply | 0.1 s |
+| `boot_local`, to first reply | 0.1 s (about 0.3 s in the container, see [container](../design/container.md)) |
 | Cold boot to `HELLO` | 11.5 s |
-| `put_file` | 100 to 190 KB/s |
-| `get_file` | 325 KB/s |
+| `put_file`, quiet host | 100 to 190 KB/s |
+| `get_file`, quiet host | 325 KB/s |
 | Spawn to visible window | See the [App catalog](app-catalog.md) |
 | `set_display_mode` | 65 to 150 ms |
 | Save snapshot | 1.8 s |
 | Load snapshot | 0.03 to 0.1 s |
 | Agent back after a crash | 0.27 to 0.31 s |
 | Reboot to QEMU exit | 0.7 s |
+
+On a busy host `put_file` can be about 10 times slower. See
+[On a busy host](../setup/troubleshooting.md#on-a-busy-host).
 
 A round trip takes about 5 ms whatever the work, so 100 `SetPixel` calls take 0.5 s. To save round
 trips, batch work into one call, such as `Polyline` with hundreds of points.

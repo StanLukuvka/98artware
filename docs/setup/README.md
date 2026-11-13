@@ -58,7 +58,8 @@ system sounds and power saving off, and `C:\ART98\AGENT.EXE` already running.
   with one QEMU version may not restore on another. The container pins the version.
 - **Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).** art98 has no
   runtime Python dependencies.
-- **About 3 GB of free disk space during the build**, and 25 to 40 minutes. The raw
+- **About 3 GB of free disk space during the build**, and 25 to 40 minutes: about 25 on a
+  quiet host, up to 40 on a busy one. The raw
   install disk is 2 GB, and it exists next to the qcow2 until the `ready` step deletes it.
 
 KVM is not used. See [why TCG](image.md#hardware).
@@ -72,8 +73,10 @@ answer file sets `ShowEula=0`, and on OEM discs that show the agreement anyway,
 setup selects "I accept the Agreement" by keystroke. Only run it with a disc and
 key you are licensed to use.
 
-Do not share `golden.qcow2`: it is an installed copy of Windows 98. It also holds your key
-in clear text, see [the key on the image](image.md#your-product-key-is-on-the-image).
+Windows 98 product keys are public and reusable, so the key is not a secret. But do not share
+`golden.qcow2` or `work/`: they are installed copies of Windows 98. The key sits on the image in
+clear text, see [the key on the image](image.md#your-product-key-is-on-the-image). The real
+secret is the VM token, `work/vm.token`.
 
 ## Quick path in a container
 
@@ -83,12 +86,12 @@ One command builds the image, runs setup in the container and checks the result:
 uv run art98 up --iso /path/to/win98se.iso
 ```
 
-Give it your product key at the prompt, or set `ART98_PRODUCT_KEY` first. Setup takes
-25 to 40 minutes, depending on host load: about 25 on a quiet one. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the screen.
-If setup stops, read the error, then run the same command again: it resumes, and asks for the key again, since
-nothing keeps it between runs. If the error is `Windows rejected the product key`, delete
-`work/state.json` first and type the right key. Running `up` again once setup is done skips setup and prints
-`art98 vm start`.
+Give it your product key at the prompt (the key is shown as you type), or set
+`ART98_PRODUCT_KEY` first. Add `--watch` and point a VNC viewer at `127.0.0.1:5998` to see the
+screen. If setup stops, read the error and run the same command again: it resumes, and asks for
+the key again. For `Windows rejected the product key`, see
+[troubleshooting](troubleshooting.md#windows-rejected-the-product-key). Once setup is done, `up`
+skips it and prints `art98 vm start`.
 
 Then start the VM and render. The VM stays up, paused between renders, until you stop it:
 
@@ -130,9 +133,7 @@ Then delete the file; it is only a copy of the key:
 rm "$XDG_RUNTIME_DIR/art98_key"
 ```
 
-The VM's container runs `art98 serve`, which reads the token from `work/vm.token` (or the
-file `[vm] token_file` names) and waits for a client to connect. A client can also be another
-container: see [attach from another container](config.md#attach-from-another-container). `art98 vm start` starts it for you. Which file does what is in
+`art98 vm start` then runs the VM ([art98 serve](cli.md#art98-serve)). Which file does what is in
 [the container design](../design/container.md#the-image).
 
 ## Quick path on the host
@@ -168,7 +169,7 @@ Give setup your key in `ART98_PRODUCT_KEY`, or pass it with `--key`. `art98 setu
 export ART98_PRODUCT_KEY=XXXXX-XXXXX-XXXXX-XXXXX-XXXXX
 ```
 
-Build the image. This takes 25 to 40 minutes and needs no input:
+Build the image. It needs no input:
 
 ```bash
 uv run art98 setup --iso /path/to/win98se.iso
@@ -204,19 +205,20 @@ If a step fails, fix the cause and see
 
 Setup runs four steps in order, named after the path from a blank machine to a
 scriptable desktop: VM, setup, init api, ready. Each one is recorded in
-`work/state.json`. Builds made with the old five stage names (`media`, `disk`,
-`install`, `patch`, `harden`) still count as done, and `--from` accepts those names too.
+`work/state.json`.
 
 ![The four setup steps, their inputs and their outputs](../diagrams/prep-pipeline.png)
 
-| Step | Time on the two full runs logged | Result |
-|------|---------------------------------|--------|
-| `vm` | 1 s, then 0 to 9 s | Setup files unpacked, boot floppy patched, raw disk with Setup, the answer file and the agent on it |
-| `setup` | 2083 s and 2268 s | Windows installed |
-| `init_api` | 1 to 2 s, plus one extra boot | `MSDOS.SYS` edited, disk converted to qcow2, the agent seen answering |
-| `ready` | 78 s and 106 s | Settings applied, snapshot saved |
+| Step | Two earlier runs | Newest run, quiet host, in the container | Result |
+|------|------------------|------------------------------------------|--------|
+| `vm` | 1 s, then 0 to 9 s | not logged | Setup files unpacked, boot floppy patched, raw disk with Setup, the answer file and the agent on it |
+| `setup` | 2083 s and 2268 s | 1326 s | Windows installed |
+| `init_api` | 1 to 2 s, without the extra boot | 13 s, with it | `MSDOS.SYS` edited, disk converted to qcow2, the agent seen answering |
+| `ready` | 78 s and 106 s | 55 s | Settings applied, snapshot saved |
 
-The extra boot in `init_api` is new, so the logged times do not include it.
+The times cover three full runs. The newest took about 25 minutes end to end, with
+`/proc/pressure/cpu` at 0.00 throughout ([container design](../design/container.md#what-was-built)).
+The two earlier runs did not have the extra boot in `init_api`.
 
 This is Setup running, from file copy to the first desktop, with one frame every
 few minutes:

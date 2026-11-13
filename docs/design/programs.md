@@ -47,7 +47,7 @@ When the state gives none, `state.py` fills in a default.
 | `notepad` | `<file name without .txt> - Notepad`, or `Untitled - Notepad` with no file |
 | `dialog` | Not in `APPS`, so it is not in a state and has no title rule. Its title is the one you give it |
 
-The Notepad rule is the function `notepad_title(file)` in `notepad.py`. Confirmed on the real image (M4b): Windows 98 Notepad drops a trailing `.txt`
+The Notepad rule is the function `notepad_title(file)` in `notepad.py`. Confirmed on the real image: Windows 98 Notepad drops a trailing `.txt`
 (any case) and keeps other extensions and the case, so `note.txt` shows as
 `note - Notepad` and `x.log` as `x.log - Notepad`.
 
@@ -65,6 +65,16 @@ class (`#32770`) from the same process, so a title can't say which box is yours:
 the windows that exist before its call and takes only a new one. And Windows draws the icon
 slot's picture from a handle, which the slot doesn't copy, so the handle is destroyed only when
 the box is removed.
+
+## Picture
+
+`VIEW.EXE` (`guest/picture_viewer/view.c`, 4 KB) takes
+`VIEW.EXE <x> <y> <width> <height> "<title>" ["<image.bmp>"]`. Each window is its own process, of
+class `Art98View`, with a normal frame and a taskbar button. An image bigger than the window is
+cropped. If the viewer crashes anyway, `Picture` sees Windows' crash dialog and fails at once
+instead of waiting 15 s. Why art98 has its own viewer:
+[decision 11](decisions.md#11-a-picture-viewer-of-art98s-own). The options are in the
+[Scene API](../scenes/scene-api.md#picture).
 
 ## What `app` and `open` mean
 
@@ -149,13 +159,6 @@ These are checked on the host, before anything is copied.
 | File name | none of `\ / : * ? " < > |`, no control character, no trailing space or dot, cp1252 only | It goes on a command line and in the guest path; `?` is a wildcard. |
 | BMP | `check_bmp` | Header, depth and pixels must all be there, or Windows 98 can crash loading it. |
 
-## Not yet
+## Open work
 
-After the MVP:
-
-- More programs in a state. Paint, Minesweeper and the screensaver have classes in
-  `core/art98/actions/programs/` but no state app yet. Calculator and a bare `command` have no class.
-- `Dialog` in a state (`app: "dialog"`), and a helper that adds a cascade of boxes.
-- Adopting a window the scene did not start.
-- Icons and tray in a state. The desktop colour and wallpaper are built: see the
-  [state and action design](state-and-action.md).
+See [status](../status.md#next).
