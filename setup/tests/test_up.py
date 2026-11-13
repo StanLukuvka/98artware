@@ -1,5 +1,4 @@
-"""`art98 up` without an engine: its compose calls, the disc and key checks, and the
-host tool hints."""
+"""`art98 up` without an engine: its compose calls and the disc and key checks."""
 
 import json
 import subprocess
@@ -7,7 +6,7 @@ import subprocess
 import pytest
 from art98.container.host import ContainerError, Engine
 from art98.settings import Settings
-from art98_setup import builder, up
+from art98_setup import up
 
 
 def fake_engine(monkeypatch, name):
@@ -15,17 +14,6 @@ def fake_engine(monkeypatch, name):
         "art98.container.host.shutil.which", lambda tool: f"/usr/bin/{tool}"
     )
     return Engine(name)
-
-
-def test_install_hints_cover_fedora_and_debian():
-    hints = {
-        system: packages
-        for system, _, packages in builder.install_hints(
-            ["qemu-img", "i686-w64-mingw32-gcc"]
-        )
-    }
-    assert hints["Fedora"] == ["qemu-img", "mingw32-gcc"]
-    assert hints["Debian, Ubuntu"] == ["qemu-utils", "gcc-mingw-w64-i686"]
 
 
 def scripted_engine(monkeypatch, config=None, stored=True, code=0):
@@ -114,32 +102,36 @@ def test_setup_inputs_without_any_disc_say_how_to_give_one(tmp_path, monkeypatch
         up.setup_inputs(engine, Settings(root=tmp_path), None, 2047)
 
 
-def test_up_warns_when_it_reuses_an_old_image(tmp_path, monkeypatch):
-    engine = fake_engine(monkeypatch, "docker")
+@pytest.fixture
+def built(tmp_path, monkeypatch):
+    """The image is built and current, and tmp_path is the checkout, with the guest
+    programs and their digest file in guest/build. Returns that folder."""
     monkeypatch.setattr(up, "inspect_created", lambda eng, image: (True, 1.0))
+    monkeypatch.setattr(up, "container_warning", lambda created, image: [])
+    monkeypatch.setattr(up, "ROOT", tmp_path)
+    guest = tmp_path / "guest" / "build"
+    guest.mkdir(parents=True)
+    (guest / "view.exe").write_bytes(b"x")
+    (guest / "sources.sha256").write_text("")
+    return guest
+
+
+def test_up_warns_when_it_reuses_an_old_image(tmp_path, monkeypatch, built):
+    engine = fake_engine(monkeypatch, "docker")
     monkeypatch.setattr(up, "container_warning", lambda created, image: ["old image"])
     (tmp_path / "image.json").write_text("{}")
     lines = []
-    monkeypatch.setattr(up, "ROOT", tmp_path)  # the guest programs are "there"
-    (tmp_path / "guest" / "build").mkdir(parents=True)
-    (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")
-    (tmp_path / "guest" / "build" / "sources.sha256").write_text("")
     calls = []
     monkeypatch.setattr(Engine, "__call__", lambda self, *a, **k: calls.append(a))
     assert up.up(tmp_path, engine=engine, log=lines.append) == 0
     assert calls == []  # setup is done: no run/start/snapshot of any VM
-    assert not hasattr(up, "boot")
     assert "[up] warning: old image" in lines
     assert "art98 vm start" in lines[-1]
 
 
-def test_up_copies_out_when_the_digest_file_is_missing(tmp_path, monkeypatch):
+def test_up_copies_out_when_the_digest_file_is_missing(tmp_path, monkeypatch, built):
     engine = fake_engine(monkeypatch, "docker")
-    monkeypatch.setattr(up, "inspect_created", lambda eng, image: (True, 1.0))
-    monkeypatch.setattr(up, "container_warning", lambda created, image: [])
-    monkeypatch.setattr(up, "ROOT", tmp_path)
-    (tmp_path / "guest" / "build").mkdir(parents=True)
-    (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")  # an old build
+    (built / "sources.sha256").unlink()  # an old build
     (tmp_path / "image.json").write_text("{}")
     copied = []
     monkeypatch.setattr(Engine, "copy_out", lambda self, *a: copied.append(a))
@@ -147,16 +139,10 @@ def test_up_copies_out_when_the_digest_file_is_missing(tmp_path, monkeypatch):
     assert len(copied) == 1
 
 
-def test_up_resolves_a_missing_work_through_art98_toml(tmp_path, monkeypatch):
+def test_up_resolves_a_missing_work_through_art98_toml(tmp_path, monkeypatch, built):
     (tmp_path / "art98.toml").write_text('[vm]\nwork = "elsewhere"\n')
     monkeypatch.chdir(tmp_path)
     engine = fake_engine(monkeypatch, "docker")
-    monkeypatch.setattr(up, "inspect_created", lambda eng, image: (True, 1.0))
-    monkeypatch.setattr(up, "container_warning", lambda created, image: [])
-    monkeypatch.setattr(up, "ROOT", tmp_path)
-    (tmp_path / "guest" / "build").mkdir(parents=True)
-    (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")
-    (tmp_path / "guest" / "build" / "sources.sha256").write_text("")
     (tmp_path / "elsewhere").mkdir()
     (tmp_path / "elsewhere" / "image.json").write_text("{}")
     lines = []
@@ -175,12 +161,7 @@ def test_the_key_prompt_is_visible_and_stripped(monkeypatch):
 
 
 def ready_to_set_up(tmp_path, monkeypatch, code):
-    monkeypatch.setattr(up, "inspect_created", lambda eng, image: (True, 1.0))
-    monkeypatch.setattr(up, "container_warning", lambda created, image: [])
-    monkeypatch.setattr(up, "ROOT", tmp_path)
-    (tmp_path / "guest" / "build").mkdir(parents=True)
-    (tmp_path / "guest" / "build" / "view.exe").write_bytes(b"x")
-    (tmp_path / "guest" / "build" / "sources.sha256").write_text("")
+    """Built (see `built`), with a disc, and the key from the prompt."""
     iso = tmp_path / "win98.iso"
     iso.write_bytes(b"x")
     monkeypatch.delenv("ART98_PRODUCT_KEY", raising=False)
@@ -190,7 +171,7 @@ def ready_to_set_up(tmp_path, monkeypatch, code):
 
 
 def test_up_runs_the_setup_service_with_the_key_only_in_its_environment(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, built
 ):
     engine, calls, iso = ready_to_set_up(tmp_path, monkeypatch, 0)
     assert up.up(tmp_path / "work", iso, engine=engine, log=lambda _: None) == 0
@@ -201,7 +182,9 @@ def test_up_runs_the_setup_service_with_the_key_only_in_its_environment(
     assert not any("AAAAA" in a for args, _ in calls for a in args)
 
 
-def test_a_failed_setup_hint_does_not_promise_a_clean_resume(tmp_path, monkeypatch):
+def test_a_failed_setup_hint_does_not_promise_a_clean_resume(
+    tmp_path, monkeypatch, built
+):
     engine, _, iso = ready_to_set_up(tmp_path, monkeypatch, 3)
     lines = []
     assert up.up(tmp_path / "work", iso, engine=engine, log=lines.append) == 3
