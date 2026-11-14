@@ -17,6 +17,7 @@ from art98.bridge import Bridge, BridgeError
 from art98.protocol import Out
 from art98.qemu import VM
 from art98.session import IMAGE_FILE, SNAPSHOT
+from art98.win32 import set_display_mode
 
 from .builder import AGENT_RUN_VALUE, Setup, SetupError
 
@@ -107,7 +108,7 @@ def harden(setup: Setup) -> None:
     ):
         setup._require_agent(vm, bridge, "harden")
         apply_settings(bridge)
-        bridge.set_display_mode(*DISPLAY_MODE)
+        set_display_mode(bridge, *DISPLAY_MODE)
         setup._reboot(vm, bridge)
     with (
         VM(config, log=setup._vm_log()) as vm,

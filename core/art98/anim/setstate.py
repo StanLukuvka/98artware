@@ -31,6 +31,7 @@ from ..win32 import (
     cursor_pos,
     repaint_window,
     screen_size,
+    set_display_mode,
     show_window,
 )
 
@@ -58,7 +59,7 @@ def apply_state(scene, state: State) -> dict:
     """Make the reverted desktop match the state. Returns its props by window id."""
     guest = scene.guest
     if state.display and display_mode(guest) != state.display:
-        guest.set_display_mode(*state.display, persist=False)
+        set_display_mode(guest, *state.display, persist=False)
         scene.prepare_desktop()
     desk = state.desktop
     if desk and desk.colour:

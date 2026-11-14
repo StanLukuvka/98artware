@@ -6,6 +6,7 @@ import threading
 import time
 
 import pytest
+from art98 import win32
 from art98.bridge import Bridge, BridgeError, BridgeTimeout, GuestCrashed
 from art98.protocol import frame, parse_values, unframe
 
@@ -55,16 +56,6 @@ def test_call_returns_value_error_and_buffers(pair):
     assert result.signed == -1 and result.last_error == 5
     assert result.buffers == [b"\x0a\0\0\0"]
     assert agent.requests == [("CALL", ["user32", "GetWindowRect", 1])]
-
-
-def test_move_window_repaints_the_frame_it_leaves_behind(pair):
-    bridge, agent = pair
-    agent.handlers["CALL"] = lambda i, a: agent.send(b"%d OK 1 0" % i)
-    bridge.move_window(7, 30, 40)
-    assert agent.requests == [
-        ("CALL", ["user32", "SetWindowPos", 7, 0, 30, 40, 0, 0, 5]),
-        ("CALL", ["user32", "RedrawWindow", 7, 0, 0, 0x585]),
-    ]
 
 
 def test_error_reply_raises(pair):
@@ -119,6 +110,16 @@ def test_crash_fails_the_open_request_at_once(pair):
     agent.handlers["CALL"] = lambda i, a: agent.send(b"! CRASH 3221225477 4198400")
     with pytest.raises(GuestCrashed, match="0xc0000005"):
         bridge.call("kernel32", "Boom")
+
+
+def test_bad_frame_fails_the_open_request_at_once(pair):
+    bridge, agent = pair
+    agent.handlers["CALL"] = lambda i, a: agent.send(b"! BADFRAME")
+    started = time.monotonic()
+    with pytest.raises(BridgeError, match="corrupt request"):
+        bridge.call("kernel32", "GetTickCount")
+    assert time.monotonic() - started < 0.5  # the timeout is 1 s
+    assert bridge.wait_event("BADFRAME", timeout=0) == []
 
 
 def test_async_call_completes_through_an_event(pair):
@@ -240,7 +241,7 @@ def test_set_display_mode_uses_the_drivers_own_mode(pair):
             agent.send(b"%d OK 0 0 #00" % i)
 
     agent.handlers["CALL"] = call
-    bridge.set_display_mode(800, 600, 16)
+    win32.set_display_mode(bridge, 800, 600, 16)
     devmode, flags = seen[0]
     assert struct.unpack_from("<III", devmode, 104) == (16, 800, 600)
     assert struct.unpack_from("<I", devmode, 40)[0] == 0x1C0000 and flags == 1
@@ -250,4 +251,4 @@ def test_missing_display_mode_is_an_error(pair):
     bridge, agent = pair
     agent.handlers["CALL"] = lambda i, a: agent.send(b"%d OK 0 0 #00" % i)
     with pytest.raises(BridgeError, match="no 800x600x16"):
-        bridge.set_display_mode(800, 600, 16)
+        win32.set_display_mode(bridge, 800, 600, 16)

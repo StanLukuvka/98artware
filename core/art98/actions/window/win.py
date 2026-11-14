@@ -171,7 +171,7 @@ class Win(Prop):
             flags |= SWP_NOSIZE
         if self._sent and (x, y) == self._sent[:2]:
             flags |= SWP_NOMOVE
-        # Moves leave stale pixels on the frame, so it is repainted (Bridge.move_window).
+        # Moves leave stale pixels on the frame, so place_window repaints it.
         win32.place_window(self.guest, self.hwnd, x, y, width, height, flags)
         self._sent = wanted
 

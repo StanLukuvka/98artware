@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import socket
-import struct
 import threading
 import time
 from collections import deque
@@ -20,17 +19,9 @@ from .protocol import (
     parse_values,
     unframe,
 )
-from .win32 import RDW_REPAINT_ALL, SWP_NOSIZE, SWP_NOZORDER
 
 DEFAULT_TIMEOUT = 10.0
 CHUNK_SIZE = 4096
-
-ENUM_SETTINGS_END_OF_LIST = 0
-CDS_UPDATEREGISTRY = 1
-DEVMODE_SIZE = 156
-DM_BITSPERPEL = 0x00040000
-DM_PELSWIDTH = 0x00080000
-DM_PELSHEIGHT = 0x00100000
 
 
 class BridgeError(RuntimeError):
@@ -222,6 +213,10 @@ class Bridge:
             self._fail_all(
                 GuestCrashed(f"agent crashed: code {code:#x} at {address:#x}")
             )
+        elif name == "BADFRAME":
+            # The frame has no id, so fail every open request now rather than
+            # letting the one that was garbled wait out its timeout.
+            self._fail_all(BridgeError("the agent got a corrupt request line"))
         with self._cond:
             self._events.append((name, values))
             self._cond.notify_all()
@@ -435,39 +430,6 @@ class Bridge:
             data += chunk
             if not chunk or len(data) >= size:
                 return bytes(data)
-
-    def move_window(self, hwnd: int, x: int, y: int) -> None:
-        """Move a window, keeping its size and stacking order.
-
-        Moves on Windows 98 leave stale pixels along the window frame, and
-        SWP_NOCOPYBITS and SWP_FRAMECHANGED don't clear them, so it is repainted.
-        """
-        self.user32.SetWindowPos(hwnd, 0, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER)
-        self.user32.RedrawWindow(hwnd, 0, 0, RDW_REPAINT_ALL)
-
-    def set_display_mode(
-        self, width: int, height: int, depth: int, persist: bool = True
-    ) -> None:
-        """Switch resolution, using a mode the video driver itself reports."""
-        mode = 0
-        while True:
-            blank = bytearray(DEVMODE_SIZE)
-            struct.pack_into("<H", blank, 36, DEVMODE_SIZE)
-            result = self.user32.EnumDisplaySettingsA(None, mode, blank)
-            if result.value == ENUM_SETTINGS_END_OF_LIST:
-                raise BridgeError(f"guest has no {width}x{height}x{depth} display mode")
-            devmode = bytearray(result.buffers[0])
-            bpp, w, h = struct.unpack_from("<III", devmode, 104)
-            if (w, h, bpp) == (width, height, depth):
-                break
-            mode += 1
-        struct.pack_into(
-            "<I", devmode, 40, DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT
-        )
-        flags = CDS_UPDATEREGISTRY if persist else 0
-        result = self.user32.ChangeDisplaySettingsA(devmode, flags)
-        if result.signed < 0:
-            raise BridgeError(f"ChangeDisplaySettings failed with {result.signed}")
 
 
 __all__ = [

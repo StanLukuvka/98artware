@@ -56,7 +56,7 @@ revert and again when a state switches the display mode. Props read it through t
 `center()`, `to_corner()` and `title_bar` all use the same numbers.
 
 A scene that changes the desktop with a raw guest call, such as `SPI_SETWORKAREA`,
-`set_display_mode` or a moved taskbar, must call `scene.calibrate()` afterwards. art98 doesn't
+`win32.set_display_mode` or a moved taskbar, must call `scene.calibrate()` afterwards. art98 doesn't
 notice those changes by itself.
 
 #### Placement check

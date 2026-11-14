@@ -11,13 +11,13 @@ format is in the [Instruction set](instruction-set.md). Tested calls are in
 ![Action stack](../diagrams/action-stack.png)
 
 ```python
-from art98 import attach
+from art98 import attach, win32
 
 with attach() as session:
     guest = session.bridge
     guest.spawn("notepad.exe")
     pad = guest.find_window(class_name="Notepad")
-    guest.move_window(pad.hwnd, 100, 80)
+    win32.place_window(guest, pad.hwnd, 100, 80, 0, 0, win32.SWP_NOSIZE | win32.SWP_NOZORDER)
     guest.sync()
     session.vm.screenshot("notepad.png")
 ```
@@ -179,7 +179,7 @@ Names are the exported ones, so an ANSI function ends in `A`. Windows 98 has few
 
 | Python | Sent as | The function gets |
 | --- | --- | --- |
-| `int` | `123` | The value masked to 32 bits, so `-1` becomes `0xFFFFFFFF`. |
+| `int` | `123` | The value masked to 32 bits, so `-1` becomes `0xFFFFFFFF`. Outside `-2**31` to `2**32 - 1` raises `ValueError`. |
 | `bool` | `1` or `0` | The number. |
 | `None` | `0` | A null pointer. |
 | `str` | `"text"` | A pointer to cp1252 text. Characters outside cp1252 become `?`. |
@@ -194,9 +194,7 @@ Anything else, such as a `float`, raises `TypeError`. At most 14 arguments fit a
 | --- | --- |
 | `windows(parent=0)` | Lists windows as [`Window`](#window) objects. With 0, all top-level windows. With a handle, all descendants. Hidden ones are included, and the agent's own window is not. |
 | `find_window(title=None, class_name=None, parent=0, timeout=10.0)` | Waits for a visible window, checking every 0.1 s. `title` is a case-insensitive substring. `class_name` is case-insensitive and exact. Raises `BridgeTimeout` if none appears. |
-| `move_window(hwnd, x, y)` | Moves a window with `SetWindowPos`, keeping its size and stacking order, then repaints it. A plain move leaves stale pixels on the frame on Windows 98. |
 | `sync(hwnd=0, timeout_ms=500)` | Waits for one window, or all visible ones, to repaint. Returns the tick count. |
-| `set_display_mode(width, height, depth, persist=True)` | Switches display mode. `persist=True` also writes it to the registry. Raises `BridgeError` if the driver has no such mode. See [Display modes](win32-recipes.md#display-modes). |
 
 ### Processes and files
 
@@ -216,6 +214,10 @@ bytes were written.
 | --- | --- |
 | `wait_event(name, timeout=None)` | Takes the oldest unread event called `name`, and returns its values. Waits for one if needed. Raises `BridgeTimeout`. |
 | `clear_events()` | Forgets all unread events. |
+
+To move a window or switch the display mode, use `place_window` and `set_display_mode` in
+`art98.win32`: see [Move and resize](win32-recipes.md#move-and-resize) and
+[Display modes](win32-recipes.md#display-modes).
 
 The bridge keeps the last 256 `HELLO`, `CRASH` and `BADFRAME` events. `DONE` goes to the
 `AsyncCall` instead, so `wait_event("DONE")` never finds it. See [Events](instruction-set.md#events).
@@ -318,7 +320,7 @@ If the link closes, `wait` raises `BridgeError`.
 
 | Exception | Raised when |
 | --- | --- |
-| `BridgeError` | The guest refused a request, such as `FILE: C:\NOPE.TXT`, or the link closed. |
+| `BridgeError` | The guest refused a request, such as `FILE: C:\NOPE.TXT`, or the link closed. Also when the agent reports `BADFRAME`: the event has no id, so every open request fails at once. |
 | `BridgeTimeout` | No reply came in time. A subclass of `BridgeError`. |
 | `GuestCrashed` | The agent crashed while a request was open. A subclass of `BridgeError`. The text has the code and address. |
 | `QemuError` | QEMU failed to start or a QMP command failed. From `art98.qemu`. |
