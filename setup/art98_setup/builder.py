@@ -13,7 +13,6 @@ import os
 import shutil
 import subprocess
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
@@ -23,6 +22,7 @@ from art98.guestfiles import GUEST_DIR
 from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
 from art98.win32 import EWX_FORCE, EWX_REBOOT
 
+DISK_MB = 2047  # the virtual disk size, in MB; compose.yaml repeats it
 SECTOR = 512
 SECTORS_PER_TRACK = 63
 PARTITION_START = SECTORS_PER_TRACK  # the traditional first partition slot
@@ -178,7 +178,7 @@ class Setup:
     guest_build: Path
     iso: Path | None = None
     product_key: str | None = None
-    disk_mb: int = 2047
+    disk_mb: int = DISK_MB
     watch: bool = False
     log: object = print
     wizard_passes: int = field(default=0, init=False)
@@ -260,7 +260,6 @@ class Setup:
         bridge: Bridge,
         label: str,
         timeout: float,
-        on_poll: Callable[[VM], None] | None = None,
     ) -> bool:
         """Wait for HELLO while keeping screenshots to show where things stand.
 
@@ -284,8 +283,7 @@ class Setup:
             count += 1
             try:
                 shot = vm.screenshot(self.shots / f"{label}-{count:04d}.png")
-                if on_poll:
-                    on_poll(vm)
+                self._answer_setup_prompts(vm)
             except (OSError, QemuError):
                 if vm.wait_exit(10):
                     return False
@@ -303,9 +301,7 @@ class Setup:
                 raise SetupError(f"{label} did not finish; last screen: {shot}")
 
     def _require_agent(self, vm: VM, bridge: Bridge, label: str) -> None:
-        if not self._wait_for_agent(
-            vm, bridge, label, 15 * 60, self._answer_setup_prompts
-        ):
+        if not self._wait_for_agent(vm, bridge, label, 15 * 60):
             raise SetupError(
                 f"the guest rebooted during {label} before the agent started"
             )

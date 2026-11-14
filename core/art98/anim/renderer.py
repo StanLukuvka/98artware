@@ -11,7 +11,9 @@ from pathlib import Path
 
 from ..recorder import (
     GIF_COLORS,
+    GIF_DITHER,
     GIF_FPS,
+    GIF_SCALE,
     H264,
     LOSSLESS_SUFFIX,
     RecorderError,
@@ -26,8 +28,8 @@ def write_gif(
     output: Path | str,
     fps: int = GIF_FPS,
     colors: int = GIF_COLORS,
-    scale: float = 1.0,
-    dither: str = "none",
+    scale: float = GIF_SCALE,
+    dither: str = GIF_DITHER,
     stage: bool = False,
 ) -> Path:
     """Convert a video to a GIF with its own palette, keeping pixels sharp.
@@ -57,8 +59,8 @@ def render(
     gif: Path | str | None = None,
     gif_fps: int = GIF_FPS,
     gif_colors: int = GIF_COLORS,
-    gif_scale: float = 1.0,
-    gif_dither: str = "none",
+    gif_scale: float = GIF_SCALE,
+    gif_dither: str = GIF_DITHER,
     keep_clips: bool = True,
 ) -> Path:
     """Play a scene on `session` and write the video.

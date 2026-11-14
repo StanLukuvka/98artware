@@ -18,14 +18,13 @@ def write(folder, text):
 def test_defaults_without_a_file(tmp_path):
     s = load()
     assert (s.image, s.control) == ("localhost/art98:latest", 7598)
-    assert s.source is None and s.work_dir == (tmp_path / "work").resolve()
+    assert s.work_dir == (tmp_path / "work").resolve()
 
 
 def test_file_overrides_defaults(tmp_path):
     write(tmp_path, '[vm]\nimage = "x"\n[ports]\ncontrol = 7599\n')
     s = load()
     assert (s.image, s.control) == ("x", 7599)
-    assert s.source == tmp_path / "art98.toml"
 
 
 def test_env_image_overrides_file(tmp_path, monkeypatch):
@@ -78,7 +77,7 @@ def test_bad_files_raise(tmp_path, text):
 def test_the_committed_file_matches_the_defaults(monkeypatch):
     monkeypatch.chdir(settings.__file__.rsplit("/core/", 1)[0])
     s = load()
-    assert s.source is not None
+    assert settings.find() is not None
     assert (s.image, s.work, s.control) == (
         "localhost/art98:latest",
         "work",

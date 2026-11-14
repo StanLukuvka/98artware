@@ -69,7 +69,7 @@ without questions. Meanings are from Microsoft's
 | `CleanBoot` | `1` | Force a clean install, not an upgrade |
 | `DevicePath` | `0` | Look for INF files only in the Windows INF folder |
 | `NoDirWarn` | `1` | No warning about an existing Windows folder |
-| `TimeZone` | `"GMT"` | The `timezone` argument of `render_msbatch`. The CLI has no flag for it |
+| `TimeZone` | `"GMT"` | The `TIMEZONE` constant in `setup/art98_setup/vm.py`. The CLI has no flag for it |
 | `Uninstall` | `0` | No uninstall backup |
 | `PenWinWarning` | `0` | No Pen Windows warning |
 | `NoPrompt2Boot` | `1` | No prompt before rebooting. Appendix D's parameter table says `1` means prompt, but its own sample script uses `1`, and setup follows the sample |
@@ -373,7 +373,7 @@ the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 | | | `acpi=off,hpet=off` | Not explained in the code. Both are always off |
 | `memory_mb` | 128 | `-m 128` | Not explained in the code. A size from the period |
 | `vga` | `cirrus` | `-vga cirrus` | Windows 98 has its own driver for it, confirmed in the guest |
-| `sound` | `True` | `-device sb16` | Windows 98 has its own driver for it, confirmed in the guest. The audio backend is `none` unless `audio_wav` is set |
+| `sound` | `True` | `-device sb16` | Windows 98 has its own driver for it, confirmed in the guest. The audio backend is always `none` |
 | `rtc_base` | `1998-06-25T09:00:00` | `-rtc base=...,clock=vm` | The guest's date does not depend on the host's. `clock=vm` makes it follow the VM's own time |
 | `disk`, `disk_format` | `golden.qcow2`, `qcow2` | `-drive ...,if=ide,index=0` | Raw during `install`, qcow2 after, because snapshots need qcow2 |
 | | | `-boot order=c` | Boots the disk. `boot_once="a"` adds `once=a` for the first install boot |
@@ -382,10 +382,8 @@ the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 | `display` | `none` | `-display none` | `gtk` with `--watch`, or `vnc` when `compose.override.yaml` sets `ART98_VNC` |
 | | | `-serial chardev:guest` | COM1 is a Unix socket on the host. It carries the bridge |
 | | | `-mon chardev=qmp,mode=control` | QMP is a second Unix socket. It handles screenshots, keys and snapshots |
-| `icount_shift` | `None` | `-icount shift=N,sleep=off,align=off` when set | Off. Setup and the VM service do not set it |
 | `floppy` | `None` | `-drive ...,if=floppy` when set | Only the first install boot |
 | `loadvm` | `None` in `image.json` | `-loadvm ready` | The VM service sets it |
-| `audio_wav` | `None` | `-audiodev wav,...` when set | Deferred |
 | `extra_args` | `[]` | Appended | For extra QEMU options |
 
 **TCG, not KVM.** This costs speed, which is why setup takes 20 to 40 minutes, but the guest

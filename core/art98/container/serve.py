@@ -35,6 +35,8 @@ import threading
 import time
 from pathlib import Path
 
+from art98.bridge import READY_TIMEOUT
+from art98.qemu import HOLD_MS
 from art98.settings import CONTAINER_CONTROL_PORT, CONTAINER_VNC_PORT
 
 PORT = CONTAINER_CONTROL_PORT
@@ -421,7 +423,7 @@ class Server:
                     isinstance(k, str) for k in keys
                 ):
                     raise ControlError("keys is a list of QEMU key names")
-                self.vm.send_keys(*keys, hold_ms=int(request.get("hold_ms", 80)))
+                self.vm.send_keys(*keys, hold_ms=int(request.get("hold_ms", HOLD_MS)))
             elif op == "revert":
                 self.vm.eject_disc()  # the CD medium is host state; loadvm does not restore it
                 self.vm.load_snapshot(str(request.get("snapshot", "ready")))
@@ -461,7 +463,7 @@ def run(
     port: int = PORT,
     token_file: Path | str | None = None,
     vnc: bool = False,
-    ready_timeout: float = 60.0,
+    ready_timeout: float = READY_TIMEOUT,
     unix: Path | str | None = None,
 ) -> int:
     """Boot the stage and serve it. Used by `art98 serve` inside the container."""

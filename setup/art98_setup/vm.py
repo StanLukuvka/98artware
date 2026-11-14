@@ -143,8 +143,10 @@ OPTIONAL_COMPONENTS = (
     "Desktop Themes Support",
 )
 
+TIMEZONE = "GMT"
 
-def render_msbatch(product_key: str, timezone: str = "GMT") -> str:
+
+def render_msbatch(product_key: str) -> str:
     """The answer file for Setup.
 
     ShowEula=0 accepts the licence on the user's behalf, which is why `art98 setup`
@@ -170,7 +172,7 @@ def render_msbatch(product_key: str, timezone: str = "GMT") -> str:
         "CleanBoot=1",
         "DevicePath=0",
         "NoDirWarn=1",
-        f'TimeZone="{timezone}"',
+        f'TimeZone="{TIMEZONE}"',
         "Uninstall=0",
         "PenWinWarning=0",
         "NoPrompt2Boot=1",

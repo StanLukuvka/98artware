@@ -26,13 +26,7 @@ def install(setup: Setup) -> None:
             VM(config, log=setup._vm_log()) as vm,
             Bridge.connect(vm.serial_path) as bridge,
         ):
-            if setup._wait_for_agent(
-                vm,
-                bridge,
-                f"install{boot}",
-                INSTALL_TIMEOUT,
-                setup._answer_setup_prompts,
-            ):
+            if setup._wait_for_agent(vm, bridge, f"install{boot}", INSTALL_TIMEOUT):
                 bridge.wait_ready()
                 setup._reboot(vm, bridge)
                 return

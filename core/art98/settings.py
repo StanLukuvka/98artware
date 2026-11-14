@@ -20,6 +20,7 @@ CONFIG_NAME = "art98.toml"
 # Ports INSIDE the image, fixed; the host-side ports are Settings fields.
 CONTAINER_CONTROL_PORT = 7598
 CONTAINER_VNC_PORT = 5900
+TRANSPORTS = ("unix", "tcp")
 
 
 class SettingsError(ValueError):
@@ -35,8 +36,7 @@ class Settings:
     token_file: str | None = None
     # The token itself; never from art98.toml.
     token: str | None = field(default=None, repr=False)
-    control: int = 7598
-    source: Path | None = None
+    control: int = CONTAINER_CONTROL_PORT
     root: Path = Path(".")
 
     @property
@@ -68,7 +68,6 @@ SECTIONS = {
         "control": int,
     },
 }
-TRANSPORTS = ("unix", "tcp")  # also host.TRANSPORTS; settings cannot import host
 
 
 def find(start: Path | None = None) -> Path | None:
@@ -117,4 +116,4 @@ def load(work: Path | str | None = None) -> Settings:
         values["image"] = os.environ["ART98_IMAGE"]
     if work is not None:
         values["work"] = str(Path(work).resolve())
-    return Settings(**values, source=path, root=path.parent if path else Path.cwd())
+    return Settings(**values, root=path.parent if path else Path.cwd())

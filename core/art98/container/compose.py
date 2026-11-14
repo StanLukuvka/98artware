@@ -12,11 +12,11 @@ import os
 import tempfile
 from pathlib import Path
 
+from art98.freshness import ROOT
 from art98.settings import Settings
 
 from .host import transport_name
 
-ROOT = Path(__file__).resolve().parents[3]
 FILE = ROOT / "compose.yaml"
 TCP_FILE = ROOT / "compose.tcp.yaml"  # on top of FILE when the transport is tcp
 OVERRIDE_FILE = ROOT / "compose.override.yaml"  # the user's own, gitignored
@@ -44,7 +44,7 @@ def project(settings: Settings) -> str:
 
 
 def files(settings: Settings) -> list[Path]:
-    tcp = transport_name(default=settings.transport) == "tcp"
+    tcp = transport_name(settings.transport) == "tcp"
     extra = [TCP_FILE] if tcp else []
     return [FILE, *extra, *([OVERRIDE_FILE] if OVERRIDE_FILE.exists() else [])]
 

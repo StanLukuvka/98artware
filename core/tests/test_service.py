@@ -292,10 +292,10 @@ def test_a_dead_port_is_not_running_within_seconds(tmp_path):
     assert time.monotonic() - began < 10
 
 
-def test_a_silent_listener_is_not_running_after_the_connect_timeout(
+def test_a_silent_listener_is_not_running_after_the_attach_timeout(
     tmp_path, monkeypatch
 ):
-    monkeypatch.setattr(service, "CONNECT_TIMEOUT", 0.3)
+    monkeypatch.setattr(service, "ATTACH_TIMEOUT", 0.3)
     listener = socket.socket()
     listener.bind(("127.0.0.1", 0))
     listener.listen(5)  # accepts into the backlog, never answers

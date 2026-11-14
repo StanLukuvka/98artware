@@ -18,6 +18,7 @@ from .bridge import Bridge, BridgeError
 from .container import compose
 from .container.compose import socket_dir
 from .container.host import (
+    START_TIMEOUT,
     ChannelBusy,
     ContainerError,
     Engine,
@@ -31,8 +32,7 @@ from .qemu import QemuError
 from .session import SNAPSHOT, ImageMissing, Session
 from .settings import CONTAINER_VNC_PORT, Settings, load
 
-CONNECT_TIMEOUT = 3.0  # attach: a dead socket is NotRunning in ~3 s, not 120
-START_TIMEOUT = 120.0
+ATTACH_TIMEOUT = 3.0  # attach: a dead socket is NotRunning in ~3 s, not 120
 BUSY_POLL = 0.5
 OLD_IMAGE = "the container image is older than the code; run `art98 up --rebuild`"
 
@@ -57,7 +57,7 @@ class Busy(ServiceError):
 
 
 def _address(settings: Settings) -> tuple[str, int] | str:
-    if transport_name(default=settings.transport) == "unix":
+    if transport_name(settings.transport) == "unix":
         return str(socket_dir(settings) / "serve.sock")
     return (settings.connect_host, settings.control)
 
@@ -78,7 +78,7 @@ def _token(settings: Settings) -> str | None:
         return None
 
 
-def _read_status(address, token: str, timeout: float = CONNECT_TIMEOUT) -> dict:
+def _read_status(address, token: str, timeout: float = ATTACH_TIMEOUT) -> dict:
     """The status channel: after the handshake ONE JSON line, no `ok` before it."""
     where = _where(address)
     sock = None
@@ -156,7 +156,7 @@ def start(settings: Settings | None = None, *, engine=None, log=print) -> None:
         fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, "w") as handle:
             handle.write(secrets.token_hex(32))
-    if transport_name(default=settings.transport) == "unix":
+    if transport_name(settings.transport) == "unix":
         socket_dir(settings).mkdir(parents=True, mode=0o700)
 
     def fail(error: ServiceError) -> ServiceError:
@@ -266,7 +266,7 @@ def _connect(settings: Settings) -> Session:
     if reply.get("busy"):
         raise Busy("the VM is busy: another render holds it")
     try:
-        control = open_channel(address, token, "control", CONNECT_TIMEOUT)
+        control = open_channel(address, token, "control", ATTACH_TIMEOUT)
     except TimeoutError:
         raise NotRunning(
             f"the VM is not running (nothing answers on {_where(address)}); run `art98 vm start`"
@@ -278,7 +278,7 @@ def _connect(settings: Settings) -> Session:
     shared = socket_dir(settings) if isinstance(address, str) else None
     vm = RemoteVM(control, shared_dir=shared)
     try:
-        agent = open_channel(address, token, "agent", CONNECT_TIMEOUT)
+        agent = open_channel(address, token, "agent", ATTACH_TIMEOUT)
     except (TimeoutError, ContainerError) as error:
         vm.close()
         raise Unhealthy(f"the VM's agent channel failed: {error}") from None

@@ -9,6 +9,7 @@ import struct
 from datetime import UTC, datetime
 
 SECTOR = 2048
+VOLUME = "ART98"  # the volume id of every disc
 _NAME = re.compile(r"^[A-Z0-9_]{1,8}\.[A-Z0-9_]{1,3}$")
 
 
@@ -37,16 +38,13 @@ def _text(s: str, n: int) -> bytes:
     return s.encode("ascii").ljust(n, b" ")
 
 
-def build_iso(files: dict[str, bytes], volume: str = "ART98") -> bytes:
+def build_iso(files: dict[str, bytes]) -> bytes:
     """Return a level 1 ISO image holding `files` (name -> bytes) in its root directory."""
     for name in files:
         if not _NAME.match(name):
             raise ValueError(
                 f"bad ISO 9660 level 1 name {name!r}: need 8.3 of A-Z 0-9 _"
             )
-    volume = volume.upper()
-    if not re.fullmatch(r"[A-Z0-9_]{1,32}", volume):
-        raise ValueError(f"bad volume id {volume!r}")
     d = datetime.now(UTC)
     now = bytes([d.year - 1900, d.month, d.day, d.hour, d.minute, d.second, 0])
     stamp = d.strftime("%Y%m%d%H%M%S00").encode() + b"\0"
@@ -74,7 +72,7 @@ def build_iso(files: dict[str, bytes], volume: str = "ART98") -> bytes:
     pvd = (
         b"\1CD001\1\0"
         + _text("", 32)
-        + _text(volume, 32)
+        + _text(VOLUME, 32)
         + bytes(8)
         + _both(total, "I")
         + bytes(32)

@@ -17,6 +17,8 @@ from art98.container.host import ContainerError, Engine
 from art98.freshness import container_warning, inspect_created
 from art98.settings import Settings, load
 
+from .builder import DISK_MB
+
 KEY_ENV = "ART98_PRODUCT_KEY"
 DISC = "/media/win98.iso"  # where the setup service mounts the disc
 ROOT = compose.ROOT
@@ -92,7 +94,7 @@ def up(
     work: Path | str | None = None,
     iso: Path | str | None = None,
     rebuild: bool = False,
-    disk_mb: int = 2047,
+    disk_mb: int = DISK_MB,
     engine: Engine | None = None,
     log=print,
 ) -> int:

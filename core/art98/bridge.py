@@ -21,6 +21,7 @@ from .protocol import (
 )
 
 DEFAULT_TIMEOUT = 10.0
+READY_TIMEOUT = 60.0  # wait_ready: the agent answering after a boot
 CHUNK_SIZE = 4096
 
 
@@ -353,7 +354,7 @@ class Bridge:
         """Return the guest's tick count."""
         return self.request("PING", timeout=timeout)[0][0]
 
-    def wait_ready(self, timeout: float = 60.0) -> None:
+    def wait_ready(self, timeout: float = READY_TIMEOUT) -> None:
         deadline = time.monotonic() + timeout
         while True:
             try:
