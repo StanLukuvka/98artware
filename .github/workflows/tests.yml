@@ -10,14 +10,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - name: Install ffmpeg and mtools
+      - name: Install ffmpeg, mtools, 7-Zip and mingw
         timeout-minutes: 8
         # When Ubuntu's mirrors are unreachable, the tests that need these tools skip themselves.
         continue-on-error: true
         run: |
           apt_opts="-o Acquire::Retries=1 -o Acquire::http::Timeout=10 -o Acquire::https::Timeout=10"
           sudo apt-get $apt_opts update
-          sudo apt-get $apt_opts install -y ffmpeg mtools
+          sudo apt-get $apt_opts install -y ffmpeg mtools p7zip-full gcc-mingw-w64-i686
+      - name: Build the guest programs
+        # So the pecheck and step-1 tests run. Skipped only when the install above failed.
+        run: |
+          if command -v i686-w64-mingw32-gcc >/dev/null; then make -C guest; fi
       - run: uv sync --group dev --python ${{ matrix.python }}
       - run: uv run ruff check .
       - run: uv run ruff format --check core setup tools
