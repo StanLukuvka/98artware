@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+import warnings
 from pathlib import Path
 
 from .. import win32
@@ -9,7 +11,9 @@ from ..actions.pointer import Pointer
 from ..base.animation import Animation
 from ..base.props import Box, Prop
 from ..base.space import STOCK, DesktopSpace
-from . import setstate, timeline
+from ..base.units import frames
+from ..recorder import warn_if_late
+from . import setstate
 
 DESKTOPS = ("blank", "stock")
 
@@ -223,7 +227,39 @@ class Scene:
         animations finish early and hold. With live=True, frames follow the
         host clock, for guest behaviour that needs real time to happen.
         """
-        timeline.play(self, animations, run_time, rate_func, live)
+        if not animations:
+            raise ValueError("play needs at least one animation")
+        self._check_claims(animations)
+        for animation in animations:
+            if run_time is not None:
+                animation.run_time = run_time
+            if rate_func is not None:
+                animation.rate_func = rate_func
+            animation.begin(self)
+        total = max(animation.run_time for animation in animations)
+        count = max(1, frames(total, self.output_fps))
+        live = live or any(animation.live for animation in animations)
+        running = list(animations)
+        started = time.monotonic()
+        for index in range(1, count + 1):
+            elapsed = index / count * total
+            for animation in list(running):
+                length = animation.run_time
+                progress = (
+                    1.0 if length <= 0 or index == count else min(1.0, elapsed / length)
+                )
+                animation.update(progress)
+                if progress >= 1:
+                    animation.finish(self)
+                    running.remove(animation)
+            self._apply()
+            if live:
+                time.sleep(
+                    max(0.0, started + index / self.output_fps - time.monotonic())
+                )
+            self.recorder.frame()
+        if live:
+            warn_if_late(count, self.output_fps, started)
 
     def wait(
         self, duration: float = 1.0, stop_condition=None, frozen_frame: bool = False
@@ -234,11 +270,15 @@ class Scene:
         frames follow the host clock. frozen_frame=True repeats one capture
         instead, which costs almost nothing. See also `pause`.
         """
-        timeline.wait(self, duration, stop_condition, frozen_frame)
+        if frozen_frame:
+            self.pause(duration)
+        else:
+            self.live(duration, stop_condition)
 
     def pause(self, duration: float = 1.0) -> None:
         """Hold one capture. Nothing the guest does in this time is seen."""
-        timeline.pause(self, duration)
+        self._apply()
+        self.recorder.frame(hold=max(1, frames(duration, self.output_fps)))
 
     def live(self, seconds: float, stop_condition=None) -> None:
         """Record something that moves by itself, such as a screensaver.
@@ -246,7 +286,8 @@ class Scene:
         Frames follow the host clock and skip the repaint wait, so this
         stretch depends on host speed. It wraps `Recorder.live`.
         """
-        timeline.live(self, seconds, stop_condition)
+        self._apply()
+        self.recorder.live(seconds, stop_condition)
 
     def cut(self, path: Path | str | None = None) -> Path | None:
         """End the current clip here and start a new one, between two frames.
@@ -270,11 +311,22 @@ class Scene:
 
     def wait_until(self, stop_condition, max_time: float = 60.0) -> None:
         """Hold until stop_condition() is true, giving up after max_time."""
-        timeline.wait_until(self, stop_condition, max_time)
+        self.live(max_time, stop_condition)
+        if not stop_condition():
+            warnings.warn(f"wait_until gave up after {max_time} s", stacklevel=2)
 
     def _apply(self) -> None:
-        timeline.apply_props(self)
+        self.pointer.apply()
+        for prop in self.props:
+            prop.apply()
 
     @staticmethod
     def _check_claims(animations) -> None:
-        timeline.check_claims(animations)
+        taken: set[str] = set()
+        for animation in animations:
+            for claim in animation.claims:
+                if claim in taken:
+                    raise ValueError(
+                        f"two animations in one play both drive the {claim}"
+                    )
+                taken.add(claim)

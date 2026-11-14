@@ -143,7 +143,6 @@ What a scene author imports with `from art98.anim import *`.
 - [ ] [paint.py](../core/art98/actions/programs/paint.py): Paint, with targets for its tools, palette and canvas.
 - [ ] [minesweeper.py](../core/art98/actions/programs/minesweeper.py): Minesweeper, which can read its mines and win.
 - [ ] [screensaver.py](../core/art98/actions/programs/screensaver.py): a screensaver, started with /s.
-- [ ] [timeline.py](../core/art98/anim/timeline.py): `play`, `wait`, `pause`, `live` as functions `Scene` calls.
 - [ ] [freshness.py](../core/art98/freshness.py): warns when the image or guest programs are older than the code.
 - [ ] [setstate.py](../core/art98/anim/setstate.py): applies a state and checks it took.
 - [ ] [renderer.py](../core/art98/anim/renderer.py): VM, recorder, output file.
