@@ -124,7 +124,9 @@ work folder. Never save a snapshot over `ready`; the VM service refuses `save_sn
 **Decision.** QEMU, the setup tools and the guest programs live in one container image built from
 `setup/Dockerfile`. The host keeps the scene, the bridge, the recorder and ffmpeg. The container
 relays the agent's serial protocol to the host byte for byte, and answers a small JSON control
-channel for screenshots, keys, revert, pause and the CD. art98 calls only the `docker` command.
+channel for screenshots, keys, revert, pause and the CD. How the containers run is a committed
+`compose.yaml`; art98 calls only `docker compose` (or `ART98_ENGINE compose`), with the user's
+own `compose.override.yaml` for their key, disc and VNC.
 
 **Why.**
 
@@ -137,18 +139,25 @@ channel for screenshots, keys, revert, pause and the CD. art98 calls only the `d
   and QEMU writes each screenshot into it. That brought a frame to 6.8 to 7.0 ms against 5.6 to
   6.3 ms on host QEMU. Loopback TCP stays for hosts where a Unix socket can't cross into the
   container, such as Docker Desktop. See [Timing](container.md#timing).
-- **One engine path.** Podman works through `podman-docker`, so there is one code path. The
-  container itself decides who owns the files it writes, by reading its uid map, so rootful
+- **One engine path, written down once.** Podman works through `podman-docker` and the same
+  docker-compose plugin (`podman compose` hands over to it), so there is one code path. The
+  mounts, secrets, ports and healthcheck are in `compose.yaml`, which a user can read and run
+  without art98, instead of in argv built by hand. art98 keeps what compose can't do: making the
+  token, choosing the transport and the socket folder, prompting for the key, and checking the
+  `ready` snapshot and the agent ([the probe](https://github.com/StanLukuvka/98artware/blob/dev/experiments/compose/README.md)).
+  The container itself decides who owns the files it writes, by reading its uid map, so rootful
   Docker and rootless Podman both leave `work/` owned by you.
-- **Nothing personal in an image.** The disc and `work/` are bind-mounted, and the product key
-  and VM token are files mounted read-only. So an image holds only programs and can be shared,
+- **Nothing personal in an image or the repo.** The disc and `work/` are bind-mounted, and the
+  product key and VM token are compose secrets, files mounted read-only. The key, the disc path
+  and VNC live in the gitignored `compose.override.yaml`. So an image holds only programs and can be shared,
   and the token never shows in `docker inspect`. (Windows 98 product keys are public; the real
   secret is the token.)
 
 **For new work.** Keep the host's view of the VM to the methods `RemoteVM` has. A new control op
 goes in `serve.py` and `RemoteVM` together, with a test in `test_container.py`, and must keep
-working for an older image (as `eject_disc` is only sent when a disc was inserted). Never publish
-the control port beyond loopback: the agent runs any Win32 call it is given. Anything that runs
+working for an older image (as `eject_disc` is only sent when a disc was inserted). A new mount,
+port or variable goes in `compose.yaml`, not in Python. Never publish the control port beyond
+loopback in a committed file: the agent runs any Win32 call it is given. Anything that runs
 in the container is in the image, so a change to `core/art98` that `serve` uses needs
 `art98 up --rebuild`. See [Container](container.md).
 
@@ -167,8 +176,8 @@ clean up: a render killed with `kill -9` left the next attach working in about 0
 release the server drops the relay, ejects the disc, pauses the VM and frees the lock last, so
 the next client never races the cleanup. Pausing matters because an idle Windows 98 under software
 emulation keeps a whole CPU core busy. Fixed ports make a clash an error you can see instead of
-a silent fallback. On disk it needs only `work/vm.token` and
-`work/vm.cid`. The token can live outside `work/` (`[vm] token_file`), so
+a silent fallback. On disk it needs only `work/vm.token`; compose finds the container by its
+project, one per work folder. The token can live outside `work/` (`[vm] token_file`), so
 a client in another container needs only that file and a small `art98.toml`, never `work/`
 ([how](../setup/config.md#attach-from-another-container)).
 
@@ -180,8 +189,9 @@ a minute; the Unix socket, the default on Linux, frees it at once.
 **For new work.** Anything that drives the guest takes a session from `art98.attach()` and
 releases it with `with`. Don't add a path that boots its own VM for renders or tests. A test that
 needs the VM uses the `attached`/`booted` helpers in `test_stage.py` so a failure never holds the
-lock. New settings go in `art98.toml` with a default in `settings.py`, documented in
-[Configuration](../setup/config.md). See [The VM service](container.md#the-vm-service).
+lock. New settings that clients need go in `art98.toml` with a default in `settings.py`; how a
+container runs goes in `compose.yaml`. Each has one home, listed in
+[Configuration](../setup/config.md#where-each-setting-lives). See [The VM service](container.md#the-vm-service).
 
 ## 7. States are static and hand-written; actions are free Python
 

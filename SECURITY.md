@@ -20,15 +20,15 @@ any Win32 call: that is how art98 works, not a flaw. So these are in scope:
 
 - connecting to the VM service without the token, or reading the token without access to its
   file;
-- the published ports (`control`, `vnc`) listening anywhere other than `[ports] bind`, which is
-  `127.0.0.1` by default;
+- a port published by the committed compose files (`compose.yaml`, `compose.tcp.yaml`,
+  `compose.override.example.yaml`) listening anywhere other than `127.0.0.1`;
 - a state file running code, or the guest or the container reaching the host in a way the docs
   don't describe;
 - anything that would put files from `work/` (installed copies of Windows) into the repository
   or a release.
 
 Out of scope: scene files, which are Python run on your machine like any other script; what a
-token holder can do inside the guest; a `bind` you set to an address other
-machines can reach; and Windows 98 itself. Windows 98 product keys are public and are not
+token holder can do inside the guest; a port you publish in your own
+`compose.override.yaml` on an address other machines can reach; and Windows 98 itself. Windows 98 product keys are public and are not
 secrets. See [configuration](docs/setup/config.md) and
 [the VM service](docs/design/container.md#the-vm-service).

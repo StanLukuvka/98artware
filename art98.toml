@@ -1,13 +1,10 @@
 # art98 settings: every key is optional and shown with its default.
 # Precedence: built-in default < this file < ART98_IMAGE (image only) < --work.
+# How the containers run (product key, disc, VNC) is in compose.override.yaml instead.
 
 [vm]
-container = "art98-vm"                 # name of the long-lived container
 image     = "localhost/art98:latest"   # image built by `art98 up`
-work      = "work"                     # prepared image, vm.token, vm.cid; relative to this file
+work      = "work"                     # prepared image and vm.token; relative to this file
 
-[ports]                                # HOST side; fixed per purpose, a taken port is an error
-bind      = "127.0.0.1"                # interface for every published port
+[ports]                                # HOST side, published on 127.0.0.1 only
 control   = 7598                       # control/agent port, published only when the transport is tcp
-vnc       = 5900                       # `art98 vm start --vnc`
-setup_vnc = 5998                       # `art98 up --watch`

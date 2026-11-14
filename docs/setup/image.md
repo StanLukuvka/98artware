@@ -379,7 +379,7 @@ the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 | | | `-boot order=c` | Boots the disk. `boot_once="a"` adds `once=a` for the first install boot |
 | | | `-no-reboot` | See below |
 | | | `-nic none` | No network adapter, so nothing to configure or wait for. The bridge uses COM1 |
-| `display` | `none` | `-display none` | `gtk` with `--watch`, or `vnc` with `art98 vm start --vnc` |
+| `display` | `none` | `-display none` | `gtk` with `--watch`, or `vnc` when `compose.override.yaml` sets `ART98_VNC` |
 | | | `-serial chardev:guest` | COM1 is a Unix socket on the host. It carries the bridge |
 | | | `-mon chardev=qmp,mode=control` | QMP is a second Unix socket. It handles screenshots, keys and snapshots |
 | `icount_shift` | `None` | `-icount shift=N,sleep=off,align=off` when set | Off. Setup and the VM service do not set it |

@@ -238,7 +238,7 @@ class Setup:
     # helpers
 
     def _config(self, **overrides) -> VMConfig:
-        # In the container there is no window to open: `art98 up --watch` sets VNC.
+        # In the container there is no window to open: compose.yaml sets VNC.
         display = os.environ.get("ART98_WATCH_DISPLAY", "gtk") if self.watch else "none"
         return VMConfig(
             disk=self.golden, machine=self._machine(), display=display, **overrides

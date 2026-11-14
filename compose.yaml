@@ -1,0 +1,66 @@
+# The art98 containers. art98 runs compose for you: `art98 up` builds the image and runs
+# `setup` once, `art98 vm start` and `art98 vm stop` run `vm`. Don't edit this file for
+# your own machine: put your product key, disc and VNC port in compose.override.yaml
+# beside it (gitignored), starting from compose.override.example.yaml.
+#
+# The ART98_* variables come from art98, which takes them from art98.toml, so each
+# setting has one home: names, the work folder and ports in art98.toml, how the
+# containers run here. See docs/setup/config.md.
+
+x-stage: &stage
+  image: ${ART98_IMAGE:-localhost/art98:latest}
+  init: true # SIGTERM reaches serve, which deletes its run copy on the way out
+  security_opt: [label=disable] # use work/ without relabelling the files in it
+  labels:
+    art98.work: ${ART98_WORK:-./work}
+  environment:
+    # art98.container.entry drops to this user on a rootful engine, so what the
+    # container writes in work/ is yours. Bash does not export UID; art98 passes it.
+    ART98_HOST_UID: ${ART98_HOST_UID:-}
+    ART98_HOST_GID: ${ART98_HOST_GID:-}
+    # Where `setup --watch` shows the screen: VNC display 0, port 5900 in the container.
+    ART98_WATCH_DISPLAY: vnc=0.0.0.0:0
+
+services:
+  # The long-lived VM: boots the `ready` snapshot and serves it on a Unix socket in a
+  # folder of the host's (compose.tcp.yaml swaps that for a loopback TCP port). No
+  # container_name: compose names it <project>-vm-1, and art98's project is one per
+  # work folder, so two work folders can each run a VM.
+  vm:
+    <<: *stage
+    build:
+      context: .
+      dockerfile: setup/Dockerfile
+    volumes:
+      - ${ART98_WORK:-./work}:/work
+      # art98 vm start makes a private folder per work folder and passes it.
+      - ${ART98_SOCKET_DIR:-${XDG_RUNTIME_DIR:-/tmp}/art98/compose}:/run/art98
+    secrets: [art98_token] # at /run/secrets/art98_token, where serve looks
+    command: [serve, --work, /work, --unix, /run/art98/serve.sock]
+    stop_grace_period: 20s
+    # serve listens only once the guest agent answers, so a socket means ready.
+    # Podman ignores start_interval, so interval is short too.
+    healthcheck:
+      test: [CMD, test, -S, /run/art98/serve.sock]
+      interval: 5s
+      start_period: 120s
+      start_interval: 1s
+
+  # The one-time install, `art98 up`. Only runs when asked for by name.
+  setup:
+    <<: *stage
+    profiles: [setup]
+    volumes:
+      - ${ART98_WORK:-./work}:/work
+      - ${ART98_ISO:-./win98.iso}:/media/win98.iso:ro
+    secrets: [art98_key] # at /run/secrets/art98_key, where `art98 setup` looks
+    command:
+      [setup, --work, /work, --iso, /media/win98.iso, --disk-mb, "${ART98_DISK_MB:-2047}"]
+
+secrets:
+  art98_token:
+    file: ${ART98_TOKEN_PATH:-./work/vm.token}
+  # Your Windows 98 product key, from the environment by default. To keep it in a
+  # file instead, see compose.override.example.yaml. Never put a key in this repo.
+  art98_key:
+    environment: ART98_PRODUCT_KEY

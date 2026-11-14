@@ -20,7 +20,7 @@ Host and guest side by side, and which link carries commands and which carries f
 
 ## VM service
 
-The long-lived `art98-vm` container: `art98 up` once, `art98 vm start` runs it, `render` and `ping`
+The long-lived VM container: `art98 up` once, `art98 vm start` runs it, `render` and `ping`
 attach and release on each call, and `art98 vm stop` removes it.
 
 ![VM service](vm-service-flow.png)

@@ -75,14 +75,21 @@ in core.
 
 - [ ] [Dockerfile](../setup/Dockerfile): builds the guest programs, then a small Fedora image
   with QEMU 10.2.2. [.dockerignore](../.dockerignore) keeps `work/` out of the build.
-- [ ] [up.py](../setup/art98_setup/up.py): `art98 up`. Builds the image, runs setup in it, and
-  stops.
+- [ ] [compose.yaml](../compose.yaml): how the containers run: the `vm` service and the
+  one-time `setup` service, with their mounts, secrets and healthcheck.
+  [compose.tcp.yaml](../compose.tcp.yaml) swaps the socket for a loopback port, and
+  [compose.override.example.yaml](../compose.override.example.yaml) is where your own key, disc
+  and VNC go.
+- [ ] [up.py](../setup/art98_setup/up.py): `art98 up`. Builds the image, checks the disc and
+  key, runs setup in it, and stops.
 - [ ] [serve.py](../core/art98/container/serve.py): runs in the container. Boots
   the run copy, relays the agent's serial port and answers screenshot, keys and revert.
 - [ ] [entry.py](../core/art98/container/entry.py): the image's entry point. On a rootful
   engine it switches to your uid before running art98, so `work/` stays yours.
 - [ ] [host.py](../core/art98/container/host.py): runs on the host. `Engine` runs `docker`, and
   `RemoteVM` gives the scene layer the same methods as a VM on the host would have.
+- [ ] [compose.py](../core/art98/container/compose.py): the compose project, files and the
+  `ART98_*` variables art98 passes from `art98.toml`.
 - [ ] [service.py](../core/art98/service.py): `art98 vm start`, `stop` and `status`, and
   `attach()`, which takes the running VM for one render and reverts it to `ready`.
 

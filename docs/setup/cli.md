@@ -44,8 +44,8 @@ It looks up each tool with `shutil.which` and nothing more. It does not check
 versions or whether `guest/build` exists. The package names come from
 `HOST_TOOLS` and `DEBIAN_PACKAGES` in `builder.py`. On Debian 12 and older, `7z` comes from
 `p7zip-full` rather than `7zip`. The engine is `docker`, or the command `ART98_ENGINE` names. If it is missing, its line
-suggests `podman-docker`, which provides `docker` on a Podman host, and the exit code can
-become 1.
+suggests `podman-docker` and `docker-compose`, which provide `docker compose` on a Podman host,
+and the exit code can become 1. It does not check that the compose plugin is installed.
 
 `i686-w64-mingw32-gcc`, `make` and `as` are only needed to build `guest/`. If
 `guest/build/` already holds `agent.exe` and `mbr.bin`, `setup` runs without them,
@@ -68,7 +68,7 @@ uv run art98 setup --iso /path/to/win98se.iso
 | `--work PATH` | `[vm] work` | The work directory, relative to where you run the command. Created if missing |
 | `--disk-mb N` | 2047 | Size of the Windows disk. Only the `vm` step reads it, and it rounds down to whole cylinders. Only the default has been run |
 | `--from STEP` | None | Redo `vm`, `setup`, `init_api` or `ready`, and everything after it. See [what `--from` needs](stages.md#what---from-needs) |
-| `--watch` | Off | Show the VM's screen in a window, with `-display gtk` instead of `-display none`. Needs a graphical session and a QEMU built with GTK. `ART98_WATCH_DISPLAY` replaces `gtk`, which is how `art98 up --watch` gets VNC |
+| `--watch` | Off | Show the VM's screen in a window, with `-display gtk` instead of `-display none`. Needs a graphical session and a QEMU built with GTK. `ART98_WATCH_DISPLAY` replaces `gtk`. `ART98_VNC=1` turns it on too, which is how the `setup` service in `compose.override.yaml` gets VNC |
 
 Steps that are already done don't need their flags. Resuming at `setup` needs
 neither `--iso` nor a key.
@@ -119,19 +119,26 @@ uv run art98 vm stop
 
 ### art98 vm start
 
-Starts the container, named `[vm] container` (`art98-vm` by default), from `[vm] image`. The
-container carries the label `art98.work=<work folder>`. It writes `work/vm.token` (or the file
-`[vm] token_file` names), mode 0600, made once and reused, and `work/vm.cid`. It waits until the VM has its `ready` snapshot and
-answers, then leaves it paused.
+Runs `docker compose up -d --wait vm`: the `vm` service of [compose.yaml](../../compose.yaml),
+in the compose project `art98-<hash8>` of this work folder, so the container is named
+`art98-<hash8>-vm-1` and two work folders can each run a VM. It runs `[vm] image`. Before that it writes
+`work/vm.token` (or the file `[vm] token_file` names), mode 0600, made once and reused, which
+compose mounts as a secret. `--wait` returns once the healthcheck sees serve listening; then
+art98 checks the `ready` snapshot and the guest agent, and leaves the VM paused.
+
+On Linux the VM listens on a Unix socket in a folder art98 makes and compose mounts. With the
+tcp transport art98 adds [compose.tcp.yaml](../../compose.tcp.yaml), which publishes
+`127.0.0.1:[ports] control` instead. Your `compose.override.yaml` is added last, when it
+exists, for VNC and anything else of your own.
 
 | Flag | Default | Effect |
 |------|---------|--------|
 | `--work PATH` | `[vm] work` | The work folder |
-| `--vnc` | Off | Show the screen over VNC at `[ports] bind` and `[ports] vnc`, `127.0.0.1:5900` by default, with no password. View only: see [VNC](config.md#vnc). Fixed at start |
 
-If a container for this work folder is already running and answers, `start` prints
-`already running` and does nothing. A stopped or stale container for the folder is removed
-first.
+To see the screen over VNC, turn it on in `compose.override.yaml`: see [VNC](config.md#vnc).
+
+If this work folder's `vm` container is already running and answers, `start` prints
+`already running` and does nothing. A stopped or stale one is taken down first.
 
 ```
 the VM is up and paused; render with `art98 render`
@@ -143,8 +150,7 @@ the VM is up and paused; render with `art98 render`
 | `no image localhost/art98:latest; run art98 up to build it` | The image is not built. `[vm] image` or `ART98_IMAGE` names another |
 | `the container image is older than the code; run art98 up --rebuild` | The image holds an older copy of `core/art98` than the checkout |
 | `the VM has no ready snapshot; run art98 up ...` | The image's disk has no `ready` snapshot |
-| `the VM container exited while starting` | The container stopped during boot |
-| `the VM is not running (nothing answers on ...)`, after 120 s | The VM did not come up. The message ends with the last 20 lines of the container's log |
+| `the VM did not start: <compose's last line>` | `compose up` failed, or the healthcheck did not pass within 120 s. The message ends with the last 20 lines of the container's log, and the project is taken down |
 
 ### art98 vm status
 
@@ -158,21 +164,19 @@ vnc: 127.0.0.1:5900
 ```
 
 `state` is `busy` while a render holds the VM, `paused` between renders, and `running` otherwise.
-`vnc` is `off` unless the VM was started with `--vnc`. If the image is older than the code,
+`vnc` is `off` unless `compose.override.yaml` publishes the VNC port. If the image is older than the code,
 a warning follows. With no VM it prints `down: the VM is not running; run art98 vm start`.
 
 Exit code: 0 when the `ready` snapshot is there, 1 when the VM is down or has no `ready`.
 
 ### art98 vm stop
 
-Stops the container with a 20 second grace period, so the VM's run copy is deleted on the way
-out, then removes it. It also deletes `work/vm.cid` and the socket folder, and keeps
-the token file.
+Runs `docker compose down` for this work folder's project: the container stops with a 20
+second grace period, so the VM's run copy is deleted on the way out, and is removed. It also
+deletes the socket folder, and keeps the token file.
 
-It acts only on the container recorded in `vm.cid`, or on the one labelled for this work
-folder. It never stops a container by name alone, and it refuses one labelled for another
-folder: `refusing to stop <id>: it is not labelled for <work>`. With no container it prints
-`nothing to stop`.
+It acts only on this work folder's compose project, so it never touches another checkout's VM.
+With no container it prints `nothing to stop`.
 
 | Flag | Default | Effect |
 |------|---------|--------|
@@ -236,23 +240,29 @@ uv run art98 up --iso /path/to/win98se.iso
 1. Builds the image `localhost/art98:latest` if it is missing, or always with `--rebuild`.
 2. Copies `agent.exe`, `view.exe` and `mbr.bin` out of the image into `guest/build`
    if `view.exe` isn't there, since scenes send `VIEW.EXE` to the guest from the host.
-3. If `image.json` is missing from the work directory, takes the key from `ART98_PRODUCT_KEY`
-   or asks for it at a visible prompt, and runs `art98 setup` in the container with the disc
-   mounted read-only. The key goes in a file mounted read-only at
-   `/run/secrets/art98_key`, and the file is deleted when setup ends. A resumed setup asks for
-   the key again.
+3. If `image.json` is missing from the work directory, runs `docker compose run --rm setup`,
+   the `setup` service of [compose.yaml](../../compose.yaml), with the disc mounted read-only.
+   First it reads compose's resolved config and checks the disc and the key are there, since
+   compose would stop half way and leave a container behind. The disc is `--iso`, or the one
+   `compose.override.yaml` mounts. The key is the key file `compose.override.yaml` names; else
+   `ART98_PRODUCT_KEY`; else a visible prompt. compose mounts it read-only at
+   `/run/secrets/art98_key`. A key from the prompt goes to compose in its environment, never on
+   a command line, and is not kept, so a resumed setup asks again.
 4. Stops here and prints `art98 vm start`. Start the VM with that command.
 
 | Flag | Default | Effect |
 |------|---------|--------|
-| `--iso PATH` | None | Your disc image. Needed only while setup isn't done |
+| `--iso PATH` | None | Your disc image. Needed only while setup isn't done, and only if `compose.override.yaml` does not mount one. Giving both is an error |
 | `--work PATH` | `[vm] work` | The work directory, mounted at `/work` in the container |
-| `--watch` | Off | Show setup's screen over VNC on `[ports] bind` (`127.0.0.1` by default), with no password |
-| `--vnc-port PORT` | `[ports] setup_vnc`, 5998 | The host port for `--watch` |
-| `--rebuild` | Off | Build the image even if it exists. The build asks Docker's CLI for `--load` and fails if the engine's image isn't the one just built |
+| `--rebuild` | Off | Build the image even if it exists, with `docker compose build vm`. It fails if the engine does not hold the image afterwards |
 | `--disk-mb N` | 2047 | As for `setup` |
 
-art98 calls only `docker`. On a Podman host, install `podman-docker`, which provides it. Files
+To watch the install over VNC, turn it on for the `setup` service in `compose.override.yaml`
+(see [VNC](config.md#vnc)) and point a view-only viewer at `127.0.0.1:5998`.
+
+art98 calls only `docker compose` (or `ART98_ENGINE compose`). On a Podman host, install
+`podman-docker` and `docker-compose`, which provide it; `podman-compose` does not work, since
+it cannot run a service that is behind a profile. Files
 the container writes in `work/` are yours on any engine. On a rootless one the container's root
 is you. On rootful Docker the image's entry point,
 [entry.py](../../core/art98/container/entry.py), sees from `/proc/self/uid_map` that its root is
@@ -271,7 +281,7 @@ it. The protocol is in [the container design](../design/container.md#art98-serve
 | `--port N` | 7598 | TCP port inside the container |
 | `--unix PATH` | None | Listen on this Unix socket instead, in a folder the host mounted. Screenshots can then be written into that folder |
 | `--token-file PATH` | `/run/secrets/art98_token` | The token every connection must send first |
-| `--vnc` | Off | Show the screen on VNC port 5900 in the container |
+| `--vnc` | Off, or on when `ART98_VNC` is set | Show the screen on VNC port 5900 in the container |
 | `--ready-timeout S` | 60 | How long to wait for the agent after the restore |
 
 ## Environment variables
@@ -279,11 +289,13 @@ it. The protocol is in [the container design](../design/container.md#art98-serve
 | Variable | Read by | Effect |
 |----------|---------|--------|
 | `ART98_PRODUCT_KEY` | `cmd_setup`, `art98 up` | The product key when `--key` is not given. In the container, setup reads `/run/secrets/art98_key` when neither is there |
-| `ART98_ENGINE` | `art98.container.host.Engine`, `doctor` | The binary to run instead of `docker`. It only names the command: art98 drives it the same way |
-| `ART98_HOST_UID`, `ART98_HOST_GID` | `art98.container.entry` | Set by the host on every container it runs. On a rootful engine the container switches to them, so `work/` stays yours |
+| `ART98_ENGINE` | `art98.container.host.Engine`, `doctor` | The binary to run instead of `docker`, such as `podman`. It only names the command: art98 runs `ART98_ENGINE compose` the same way |
+| `ART98_HOST_UID`, `ART98_HOST_GID` | `art98.container.entry` | Passed by art98 to compose, which sets them on every container. On a rootful engine the container switches to them, so `work/` stays yours |
+| `ART98_VNC` | `art98 serve`, `art98 setup` | Set to `1` (in `compose.override.yaml`) to turn on `serve --vnc` or `setup --watch` |
+| `ART98_IMAGE`, `ART98_WORK`, `ART98_TOKEN_PATH`, `ART98_SOCKET_DIR`, `ART98_CONTROL_PORT`, `ART98_ISO`, `ART98_DISK_MB` | `compose.yaml` | Set by art98 from `art98.toml` and the flags when it runs compose. Don't set them yourself, except `ART98_IMAGE` |
 | `ART98_IMAGE` | `art98.settings` | The image name. Overrides `[vm] image` in [art98.toml](config.md), `localhost/art98:latest` by default |
 | `ART98_TRANSPORT` | `art98.container.host.transport_name` | `unix` (the default on Linux) or `tcp` (the default elsewhere): how a client reaches the VM service. Overrides `[vm] transport` in [art98.toml](config.md#keys). See [timing](../design/container.md#timing) |
-| `ART98_WATCH_DISPLAY` | `Setup._config` | The QEMU display for `--watch`, `gtk` by default. `art98 up --watch` sets it to VNC |
+| `ART98_WATCH_DISPLAY` | `Setup._config` | The QEMU display for `--watch`, `gtk` by default. compose.yaml sets it to VNC in the container |
 | `ART98_TRACE` | `art98.cli` | Set to `1` to get the full Python traceback instead of the one-line `error:` message |
 | `ART98_TEST_WORK` | `test_stage.py` | The prepared work directory the stage tests boot |
 | `ART98_TEST_WINEPREFIX` | `test_agent_wine.py` | A Wine prefix to reuse, so the Wine tests skip creating a new one |
@@ -314,7 +326,6 @@ Everything setup makes goes under `--work`. `work/` is in `.gitignore`.
 | `shots/ready.png` | `ready` | | The desktop in the snapshot |
 | `shots/wizard.png`, `shots/shutdown.png` | On failure | | The screen when the wizard or a shutdown got stuck |
 | `vm.token` | `art98 vm start` | Kept by `vm stop` | The token every connection sends first. Mode 0600. See [config](config.md#files-the-vm-uses) |
-| `vm.cid` | `art98 vm start` | `art98 vm stop` | The id of the running container |
 | `runs/` | `art98 vm start` (`vm-*`), and experiments (`render-*`) | `vm-*` at `vm stop`; `render-*` at the end of its run | Private copies of the image. Not made by `setup`. A killed container can leave a `vm-*` copy; the next `vm start` deletes it |
 
 `shots/` is never cleared. Numbers restart with each run and overwrite old files, so a

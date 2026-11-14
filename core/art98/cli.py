@@ -21,7 +21,11 @@ from .session import ImageMissing
 from .settings import CONTAINER_CONTROL_PORT, SettingsError, load
 from .state import StateError
 
-KEY_SECRET_FILE = Path("/run/secrets/art98_key")
+KEY_SECRET_FILE = Path(
+    "/run/secrets/art98_key"
+)  # compose.yaml's setup service mounts it
+# Set in compose.override.yaml: show the screen on VNC port 5900 in the container.
+VNC_ENV = "ART98_VNC"
 
 
 CONTAINER_NEEDS = {
@@ -50,15 +54,15 @@ def cmd_doctor(_args) -> int:
         print(f"{tool:24} {path or 'missing'}{note}")
     print(f"{'/dev/kvm':24} not used: Windows 98 runs under software emulation")
     print(
-        f"{name:24} {engine or 'missing'} (for `art98 up` and `art98 vm`"
-        f"{'' if engine else '; on a Podman host, install podman-docker'})"
+        f"{name:24} {engine or 'missing'} (for `art98 up` and `art98 vm`, as `{name} compose`"
+        f"{'' if engine else '; on a Podman host, install podman-docker and docker-compose'})"
     )
     if local_ok and container_ok:
         print("\nEverything is usable, here and in the container.")
     elif local_ok:
         print(
-            "\n`art98 setup` is usable here. For `art98 up` and `art98 vm` install docker, "
-            "or podman-docker on a Podman host."
+            "\n`art98 setup` is usable here. For `art98 up` and `art98 vm` install Docker "
+            "and its compose plugin, or podman-docker and docker-compose on a Podman host."
         )
     elif container_ok:
         print(
@@ -81,7 +85,7 @@ def cmd_doctor(_args) -> int:
 def _product_key(args) -> str | None:
     if args.key or os.environ.get("ART98_PRODUCT_KEY"):
         return args.key or os.environ.get("ART98_PRODUCT_KEY")
-    if KEY_SECRET_FILE.exists():  # mounted in by `art98 up`
+    if KEY_SECRET_FILE.exists():
         return KEY_SECRET_FILE.read_text().strip() or None
     return None
 
@@ -97,7 +101,7 @@ def cmd_setup(args) -> int:
         iso=args.iso,
         product_key=key,
         disk_mb=args.disk_mb,
-        watch=args.watch,
+        watch=args.watch or bool(os.environ.get(VNC_ENV)),
     )
     try:
         tool.run(args.from_stage)
@@ -222,7 +226,7 @@ def cmd_serve(args) -> int:
         args.work,
         port=args.port,
         token_file=args.token_file,
-        vnc=args.vnc,
+        vnc=args.vnc or bool(os.environ.get(VNC_ENV)),
         ready_timeout=args.ready_timeout,
         unix=args.unix,
     )
@@ -234,15 +238,13 @@ def cmd_up(args) -> int:
     return up(
         args.work,
         iso=args.iso,
-        watch=args.watch,
         rebuild=args.rebuild,
-        vnc_port=args.vnc_port,
         disk_mb=args.disk_mb,
     )
 
 
 def cmd_vm_start(args) -> int:
-    service.start(load(args.work), vnc=args.vnc)
+    service.start(load(args.work))
     return 0
 
 
@@ -309,7 +311,9 @@ def main(argv: list[str] | None = None) -> int:
         dest="from_stage",
         help="redo this step and everything after it: vm, setup, init_api or ready",
     )
-    command.add_argument("--watch", action="store_true", help="show the VM's screen")
+    command.add_argument(
+        "--watch", action="store_true", help=f"show the VM's screen (or set {VNC_ENV})"
+    )
     command.set_defaults(run=_guarded(cmd_setup))
 
     command = commands.add_parser("ping", help="talk to the agent on the running VM")
@@ -358,32 +362,17 @@ def main(argv: list[str] | None = None) -> int:
     ):
         sub = vm.add_parser(name, help=text, description=text)
         sub.add_argument("--work", type=Path, default=None, help=WORK_HELP)
-        if name == "start":
-            sub.add_argument(
-                "--vnc",
-                action="store_true",
-                help="show the screen on VNC at [ports] bind:vnc from art98.toml; "
-                "view only, fixed at start",
-            )
         sub.set_defaults(run=_guarded(run))
 
     text = "from your disc and key to a working desktop, in the art98 container"
     command = commands.add_parser("up", help=text, description=text)
     command.add_argument(
-        "--iso", type=Path, help="your Windows 98 SE disc image, for setup"
+        "--iso",
+        type=Path,
+        help="your Windows 98 SE disc image, for setup (or mount it in "
+        "compose.override.yaml)",
     )
     command.add_argument("--work", type=Path, default=None, help=WORK_HELP)
-    command.add_argument(
-        "--watch",
-        action="store_true",
-        help="show setup's screen over VNC on a loopback port",
-    )
-    command.add_argument(
-        "--vnc-port",
-        type=int,
-        default=None,
-        help="host port for --watch (default: [ports] setup_vnc from art98.toml)",
-    )
     command.add_argument(
         "--rebuild", action="store_true", help="rebuild the container image"
     )
@@ -413,7 +402,9 @@ def main(argv: list[str] | None = None) -> int:
         "--token-file", type=Path, help="default /run/secrets/art98_token"
     )
     command.add_argument(
-        "--vnc", action="store_true", help="show the screen on VNC port 5900"
+        "--vnc",
+        action="store_true",
+        help=f"show the screen on VNC port 5900 (or set {VNC_ENV})",
     )
     command.add_argument(
         "--ready-timeout",

@@ -176,7 +176,8 @@ def test_vm_and_wait_parse_and_help(capsys):
             cli.main(argv)
         assert stop.value.code == 0
     out = capsys.readouterr().out
-    assert "--vnc" in out and "--wait S" in out and "status" in out
+    assert "--wait S" in out and "status" in out
+    assert "--vnc" not in out  # VNC is set in compose.override.yaml
     with pytest.raises(SystemExit) as stop:
         cli.main(["vm"])
     assert stop.value.code == 2
@@ -197,13 +198,25 @@ def test_vm_status_exit_codes(monkeypatch, capsys, tmp_path):
 
 def test_vm_start_and_stop_call_the_service(monkeypatch, tmp_path):
     calls = []
-    monkeypatch.setattr(
-        cli.service, "start", lambda s, vnc: calls.append(("start", vnc))
-    )
-    monkeypatch.setattr(cli.service, "stop", lambda s: calls.append(("stop",)))
-    assert cli.main(["vm", "start", "--vnc", "--work", str(tmp_path)]) == 0
+    monkeypatch.setattr(cli.service, "start", lambda s: calls.append("start"))
+    monkeypatch.setattr(cli.service, "stop", lambda s: calls.append("stop"))
+    assert cli.main(["vm", "start", "--work", str(tmp_path)]) == 0
     assert cli.main(["vm", "stop", "--work", str(tmp_path)]) == 0
-    assert calls == [("start", True), ("stop",)]
+    assert calls == ["start", "stop"]
+
+
+def test_ART98_VNC_turns_on_vnc_for_serve_and_watch_for_setup(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        "art98.container.serve.run", lambda work, **kw: seen.update(serve=kw["vnc"])
+    )
+    monkeypatch.setenv("ART98_VNC", "1")
+    cli.main(["serve"])
+    monkeypatch.delenv("ART98_VNC")
+    cli.main(["serve"])
+    assert seen == {"serve": False}
+    cli.main(["serve", "--vnc"])
+    assert seen == {"serve": True}
 
 
 def test_a_missing_scene_file(tmp_path):

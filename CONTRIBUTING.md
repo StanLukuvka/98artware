@@ -47,7 +47,8 @@ with the rule new work should follow. If you need to break one, say why in your 
 
 That is enough for the unit tests, lint and docs. To render on the real guest you also need:
 
-- Docker, or Podman with the `podman-docker` package. art98 only ever runs the `docker` command.
+- Docker with its compose plugin, or Podman with the `podman-docker` and `docker-compose`
+  packages. art98 only ever runs `docker compose`, on the committed `compose.yaml`.
 - ffmpeg.
 - Your own Windows 98 SE disc image (an `.iso`) and its product key. art98 does not include
   Windows, and can't. The [README](README.md#what-you-need) says what the disc must be like.

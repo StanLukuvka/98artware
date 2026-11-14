@@ -13,21 +13,17 @@ import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 from pathlib import Path
 
 from art98.qemu import QemuError
-from art98.settings import load
 
 from .serve import keepalive, nodelay, read_line
 
 ENGINE = "docker"
-TOKEN_TARGET = "art98_token"
 CONNECT_TIMEOUT = 5.0
 TRANSPORTS = ("unix", "tcp")
-SOCKET_DIR = "/run/art98"
 RELEASE_TIMEOUT = 15.0  # pause and eject are QMP calls; seconds under load
 # A stage boots in under a second on an idle host; a busy one, or the first
 # run copy off btrfs and XFS, takes longer.
@@ -38,8 +34,8 @@ class ContainerError(RuntimeError):
     pass
 
 
-def image_name() -> str:
-    return load().image
+class ChannelBusy(ContainerError):
+    """serve refused the control channel because another client holds it."""
 
 
 def transport_name(transport: str | None = None, default: str | None = None) -> str:
@@ -62,9 +58,10 @@ def transport_name(transport: str | None = None, default: str | None = None) -> 
 class Engine:
     """The `docker` command, or the one ART98_ENGINE names.
 
-    art98 speaks only Docker's command line. Podman serves it through its
-    podman-docker package. ART98_ENGINE only names the binary: nothing else
-    changes with it.
+    art98 speaks only Docker's command line and its compose plugin (see
+    art98.container.compose). On a Podman host `docker` comes from podman-docker,
+    or ART98_ENGINE=podman runs `podman compose`, which hands over to the same
+    plugin. ART98_ENGINE only names the binary: nothing else changes with it.
     """
 
     def __init__(self, name: str | None = None):
@@ -72,7 +69,8 @@ class Engine:
         path = shutil.which(wanted)
         if not path:
             raise ContainerError(
-                f"{wanted} not found; install Docker, or podman-docker on a Podman host"
+                f"{wanted} not found; install Docker and its compose plugin, or podman-docker "
+                "and docker-compose on a Podman host"
             )
         self.name = Path(wanted).name
         self.path = path
@@ -83,12 +81,14 @@ class Engine:
         check: bool = True,
         input: bytes | None = None,
         capture: bool = True,
+        env: dict | None = None,
     ) -> subprocess.CompletedProcess:
         try:
             return subprocess.run(
                 [self.path, *args],
                 check=check,
                 input=input,
+                env=env,
                 stdout=subprocess.PIPE if capture else None,
                 stderr=subprocess.PIPE if capture else None,
             )
@@ -114,51 +114,6 @@ class Engine:
             self("cp", f"{created}:{source}/.", str(dest))
         finally:
             self("rm", created, check=False)
-
-    # secrets
-
-    def secret_args(self, data: bytes, target: str) -> tuple[list[str], callable]:
-        """Arguments that put data at /run/secrets/<target>, and a cleanup.
-
-        `docker run` has no secrets outside swarm, so the data goes in a private
-        file, mode 0600 in a folder of our own, mounted read-only. The cleanup can
-        run once the container exists: its mount keeps the file.
-        """
-        folder = Path(
-            tempfile.mkdtemp(
-                prefix="art98-secret-", dir=os.environ.get("XDG_RUNTIME_DIR")
-            )
-        )
-        path = folder / target
-        path.touch(mode=0o600)
-        path.write_bytes(data)
-        return ["-v", f"{path}:/run/secrets/{target}:ro"], (
-            lambda: shutil.rmtree(folder, ignore_errors=True)
-        )
-
-
-def mount_args(work: Path) -> list[str]:
-    # label=disable lets the container use work/ without relabelling the files in it.
-    return [
-        "--security-opt",
-        "label=disable",
-        "-v",
-        f"{Path(work).resolve()}:/work",
-        *owner_args(),
-    ]
-
-
-def owner_args() -> list[str]:
-    """Our uid and gid, for the container to drop to on a rootful engine, so what
-    it writes in work/ is ours. See art98.container.entry."""
-    if not hasattr(os, "getuid"):
-        return []
-    return [
-        "-e",
-        f"ART98_HOST_UID={os.getuid()}",
-        "-e",
-        f"ART98_HOST_GID={os.getgid()}",
-    ]
 
 
 def open_channel(
@@ -201,7 +156,9 @@ def open_channel(
             continue
         if answer != "ok":
             sock.close()
-            raise ContainerError(
+            # serve's refusals are `error <reason>`; `error busy...` is the held lock.
+            refused = ChannelBusy if answer.startswith("error busy") else ContainerError
+            raise refused(
                 f"the stage refused the {channel} channel: "
                 f"{answer.removeprefix('error ')}"
             )

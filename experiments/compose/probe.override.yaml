@@ -1,0 +1,9 @@
+services:
+  vm:
+    ports: ["127.0.0.1:5911:5900"]
+  setup:
+    volumes:
+      - ./fake.iso:/media/win98.iso:ro
+secrets:
+  art98_key: !override
+    file: ./key.txt
