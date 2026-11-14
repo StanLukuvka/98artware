@@ -11,6 +11,7 @@ import time
 
 from ..base.animation import Animation
 from ..base.rate_functions import linear
+from ..base.units import count
 from ..win32 import VK_BACK, WM_CHAR, repaint_window
 from .window.win import Win
 
@@ -91,7 +92,7 @@ class TypeWithCursor(Animation):
 
     def interpolate(self, alpha: float) -> None:
         hwnd = self.target.edit_hwnd
-        wanted = min(len(self.codes), round(alpha * len(self.codes)))
+        wanted = count(alpha, len(self.codes))
         before = self._typed
         while self._typed < wanted:
             self.scene.guest.user32.SendMessageA(
@@ -136,7 +137,7 @@ class Keys(Animation):
         self._pressed = 0
 
     def interpolate(self, alpha: float) -> None:
-        wanted = min(len(self.chords), int(alpha * len(self.chords) + 1e-9))
+        wanted = count(alpha, len(self.chords))
         while self._pressed < wanted:
             self.scene.vm.send_keys(*self.chords[self._pressed], hold_ms=KEY_HOLD_MS)
             self._pressed += 1

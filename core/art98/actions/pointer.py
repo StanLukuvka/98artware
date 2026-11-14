@@ -10,7 +10,8 @@ from .. import win32
 from ..base.animation import Animation, path_function
 from ..base.props import Prop, Spot, point_of
 from ..base.rate_functions import smooth
-from ..base.vectors import Vec, lerp
+from ..base.units import lerp
+from ..base.vectors import Vec
 from ..win32 import MOUSE_BUTTONS, cursor_pos
 
 BUTTONS = MOUSE_BUTTONS

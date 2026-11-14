@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from .space import STOCK, DesktopSpace
+from .units import pixel
 from .vectors import DL, LEFT, ORIGIN, RIGHT, Vec
 
 DEFAULT_BUFF = 8
@@ -64,12 +65,12 @@ class Box:
     @property
     def rect(self) -> tuple[int, int, int, int]:
         """(left, top, right, bottom), the same order as a Win32 RECT."""
-        x, y = round(self.x), round(self.y)
-        return x, y, x + round(self.width), y + round(self.height)
+        x, y = pixel(self.x), pixel(self.y)
+        return x, y, x + pixel(self.width), y + pixel(self.height)
 
     @property
     def size(self) -> tuple[int, int]:
-        return round(self.width), round(self.height)
+        return pixel(self.width), pixel(self.height)
 
     def get_center(self) -> Vec:
         return Vec(self.x + self.width / 2, self.y + self.height / 2)

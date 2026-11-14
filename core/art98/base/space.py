@@ -5,6 +5,8 @@ from __future__ import annotations
 import warnings
 from dataclasses import dataclass
 
+from .units import clamp
+
 
 class PlacementWarning(UserWarning):
     """A window was asked for a size or place Windows would change, or lose."""
@@ -76,7 +78,7 @@ class DesktopSpace:
             and self.metrics.min_track != (0, 0)
             and self.metrics.max_track != (0, 0)
         ):
-            given = (min(max(w, lo_w), hi_w), min(max(h, lo_h), hi_h))
+            given = (clamp(w, lo_w, hi_w), clamp(h, lo_h, hi_h))
         if given != size:
             self.report(
                 name,

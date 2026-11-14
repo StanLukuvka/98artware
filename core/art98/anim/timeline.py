@@ -5,6 +5,8 @@ from __future__ import annotations
 import time
 import warnings
 
+from ..base.units import frames
+
 
 def play(scene, animations, run_time, rate_func, live) -> None:
     if not animations:
@@ -17,7 +19,7 @@ def play(scene, animations, run_time, rate_func, live) -> None:
             animation.rate_func = rate_func
         animation.begin(scene)
     total = max(animation.run_time for animation in animations)
-    count = max(1, round(total * scene.fps))
+    count = max(1, frames(total, scene.fps))
     live = live or any(animation.live for animation in animations)
     running = list(animations)
     started = time.monotonic()
@@ -47,7 +49,7 @@ def wait(scene, duration, stop_condition, frozen_frame) -> None:
 
 def pause(scene, duration) -> None:
     scene._apply()
-    scene.recorder.frame(hold=max(1, round(duration * scene.fps)))
+    scene.recorder.frame(hold=max(1, frames(duration, scene.fps)))
 
 
 def live(scene, seconds, stop_condition) -> None:

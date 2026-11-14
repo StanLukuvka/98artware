@@ -21,9 +21,9 @@ class Scene:
     animations, `self.vm` is the VM, and `self.pointer` is the mouse pointer.
     `self.time` is video time, frames written over fps, and it never reads a
     clock. `self.recorder` (also `self.video`) writes the frames, and
-    `cut()` starts a new clip, and `next_section(name)` does the same with a label. Only the `free` clock exists so far: the guest runs all the time,
-    and what the script drives lands on exact frames while anything the guest
-    times for itself runs by the host's clock.
+    `cut()` starts a new clip, and `next_section(name)` does the same with a label. The guest runs
+    all the time: what the script drives lands on exact frames, while anything
+    the guest times for itself follows the host clock.
 
     `desktop` is what the scene starts on. "blank", the default, is a black
     screen with no icons or taskbar (see art98.desktop), and no pointer
@@ -37,7 +37,6 @@ class Scene:
     """
 
     fps = 30
-    clock = "free"
     desktop = "blank"
     pointer_visible = False
     state: str | Path | None = None
@@ -85,10 +84,6 @@ class Scene:
 
     def run(self, session, video) -> None:
         """Play this scene on a booted session, into an open recorder."""
-        if self.clock != "free":
-            raise NotImplementedError(
-                f"clock {self.clock!r}: only 'free' exists so far"
-            )
         if self.desktop not in DESKTOPS:
             raise ValueError(
                 f"desktop {self.desktop!r}: use one of {', '.join(DESKTOPS)}"

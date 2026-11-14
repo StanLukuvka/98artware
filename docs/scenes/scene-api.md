@@ -17,7 +17,6 @@ Subclass it and write `construct`. One scene is one recording.
 | Attribute | Meaning |
 | --- | --- |
 | `fps` | Frames per second of the video. Default 30. |
-| `clock` | `"free"`, the only one so far. Anything else raises `NotImplementedError`. |
 | `desktop` | `"blank"`, the default: a black screen with no icons, taskbar or Start menu, and the work area the whole screen. `"stock"`: the Windows 98 desktop as the `ready` snapshot has it. Either is set again after every revert. See [Blank start](../design/blank-start.md). |
 | `pointer_visible` | On a blank desktop, whether the pointer is drawn. Default `False`. It still moves and clicks either way. Paint's tools still draw their own pointer over the canvas. It can't change partway through a scene. The stock desktop always draws it. |
 | `state` | A [state file](#states) to set the desktop to before `setup`. Default `None`, the plain desktop. |

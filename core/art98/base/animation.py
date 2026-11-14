@@ -7,7 +7,7 @@ from itertools import pairwise
 
 from .props import Box, Prop, point_of
 from .rate_functions import linear, smooth
-from .vectors import lerp
+from .units import clamp, distance, lerp
 
 
 class Animation:
@@ -81,6 +81,10 @@ class Instant(Animation):
         super().__init__(target, **kwargs)
         self._done = False
 
+    def begin(self, scene) -> None:
+        super().begin(scene)
+        self._done = False
+
     def update(self, progress: float) -> None:
         if not self._done:
             self._done = True
@@ -108,6 +112,8 @@ class AnimationGroup(Animation):
         rate_func=None,
     ):
         super().__init__(run_time=run_time, rate_func=rate_func)
+        if lag_ratio < 0:
+            raise ValueError(f"lag_ratio {lag_ratio} is negative; use 0 or more")
         self.animations = animations
         self.lag_ratio = lag_ratio
         self._spans: list[tuple[float, float]] = []
@@ -197,11 +203,11 @@ def path_function(path) -> Callable[[float], tuple[float, float]]:
     points = [point_of(p) for p in path]
     if len(points) < 2:
         raise ValueError("a path needs at least two points")
-    lengths = [abs(b.x - a.x) + abs(b.y - a.y) for a, b in pairwise(points)]
+    lengths = [distance(a, b) for a, b in pairwise(points)]
     total = sum(lengths) or 1.0
 
     def along(t: float):
-        remaining = max(0.0, min(1.0, t)) * total
+        remaining = clamp(t, 0.0, 1.0) * total
         for (a, b), length in zip(pairwise(points), lengths):
             if remaining <= length and length:
                 return lerp(a, b, remaining / length)
@@ -258,4 +264,4 @@ class Animate(Animation):
     def interpolate(self, alpha: float) -> None:
         for field, end in self._end.items():
             start = self._start[field]
-            setattr(self.target, field, start + (end - start) * alpha)
+            setattr(self.target, field, lerp(start, end, alpha))

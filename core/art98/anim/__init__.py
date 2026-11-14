@@ -46,7 +46,8 @@ from ..base.rate_functions import (
     smoothstep,
     there_and_back,
 )
-from ..base.vectors import DL, DOWN, DR, LEFT, ORIGIN, RIGHT, UL, UP, UR, Vec, lerp
+from ..base.units import lerp
+from ..base.vectors import DL, DOWN, DR, LEFT, ORIGIN, RIGHT, UL, UP, UR, Vec
 from .renderer import render, write_gif
 from .scene import Scene
 

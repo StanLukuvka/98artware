@@ -11,6 +11,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
+from .base.units import frames
+
 if TYPE_CHECKING:
     from .session import Session
 
@@ -142,7 +144,7 @@ class Recorder:
         is checked before each frame and ends the stretch early.
         """
         start = time.monotonic()
-        for index in range(round(seconds * self._fps)):
+        for index in range(frames(seconds, self._fps)):
             if stop_condition is not None and stop_condition():
                 return
             time.sleep(max(0.0, start + index / self._fps - time.monotonic()))
