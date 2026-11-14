@@ -47,7 +47,7 @@ versions or whether `guest/build` exists. The package names come from
 suggests `podman-docker` and `docker-compose`, which provide `docker compose` on a Podman host,
 and the exit code can become 1. It does not check that the compose plugin is installed.
 
-`i686-w64-mingw32-gcc`, `make` and `as` are only needed to build `guest/`. If
+`i686-w64-mingw32-gcc` and `make`, and syslinux's `mbr.bin`, are only needed to build `guest/`. If
 `guest/build/` already holds `agent.exe` and `mbr.bin`, `setup` runs without them,
 though `doctor` still reports them missing.
 

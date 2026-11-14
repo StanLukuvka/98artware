@@ -155,10 +155,9 @@ Builds a blank hard disk and copies in what Setup needs.
    signature. The boot code must fit in 440 bytes.
 
    A blank MBR will not boot, and Setup writes only the partition's boot sector, so
-   setup has to supply this. `guest/boot_record/mbr.S` moves itself to `0x600`, finds the active
-   partition, reads its first sector to `0x7C00` with INT 13h extensions, checks the
-   `AA55` signature and jumps to it. If anything fails it prints
-   `art98: no bootable partition` and halts.
+   setup has to supply this. mtools writes no boot code and setup skips FDISK, so `mbr.bin`
+   is syslinux's (`syslinux-nonlinux`, copied by `guest/Makefile`). It finds the active
+   partition, reads its first sector to `0x7C00` and jumps to it.
 3. **Formats the partition.** `mformat -F -c 8`: FAT32 with 8 sectors per cluster.
    `_mtools_env` sets `MTOOLS_SKIP_CHECK=1`, because mtools rejects images whose
    geometry is not a textbook floppy or disk.

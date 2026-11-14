@@ -70,11 +70,11 @@ def test_blank_partition_gets_a_message_rather_than_a_hang(tmp_path):
     with VM(VMConfig(disk=path, disk_format="raw")) as vm:
         deadline = time.monotonic() + 15
         text = b""
-        while time.monotonic() < deadline and b"no bootable partition" not in text:
+        while time.monotonic() < deadline and b"Missing operating system" not in text:
             time.sleep(0.25)
             vm.qmp.execute("pmemsave", val=0xB8000, size=4000, filename=str(dump))
             text = dump.read_bytes()[::2]
-    assert b"art98: no bootable partition" in text
+    assert b"Missing operating system" in text
 
 
 def test_guest_reboot_ends_the_vm(disk):

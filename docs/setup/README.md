@@ -51,8 +51,9 @@ system sounds and power saving off, and `C:\ART98\AGENT.EXE` already running.
   | `mcopy` and the rest of mtools | `mtools` | `mtools` | Editing the FAT floppy and disk from the host |
   | `7z` | `7zip` | `7zip` (`p7zip-full` on Debian 12 and older) | Unpacking the disc |
   | `ffmpeg` | `ffmpeg` | `ffmpeg` | Not used by `setup`. Scenes need it to encode video |
-  | `make`, `as` | `make`, `binutils` | `make`, `binutils` | Building `mbr.bin` |
+  | `make` | `make` | `make` | Building the guest files |
   | `i686-w64-mingw32-gcc` | `mingw32-gcc` | `gcc-mingw-w64-i686` | Building `agent.exe` |
+  | syslinux's `mbr.bin` | `syslinux-nonlinux` | `syslinux-common` | The boot code `mbr.bin` is copied from. `doctor` does not check it |
 
   The `ready` snapshot only loads on the QEMU machine type that saved it, so an image made
   with one QEMU version may not restore on another. The container pins the version.
@@ -135,13 +136,13 @@ instead.
 Install the tools:
 
 ```bash
-sudo dnf install qemu-system-x86 qemu-img mtools 7zip ffmpeg make binutils mingw32-gcc
+sudo dnf install qemu-system-x86 qemu-img mtools 7zip ffmpeg make syslinux-nonlinux mingw32-gcc
 ```
 
 On Debian or Ubuntu:
 
 ```bash
-sudo apt install qemu-system-x86 qemu-utils mtools 7zip ffmpeg make binutils gcc-mingw-w64-i686
+sudo apt install qemu-system-x86 qemu-utils mtools 7zip ffmpeg make syslinux-common gcc-mingw-w64-i686
 ```
 
 Build the three files that go on the Windows disk and into scenes, `guest/build/agent.exe`,
@@ -150,6 +151,10 @@ Build the three files that go on the Windows disk and into scenes, `guest/build/
 ```bash
 make -C guest
 ```
+
+`mbr.bin` is syslinux's boot code, copied from `/usr/share/syslinux/mbr.bin`. On Debian
+or Ubuntu it is at `/usr/lib/syslinux/mbr/mbr.bin`, so run
+`make -C guest SYSLINUX_MBR=/usr/lib/syslinux/mbr/mbr.bin`.
 
 Check the host:
 

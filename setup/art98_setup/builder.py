@@ -43,7 +43,6 @@ HOST_TOOLS = {
     "7z": "7zip",
     "ffmpeg": "ffmpeg",
     "make": "make",
-    "as": "binutils",
     "i686-w64-mingw32-gcc": "mingw32-gcc",
 }
 
@@ -60,7 +59,6 @@ DEBIAN_PACKAGES = {
     "7z": "7zip",
     "ffmpeg": "ffmpeg",
     "make": "make",
-    "as": "binutils",
     "i686-w64-mingw32-gcc": "gcc-mingw-w64-i686",
 }
 

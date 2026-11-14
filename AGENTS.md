@@ -113,7 +113,7 @@ image. Which tests a change needs:
 | `core/art98/settings.py` | `art98.toml` |
 | `core/art98/cli.py` | The `art98` command |
 | `setup/art98_setup/` | `art98 setup` (four steps) and `art98 up`; `setup/Dockerfile` |
-| `guest/` | C and assembly built with `make -C guest` into `guest/build/` (gitignored): `agent.exe`, `view.exe`, `mbr.bin` |
+| `guest/` | C built with `make -C guest` into `guest/build/` (gitignored): `agent.exe`, `view.exe`, `mbr.bin` |
 | `core/tests/`, `setup/tests/` | Tests. `pythonpath` in `pyproject.toml` puts `core` and `setup` on the path |
 | `recipes/scenes/` | Maintained scenes the docs embed. Keep them rendering |
 | `recipes/helpers/` | Action modules that scenes import (`from helpers.<module> import ...`) |

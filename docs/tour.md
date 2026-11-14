@@ -43,9 +43,8 @@ Built with `make -C guest`, into `guest/build/`.
   host over COM1 and is a thin remote Win32 call proxy. The header comment is the wire format.
 - [ ] [picture_viewer/view.c](../guest/picture_viewer/view.c): the picture window,
   a plain window showing one BMP at 1:1.
-- [ ] [boot_record/mbr.S](../guest/boot_record/mbr.S): the boot sector Windows
-  Setup doesn't write.
-- [ ] [Makefile](../guest/Makefile): why the agent links without the mingw CRT.
+- [ ] [Makefile](../guest/Makefile): why the agent links without the mingw CRT, and where
+  `mbr.bin` comes from: syslinux's, since mtools writes no boot code.
 
 Explained in: [Instruction set](scenes/instruction-set.md), [Win32 recipes](scenes/win32-recipes.md).
 

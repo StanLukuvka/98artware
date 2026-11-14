@@ -6,7 +6,7 @@
 
 # ---- build: the programs that run on the guest ----
 FROM registry.fedoraproject.org/fedora:44 AS build
-RUN dnf -y install --setopt=install_weak_deps=False mingw32-gcc binutils make \
+RUN dnf -y install --setopt=install_weak_deps=False mingw32-gcc make syslinux-nonlinux \
  && dnf clean all
 COPY guest /src/guest
 RUN make -C /src/guest

@@ -66,8 +66,8 @@ long-lived container from the image, and each render attaches to it with `art98.
 
 `setup/Dockerfile` is built from the repository root, in two stages:
 
-1. **Build.** `fedora:44` with `mingw32-gcc`, `binutils` and `make` runs `make -C guest`
-   and produces `agent.exe`, `view.exe` and `mbr.bin`. The host no longer needs a cross-compiler.
+1. **Build.** `fedora:44` with `mingw32-gcc`, `make` and `syslinux-nonlinux` runs `make -C guest`
+   and produces `agent.exe`, `view.exe` and `mbr.bin` (syslinux's boot code, copied). The host no longer needs a cross-compiler.
 2. **Run.** `fedora-minimal:44` with `qemu-system-x86-core-10.2.2-1.fc44` and `qemu-img` of the
    same version, plus `mtools`, `7zip` and `python3`, then the two art98 packages and the guest
    programs from stage 1.
