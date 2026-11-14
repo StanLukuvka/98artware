@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import warnings
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
@@ -86,6 +87,24 @@ def ppm_size(data: bytes) -> tuple[int, int]:
     return int(fields[1]), int(fields[2])
 
 
+def warn_if_late(count: int, output_fps: float, started: float) -> None:
+    """Warn once if `count` frames paced by the host clock since `started` (a
+    `time.monotonic()` reading) ended more than a frame later than they should.
+
+    A stretch that runs late stretches what the guest times for itself, so
+    caret blinks and screensavers look slower in the video than they were.
+    """
+    planned = count / output_fps
+    took = time.monotonic() - started
+    if took - planned > 1 / output_fps:
+        warnings.warn(
+            f"a live stretch meant to take {planned:.2f} s took {took:.2f} s: "
+            "capturing is slower than the frame rate, so guest-timed motion in it "
+            "will look slower in the video",
+            stacklevel=3,
+        )
+
+
 class Recorder:
     """Encodes captured frames to video clips, one explicit frame at a time.
 
@@ -107,10 +126,14 @@ class Recorder:
     """
 
     def __init__(
-        self, session: Session, path: Path | str, fps: int = 30, lossless: bool = False
+        self,
+        session: Session,
+        path: Path | str,
+        output_fps: int,
+        lossless: bool = False,
     ):
         self._session = session
-        self._fps = fps
+        self._output_fps = output_fps
         self._lossless = lossless
         self._dir = Path(tempfile.mkdtemp(prefix="art98-frames-"))
         self._frame = self._dir / "frame.ppm"
@@ -144,11 +167,14 @@ class Recorder:
         is checked before each frame and ends the stretch early.
         """
         start = time.monotonic()
-        for index in range(frames(seconds, self._fps)):
+        taken = 0
+        for index in range(frames(seconds, self._output_fps)):
             if stop_condition is not None and stop_condition():
-                return
-            time.sleep(max(0.0, start + index / self._fps - time.monotonic()))
+                break
+            time.sleep(max(0.0, start + index / self._output_fps - time.monotonic()))
             self._capture(1)
+            taken += 1
+        warn_if_late(taken, self._output_fps, start)
 
     def _capture(self, hold: int) -> None:
         self._session.vm.screenshot(self._frame, format="ppm")
@@ -286,7 +312,7 @@ class Recorder:
                     "-c:v",
                     "ppm",
                     "-framerate",
-                    str(self._fps),
+                    str(self._output_fps),
                     "-i",
                     "-",
                     *codec,

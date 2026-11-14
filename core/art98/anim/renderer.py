@@ -94,7 +94,7 @@ def render(
         [],
     )  # part files made; (part, final) clips; (part, final) outputs
     try:
-        video = session.record(master, fps=scene.fps, lossless=bool(gif))
+        video = session.record(master, output_fps=scene.output_fps, lossless=bool(gif))
         video.defer = True  # the parts stay parts until the render is done
         with video:
             scene.run(session, video)

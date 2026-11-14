@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from art98 import anim
+from art98 import recorder as recorder_module
 from art98 import session as session_module
 from art98.actions import keyboard as keys_module
 from art98.actions import programs
@@ -267,6 +268,35 @@ def test_there_and_back_returns():
     assert there_and_back(0) == pytest.approx(0)
     assert there_and_back(0.5) == pytest.approx(1)
     assert there_and_back(1) == pytest.approx(0)
+
+
+# ---- retired settings ----
+
+
+@pytest.mark.parametrize("name", ["fps", "clock"])
+def test_a_scene_defining_a_retired_setting_fails_at_class_definition(name):
+    with pytest.raises(TypeError, match=f"Old.{name}"):
+        type("Old", (Scene,), {name: 30})
+
+
+def test_a_scene_defining_output_fps_is_fine():
+    assert type("New", (Scene,), {"output_fps": 24}).output_fps == 24
+
+
+def test_a_live_play_that_runs_late_warns_once(scene, monkeypatch):
+    now = [100.0]
+    monkeypatch.setattr(recorder_module.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(recorder_module.time, "sleep", lambda s: None)
+    video_frame = scene.video.frame
+
+    def slow(hold=1):
+        now[0] += 0.1  # capturing takes 0.1 s against 1/30 s
+        video_frame(hold)
+
+    scene.video.frame = slow
+    with pytest.warns(UserWarning, match="took 1.50 s") as record:
+        scene.play(Probe(run_time=0.5, rate_func=linear), live=True)
+    assert len(record) == 1 and "slower" in str(record[0].message)
 
 
 # ---- the frame loop ----
@@ -971,8 +1001,8 @@ def test_render_turns_a_class_into_a_scene_and_routes_a_gif(
         def __exit__(self, *exc):
             pass
 
-        def record(self, path, fps=30, lossless=False):
-            options.update(path=path, fps=fps, lossless=lossless)
+        def record(self, path, output_fps, lossless=False):
+            options.update(path=path, output_fps=output_fps, lossless=lossless)
             recorder = Recorder(guest)
             recorder.clips = recorder.parts = [path]
             return recorder
@@ -1172,7 +1202,7 @@ def test_render_uses_a_given_session_and_never_closes_it(tmp_path, monkeypatch, 
         def close(self):
             self.closed = True
 
-        def record(self, path, fps=30, lossless=False):
+        def record(self, path, output_fps, lossless=False):
             recorder = Recorder(guest)
             recorder.clips = recorder.parts = [path]
             return recorder

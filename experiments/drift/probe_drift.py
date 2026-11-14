@@ -62,7 +62,7 @@ def load(name):
     file, cls, fps = SCENES[name]
     if file is None:
         scene = Commands()
-        scene.fps = fps
+        scene.output_fps = fps
         return scene
     spec = importlib.util.spec_from_file_location(f"drift_{name}", ROOT / file)
     module = importlib.util.module_from_spec(spec)
@@ -70,7 +70,7 @@ def load(name):
     spec.loader.exec_module(module)
     scene = getattr(module, cls)()
     if fps:
-        scene.fps = fps
+        scene.output_fps = fps
     return scene
 
 
@@ -93,8 +93,8 @@ def diff(a: bytes, b: bytes, w: int):
 class AuditRecorder(drift_check.AuditRecorder):
     """Takes no video: at each frame it audits and times instead of encoding."""
 
-    def __init__(self, session, scene_name, run, sink, keep):
-        super().__init__(session, scene_name)
+    def __init__(self, session, scene_name, output_fps, run, sink, keep):
+        super().__init__(session, scene_name, output_fps)
         self.run, self.sink, self.keep = run, sink, keep
 
     def _phase(self):
@@ -164,8 +164,7 @@ def main():
             for run in range(RUNS):
                 session.revert()
                 scene = load(name)
-                rec = AuditRecorder(session, name, run, sink, keep)
-                rec._fps = scene.fps
+                rec = AuditRecorder(session, name, scene.output_fps, run, sink, keep)
                 rec.scene = scene
                 scene.session, scene.recorder = session, rec
                 t = time.perf_counter()
