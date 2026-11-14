@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import math
 import time
 from typing import ClassVar
 
 from ...base.props import Spot
+from ...base.units import distance
 from ...base.vectors import Vec
 from ...win32 import SW_HIDE, SW_SHOWNA
 from ..keyboard import Keys, TypeKeys
@@ -129,7 +129,7 @@ class Minesweeper(Win):
 
         def nearest(group):
             here = scene.pointer.get_center()
-            return min(group, key=lambda c: math.hypot(*(centres[c] - here)))
+            return min(group, key=lambda c: distance(centres[c], here))
 
         remaining = cells - self.mines
         first = max(sorted(remaining), key=lambda cell: len(self.opened_by(cell)))

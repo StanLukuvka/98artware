@@ -348,14 +348,6 @@ def test_wait_until_warning_points_at_the_caller(scene):
     assert record[0].filename == __file__
 
 
-def test_only_the_free_clock_exists(guest):
-    class Stepped(Scene):
-        clock = "stepped"
-
-    with pytest.raises(NotImplementedError):
-        Stepped().run(FakeSession(guest), FakeVideo(guest))
-
-
 def test_run_calls_the_hooks_in_order_and_exposes_the_guest(guest):
     order = []
 

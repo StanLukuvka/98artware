@@ -103,7 +103,7 @@ must be on `PATH`. Each clip's ffmpeg starts at the clip's first frame.
 | Member | Meaning |
 | --- | --- |
 | `frame(hold=1)` | Runs `sync`, captures one frame and writes it `hold` times. |
-| `live(seconds, stop_condition=None)` | Captures `round(seconds * fps)` frames on the host's clock, with no `sync`. |
+| `live(seconds, stop_condition=None)` | Captures `seconds * fps` frames, rounded half up, on the host's clock, with no `sync`. |
 | `cut(path=None)` | Closes the current clip, raising `RecorderError` if its ffmpeg failed, and starts the next one at `path`, or at `<stem>-02<suffix>` and on. The first cut renames the clip so far from `path` to `<stem>-01<suffix>`. Returns the closed clip's path, or `None` if nothing was recorded since the last cut. |
 | `path` | The clip being written now. |
 | `clips` | Finished clips, in order. A run with no cut has one, at the `path` it was opened with. |

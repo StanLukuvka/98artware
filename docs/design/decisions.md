@@ -49,8 +49,8 @@ slower, with the same frames.
 
 **What follows.** What the script drives lands on exact frames. What the guest times for itself
 (caret blinks, tooltips, screensavers) follows the host clock, so those can differ between runs.
-Only the `free` clock exists; the stricter clocks would need more from the agent than it does
-today. See
+The guest is never paused between frames, and a stricter model would need more from the agent
+than it does today. See
 [Time](../scenes/README.md#time).
 
 **For new work.** Anything that changes the screen goes through a frame that syncs. Don't add a
@@ -441,7 +441,6 @@ and move its callers. Write a `lazy:` comment for a known shortcut, with its lim
 | --- | --- |
 | Updaters (`add_updater`), Manim's render cache, a camera | Not built. `live()` and `wait_until` watch the guest instead; zoom or pan would be a post-process |
 | `FadeIn`, `FadeOut` | Not possible honestly: Windows 98 has no window opacity |
-| The `frozen`, `stepped` and `locked` clocks | Not built; they need agent support |
 | Holding the desktop after a render so more actions can run without a restore | Designed in [state and action](state-and-action.md#holding), not built. The VM is paused at the last frame, and the next attach reverts |
 | `--section` | Not built; sits on top of `next_section` |
 | Desktop icons and the tray in a state, `Dialog` in a state | Not built |
