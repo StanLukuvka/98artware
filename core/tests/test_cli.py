@@ -248,7 +248,6 @@ LOCAL = [
     "mcopy",
     "7z",
     "make",
-    "as",
     "i686-w64-mingw32-gcc",
 ]
 

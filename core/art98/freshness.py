@@ -22,7 +22,6 @@ CODE_GLOBS = (
     "core/art98/**/*.py",
     "setup/art98_setup/**/*.py",
     "guest/**/*.c",
-    "guest/**/*.S",
     "guest/Makefile",
     "setup/Dockerfile",
 )

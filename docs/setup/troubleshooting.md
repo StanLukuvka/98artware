@@ -21,7 +21,7 @@ the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 | Quirk | Why it matters | What setup does | Where |
 |-------|----------------|----------------|-------|
 | `JO.SYS` on the boot floppy | It is the disc's startup menu. `IO.SYS` runs it before `CONFIG.SYS`, and after a timeout it boots the hard disk, so Setup never starts | Deletes it | `patch_floppy` |
-| Setup writes no MBR | Only the partition's boot sector is written, and a blank MBR will not boot | Supplies `guest/boot_record/mbr.S` | `build_mbr` |
+| Setup writes no MBR | Only the partition's boot sector is written, and a blank MBR will not boot | Supplies syslinux's `mbr.bin` | `build_mbr` |
 | mtools rejects the geometry | It refuses images that are not a textbook floppy or disk | Sets `MTOOLS_SKIP_CHECK=1` | `_mtools_env` |
 | OEM first-boot wizard | OEM media ignores the answer file's request to skip it. Four pages: name, licence, product key, finish. Name and key are filled in from the answer file | Presses through it, with `alt+a` on page two for "I accept the Agreement" | `WIZARD_PAGES`, `_answer_setup_wizard` |
 | Logon prompt | Appears once on the first real boot and waits forever | Presses Enter. A blank password means it never comes back | `_answer_setup_prompts` |

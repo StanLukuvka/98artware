@@ -2,9 +2,9 @@
 # without the mingw CRT because that CRT imports functions Windows 98 lacks.
 
 MINGW   ?= i686-w64-mingw32-gcc
-HOSTAS  ?= as
-HOSTLD  ?= ld
-HOSTOBJCOPY ?= objcopy
+# syslinux's boot code for the install disk's MBR (Fedora: syslinux-nonlinux;
+# Debian: /usr/lib/syslinux/mbr/mbr.bin from syslinux-common)
+SYSLINUX_MBR ?= /usr/share/syslinux/mbr.bin
 OUT     ?= build
 
 CFLAGS  = -Os -march=i586 -mno-mmx -mno-sse -Wall -Wextra \
@@ -33,10 +33,9 @@ $(OUT)/view.exe: picture_viewer/view.c | $(OUT)
 $(OUT)/sources.sha256: call_proxy/agent.c picture_viewer/view.c | $(OUT)
 	sha256sum call_proxy/agent.c picture_viewer/view.c > $@
 
-$(OUT)/mbr.bin: boot_record/mbr.S | $(OUT)
-	$(HOSTAS) --32 -o $(OUT)/mbr.o $<
-	$(HOSTLD) -m elf_i386 -Ttext=0x600 -o $(OUT)/mbr.elf $(OUT)/mbr.o
-	$(HOSTOBJCOPY) -O binary -j .text $(OUT)/mbr.elf $@
+# Setup partitions the disk with mtools, which writes no boot code, and skips FDISK.
+$(OUT)/mbr.bin: $(SYSLINUX_MBR) | $(OUT)
+	cp $< $@
 
 $(OUT):
 	mkdir -p $@
