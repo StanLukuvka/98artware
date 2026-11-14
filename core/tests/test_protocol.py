@@ -1,5 +1,9 @@
+import re
+from pathlib import Path
+
 import pytest
 from art98.protocol import (
+    PROTOCOL_VERSION,
     FrameError,
     Out,
     crc16,
@@ -8,6 +12,12 @@ from art98.protocol import (
     parse_values,
     unframe,
 )
+
+
+def test_host_and_agent_speak_the_same_protocol_version():
+    agent = Path(__file__).resolve().parents[2] / "guest/call_proxy/agent.c"
+    version = re.search(r"#define PROTOCOL_VERSION (\d+)", agent.read_text())
+    assert version and int(version[1]) == PROTOCOL_VERSION
 
 
 def test_crc_matches_ccitt_false_check_value():

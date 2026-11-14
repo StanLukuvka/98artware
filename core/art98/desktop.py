@@ -33,9 +33,23 @@ import struct
 import time
 
 from .protocol import Out
-from .win32 import SPI_SETWORKAREA, SW_HIDE, repaint_all, screen_size, work_area
+from .win32 import (
+    COLOR_DESKTOP,
+    DRIVE_CDROM,
+    HKCU,
+    INVALID_FILE_ATTRIBUTES,
+    KEY_SET_VALUE,
+    REG_SZ,
+    SPI_SETDESKWALLPAPER,
+    SPI_SETWORKAREA,
+    SPIF_SENDWININICHANGE,
+    SPIF_UPDATEINIFILE,
+    SW_HIDE,
+    repaint_all,
+    screen_size,
+    work_area,
+)
 
-COLOR_DESKTOP = 1
 BLACK = 0x000000
 NAMED_COLOURS = {
     "teal": (0, 128, 128),
@@ -45,12 +59,8 @@ NAMED_COLOURS = {
     "black": (0, 0, 0),
 }
 
-HKCU, KEY_SET_VALUE, REG_SZ = 0x80000001, 2, 1
-SPI_SETDESKWALLPAPER = 0x14
-SPIF_UPDATEINIFILE, SPIF_SENDWININICHANGE = 1, 2
 # (TileWallpaper, WallpaperStyle). The one place the styles are defined.
 STYLES = {"center": ("0", "0"), "tile": ("1", "0"), "stretch": ("0", "2")}
-DRIVE_CDROM, INVALID_FILE_ATTRIBUTES = 5, 0xFFFFFFFF
 
 # The interface effects as (name, get action, set action). Each set action
 # takes its on/off value in pvParam, so 0 turns it off.

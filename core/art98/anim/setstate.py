@@ -16,7 +16,6 @@ from ..actions.pointer import Pointer
 from ..actions.programs.notepad import Notepad
 from ..actions.window.picture import Picture
 from ..desktop import (
-    COLOR_DESKTOP,
     blank,
     colourref,
     set_colour,
@@ -26,6 +25,8 @@ from ..desktop import (
 from ..guestfiles import check_bmp
 from ..state import State, StateError, load_state
 from ..win32 import (
+    BITSPIXEL,
+    COLOR_DESKTOP,
     SW_MAXIMIZE,
     SW_SHOWMINNOACTIVE,
     cursor_pos,
@@ -35,7 +36,6 @@ from ..win32 import (
     show_window,
 )
 
-BITSPIXEL = 12
 APPS = {"picture": Picture, "notepad": Notepad}
 DISC_NAME = "WALL0001.BMP"  # the one file name on the wallpaper disc
 PIXEL_TOLERANCE = 12  # per channel: a 16 bpp screen rounds 128 to 120 and 255 to 248

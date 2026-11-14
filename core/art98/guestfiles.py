@@ -13,8 +13,9 @@ import os
 import struct
 from pathlib import Path
 
+from .win32 import INVALID_FILE_ATTRIBUTES
+
 GUEST_DIR = r"C:\ART98"
-INVALID_FILE_ATTRIBUTES = 0xFFFFFFFF
 BAD_NAME_CHARS = set('\\/:*?"<>|')
 BMP_HEADER_SIZES = {12, 40, 52, 56, 108, 124}
 BMP_DEPTHS = {1, 4, 8, 16, 24, 32}

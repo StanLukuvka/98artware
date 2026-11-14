@@ -5,10 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from ... import guestfiles
-from ...win32 import WM_SETTEXT
+from ...win32 import EM_SETMODIFY, WM_SETTEXT
 from ..window.win import Win
-
-EM_SETMODIFY = 0x00B9
 
 
 def notepad_title(file: Path | str | None) -> str:

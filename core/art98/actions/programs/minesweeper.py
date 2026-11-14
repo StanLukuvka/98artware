@@ -8,11 +8,11 @@ from typing import ClassVar
 
 from ...base.props import Spot
 from ...base.vectors import Vec
+from ...win32 import SW_HIDE, SW_SHOWNA
 from ..keyboard import Keys, TypeKeys
 from ..pointer import Click, RightClick
 from ..window.win import Win
 
-SW_HIDE, SW_SHOWNA = 0, 8
 BLACK = 0
 
 

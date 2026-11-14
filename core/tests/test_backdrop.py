@@ -84,7 +84,7 @@ class DiskGuest(FakeGuest):
 
     def do_GetFileAttributesA(self, path):
         return CallResult(
-            0x20 if path in self.files else desktop.INVALID_FILE_ATTRIBUTES, 0, []
+            0x20 if path in self.files else win32.INVALID_FILE_ATTRIBUTES, 0, []
         )
 
 

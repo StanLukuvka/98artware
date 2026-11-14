@@ -88,7 +88,7 @@ def test_the_proof_scene_renders(booted, tmp_path):
 
 
 def test_disc_insert_revert_insert(booted):
-    from art98 import desktop
+    from art98 import desktop, win32
 
     data = bytes(range(256)) * 100
 
@@ -101,7 +101,7 @@ def test_disc_insert_revert_insert(booted):
     path = desktop.wait_for_disc(session.bridge, "WALL0001.BMP")
     assert session.bridge.get_file(path) == data
     session.revert()
-    assert attrs(session) == desktop.INVALID_FILE_ATTRIBUTES
+    assert attrs(session) == win32.INVALID_FILE_ATTRIBUTES
     session.attach_disc({"WALL0001.BMP": data})
     path = desktop.wait_for_disc(session.bridge, "WALL0001.BMP")
     assert session.bridge.get_file(path) == data
@@ -221,12 +221,12 @@ def test_attach_twice_is_busy(booted):
 
 
 def test_revert_between_attaches():
-    from art98 import desktop
+    from art98 import desktop, win32
 
     def disc_attrs(guest):
         drive = desktop.cd_drive(guest)
         if drive is None:
-            return desktop.INVALID_FILE_ATTRIBUTES
+            return win32.INVALID_FILE_ATTRIBUTES
         return guest.kernel32.GetFileAttributesA(drive + "WALL0001.BMP").value
 
     with attached() as first:
@@ -238,7 +238,7 @@ def test_revert_between_attaches():
         assert any(w.class_name == "Notepad" for w in guest.windows())
     with attached() as second:  # revert=True is the default: back to the snapshot
         assert not any(w.class_name == "Notepad" for w in second.bridge.windows())
-        assert disc_attrs(second.bridge) == desktop.INVALID_FILE_ATTRIBUTES
+        assert disc_attrs(second.bridge) == win32.INVALID_FILE_ATTRIBUTES
 
 
 def test_render_leaves_the_vm_running_and_paused(tmp_path):

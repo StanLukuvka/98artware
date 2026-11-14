@@ -133,8 +133,8 @@ Formatting is ruff's: `uv run ruff format core setup tools`.
   `from __future__ import annotations`.
 - No runtime dependencies. Don't add any to `[project] dependencies`.
 - One home per thing. A guest read used twice becomes one helper (in `win32.py`, or on `Win`); a
-  Win32 constant goes in `win32.py`; the programs a state can open are listed once, in
-  `APPS` in `anim/setstate.py`. No compatibility shims or old import paths when something moves,
+  Win32 constant goes in `win32.py`, and `test_win32.py` fails on one defined elsewhere; the
+  programs a state can open are listed once, in `APPS` in `anim/setstate.py`. No compatibility shims or old import paths when something moves,
   and no commented-out or parked code: delete what you replace and move its callers.
 - Lean first: one module and one code path, and more only when a measurement or a real use
   asks for it.

@@ -52,7 +52,7 @@ class DesktopGuest(FakeGuest):
         return CallResult(int(hwnd in self.visible), 0, [])
 
     def do_SetSysColors(self, count, indexes, colours):
-        if struct.unpack("<I", indexes)[0] == desktop.COLOR_DESKTOP:
+        if struct.unpack("<I", indexes)[0] == win32.COLOR_DESKTOP:
             self.colour = struct.unpack("<I", colours)[0]
         return CallResult(1, 0, [])
 
