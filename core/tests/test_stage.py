@@ -58,7 +58,7 @@ def test_the_desktop_answers_shows_and_reverts(booted, tmp_path):
 
 
 def test_frames_record_to_a_video(booted, tmp_path):
-    with booted.record(tmp_path / "clip.mp4") as video:
+    with booted.record(tmp_path / "clip.mp4", 10) as video:
         for _ in range(5):
             video.frame()
     assert video.count == 5 and (tmp_path / "clip.mp4").stat().st_size > 0
@@ -332,7 +332,7 @@ def test_no_drift(booted, tmp_path, name):
     else:
         scene = {c.__name__: c for c in _drift_short_scenes()}[cls]()
     if name != "storm":  # the storm keeps its own 24 fps
-        scene.fps = 10
+        scene.output_fps = 10
     rec = audit(
         booted, scene, name, pixels=pixels, keep=tmp_path, taskbar=name != "storm"
     )

@@ -13,13 +13,28 @@ from . import setstate, timeline
 
 DESKTOPS = ("blank", "stock")
 
+# Only Scene class attributes a scene author sets, whose rename or removal would
+# otherwise be silently ignored, go here. It is emptied at each release.
+RETIRED = {
+    "fps": "renamed to output_fps",
+    "clock": "removed: the guest always runs on its own clock",
+}
+
+
+def pin_legacy(cls) -> None:
+    """Last resort: refuse a retired setting a scene still defines, rather than
+    let it be ignored silently. Never maps an old name onto a new one."""
+    for name, why in RETIRED.items():
+        if name in vars(cls):
+            raise TypeError(f"{cls.__name__}.{name}: {why}")
+
 
 class Scene:
     """Subclass this and write `construct`.
 
     `self.guest` is the raw Bridge, so any Win32 call can sit between
     animations, `self.vm` is the VM, and `self.pointer` is the mouse pointer.
-    `self.time` is video time, frames written over fps, and it never reads a
+    `self.time` is video time, frames written over output_fps, and it never reads a
     clock. `self.recorder` (also `self.video`) writes the frames, and
     `cut()` starts a new clip, and `next_section(name)` does the same with a label. The guest runs
     all the time: what the script drives lands on exact frames, while anything
@@ -34,15 +49,22 @@ class Scene:
     `state`, a path to a state file, sets the desktop before `setup` runs.
     `set_state` jumps to another state at any point, and `prop(id)` is the
     prop for a window the state opened.
+
+    `output_fps` is the finished video's frame rate: set it to match the edit
+    timeline (24, 30, 60). It is not a capture or run rate.
     """
 
-    fps = 30
+    output_fps = 30
     desktop = "blank"
     pointer_visible = False
     state: str | Path | None = None
     strict_placement = (
         False  # True: a clamped size or a lost window raises PlacementError
     )
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        pin_legacy(cls)
 
     def __init__(self):
         self.session = None
@@ -80,7 +102,7 @@ class Scene:
     @property
     def time(self) -> float:
         """Video time so far, across every clip."""
-        return self.recorder.total / self.fps
+        return self.recorder.total / self.output_fps
 
     def run(self, session, video) -> None:
         """Play this scene on a booted session, into an open recorder."""

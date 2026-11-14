@@ -16,7 +16,7 @@ Subclass it and write `construct`. One scene is one recording.
 
 | Attribute | Meaning |
 | --- | --- |
-| `fps` | Frames per second of the video. Default 30. |
+| `output_fps` | Frames per second of the finished video: set it to match your edit timeline (24, 30, 60). It is not a capture or run rate. Default 30. |
 | `desktop` | `"blank"`, the default: a black screen with no icons, taskbar or Start menu, and the work area the whole screen. `"stock"`: the Windows 98 desktop as the `ready` snapshot has it. Either is set again after every revert. See [Blank start](../design/blank-start.md). |
 | `pointer_visible` | On a blank desktop, whether the pointer is drawn. Default `False`. It still moves and clicks either way. Paint's tools still draw their own pointer over the canvas. It can't change partway through a scene. The stock desktop always draws it. |
 | `state` | A [state file](#states) to set the desktop to before `setup`. Default `None`, the plain desktop. |
@@ -29,7 +29,7 @@ Subclass it and write `construct`. One scene is one recording.
 | `space` | The [desktop space](#desktop-space): screen, work area, taskbar and metrics, as read from the guest. |
 | `strict_placement` | `False` by default. `True` makes a clamped size or a lost window raise `PlacementError` instead of warning. |
 | `recorder` | The [`Recorder`](bridge.md#recorder) the frames go to. `video` is another name for it. |
-| `time` | Video time in seconds: frames written over `fps`, across every [clip](#clips). It never reads a clock. |
+| `time` | Video time in seconds: frames written over `output_fps`, across every [clip](#clips). It never reads a clock. |
 
 | Hook | Runs |
 | --- | --- |

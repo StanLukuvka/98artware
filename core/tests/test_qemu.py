@@ -150,7 +150,7 @@ def test_recorder_writes_exactly_the_requested_frames(disk, tmp_path):
     with VM(VMConfig(disk=disk, disk_format="raw")) as vm:
         settled(vm, tmp_path)
         session = Session(vm, bridge)
-        with session.record(video, fps=10) as recorder:
+        with session.record(video, output_fps=10) as recorder:
             recorder.frame()
             recorder.frame(hold=4)
             recorder.live(0.3)

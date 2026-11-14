@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import warnings
 from pathlib import Path
 
 import pytest
@@ -88,7 +89,7 @@ def test_ppm_size_reads_the_header():
 @needs_ffmpeg
 def test_a_run_without_cuts_writes_one_file_under_its_own_name(session, tmp_path):
     out = tmp_path / "out.mp4"
-    with session.record(out, fps=10) as video:
+    with session.record(out, output_fps=10) as video:
         video.frame(hold=3)
     assert video.clips == [out] and frames(out) == 3
     assert sorted(p.name for p in tmp_path.iterdir()) == ["out.mp4"]
@@ -97,7 +98,7 @@ def test_a_run_without_cuts_writes_one_file_under_its_own_name(session, tmp_path
 @needs_ffmpeg
 def test_cuts_number_the_clips_after_the_output(session, tmp_path):
     out = tmp_path / "out.mp4"
-    with session.record(out, fps=10) as video:
+    with session.record(out, output_fps=10) as video:
         video.frame(hold=2)
         first = video.cut()
         assert video.path == tmp_path / "out-02.mp4"
@@ -116,7 +117,7 @@ def test_cuts_number_the_clips_after_the_output(session, tmp_path):
 
 @needs_ffmpeg
 def test_cut_takes_a_path_for_the_next_clip(session, tmp_path):
-    with session.record(tmp_path / "out.mp4", fps=10) as video:
+    with session.record(tmp_path / "out.mp4", output_fps=10) as video:
         video.frame()
         video.cut(tmp_path / "intro.mp4")
         video.frame()
@@ -131,7 +132,7 @@ def test_cut_takes_a_path_for_the_next_clip(session, tmp_path):
 
 @needs_ffmpeg
 def test_a_cut_with_nothing_recorded_makes_no_empty_clip(session, tmp_path):
-    with session.record(tmp_path / "out.mp4", fps=10) as video:
+    with session.record(tmp_path / "out.mp4", output_fps=10) as video:
         assert video.cut() is None
         assert video.cut(tmp_path / "first.mp4") is None
         video.frame()
@@ -154,11 +155,11 @@ def test_a_lossless_recorder_writes_matroska(session, tmp_path, monkeypatch):
             return 0
 
     monkeypatch.setattr(recorder_module.subprocess, "Popen", FakePopen)
-    with session.record(tmp_path / "a.mp4", lossless=True) as video:
+    with session.record(tmp_path / "a.mp4", 10, lossless=True) as video:
         video.frame()
         video.cut(tmp_path / "b.mp4")
         video.frame()
-    with session.record(tmp_path / "c.mp4") as video:
+    with session.record(tmp_path / "c.mp4", 10) as video:
         video.frame()
     assert "ffv1" in commands[0] and commands[0][-1] == str(tmp_path / "a.part.mkv")
     assert (tmp_path / "a-01.mkv").exists()
@@ -167,7 +168,7 @@ def test_a_lossless_recorder_writes_matroska(session, tmp_path, monkeypatch):
 
 
 def test_live_stops_on_its_condition(session, tmp_path, monkeypatch):
-    recorder = Recorder(session, tmp_path / "x.mp4", fps=1000)
+    recorder = Recorder(session, tmp_path / "x.mp4", output_fps=1000)
     monkeypatch.setattr(
         recorder,
         "_capture",
@@ -175,6 +176,37 @@ def test_live_stops_on_its_condition(session, tmp_path, monkeypatch):
     )
     recorder.live(1, stop_condition=lambda: recorder.count >= 3)
     assert recorder.count == 3
+    recorder.close()
+
+
+def test_live_warns_when_capturing_falls_behind(session, tmp_path, monkeypatch):
+    now = [50.0]
+    monkeypatch.setattr(recorder_module.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(recorder_module.time, "sleep", lambda s: None)
+    recorder = Recorder(session, tmp_path / "x.mp4", output_fps=10)
+
+    def slow(hold):
+        now[0] += 0.5  # half a second per frame against 0.1 s planned
+        recorder.count += hold
+
+    monkeypatch.setattr(recorder, "_capture", slow)
+    with pytest.warns(UserWarning, match="meant to take 1.00 s took 5.00 s") as warned:
+        recorder.live(1)
+    assert len(warned) == 1 and "look slower" in str(warned[0].message)
+    recorder.close()
+
+
+def test_live_on_time_does_not_warn(session, tmp_path, monkeypatch):
+    now = [50.0]
+    monkeypatch.setattr(recorder_module.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(
+        recorder_module.time, "sleep", lambda s: now.__setitem__(0, now[0] + s)
+    )
+    recorder = Recorder(session, tmp_path / "x.mp4", output_fps=10)
+    monkeypatch.setattr(recorder, "_capture", lambda hold: None)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        recorder.live(1)
     recorder.close()
 
 
@@ -199,7 +231,7 @@ class FailingFfmpeg:
 
 def test_close_raises_when_ffmpeg_failed(session, tmp_path, monkeypatch):
     monkeypatch.setattr(recorder_module.subprocess, "Popen", FailingFfmpeg)
-    video = session.record(tmp_path / "out.mp4")
+    video = session.record(tmp_path / "out.mp4", 10)
     video.frame()
     with pytest.raises(RecorderError, match=r"exit 1.*Encoder did not like it"):
         video.close()
@@ -209,7 +241,7 @@ def test_close_raises_when_ffmpeg_failed(session, tmp_path, monkeypatch):
 
 def test_cut_raises_when_the_clip_it_closes_failed(session, tmp_path, monkeypatch):
     monkeypatch.setattr(recorder_module.subprocess, "Popen", FailingFfmpeg)
-    video = session.record(tmp_path / "out.mp4")
+    video = session.record(tmp_path / "out.mp4", 10)
     video.frame()
     with pytest.raises(RecorderError, match="ffmpeg failed writing"):
         video.cut()
@@ -221,7 +253,7 @@ def test_the_scenes_own_error_is_not_replaced(session, tmp_path, monkeypatch):
     monkeypatch.setattr(recorder_module.subprocess, "Popen", FailingFfmpeg)
     with (
         pytest.raises(KeyError, match="the scene's own"),
-        session.record(tmp_path / "out.mp4") as video,
+        session.record(tmp_path / "out.mp4", 10) as video,
     ):
         video.frame()
         raise KeyError("the scene's own")
@@ -230,7 +262,7 @@ def test_the_scenes_own_error_is_not_replaced(session, tmp_path, monkeypatch):
 
 @needs_ffmpeg
 def test_a_good_close_does_not_raise_and_a_second_close_is_harmless(session, tmp_path):
-    video = session.record(tmp_path / "out.mp4", fps=10)
+    video = session.record(tmp_path / "out.mp4", output_fps=10)
     video.frame()
     video.close()
     video.close()
@@ -248,7 +280,7 @@ def test_a_good_close_does_not_raise_and_a_second_close_is_harmless(session, tmp
 def test_a_size_change_inside_a_clip_raises_and_suggests_cut(session, screen, tmp_path):
     with (
         pytest.raises(RecorderError, match=r"16x12 to 32x24.*cut\(\)"),
-        session.record(tmp_path / "out.mp4", fps=10) as video,
+        session.record(tmp_path / "out.mp4", output_fps=10) as video,
     ):
         video.frame()
         screen.size = (32, 24)
@@ -262,7 +294,7 @@ def test_a_size_change_inside_a_clip_raises_and_suggests_cut(session, screen, tm
 def test_a_size_change_after_a_cut_records_but_the_join_names_the_sizes(
     session, screen, tmp_path
 ):
-    with session.record(tmp_path / "out.mp4", fps=10) as video:
+    with session.record(tmp_path / "out.mp4", output_fps=10) as video:
         video.frame()
         video.cut()
         screen.size = (32, 24)
@@ -295,7 +327,7 @@ def test_scene_cut_reaches_the_recorder_and_time_counts_every_clip(
 class Cutting:
     """Enough of a scene for render: two cuts, three clips of 2, 3 and 1 frames."""
 
-    fps = 10
+    output_fps = 10
 
     def __init__(self, path=None):
         self.path = path
@@ -365,7 +397,7 @@ def test_a_gif_and_mp4_render_with_keep_clips_false(staged, tmp_path):
 @needs_ffmpeg
 def test_render_without_cuts_is_unchanged(staged, tmp_path):
     class Plain:
-        fps = 10
+        output_fps = 10
 
         def run(self, session, video):
             video.frame(hold=4)
@@ -378,7 +410,7 @@ def test_render_without_cuts_is_unchanged(staged, tmp_path):
 @needs_ffmpeg
 def test_render_of_a_scene_with_no_frames_says_so(staged, tmp_path):
     class Empty:
-        fps = 10
+        output_fps = 10
 
         def run(self, session, video):
             pass
@@ -394,7 +426,7 @@ def test_render_of_a_scene_with_no_frames_says_so(staged, tmp_path):
 def test_a_scene_error_leaves_no_partial_clip(session, tmp_path):
     with (
         pytest.raises(KeyError),
-        session.record(tmp_path / "out.mp4", fps=10) as video,
+        session.record(tmp_path / "out.mp4", output_fps=10) as video,
     ):
         video.frame()
         video.cut()
@@ -503,7 +535,7 @@ def test_gif_encode_and_join_failures_raise_recorder_error_with_ffmpegs_message(
         render_module.write_gif(tmp_path / "in.mkv", tmp_path / "out.gif")
     with pytest.raises(RecorderError, match=r"encoding out.mp4 failed.*boom"):
         render_module._encode(tmp_path / "in.mkv", tmp_path / "out.mp4")
-    video = session.record(tmp_path / "x.mp4")
+    video = session.record(tmp_path / "x.mp4", 10)
     video.clips = video.parts = [tmp_path / "a.mp4"]
     video._sizes = [(16, 12)]
     with pytest.raises(RecorderError, match=r"joining 1 clips.*exit 1.*boom"):
@@ -522,7 +554,7 @@ def test_missing_ffmpeg_raises_recorder_error(session, tmp_path, monkeypatch):
         raise FileNotFoundError("ffmpeg")
 
     monkeypatch.setattr(recorder_module.subprocess, "Popen", missing)
-    video = session.record(tmp_path / "out.mp4")
+    video = session.record(tmp_path / "out.mp4", 10)
     with pytest.raises(RecorderError, match="ffmpeg isn't on PATH"):
         video.frame()
     video.close()

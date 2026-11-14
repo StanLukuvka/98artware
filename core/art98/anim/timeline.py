@@ -6,6 +6,7 @@ import time
 import warnings
 
 from ..base.units import frames
+from ..recorder import warn_if_late
 
 
 def play(scene, animations, run_time, rate_func, live) -> None:
@@ -19,7 +20,7 @@ def play(scene, animations, run_time, rate_func, live) -> None:
             animation.rate_func = rate_func
         animation.begin(scene)
     total = max(animation.run_time for animation in animations)
-    count = max(1, frames(total, scene.fps))
+    count = max(1, frames(total, scene.output_fps))
     live = live or any(animation.live for animation in animations)
     running = list(animations)
     started = time.monotonic()
@@ -36,8 +37,10 @@ def play(scene, animations, run_time, rate_func, live) -> None:
                 running.remove(animation)
         scene._apply()
         if live:
-            time.sleep(max(0.0, started + index / scene.fps - time.monotonic()))
+            time.sleep(max(0.0, started + index / scene.output_fps - time.monotonic()))
         scene.recorder.frame()
+    if live:
+        warn_if_late(count, scene.output_fps, started)
 
 
 def wait(scene, duration, stop_condition, frozen_frame) -> None:
@@ -49,7 +52,7 @@ def wait(scene, duration, stop_condition, frozen_frame) -> None:
 
 def pause(scene, duration) -> None:
     scene._apply()
-    scene.recorder.frame(hold=max(1, frames(duration, scene.fps)))
+    scene.recorder.frame(hold=max(1, frames(duration, scene.output_fps)))
 
 
 def live(scene, seconds, stop_condition) -> None:

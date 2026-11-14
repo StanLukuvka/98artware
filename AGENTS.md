@@ -136,7 +136,7 @@ Formatting is ruff's: `uv run ruff format core setup tools`.
   Win32 constant goes in `win32.py`, and `test_win32.py` fails on one defined elsewhere; pixel and frame rounding and distance live in
   `base/units.py`, and `test_units.py` fails on a built-in `round` or `math.hypot` elsewhere in the scene layer; the
   programs a state can open are listed once, in `APPS` in `anim/setstate.py`. No compatibility shims or old import paths when something moves,
-  and no commented-out or parked code: delete what you replace and move its callers.
+  and no commented-out or parked code: delete what you replace and move its callers. A renamed or removed Scene setting goes in `RETIRED` in `anim/scene.py`, which only refuses it and never maps an old name to a new one, and is emptied at each release.
 - Lean first: one module and one code path, and more only when a measurement or a real use
   asks for it.
 - New action code goes in its family's folder: a program in `actions/programs/<name>.py`

@@ -212,7 +212,7 @@ def crop(path, index, box, name):
 def run(session, scene, name):
     path = OUT / f"{name}.mkv"
     t = time.perf_counter()
-    video = session.record(path, fps=30, lossless=True)
+    video = session.record(path, output_fps=30, lossless=True)
     with video:
         scene.run(session, video)
     secs = time.perf_counter() - t

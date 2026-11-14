@@ -82,14 +82,14 @@ One running stage. `with` closes it on exit.
 | --- | --- |
 | `vm` | The [`VM`](#vm). |
 | `bridge` | The [`Bridge`](#bridge-1). |
-| `record(path, fps=30, lossless=False)` | Opens a [`Recorder`](#recorder). |
+| `record(path, output_fps, lossless=False)` | Opens a [`Recorder`](#recorder). |
 | `revert(snapshot="ready")` | Restores the snapshot and keeps the bridge. Open calls fail at once. |
 | `attach_disc(files)` | Puts an ISO of `files` in drive `D:`. See [Desktop colour and wallpaper](../design/state-and-action.md#desktop-colour-and-wallpaper). |
 | `close()` | Closes the bridge, then the VM. |
 
 ### Recorder
 
-`class Recorder(session, path, fps=30, lossless=False)`, in `art98.recorder`
+`class Recorder(session, path, output_fps, lossless=False)`, in `art98.recorder`
 
 Encodes frames to video clips. Frames are taken when the script asks, so a slow host makes the same
 video as a fast one. Use it as a context manager, because a clip is only complete after `close`.
@@ -103,7 +103,7 @@ must be on `PATH`. Each clip's ffmpeg starts at the clip's first frame.
 | Member | Meaning |
 | --- | --- |
 | `frame(hold=1)` | Runs `sync`, captures one frame and writes it `hold` times. |
-| `live(seconds, stop_condition=None)` | Captures `seconds * fps` frames, rounded half up, on the host's clock, with no `sync`. |
+| `live(seconds, stop_condition=None)` | Captures `seconds * output_fps` frames, rounded half up, on the host's clock, with no `sync`. |
 | `cut(path=None)` | Closes the current clip, raising `RecorderError` if its ffmpeg failed, and starts the next one at `path`, or at `<stem>-02<suffix>` and on. The first cut renames the clip so far from `path` to `<stem>-01<suffix>`. Returns the closed clip's path, or `None` if nothing was recorded since the last cut. |
 | `path` | The clip being written now. |
 | `clips` | Finished clips, in order. A run with no cut has one, at the `path` it was opened with. |
@@ -124,7 +124,7 @@ true to stop early. If a capture takes longer than a frame, `live` does not skip
 long.
 
 ```python
-with session.record("demo.mp4", fps=30) as video:
+with session.record("demo.mp4", output_fps=30) as video:
     video.frame(hold=30)
     guest.spawn(r'"C:\WINDOWS\SYSTEM\3D Pipes.scr" /s')
     video.live(3.0)
