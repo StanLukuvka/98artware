@@ -25,6 +25,8 @@ FFV1 = ["-c:v", "ffv1", "-pix_fmt", "bgr0"]
 # The GIF defaults, here so the command line can read them without loading the
 # animation package.
 GIF_FPS = 15
+GIF_SCALE = 1.0
+GIF_DITHER = "none"
 GIF_COLORS = 128
 
 # The container a lossless clip is written in, whatever suffix it was given:

@@ -357,6 +357,7 @@ def test_blinking_screen_with_an_idle_disk_counts_as_a_stall(tmp_path, monkeypat
 
     monkeypatch.setattr(builder, "STALL_LIMIT", -1)
     tool = wizard_tool(tmp_path, monkeypatch)
+    monkeypatch.setattr(tool, "_answer_setup_prompts", lambda vm: None)
     with pytest.raises(builder.SetupError, match="no disk writes"):
         tool._wait_for_agent(BlinkingVM(), SilentBridge(), "install", 60)
 

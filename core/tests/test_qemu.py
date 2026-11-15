@@ -114,12 +114,6 @@ def test_snapshot_failures_are_raised(disk):
             vm.load_snapshot("missing")
 
 
-def test_software_emulation_with_virtual_clock(disk):
-    config = VMConfig(disk=disk, disk_format="raw", icount_shift=3)
-    with VM(config) as vm:
-        assert MESSAGE in serial_output(vm.serial_path, MESSAGE)
-
-
 def settled(vm, tmp_path, quiet=1.0, timeout=30.0) -> None:
     """Wait until the screen size has not changed for `quiet` seconds (BIOS 640x480 -> 720x400)."""
     shot, last, since = tmp_path / "probe.ppm", None, time.monotonic()
@@ -190,9 +184,7 @@ def test_broken_config_reports_the_failure(tmp_path):
 
 
 def test_config_survives_json(tmp_path):
-    config = VMConfig(
-        disk=tmp_path / "d.qcow2", machine="pc-i440fx-10.2", icount_shift=2
-    )
+    config = VMConfig(disk=tmp_path / "d.qcow2", machine="pc-i440fx-10.2")
     assert VMConfig.from_json(config.to_json()) == config
 
 

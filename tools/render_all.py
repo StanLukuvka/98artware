@@ -13,7 +13,8 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from check_docs import ROOT, check_service
+
 OUT = ROOT / "docs" / "assets" / "gifs"
 
 # file, scene, GIF options
@@ -71,28 +72,6 @@ def render(name: str) -> str:
     finally:
         shutil.rmtree(folder, ignore_errors=True)
     return f"{final.name}: {final.stat().st_size / 1e6:.2f} MB"
-
-
-def check_service() -> None:
-    """Stop with the service's own message unless `art98 vm status` says it is up."""
-    done = subprocess.run(  # noqa: PLW1510
-        [
-            sys.executable,
-            "-m",
-            "art98.cli",
-            "vm",
-            "status",
-            "--work",
-            str(ROOT / "work"),
-        ],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if done.returncode != 0:
-        message = (done.stdout + done.stderr).strip()
-        raise SystemExit(message or "art98 vm status failed")
-    print(done.stdout, end="")
 
 
 if __name__ == "__main__":

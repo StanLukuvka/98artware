@@ -109,6 +109,7 @@ class DesktopSpace:
 
 # lazy: the real Win98 values arrive with the first VM calibration (T6). Only
 # caption and frame are known (they match the fake guests); 0 limits mean
-# "unknown", so an unattached Box is never clamped. Used only as the default
-# for a Box that is not on a scene, never by a scene itself.
+# "unknown", so an unattached Box is never clamped. The default for a Box that
+# is not on a scene, and the space a Scene starts with and resets to until it
+# calibrates against the guest.
 STOCK = DesktopSpace((800, 600), (0, 0, 800, 572), Metrics(caption=18, size_frame=3))

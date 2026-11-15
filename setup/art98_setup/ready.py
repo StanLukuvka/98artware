@@ -2,8 +2,8 @@
 
 Applies HARDEN_SETTINGS (quiet, fast, deterministic), clears everything that
 starts on its own, sets the display mode, reboots, waits for a still screen,
-checks the desktop is clean and saves the `ready` snapshot. Future "blank start"
-settings belong here.
+checks the desktop is clean and saves the `ready` snapshot. The blank start is
+not part of it: it is applied at run time (core/art98/desktop.py).
 """
 
 from __future__ import annotations

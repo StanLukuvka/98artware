@@ -7,6 +7,12 @@ import pytest
 from art98.container.host import ContainerError, Engine
 from art98.settings import Settings
 from art98_setup import up
+from art98_setup.builder import DISK_MB
+
+
+def test_compose_default_disk_size_is_the_builder_constant():
+    text = (up.ROOT / "compose.yaml").read_text()
+    assert f"${{ART98_DISK_MB:-{DISK_MB}}}" in text
 
 
 def fake_engine(monkeypatch, name):

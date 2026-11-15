@@ -10,15 +10,15 @@ import traceback
 from pathlib import Path
 
 from . import freshness, service
-from .bridge import BridgeError
-from .container.host import ContainerError
+from .bridge import READY_TIMEOUT, BridgeError
+from .container.host import ENGINE, ContainerError
 from .desktop import DesktopError
 from .guestfiles import GuestBuildMissing, guest_build
 from .qemu import QemuError
-from .recorder import GIF_COLORS, GIF_FPS, RecorderError
+from .recorder import GIF_COLORS, GIF_DITHER, GIF_FPS, GIF_SCALE, RecorderError
 from .service import ServiceError
 from .session import ImageMissing
-from .settings import CONTAINER_CONTROL_PORT, SettingsError, load
+from .settings import CONTAINER_CONTROL_PORT, CONTAINER_VNC_PORT, SettingsError, load
 from .state import StateError
 
 KEY_SECRET_FILE = Path(
@@ -39,7 +39,7 @@ def cmd_doctor(_args) -> int:
     from art98_setup import builder
 
     rows = builder.doctor()
-    name = os.environ.get("ART98_ENGINE") or "docker"
+    name = os.environ.get("ART98_ENGINE") or ENGINE
     engine = shutil.which(name)
     missing = [tool for tool, path, _ in rows if not path]
     local_only = [tool for tool in missing if tool not in CONTAINER_NEEDS]
@@ -287,6 +287,8 @@ def _wait_option(command) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from art98_setup.builder import DISK_MB
+
     parser = argparse.ArgumentParser(prog="art98")
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -304,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
         help="folder for the prepared image (default: [vm] work from art98.toml)",
     )
     command.add_argument(
-        "--disk-mb", type=int, default=2047, help="virtual disk size in MB"
+        "--disk-mb", type=int, default=DISK_MB, help="virtual disk size in MB"
     )
     command.add_argument(
         "--from",
@@ -338,12 +340,12 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument(
         "--gif-scale",
         type=float,
-        default=1.0,
+        default=GIF_SCALE,
         help="GIF size relative to the video (0.5 = half width and height)",
     )
     command.add_argument(
         "--gif-dither",
-        default="none",
+        default=GIF_DITHER,
         help="ffmpeg paletteuse dither: none, bayer, sierra2_4a...",
     )
     _wait_option(command)
@@ -377,7 +379,7 @@ def main(argv: list[str] | None = None) -> int:
         "--rebuild", action="store_true", help="rebuild the container image"
     )
     command.add_argument(
-        "--disk-mb", type=int, default=2047, help="virtual disk size in MB"
+        "--disk-mb", type=int, default=DISK_MB, help="virtual disk size in MB"
     )
     command.set_defaults(run=_guarded(cmd_up, extra=(FileNotFoundError,)))
 
@@ -404,13 +406,13 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument(
         "--vnc",
         action="store_true",
-        help=f"show the screen on VNC port 5900 (or set {VNC_ENV})",
+        help=f"show the screen on VNC port {CONTAINER_VNC_PORT} (or set {VNC_ENV})",
     )
     command.add_argument(
         "--ready-timeout",
         type=float,
-        default=60.0,
-        help="seconds to wait for the guest agent after boot (default 60)",
+        default=READY_TIMEOUT,
+        help=f"seconds to wait for the guest agent after boot (default {READY_TIMEOUT:g})",
     )
     command.set_defaults(run=cmd_serve)
 

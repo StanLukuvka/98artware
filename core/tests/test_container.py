@@ -301,6 +301,7 @@ def test_the_transport_is_a_unix_socket_on_linux_unless_asked(monkeypatch):
     assert container.transport_name() == "tcp"
     monkeypatch.setenv("ART98_TRANSPORT", "unix")
     assert container.transport_name() == "unix"
+    monkeypatch.delenv("ART98_TRANSPORT")
     with pytest.raises(ValueError):
         container.transport_name("pipe")
 
@@ -435,6 +436,6 @@ def test_the_real_vm_methods_run_behind_serve(tmp_path):
 def test_the_settings_transport_beats_the_platform_but_not_the_env(monkeypatch):
     monkeypatch.delenv("ART98_TRANSPORT", raising=False)
     monkeypatch.setattr(container.sys, "platform", "linux")
-    assert container.transport_name(default="tcp") == "tcp"
+    assert container.transport_name("tcp") == "tcp"
     monkeypatch.setenv("ART98_TRANSPORT", "unix")
-    assert container.transport_name(default="tcp") == "unix"
+    assert container.transport_name("tcp") == "unix"

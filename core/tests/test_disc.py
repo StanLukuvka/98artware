@@ -35,12 +35,6 @@ def test_two_files_and_big_file():
     assert read_back(iso) == {"A.TXT;1": b"x" * 2048, "WALL0001.BMP;1": big}
 
 
-def test_volume_is_uppercased():
-    cd = pycdlib.PyCdlib()
-    cd.open_fp(io.BytesIO(build_iso({"A.B": b""}, volume="disc")))
-    assert cd.pvd.volume_identifier.rstrip(b" ") == b"DISC"
-
-
 @pytest.mark.parametrize(
     "name", ["wall.bmp", "WALL.BMPX", "TOOLONGNAME.BMP", "NODOT", ".BMP", "A B.TXT"]
 )

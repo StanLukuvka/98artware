@@ -485,11 +485,9 @@ The QEMU settings, kept in `image.json`. `to_json()` and `from_json(data)` conve
 | `vga` | `"cirrus"` | Video card. |
 | `sound` | True | Keeps the Sound Blaster in the machine. Audio is not supported yet. |
 | `rtc_base` | `"1998-06-25T09:00:00"` | Guest clock at power on. The clock runs from there on guest time. |
-| `icount_shift` | None | Sets QEMU's `-icount` for deterministic time. |
 | `floppy` | None | Floppy image. |
 | `boot_once` | None | Boot device for the first boot. |
 | `loadvm` | None | Snapshot to start from. `boot_local` sets `"ready"`. None is a cold boot, which reaches `HELLO` in 11.5 s. |
-| `audio_wav` | None | Audio output file. Not supported yet. |
 | `display` | `"none"` | QEMU's `-display` value. |
 | `extra_args` | `[]` | More QEMU arguments. |
 

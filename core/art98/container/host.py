@@ -17,13 +17,13 @@ import threading
 import time
 from pathlib import Path
 
-from art98.qemu import QemuError
+from art98.qemu import HOLD_MS, QemuError
+from art98.settings import TRANSPORTS
 
 from .serve import keepalive, nodelay, read_line
 
 ENGINE = "docker"
-CONNECT_TIMEOUT = 5.0
-TRANSPORTS = ("unix", "tcp")
+CONNECT_TIMEOUT = 5.0  # one connection try in open_channel
 RELEASE_TIMEOUT = 15.0  # pause and eject are QMP calls; seconds under load
 # A stage boots in under a second on an idle host; a busy one, or the first
 # run copy off btrfs and XFS, takes longer.
@@ -38,13 +38,12 @@ class ChannelBusy(ContainerError):
     """serve refused the control channel because another client holds it."""
 
 
-def transport_name(transport: str | None = None, default: str | None = None) -> str:
+def transport_name(default: str | None = None) -> str:
     """How the host reaches serve: a Unix socket in a mounted folder on Linux,
     which skips the rootless port forward, and loopback TCP everywhere else.
     ART98_TRANSPORT overrides `default` (the [vm] transport setting)."""
     name = (
-        transport
-        or os.environ.get("ART98_TRANSPORT")
+        os.environ.get("ART98_TRANSPORT")
         or default
         or ("unix" if sys.platform == "linux" else "tcp")
     )
@@ -174,12 +173,10 @@ class RemoteVM:
         sock: socket.socket,
         *,
         shared_dir: Path | None = None,
-        running=None,
     ):
         # The VM belongs to the long-lived container (art98.service): close()
-        # only releases, and `running` is an optional callable.
+        # only releases it.
         self._shared_dir = shared_dir
-        self._running = running
         self._sock = sock
         self._reader = sock.makefile("rb")
         self._lock = threading.Lock()
@@ -187,9 +184,7 @@ class RemoteVM:
 
     @property
     def running(self) -> bool:
-        if self._closed:
-            return False
-        return self._running() if self._running else True
+        return not self._closed
 
     def _request(
         self, op: str, payload: bytes = b"", **arguments
@@ -239,7 +234,7 @@ class RemoteVM:
             Path(path).write_bytes(data)
         return Path(path)
 
-    def send_keys(self, *qcodes: str, hold_ms: int = 80) -> None:
+    def send_keys(self, *qcodes: str, hold_ms: int = HOLD_MS) -> None:
         self._request("send_keys", keys=list(qcodes), hold_ms=hold_ms)
 
     def pause(self) -> None:
