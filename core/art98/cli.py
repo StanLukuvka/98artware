@@ -13,7 +13,7 @@ from . import freshness, service
 from .bridge import READY_TIMEOUT
 from .container.host import ENGINE
 from .errors import Art98Error
-from .gif import GIF_COLORS, GIF_DITHER, GIF_FPS, GIF_SCALE
+from .gif import GIF_COLORS, GIF_DITHER, GIF_FPS, GIF_SCALE, GifOptions
 from .guestfiles import guest_build
 from .settings import CONTAINER_CONTROL_PORT, CONTAINER_VNC_PORT, load
 
@@ -178,16 +178,20 @@ def cmd_render(args) -> int:
     scene = _load_scene(args.file, args.scene)
     settings = load(args.work)
     freshness.warn(settings.work_dir)
+    given = {
+        "fps": args.gif_fps,
+        "colors": args.gif_colors,
+        "scale": args.gif_scale,
+        "dither": args.gif_dither,
+    }
+    options = GifOptions(**{k: v for k, v in given.items() if v is not None})
     try:
         with service.attach(settings, wait=args.wait) as session:
             written = render(
                 scene,
                 args.output,
                 gif=args.gif,
-                gif_fps=args.gif_fps,
-                gif_colors=args.gif_colors,
-                gif_scale=args.gif_scale,
-                gif_dither=args.gif_dither,
+                gif_options=options,
                 session=session,
             )
     except Art98Error as error:

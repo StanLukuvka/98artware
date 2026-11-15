@@ -737,8 +737,11 @@ art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
 
 ### Python
 
-`render(scene, output=None, *, session, gif=None, gif_fps=None, gif_colors=None, gif_scale=None,
-gif_dither=None, keep_clips=True)`; a `gif_*` left as `None` takes `write_gif`'s default.
+`render(scene, output=None, *, session, gif=None, gif_options=None, keep_clips=True)`.
+`output` must end in `.mp4` or `.gif`, and `gif` in `.gif`; anything else raises `UsageError` before
+anything is recorded. `gif_options` is a `GifOptions(fps=15, colors=128, scale=1.0, dither="none")`
+(`from art98.anim import GifOptions`); `None` means its defaults. It replaces the old `gif_fps`,
+`gif_colors`, `gif_scale` and `gif_dither` arguments, which are gone.
 
 `scene` is a class or an instance. `session` is required: take one with `art98.attach()`. Render
 never boots or closes it. Returns the path written. `keep_clips` is for scenes that [cut](#clips). A scene that records no frames raises
@@ -747,7 +750,7 @@ never boots or closes it. Returns the path written. `keep_clips` is for scenes t
 A render does not copy the image. It plays on the VM that `art98 vm start` runs, from its copy
 under `work/runs/vm-*`. One render runs at a time. See [`ready` snapshot](../glossary.md).
 
-`art98.gif.write_gif(source, output, fps=15, colors=128, scale=1.0, dither="none")` converts a video to a
+`art98.gif.write_gif(source, output, options=GifOptions())` converts a video to a
 GIF with `palettegen` and `paletteuse`.
 
 A video goes through 4:2:0 H.264, which smears 1-pixel coloured text. A GIF comes from a lossless

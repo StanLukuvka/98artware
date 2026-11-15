@@ -9,6 +9,7 @@ from art98 import cli, freshness
 from art98.bridge import BridgeTimeout
 from art98.container.host import ContainerError
 from art98.desktop import DesktopError
+from art98.gif import GifOptions
 from art98.guestfiles import GuestBuildMissing
 from art98.qemu import QemuError
 from art98.recorder import RecorderError
@@ -184,6 +185,21 @@ def test_render_hands_the_attached_session_to_the_renderer(
     assert cli.main(["render", str(scene), "--work", str(tmp_path)]) == 0
     assert got["session"] is sentinel
     assert "revert" not in attach_kwargs[0]
+
+
+def test_render_builds_gif_options_from_the_flags_given(monkeypatch, tmp_path, scene):
+    got = []
+
+    def render(scene_class, output, **kwargs):
+        got.append(kwargs["gif_options"])
+        return tmp_path / "x.mp4"
+
+    monkeypatch.setattr("art98.anim.render", render)
+    base = ["render", str(scene), "--work", str(tmp_path)]
+    assert cli.main(base) == 0
+    assert cli.main([*base, "--gif-fps", "7", "--gif-dither", "bayer"]) == 0
+    assert got[0] == GifOptions()
+    assert got[1] == GifOptions(fps=7, dither="bayer")
 
 
 def test_a_bad_art98_toml_is_one_error_line(monkeypatch, capsys, tmp_path):
