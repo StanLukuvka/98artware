@@ -250,7 +250,7 @@ Every public name in `art98.anim` must be documented in [Scene API](../scenes/sc
 
 | Layer | Folder | Holds |
 | --- | --- | --- |
-| Entry point | `anim/` | What scripts import: `Scene`, `render`, and the state and timeline helpers `Scene` calls |
+| Entry point | `anim/` | What scripts import: `Scene`, `render`, and the state helpers `Scene` calls |
 | Actions | `actions/` | One family per folder or file: `pointer.py`, `keyboard.py`, `backdrop.py`, `window/` (`Win`, its commands, `Menu`, `Picture`), and `programs/` under it |
 | Building blocks | `base/` | `Animation` and groups, rate functions, vectors, `Box`, `Prop`, `Spot`, `DesktopSpace` |
 | Guest helpers | `win32.py` | Win32 constants and small named guest reads |
