@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import inspect
-import time
 import warnings
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from ..actions.pointer import Pointer
@@ -13,11 +14,12 @@ from ..base.props import Box, Prop
 from ..base.space import STOCK, DesktopSpace
 from ..base.units import frames
 from ..desktop import blank
-from ..errors import NotFound, UsageError
+from ..errors import MissingFile, NotFound, UsageError
 from ..guest import win32
-from ..output.recorder import warn_if_late
+from ..output.recorder import Pacer
 from ..state import load_state
 from . import setstate
+from .renderer import render
 
 DESKTOPS = ("blank", "stock")
 
@@ -37,13 +39,22 @@ def pin_legacy(cls) -> None:
             raise UsageError(f"{cls.__name__}.{name}: {why}")
 
 
+def check_desktop(scene) -> None:
+    """Refuse a `desktop` that isn't one of DESKTOPS (a class or an instance)."""
+    if scene.desktop not in DESKTOPS:
+        raise UsageError(
+            f"{getattr(scene, '__name__', type(scene).__name__)}.desktop "
+            f"{scene.desktop!r}: use one of {', '.join(DESKTOPS)}"
+        )
+
+
 class Scene:
     """Subclass this and write `construct`.
 
     `self.guest` is the raw Bridge, so any Win32 call can sit between
     animations, `self.vm` is the VM, and `self.pointer` is the mouse pointer.
     `self.time` is video time, frames written over output_fps, and it never reads a
-    clock. `self.recorder` (also `self.video`) writes the frames, and
+    clock. `self.recorder` writes the frames, and
     `cut()` starts a new clip, and `next_section(name)` does the same with a label. The guest runs
     all the time: what the script drives lands on exact frames, while anything
     the guest times for itself follows the host clock.
@@ -66,13 +77,13 @@ class Scene:
     desktop = "blank"
     pointer_visible = False
     state: str | Path | None = None
-    strict_placement = (
-        False  # True: a clamped size or a lost window raises PlacementError
-    )
+    # True: a clamped size or a lost window raises PlacementError
+    strict_placement = False
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         pin_legacy(cls)
+        check_desktop(cls)
 
     def __init__(self):
         self.session = None
@@ -99,42 +110,23 @@ class Scene:
     # ---- running ----
 
     @property
-    def video(self):
-        """Another name for `self.recorder`."""
-        return self.recorder
-
-    @video.setter
-    def video(self, recorder) -> None:
-        self.recorder = recorder
-
-    @property
     def time(self) -> float:
         """Video time so far, across every clip."""
+        if self.recorder is None:
+            raise UsageError("the scene isn't running: time exists only inside run")
         return self.recorder.total / self.output_fps
 
     def run(self, session, video) -> None:
         """Play this scene on a booted session, into an open recorder."""
-        if self.desktop not in DESKTOPS:
-            raise UsageError(
-                f"desktop {self.desktop!r}: use one of {', '.join(DESKTOPS)}"
-            )
+        check_desktop(self)
         self.session, self.recorder = session, video
         self.sections = []
         self.guest, self.vm = session.bridge, session.vm
-        # Every scene starts from the baseline: revert unless nothing has touched
-        # the guest since the last revert. Forget whatever an earlier run left.
-        if not session.fresh:
-            session.revert()
-        for prop in self.props:
-            prop.forget()
-        self.props.clear()
-        self._state_props = {}
         self.space = STOCK
         if self.state is not None:
-            self.set_state(self.state)  # owns the flag; reverts only if not fresh
+            self.set_state(self.state)
         else:
-            session.fresh = False  # before the start: a half-done start touched it
-            self._start_desktop()
+            self._reset()
         self.setup()
         self.construct()
         self.tear_down()
@@ -144,8 +136,6 @@ class Scene:
 
         `options` are those of `renderer.render`: gif, keep_clips and so on.
         """
-        from .renderer import render
-
         return render(self, output, session=session, **options)
 
     # ---- desktop state ----
@@ -159,7 +149,20 @@ class Scene:
         current folder. Nothing is recorded, so the next frame shows the state.
         """
         state = load_state(self._find_state(Path(path)))
-        if not self.session.fresh:  # a scene's first Set follows run's revert
+        self._reset()
+        props = setstate.apply_state(self, state)
+        setstate.check_state(self.guest, self.space, state, props)
+        self._state_props = props
+
+    def _reset(self) -> None:
+        """Back to the baseline and a fresh desktop: what `run` and a Set both start with.
+
+        Reverts unless nothing has touched the guest since the last revert, so a
+        scene's first Set follows `run`'s start without a second revert. The
+        session is marked touched before the desktop starts, so a half-done start
+        counts. Props from before are forgotten.
+        """
+        if not self.session.fresh:
             self.session.revert()
         self.session.fresh = False
         for prop in self.props:
@@ -167,9 +170,6 @@ class Scene:
         self.props.clear()
         self._state_props = {}
         self._start_desktop()
-        props = setstate.apply_state(self, state)
-        setstate.check_state(self.guest, self.space, state, props)
-        self._state_props = props
 
     def prop(self, window_id: str) -> Prop:
         """The prop for a window the last state opened, by its id."""
@@ -212,7 +212,14 @@ class Scene:
             beside = None
         if beside is not None and beside.exists():
             return beside
-        return Path.cwd() / path
+        here = Path.cwd() / path
+        if not here.exists():
+            looked = [candidate for candidate in (beside, here) if candidate]
+            raise MissingFile(
+                f"state file {str(path)!r} not found; looked in "
+                + " and ".join(str(candidate) for candidate in looked)
+            )
+        return here
 
     @property
     def screen(self) -> Box:
@@ -250,74 +257,60 @@ class Scene:
     ) -> None:
         """Run animations together, one captured frame at a time.
 
-        run_time and rate_func override every animation given. Shorter
+        run_time and rate_func override every animation given, for this call
+        only: the animations keep their own afterwards. Shorter
         animations finish early and hold. With live=True, frames follow the
         host clock, for guest behaviour that needs real time to happen.
         """
         if not animations:
             raise UsageError("play needs at least one animation")
         self._check_claims(animations)
-        for animation in animations:
-            if run_time is not None:
-                animation.run_time = run_time
-            if rate_func is not None:
-                animation.rate_func = rate_func
-            animation.begin(self)
-        total = max(animation.run_time for animation in animations)
-        count = max(1, frames(total, self.output_fps))
-        live = live or any(animation.live for animation in animations)
-        running = list(animations)
-        started = time.monotonic()
-        for index in range(1, count + 1):
-            elapsed = index / count * total
-            for animation in list(running):
-                length = animation.run_time
-                progress = (
-                    1.0 if length <= 0 or index == count else min(1.0, elapsed / length)
-                )
-                animation.update(progress)
-                if progress >= 1:
-                    animation.finish(self)
-                    running.remove(animation)
-            self._apply()
+        with _overrides(animations, run_time, rate_func):
+            for animation in animations:
+                animation.begin(self)
+            total = max(animation.run_time for animation in animations)
+            count = max(1, frames(total, self.output_fps))
+            live = live or any(animation.live for animation in animations)
+            running = list(animations)
+            pacer = Pacer(self.output_fps)
+            for index in range(1, count + 1):
+                elapsed = index / count * total
+                for animation in list(running):
+                    length = animation.run_time
+                    progress = (
+                        1.0
+                        if length <= 0 or index == count
+                        else min(1.0, elapsed / length)
+                    )
+                    animation.update(progress)
+                    if progress >= 1:
+                        animation.finish(self)
+                        running.remove(animation)
+                self._apply()
+                if live:
+                    pacer.wait(index - 1)
+                self.recorder.frame()
             if live:
-                time.sleep(
-                    max(0.0, started + index / self.output_fps - time.monotonic())
-                )
-            self.recorder.frame()
-        if live:
-            warn_if_late(count, self.output_fps, started, stacklevel=2)
+                pacer.done(count, stacklevel=2)
 
-    def wait(
-        self, duration: float = 1.0, stop_condition=None, frozen_frame: bool = False
-    ) -> None:
+    def wait(self, duration: float = 1.0, stop_condition=None) -> None:
         """Hold for a while, or until stop_condition() is true.
 
-        The guest keeps running, so a caret blinks and a clock ticks. These
-        frames follow the host clock. frozen_frame=True repeats one capture
-        instead, which costs almost nothing. See also `pause`.
+        The guest keeps running, so a caret blinks and a clock ticks, and
+        something that moves by itself, such as a screensaver, is recorded. These
+        frames follow the host clock and skip the repaint wait, so the stretch
+        depends on host speed. See also `pause`.
         """
-        if frozen_frame:
-            self.pause(duration)
-        else:
-            self._live(duration, stop_condition)
+        self._live(duration, stop_condition)
 
     def pause(self, duration: float = 1.0) -> None:
         """Hold one capture. Nothing the guest does in this time is seen."""
         self._apply()
         self.recorder.frame(hold=max(1, frames(duration, self.output_fps)))
 
-    def live(self, seconds: float, stop_condition=None) -> None:
-        """Record something that moves by itself, such as a screensaver.
-
-        Frames follow the host clock and skip the repaint wait, so this
-        stretch depends on host speed. It wraps `Recorder.live`.
-        """
-        self._live(seconds, stop_condition)
-
     def _live(self, seconds: float, stop_condition) -> None:
-        # Called by live, wait and wait_until, each called by the scene's own
-        # script: three frames up from Recorder.live is that script's line.
+        # Called by wait and wait_until, each called by the scene's own script:
+        # three frames up from Recorder.live is that script's line.
         self._apply()
         self.recorder.live(seconds, stop_condition, stacklevel=3)
 
@@ -362,3 +355,24 @@ class Scene:
                         f"two animations in one play both drive the {claim}"
                     )
                 taken.add(claim)
+
+
+@contextmanager
+def _overrides(animations, run_time, rate_func) -> Iterator[None]:
+    """Give the animations a run_time and rate_func for one `play`, then put back
+    what each had, whether it was its own or its class's."""
+    saved = [(animation, dict(vars(animation))) for animation in animations]
+    for animation in animations:
+        if run_time is not None:
+            animation.run_time = run_time
+        if rate_func is not None:
+            animation.rate_func = rate_func
+    try:
+        yield
+    finally:
+        for animation, before in saved:
+            for name in ("run_time", "rate_func"):
+                if name in before:
+                    setattr(animation, name, before[name])
+                else:
+                    vars(animation).pop(name, None)

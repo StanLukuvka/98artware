@@ -14,6 +14,7 @@ from art98.actions import programs
 from art98.actions.keyboard import char_chord, key_chord
 from art98.actions.pointer import BUTTONS
 from art98.anim import *
+from art98.errors import MissingFile
 from art98.guest.bridge import CallResult, Window
 from art98.output import recorder as recorder_module
 
@@ -287,13 +288,13 @@ def test_a_live_play_that_runs_late_warns_once(scene, monkeypatch):
     now = [100.0]
     monkeypatch.setattr(recorder_module.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(recorder_module.time, "sleep", lambda s: None)
-    video_frame = scene.video.frame
+    video_frame = scene.recorder.frame
 
     def slow(hold=1):
         now[0] += 0.1  # capturing takes 0.1 s against 1/30 s
         video_frame(hold)
 
-    scene.video.frame = slow
+    scene.recorder.frame = slow
     with pytest.warns(UserWarning, match="took 1.50 s") as record:
         scene.play(Probe(run_time=0.5, rate_func=linear), live=True)
     assert len(record) == 1 and "slower" in str(record[0].message)
@@ -305,7 +306,7 @@ def test_a_live_play_that_runs_late_warns_once(scene, monkeypatch):
 def test_play_writes_run_time_times_fps_frames_and_ends_at_exactly_1(scene):
     probe = Probe(run_time=0.5, rate_func=linear)
     scene.play(probe)
-    assert scene.video.count == 15
+    assert scene.recorder.count == 15
     assert scene.time == pytest.approx(0.5)
     assert probe.log[0] == "begin" and probe.log[-1] == "finish"
     assert probe.log[-2] == 1.0
@@ -318,7 +319,7 @@ def test_one_play_runs_animations_together_and_short_ones_hold(scene):
         Probe(run_time=0.5, rate_func=linear),
     )
     scene.play(long, short)
-    assert scene.video.count == 30
+    assert scene.recorder.count == 30
     assert short.log.count("finish") == 1
     assert short.log.index(1.0) == 15
     assert long.log[-2] == 1.0
@@ -327,14 +328,14 @@ def test_one_play_runs_animations_together_and_short_ones_hold(scene):
 def test_play_overrides_run_time_and_rate_func(scene):
     probe = Probe()
     scene.play(probe, run_time=0.1, rate_func=lambda t: 0.25)
-    assert scene.video.count == 3
+    assert scene.recorder.count == 3
     assert set(probe.log[1:-1]) == {0.25}
 
 
 def test_an_instant_animation_takes_one_frame(guest, scene):
     pad = notepad(guest, scene)
     scene.play(Minimize(pad))
-    assert scene.video.count == 1
+    assert scene.recorder.count == 1
     assert ("PostMessageA", (0x10, WM_SYSCOMMAND, 0xF020, 0)) in guest.calls
 
 
@@ -348,7 +349,7 @@ def test_play_needs_an_animation(scene):
         scene.play()
 
 
-@pytest.mark.parametrize("how", ["play", "wait", "live", "wait_until"])
+@pytest.mark.parametrize("how", ["play", "wait", "wait_until"])
 def test_a_late_warning_points_at_the_scene_script(scene, monkeypatch, how):
     now = [100.0]
     monkeypatch.setattr(recorder_module.time, "monotonic", lambda: now[0])
@@ -366,12 +367,11 @@ def test_a_late_warning_points_at_the_scene_script(scene, monkeypatch, how):
             now[0] += 0.5
             super().frame(hold)
 
-    scene.video.__class__ = SlowVideo
+    scene.recorder.__class__ = SlowVideo
     scene.output_fps = 10
     calls = {
         "play": lambda: scene.play(Probe(run_time=1, rate_func=linear), live=True),
         "wait": lambda: scene.wait(1),
-        "live": lambda: scene.live(1),
         "wait_until": lambda: scene.wait_until(
             iter([False, False, True, True]).__next__, max_time=1
         ),
@@ -383,21 +383,27 @@ def test_a_late_warning_points_at_the_scene_script(scene, monkeypatch, how):
 
 def test_pause_holds_one_capture(scene):
     scene.pause(2)
-    assert scene.video.frames == [(60, 0, (400, 300))]
+    assert scene.recorder.frames == [(60, 0, (400, 300))]
     assert scene.time == 2
 
 
-def test_wait_records_live_unless_frozen(scene):
+def test_wait_records_live_and_pause_holds_one_capture(scene):
     scene.wait(1)
-    assert scene.video.live_calls == [1]
-    scene.wait(1, frozen_frame=True)
-    assert scene.video.live_calls == [1] and scene.time == 2
+    assert scene.recorder.live_calls == [1]
+    scene.pause(1)
+    assert scene.recorder.live_calls == [1] and scene.time == 2
+
+
+def test_wait_has_no_frozen_frame_and_scene_has_no_live_or_video(scene):
+    with pytest.raises(TypeError):
+        scene.wait(1, frozen_frame=True)
+    assert not hasattr(scene, "live") and not hasattr(scene, "video")
 
 
 def test_wait_stops_on_its_condition(scene):
     answers = iter([False, False, True])
     scene.wait(10, stop_condition=lambda: next(answers))
-    assert scene.video.count == 2
+    assert scene.recorder.count == 2
 
 
 def test_wait_until_warns_when_it_gives_up(scene):
@@ -432,7 +438,7 @@ def test_run_calls_the_hooks_in_order_and_exposes_the_guest(guest):
 def test_succession_starts_each_child_where_the_last_left_off(guest, scene):
     first, second = Glide((100, 100), run_time=0.5), Glide((200, 100), run_time=0.5)
     scene.play(Succession(first, second))
-    assert scene.video.count == 30
+    assert scene.recorder.count == 30
     assert second.start == (100, 100)
     assert guest.cursor == (200, 100)
 
@@ -443,7 +449,7 @@ def test_a_group_with_lag_starts_late(scene):
         Probe(run_time=1, rate_func=linear),
     )
     scene.play(LaggedStart(first, second, lag_ratio=0.5))
-    assert scene.video.count == 45
+    assert scene.recorder.count == 45
     assert first.log[-2] == 1.0 and second.log[-2] == 1.0
 
 
@@ -629,14 +635,14 @@ def test_click_arrives_then_presses_then_releases(guest, scene):
     assert press < release
     assert log[press - 1] == ("SetCursorPos", (500, 400))
     assert guest.cursor == (500, 400)
-    assert scene.video.count == round(Click.run_time * 30)
+    assert scene.recorder.count == round(Click.run_time * 30)
 
 
 def test_press_and_release_land_on_different_frames(guest, scene):
     scene.play(Click((500, 400)))
     press = guest.calls.index(("mouse_event", (LDOWN, 0, 0, 0, 0)))
     release = guest.calls.index(("mouse_event", (LUP, 0, 0, 0, 0)))
-    assert any(press < index <= release for _, index, _ in scene.video.frames)
+    assert any(press < index <= release for _, index, _ in scene.recorder.frames)
 
 
 def test_right_click_uses_the_right_button(guest, scene):
@@ -657,7 +663,7 @@ def test_double_click_is_two_clicks_inside_one_stretch(guest, scene):
     ]
     held = [
         i
-        for i, (_, index, _) in enumerate(scene.video.frames)
+        for i, (_, index, _) in enumerate(scene.recorder.frames)
         if index >= guest.calls.index(("mouse_event", (LDOWN, 0, 0, 0, 0)))
     ]
     last = (
@@ -665,7 +671,7 @@ def test_double_click_is_two_clicks_inside_one_stretch(guest, scene):
         - 1
         - guest.calls[::-1].index(("mouse_event", (LUP, 0, 0, 0, 0)))
     )
-    span = [i for i in held if scene.video.frames[i][1] <= last]
+    span = [i for i in held if scene.recorder.frames[i][1] <= last]
     assert len(span) <= 5  # under 170 ms of video, well inside 500 ms
 
 
@@ -770,7 +776,7 @@ def test_typing_sends_each_letter_to_the_edit_control(guest, scene):
     assert guest.named("SendMessageA") == [
         ("SendMessageA", (0x11, WM_CHAR, code, 1)) for code in (97, 13, 98)
     ]
-    assert scene.video.count == 9
+    assert scene.recorder.count == 9
 
 
 def test_typing_invalidates_the_edit_so_the_frame_shows_the_text(guest, scene):
@@ -787,8 +793,8 @@ def test_typing_invalidates_the_edit_so_the_frame_shows_the_text(guest, scene):
 def test_typing_spreads_letters_over_the_frames(guest, scene):
     pad = notepad(guest, scene)
     scene.play(TypeWithCursor(pad, "abcdef", run_time=0.2))
-    assert [hold for hold, _, _ in scene.video.frames] == [1] * 6
-    indices = [index for _, index, _ in scene.video.frames]
+    assert [hold for hold, _, _ in scene.recorder.frames] == [1] * 6
+    indices = [index for _, index, _ in scene.recorder.frames]
     assert indices == sorted(set(indices))
 
 
@@ -832,7 +838,7 @@ def test_a_character_with_no_key_is_refused():
 def test_keys_press_in_order_on_the_real_keyboard(scene):
     scene.play(Keys("ctrl+a", "delete"))
     assert scene.vm.keys == [("ctrl", "a"), ("delete",)]
-    assert scene.video.count == 15
+    assert scene.recorder.count == 15
 
 
 def test_type_keys_presses_every_character(scene):
@@ -1098,17 +1104,17 @@ def test_star_import_gives_the_scene_api():
 
 
 def test_next_section_cuts_and_labels(scene):
-    scene.video.count = 45
+    scene.recorder.count = 45
     assert scene.next_section("intro") == Path("clip1.mp4")
     assert scene.sections == [("intro", 1.5)]
-    assert scene.video.cuts == [(45, None)]
+    assert scene.recorder.cuts == [(45, None)]
 
 
 @pytest.mark.parametrize("name", ["", "  ", None, 3])
 def test_next_section_needs_a_name(scene, name):
     with pytest.raises(ValueError):
         scene.next_section(name)
-    assert scene.video.cuts == []
+    assert scene.recorder.cuts == []
 
 
 def test_a_scene_without_a_state_is_not_reverted(guest):
@@ -1248,3 +1254,31 @@ def test_render_uses_a_given_session_and_never_closes_it(tmp_path, monkeypatch, 
     session = Given(guest)
     written = Tiny().render(tmp_path / "out.gif", session=session)
     assert written == tmp_path / "out.gif" and not session.closed
+
+
+def test_a_state_file_missing_everywhere_names_both_places(
+    scene, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(MissingFile) as caught:
+        scene._find_state(Path("nope.json"))
+    message = str(caught.value)
+    assert str(Path(__file__).resolve().parent / "nope.json") in message
+    assert str(tmp_path / "nope.json") in message
+
+
+def test_play_overrides_do_not_stick_to_the_animation(scene):
+    plain = Probe()  # run_time and rate_func come from the class
+    own = Probe(run_time=0.5, rate_func=linear)
+    scene.play(plain, own, run_time=2, rate_func=smooth)
+    assert scene.time == 2
+    assert "run_time" not in vars(plain) or plain.run_time == 1.0
+    assert "rate_func" not in vars(plain)
+    assert own.run_time == 0.5 and own.rate_func is linear
+    scene.play(plain)
+    assert scene.time == 3
+
+
+def test_time_before_run_is_a_usage_error():
+    with pytest.raises(UsageError, match="isn't running"):
+        _ = Stage().time

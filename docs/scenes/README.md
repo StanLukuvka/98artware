@@ -102,7 +102,7 @@ The guest runs all the time.
   the taskbar clock and screensavers.
 
 So a `play` is repeatable to the frame, but the guest's own animations depend on how fast the
-host renders. `self.wait` and `self.live` record at host speed for that reason, and `self.pause`
+host renders. `self.wait` records at host speed for that reason, and `self.pause`
 holds a single capture. See [`Scene`](scene-api.md#time).
 
 ## How it differs from Manim

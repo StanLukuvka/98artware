@@ -220,6 +220,16 @@ def test_live_on_time_does_not_warn(session, tmp_path, monkeypatch):
     recorder.close()
 
 
+def test_a_pacer_makes_frame_zero_due_at_once(monkeypatch):
+    now, slept = [50.0], []
+    monkeypatch.setattr(recorder_module.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(recorder_module.time, "sleep", slept.append)
+    pacer = recorder_module.Pacer(10)
+    pacer.wait(0)
+    pacer.wait(3)
+    assert slept == [0.0, pytest.approx(0.3)]
+
+
 # ---- ffmpeg's exit code ----
 
 
@@ -340,7 +350,6 @@ def test_scene_cut_reaches_the_recorder_and_time_counts_every_clip(
 
     scene = Scene()
     scene.recorder = Fake()
-    assert scene.video is scene.recorder
     assert scene.cut("x.mp4") == "closed" and scene.recorder.cuts == ["x.mp4"]
     assert scene.time == pytest.approx(1.5)
 

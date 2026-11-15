@@ -173,8 +173,8 @@ These paths are from the repository's root. The whole sample is
 | Parameter | Meaning |
 | --- | --- |
 | `animations` | One or more. They run together, and shorter ones finish early and hold. |
-| `run_time` | Seconds, overriding each animation's own. |
-| `rate_func` | Overrides each animation's own. |
+| `run_time` | Seconds, overriding each animation's own for this `play` only. |
+| `rate_func` | Overrides each animation's own for this `play` only. |
 | `live` | Follow the host clock, so timers in the guest run at video speed. |
 
 Each frame goes like this: work out every animation's state, apply it to the guest, wait for the
@@ -206,12 +206,11 @@ class Together(Scene):
 | Method | What the guest does | Frames |
 | --- | --- | --- |
 | `pause(duration=1.0)` | Keeps running, unseen | One capture, repeated |
-| `wait(duration=1.0, stop_condition=None, frozen_frame=False)` | Keeps running, seen | Captured at host speed, with no repaint wait |
-| `live(seconds, stop_condition=None)` | Keeps running, seen | Captured at host speed, with no repaint wait |
+| `wait(duration=1.0, stop_condition=None)` | Keeps running, seen | Captured at host speed, with no repaint wait |
 | `wait_until(stop_condition, max_time=60.0)` | Keeps running, seen | Until the condition is true |
 
-Use `pause` for a beat, `wait` to let a caret blink, and `live` for something that moves by
-itself. `wait` is `live` with a default length, and `wait(frozen_frame=True)` is `pause`.
+Use `pause` for a beat, and `wait` to let a caret blink or for something that moves by itself,
+such as a screensaver.
 
 `stop_condition` is a function, tried before each capture. `wait_until` warns if it gives up.
 
@@ -586,7 +585,7 @@ Source: [minesweeper_win.py](../../recipes/scenes/gallery/minesweeper_win.py).
 
 `Screensaver(name="3D Pipes")`
 
-Starts `<name>.scr /s`. Follow it with `self.live(seconds)`, because a screensaver runs by itself.
+Starts `<name>.scr /s`. Follow it with `self.wait(seconds)`, because a screensaver runs by itself.
 `stop(timeout=5.0)` nudges the pointer, which is how a real one is dismissed, and waits for it to
 exit.
 

@@ -439,7 +439,7 @@ and move its callers. Write a `lazy:` comment for a known shortcut, with its lim
 
 | Idea | Status |
 | --- | --- |
-| Updaters (`add_updater`), Manim's render cache, a camera | Not built. `live()` and `wait_until` watch the guest instead; zoom or pan would be a post-process |
+| Updaters (`add_updater`), Manim's render cache, a camera | Not built. `wait` and `wait_until` watch the guest instead; zoom or pan would be a post-process |
 | `FadeIn`, `FadeOut` | Not possible honestly: Windows 98 has no window opacity |
 | Holding the desktop after a render so more actions can run without a restore | Designed in [state and action](state-and-action.md#holding), not built. The VM is paused at the last frame, and the next attach reverts |
 | `--section` | Not built; sits on top of `next_section` |
