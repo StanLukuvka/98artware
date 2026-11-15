@@ -211,7 +211,7 @@ Both full runs logged took three boots:
 `SETUP_BOOTS`, 8, caps the loop. The comment on it says Setup restarts the machine
 a few times on its own.
 
-During each boot, `_wait_for_agent` loops until one of three things happens: the
+During each boot, `wait_for_agent` loops until one of three things happens: the
 agent says `HELLO`, the guest reboots, or a limit is hit. Every `SHOT_INTERVAL`, 30
 seconds, it:
 
@@ -295,7 +295,7 @@ Boots `golden.qcow2` once, as `ready` will, and checks the agent comes up on its
 
 **Outputs:** `golden.qcow2` with Windows shut down cleanly. Shots are `init_api-*`.
 
-**Inside:** `_require_agent` waits for `HELLO` from `AGENT.EXE`, up to 15 minutes,
+**Inside:** `require_agent` waits for `HELLO` from `AGENT.EXE`, up to 15 minutes,
 still answering prompts, then `bridge.wait_ready()` gets a `PING` reply with the
 right protocol version. `_reboot` then shuts Windows down with `ExitWindowsEx`.
 
@@ -321,7 +321,7 @@ this is where any future blank-start settings go.
 
 First VM:
 
-1. `_require_agent` waits for `HELLO`, up to 15 minutes, still answering prompts.
+1. `require_agent` waits for `HELLO`, up to 15 minutes, still answering prompts.
    Shots are `harden-*`.
 2. `apply_settings` writes every entry in `HARDEN_SETTINGS` over the bridge, then
    empties the `RUN_KEYS` except for the names in `KEPT_RUN_VALUES`.
@@ -331,7 +331,7 @@ First VM:
 
 Second VM:
 
-5. `_require_agent` again. Shots are `reboot-*`.
+5. `require_agent` again. Shots are `reboot-*`.
 6. `wait_for_quiet_screen` waits until `shots/ready.png` has not changed for
    `SETTLE_SECONDS`, 30 seconds, so startup has finished. It compares a hash of
    the screenshot.

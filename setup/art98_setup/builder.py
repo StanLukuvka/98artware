@@ -81,7 +81,7 @@ def install_hints(tools: list[str]) -> list[tuple[str, str, list[str]]]:
     ]
 
 
-def _run(*args, **kwargs) -> subprocess.CompletedProcess:
+def run_command(*args, **kwargs) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(args, check=True, capture_output=True, **kwargs)
     except subprocess.CalledProcessError as error:
@@ -94,8 +94,8 @@ def _mtools_env() -> dict:
     return {**os.environ, "MTOOLS_SKIP_CHECK": "1"}
 
 
-def _mtool(*args, **kwargs) -> subprocess.CompletedProcess:
-    return _run(*args, env=_mtools_env(), **kwargs)
+def mtool(*args, **kwargs) -> subprocess.CompletedProcess:
+    return run_command(*args, env=_mtools_env(), **kwargs)
 
 
 def disk_spec(path: Path) -> str:
@@ -236,7 +236,7 @@ class Setup:
 
     # helpers
 
-    def _config(self, **overrides) -> VMConfig:
+    def config(self, **overrides) -> VMConfig:
         # In the container there is no window to open: compose.yaml sets VNC.
         display = os.environ.get("ART98_WATCH_DISPLAY", "gtk") if self.watch else "none"
         return VMConfig(
@@ -245,17 +245,17 @@ class Setup:
 
     def _machine(self) -> str:
         """Pin the machine version: snapshots only load on the one they came from."""
-        output = _run(QEMU_BINARY, "-machine", "help", text=True).stdout
+        output = run_command(QEMU_BINARY, "-machine", "help", text=True).stdout
         for line in output.splitlines():
             name, *_rest = line.split()
             if name == "pc" and "alias" in line:
                 return line.split("alias of")[1].split(")")[0].strip()
         raise SetupError("could not determine the default QEMU machine type")
 
-    def _vm_log(self) -> Path:
+    def vm_log(self) -> Path:
         return self.work / "qemu.log"
 
-    def _wait_for_agent(
+    def wait_for_agent(
         self,
         vm: VM,
         bridge: Bridge,
@@ -301,14 +301,14 @@ class Setup:
             if now > deadline:
                 raise SetupError(f"{label} did not finish; last screen: {shot}")
 
-    def _require_agent(self, vm: VM, bridge: Bridge, label: str) -> None:
-        if not self._wait_for_agent(vm, bridge, label, 15 * 60):
+    def require_agent(self, vm: VM, bridge: Bridge, label: str) -> None:
+        if not self.wait_for_agent(vm, bridge, label, 15 * 60):
             raise SetupError(
                 f"the guest rebooted during {label} before the agent started"
             )
         bridge.wait_ready()
 
-    def _reboot(self, vm: VM, bridge: Bridge) -> None:
+    def reboot(self, vm: VM, bridge: Bridge) -> None:
         """Shut Windows down. The call never returns, so it runs on its own thread."""
         bridge.acall("user32", "ExitWindowsEx", EWX_REBOOT | EWX_FORCE, 0)
         if not vm.wait_exit(SHUTDOWN_TIMEOUT):

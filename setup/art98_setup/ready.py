@@ -97,20 +97,20 @@ def wait_for_quiet_screen(setup: Setup, vm: VM, label: str) -> None:
 
 
 def harden(setup: Setup) -> None:
-    config = setup._config()
+    config = setup.config()
     with (
-        VM(config, log=setup._vm_log()) as vm,
+        VM(config, log=setup.vm_log()) as vm,
         Bridge.connect(vm.serial_path) as bridge,
     ):
-        setup._require_agent(vm, bridge, "harden")
+        setup.require_agent(vm, bridge, "harden")
         apply_settings(bridge)
         set_display_mode(bridge, *DISPLAY_MODE)
-        setup._reboot(vm, bridge)
+        setup.reboot(vm, bridge)
     with (
-        VM(config, log=setup._vm_log()) as vm,
+        VM(config, log=setup.vm_log()) as vm,
         Bridge.connect(vm.serial_path) as bridge,
     ):
-        setup._require_agent(vm, bridge, "reboot")
+        setup.require_agent(vm, bridge, "reboot")
         wait_for_quiet_screen(setup, vm, "ready")
         verify_desktop(bridge)
         vm.pause()
@@ -121,6 +121,7 @@ def harden(setup: Setup) -> None:
 
 
 def run(setup: Setup) -> None:
+    """The step entry point: Setup imports this module and calls run(setup) by name."""
     harden(setup)
 
 
