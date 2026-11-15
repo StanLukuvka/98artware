@@ -137,6 +137,11 @@ def colourref(rgb) -> int:
     return rgb[0] | rgb[1] << 8 | rgb[2] << 16
 
 
+def rgb(colourref: int) -> tuple[int, int, int]:
+    """The (r, g, b) in a Win32 COLORREF: the reverse of `colourref`."""
+    return colourref & 255, colourref >> 8 & 255, colourref >> 16 & 255
+
+
 def set_colour(guest, rgb) -> None:
     """Set the desktop colour. On a blank desktop the change shows the icons again, so hide them again.
 

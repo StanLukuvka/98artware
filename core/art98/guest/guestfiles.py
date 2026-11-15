@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import os
 import struct
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..errors import Art98Error, UsageError
@@ -104,17 +105,30 @@ def viewer() -> bytes:
     return path.read_bytes()
 
 
-def check_bmp(data: bytes, source: str = "image") -> tuple[int, int]:
-    """Return a BMP's (width, height), or raise UsageError if it isn't one Windows 98 can load."""
+@dataclass(frozen=True)
+class BmpHeader:
+    """What a BMP's header says. `height` is negative for a top-down image; `pixels` is the
+    offset of the pixel data and `palette` the offset of the colour table."""
+
+    width: int
+    height: int
+    depth: int
+    compression: int
+    pixels: int
+    palette: int
+
+
+def read_bmp_header(data: bytes, source: str = "image") -> BmpHeader:
+    """Read a BMP's header, or raise UsageError if it isn't one Windows 98 can load."""
     if len(data) < 26 or data[:2] != b"BM":
         raise UsageError(f"{source} is not a BMP file")
-    header = struct.unpack_from("<I", data, 14)[0]
-    if header not in BMP_HEADER_SIZES or len(data) < 14 + header:
+    size = struct.unpack_from("<I", data, 14)[0]
+    if size not in BMP_HEADER_SIZES or len(data) < 14 + size:
         raise UsageError(
-            f"{source} has a BMP header Windows 98 can't read (size {header})"
+            f"{source} has a BMP header Windows 98 can't read (size {size})"
         )
     compression = 0
-    if header == 12:
+    if size == 12:
         width, height, _, depth = struct.unpack_from("<HHHH", data, 18)
     else:
         width, height, _, depth, compression = struct.unpack_from("<iiHHI", data, 18)
@@ -133,7 +147,13 @@ def check_bmp(data: bytes, source: str = "image") -> tuple[int, int]:
         )
     if pixels >= len(data):
         raise UsageError(f"{source} is cut short: its pixels would start past the end")
-    return width, abs(height)
+    return BmpHeader(width, height, depth, compression, pixels, 14 + size)
+
+
+def check_bmp(data: bytes, source: str = "image") -> tuple[int, int]:
+    """Return a BMP's (width, height), or raise UsageError if it isn't one Windows 98 can load."""
+    header = read_bmp_header(data, source)
+    return header.width, abs(header.height)
 
 
 def check_text(data: bytes, source: str = "text") -> bytes:

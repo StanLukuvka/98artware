@@ -9,17 +9,16 @@ any difference. Anything the state leaves out isn't checked.
 
 from __future__ import annotations
 
-import struct
-
 from ..actions.apps import APPS
 from ..desktop import (
     colourref,
+    rgb,
     set_colour,
     set_wallpaper,
     wait_for_disc,
 )
 from ..errors import GuestError
-from ..guest.guestfiles import check_bmp
+from ..guest.guestfiles import check_bmp, read_bmp_header
 from ..guest.win32 import (
     BITSPIXEL,
     COLOR_DESKTOP,
@@ -40,6 +39,9 @@ DISC_NAME = "WALL0001.BMP"  # the one file name on the wallpaper disc
 # lazy: only 16, 24 and 32 bpp have a tolerance. Upgrade path: for a palette depth,
 # look the expected colour up in the system palette and compare that.
 PIXEL_TOLERANCE = {16: 12, 24: 2, 32: 2}
+# The wallpaper sample sits at least this many pixels above `bottom`, the work area's
+# bottom edge, so it is clear of the taskbar. Not a colour tolerance.
+TASKBAR_MARGIN = 12
 
 
 class StateMismatch(GuestError):
@@ -96,22 +98,25 @@ def apply_state(scene, state: State) -> dict:
 def bmp_pixel(data: bytes, x: int, y: int):
     """The (r, g, b) at column x, row y (from the top) of an uncompressed 24 or 8 bpp BMP, else None.
 
+    None too for a point outside the image.
+
     lazy: RLE (compression != 0), OS/2 12-byte headers and other depths aren't decoded,
     so check_state skips the pixel check for them. Upgrade path: decode those here.
     """
-    pixels, header = struct.unpack_from("<II", data, 10)
-    if header < 40:
+    header = read_bmp_header(data)
+    height = abs(header.height)
+    if not (0 <= x < header.width and 0 <= y < height):
         return None
-    width, height, _, depth, compression = struct.unpack_from("<iiHHI", data, 18)
-    if compression != 0:
+    if header.palette < 14 + 40 or header.compression != 0:
         return None
-    row = (width * depth + 31) // 32 * 4
-    line = abs(height) - 1 - y if height > 0 else y
+    row = (header.width * header.depth + 31) // 32 * 4
+    line = height - 1 - y if header.height > 0 else y
+    at = header.pixels + line * row
     try:
-        if depth == 24:
-            b, g, r = data[pixels + line * row + x * 3 :][:3]
-        elif depth == 8:
-            b, g, r = data[14 + header + data[pixels + line * row + x] * 4 :][:3]
+        if header.depth == 24:
+            b, g, r = data[at + x * 3 :][:3]
+        elif header.depth == 8:
+            b, g, r = data[header.palette + data[at + x] * 4 :][:3]
         else:
             return None
     except (IndexError, ValueError):  # a short palette or pixel area
@@ -128,7 +133,7 @@ def wallpaper_sample(state: State, width: int, height: int, bottom: int):
         (3 * width // 4, height // 4),
         (width // 4, 3 * height // 4),
     ):
-        y = min(y, bottom - 12)  # above the taskbar: `bottom` is the work area's
+        y = min(y, bottom - TASKBAR_MARGIN)
         if not any(
             w.show == "maximized"
             or (
@@ -141,20 +146,45 @@ def wallpaper_sample(state: State, width: int, height: int, bottom: int):
     return None
 
 
-def expected_pixel(
+def expected_pixels(
     desk, screen: tuple[int, int], colour: tuple[int, int, int], x: int, y: int
 ):
-    """What a wallpaper in `desk.style` puts at screen (x, y), or None if it can't be told."""
+    """The colours a wallpaper in `desk.style` may put at screen (x, y), best guess first, or None if it can't be told.
+
+    Tile is exact. Stretch and center guess which BMP pixel lands on the point, and
+    Windows may round differently, so the 3x3 pixels around the guess all count. A
+    center point on or next to the image's edge may also show the fill colour.
+    """
     data = desk.wallpaper.data
     width, height = check_bmp(data)
     if desk.style == "tile":
-        return bmp_pixel(data, x % width, y % height)
+        guess = bmp_pixel(data, x % width, y % height)
+        return None if guess is None else [guess]
     if desk.style == "stretch":
-        return bmp_pixel(data, x * width // screen[0], y * height // screen[1])
-    left, top = (screen[0] - width) // 2, (screen[1] - height) // 2
-    if 0 <= x - left < width and 0 <= y - top < height:
-        return bmp_pixel(data, x - left, y - top)
-    return colour
+        gx, gy = x * width // screen[0], y * height // screen[1]
+    else:
+        gx, gy = x - (screen[0] - width) // 2, y - (screen[1] - height) // 2
+    if desk.style == "center" and not (-1 <= gx <= width and -1 <= gy <= height):
+        return [colour]
+    wanted = []
+    if desk.style == "center" and not (0 <= gx < width and 0 <= gy < height):
+        wanted.append(colour)
+    points = [(gx, gy)] + [
+        (gx + dx, gy + dy) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dx or dy
+    ]
+    for px, py in points:
+        if desk.style == "stretch":
+            px, py = min(max(px, 0), width - 1), min(max(py, 0), height - 1)
+        elif not (0 <= px < width and 0 <= py < height):
+            if colour not in wanted:
+                wanted.append(colour)
+            continue
+        pixel = bmp_pixel(data, px, py)
+        if pixel is None:
+            return None
+        if pixel not in wanted:
+            wanted.append(pixel)
+    return wanted
 
 
 def check_state(guest, space, state: State, props: dict) -> None:
@@ -243,17 +273,16 @@ def wallpaper_problem(guest, state: State, desk, bottom: int) -> str | None:
     if point is None:
         return None
     colour = guest.user32.GetSysColor(COLOR_DESKTOP).value & 0xFFFFFF
-    want = expected_pixel(
-        desk, screen, (colour & 255, colour >> 8 & 255, colour >> 16), *point
-    )
-    if want is None:
+    wanted = expected_pixels(desk, screen, rgb(colour), *point)
+    if wanted is None:
         return None
     dc = guest.user32.GetDC(0).value
     try:
-        got = guest.gdi32.GetPixel(dc, *point).value & 0xFFFFFF
+        got = rgb(guest.gdi32.GetPixel(dc, *point).value & 0xFFFFFF)
     finally:
         guest.user32.ReleaseDC(0, dc)
-    got = (got & 255, got >> 8 & 255, got >> 16)
-    if any(abs(g - w) > tolerance for g, w in zip(got, want)):
-        return f"desktop.wallpaper: pixel {list(point)} should be about {list(want)}, the guest has {list(got)}"
+    if not any(
+        all(abs(g - w) <= tolerance for g, w in zip(got, want)) for want in wanted
+    ):
+        return f"desktop.wallpaper: pixel {list(point)} should be about {list(wanted[0])}, the guest has {list(got)}"
     return None
