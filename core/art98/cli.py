@@ -13,8 +13,8 @@ from . import freshness, service
 from .bridge import READY_TIMEOUT
 from .container.host import ENGINE
 from .errors import Art98Error
+from .gif import GIF_COLORS, GIF_DITHER, GIF_FPS, GIF_SCALE
 from .guestfiles import guest_build
-from .recorder import GIF_COLORS, GIF_DITHER, GIF_FPS, GIF_SCALE
 from .settings import CONTAINER_CONTROL_PORT, CONTAINER_VNC_PORT, load
 
 KEY_SECRET_FILE = Path(
@@ -310,21 +310,25 @@ def main(argv: list[str] | None = None) -> int:
     command.add_argument("--gif", type=Path, help="write a GIF as well")
     command.add_argument("--work", type=Path, default=None, help=WORK_HELP)
     command.add_argument(
-        "--gif-fps", type=int, default=GIF_FPS, help="GIF frames per second"
+        "--gif-fps", type=int, help=f"GIF frames per second (default {GIF_FPS})"
     )
     command.add_argument(
-        "--gif-colors", type=int, default=GIF_COLORS, help="GIF palette size"
+        "--gif-colors", type=int, help=f"GIF palette size (default {GIF_COLORS})"
     )
     command.add_argument(
         "--gif-scale",
         type=float,
-        default=GIF_SCALE,
-        help="GIF size relative to the video (0.5 = half width and height)",
+        help=(
+            "GIF size relative to the video, 0.5 = half width and height "
+            f"(default {GIF_SCALE})"
+        ),
     )
     command.add_argument(
         "--gif-dither",
-        default=GIF_DITHER,
-        help="ffmpeg paletteuse dither: none, bayer, sierra2_4a...",
+        help=(
+            "ffmpeg paletteuse dither: none, bayer, sierra2_4a... "
+            f"(default {GIF_DITHER})"
+        ),
     )
     _wait_option(command)
     command.set_defaults(run=_guarded(cmd_render))

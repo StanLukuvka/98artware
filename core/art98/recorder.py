@@ -1,4 +1,4 @@
-"""The recorder: frames to video clips, cuts between them, and the GIF defaults."""
+"""The recorder: frames to video clips and cuts between them."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import time
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
@@ -19,16 +19,13 @@ if TYPE_CHECKING:
     from .session import Session
 
 
-# The libx264 settings for every MP4 art98 writes.
-H264 = ["-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-crf", "12"]
-FFV1 = ["-c:v", "ffv1", "-pix_fmt", "bgr0"]
+# The libx264 settings for every MP4 art98 writes. No reason for crf 12 or
+# veryfast is recorded in the history or the docs. What is recorded is the
+# cost: about 10 to 14 KB a second at crf 12, against 1.5 to 2.2 MB for FFV1.
+H264 = ("-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-crf", "12")
+FFV1 = ("-c:v", "ffv1", "-pix_fmt", "bgr0")
 
-# The GIF defaults, here so the command line can read them without loading the
-# animation package.
-GIF_FPS = 15
-GIF_SCALE = 1.0
-GIF_DITHER = "none"
-GIF_COLORS = 128
+NO_FFMPEG = "ffmpeg isn't on PATH: install it (`art98 doctor` lists the packages)"
 
 # The container a lossless clip is written in, whatever suffix it was given:
 # FFV1 doesn't go in MP4.
@@ -46,12 +43,12 @@ def part_path(path: Path) -> Path:
 
 def require_ffmpeg() -> None:
     if shutil.which("ffmpeg") is None:
-        raise RecorderError(
-            "ffmpeg isn't on PATH: install it (`art98 doctor` lists the packages)"
-        )
+        raise RecorderError(NO_FFMPEG)
 
 
-def run_ffmpeg(args: list[str], output: Path, what: str, stage: bool = False) -> Path:
+def run_ffmpeg(
+    args: Sequence[str], output: Path, what: str, stage: bool = False
+) -> Path:
     """Run ffmpeg into a part file and rename it once ffmpeg exited 0.
 
     With stage, the part file is left in place and returned: the caller
@@ -68,9 +65,7 @@ def run_ffmpeg(args: list[str], output: Path, what: str, stage: bool = False) ->
             text=True,
         )
     except FileNotFoundError:
-        raise RecorderError(
-            "ffmpeg isn't on PATH: install it (`art98 doctor`)"
-        ) from None
+        raise RecorderError(NO_FFMPEG) from None
     if result.returncode != 0:
         part.unlink(missing_ok=True)
         raise RecorderError(
@@ -90,12 +85,16 @@ def ppm_size(data: bytes) -> tuple[int, int]:
     return int(fields[1]), int(fields[2])
 
 
-def warn_if_late(count: int, output_fps: float, started: float) -> None:
+def warn_if_late(
+    count: int, output_fps: float, started: float, stacklevel: int = 1
+) -> None:
     """Warn once if `count` frames paced by the host clock since `started` (a
     `time.monotonic()` reading) ended more than a frame later than they should.
 
     A stretch that runs late stretches what the guest times for itself, so
     caret blinks and screensavers look slower in the video than they were.
+    `stacklevel` counts from the caller of this function (1 is that caller), so
+    the warning can point at the scene author's line.
     """
     planned = count / output_fps
     took = time.monotonic() - started
@@ -104,7 +103,7 @@ def warn_if_late(count: int, output_fps: float, started: float) -> None:
             f"a live stretch meant to take {planned:.2f} s took {took:.2f} s: "
             "capturing is slower than the frame rate, so guest-timed motion in it "
             "will look slower in the video",
-            stacklevel=3,
+            stacklevel=stacklevel + 1,
         )
 
 
@@ -161,13 +160,17 @@ class Recorder:
         self._capture(hold)
 
     def live(
-        self, seconds: float, stop_condition: Callable[[], bool] | None = None
+        self,
+        seconds: float,
+        stop_condition: Callable[[], bool] | None = None,
+        stacklevel: int = 1,
     ) -> None:
         """Record something that moves by itself, such as a screensaver.
 
         Frames follow the host's clock and skip the sync, so this stretch of
         video does depend on how fast the host runs. stop_condition, if given,
-        is checked before each frame and ends the stretch early.
+        is checked before each frame and ends the stretch early. A late-capture
+        warning points `stacklevel` frames up from here (1 is the caller).
         """
         start = time.monotonic()
         taken = 0
@@ -177,7 +180,7 @@ class Recorder:
             time.sleep(max(0.0, start + index / self._output_fps - time.monotonic()))
             self._capture(1)
             taken += 1
-        warn_if_late(taken, self._output_fps, start)
+        warn_if_late(taken, self._output_fps, start, stacklevel + 1)
 
     def _capture(self, hold: int) -> None:
         self._session.vm.screenshot(self._frame, format="ppm")
@@ -327,9 +330,7 @@ class Recorder:
         except FileNotFoundError:
             self._log.close()
             self._log = None
-            raise RecorderError(
-                "ffmpeg isn't on PATH: install it (`art98 doctor`)"
-            ) from None
+            raise RecorderError(NO_FFMPEG) from None
 
     def _finish(self, first_is_numbered: bool = False) -> Path | None:
         """End the current clip's ffmpeg and file its part under clips.

@@ -161,7 +161,7 @@ class FakeVideo:
         self.cuts.append((self.count, path))
         return Path(f"clip{len(self.cuts)}.mp4")
 
-    def live(self, seconds, stop_condition=None):
+    def live(self, seconds, stop_condition=None, stacklevel=1):
         self.live_calls.append(seconds)
         for _ in range(round(seconds * 30)):
             if stop_condition is not None and stop_condition():
@@ -346,6 +346,39 @@ def test_two_pointer_animations_in_one_play_are_refused(scene):
 def test_play_needs_an_animation(scene):
     with pytest.raises(ValueError):
         scene.play()
+
+
+@pytest.mark.parametrize("how", ["play", "wait", "live", "wait_until"])
+def test_a_late_warning_points_at_the_scene_script(scene, monkeypatch, how):
+    now = [100.0]
+    monkeypatch.setattr(recorder_module.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(recorder_module.time, "sleep", lambda s: None)
+
+    class SlowVideo(FakeVideo):
+        live = recorder_module.Recorder.live  # the real one, on a fake
+        _output_fps = 10
+
+        def _capture(self, hold):
+            now[0] += 0.5  # half a second a frame against 0.1 s planned
+            self.count += hold
+
+        def frame(self, hold=1):
+            now[0] += 0.5
+            super().frame(hold)
+
+    scene.video.__class__ = SlowVideo
+    scene.output_fps = 10
+    calls = {
+        "play": lambda: scene.play(Probe(run_time=1, rate_func=linear), live=True),
+        "wait": lambda: scene.wait(1),
+        "live": lambda: scene.live(1),
+        "wait_until": lambda: scene.wait_until(
+            iter([False, False, True, True]).__next__, max_time=1
+        ),
+    }
+    with pytest.warns(UserWarning, match="slower") as record:
+        calls[how]()
+    assert [w.filename for w in record] == [__file__]
 
 
 def test_pause_holds_one_capture(scene):
