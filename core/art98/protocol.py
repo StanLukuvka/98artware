@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .errors import Art98Error
+
 ENCODING = "cp1252"
 PROTOCOL_VERSION = 1
 
 
-class FrameError(ValueError):
+class FrameError(Art98Error, ValueError):
     """A line did not carry a valid checksum."""
 
 

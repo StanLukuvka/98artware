@@ -143,8 +143,11 @@ Formatting is ruff's: `uv run ruff format core setup tools`.
   subclassing `Win`, never in a shared grab-bag module.
 - Props mirror the guest; the guest is the truth. Read back before acting (`refresh`), and
   check after (`check_state`, the placement read-back). Don't cache what Windows can change.
-- Errors a user can cause get their own exception class with a message that says what to do,
-  and are added to `RUN_ERRORS` in `cli.py` so the CLI prints one `error:` line.
+- Errors a user can cause get their own exception class with a message that says what to do.
+  Every error art98 raises on purpose inherits `Art98Error` from `art98/errors.py` (with its
+  built-in base second, `class X(Art98Error, ValueError)`), which is how the CLI prints one
+  `error:` line; `test_errors.py` fails on one that doesn't. A plain `ValueError` for a
+  programming mistake keeps its traceback.
 - Write about measured behaviour: a comment or docstring that states a Windows 98 fact says it
   was checked on the real image, or doesn't state it.
 

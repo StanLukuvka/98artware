@@ -34,6 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .desktop import STYLES
+from .errors import Art98Error
 from .guestfiles import check_bmp, check_text, name_problem, title_problem
 
 VERSION = 1
@@ -61,7 +62,7 @@ def programs() -> tuple[str, ...]:
     return tuple(APPS)
 
 
-class StateError(ValueError):
+class StateError(Art98Error, ValueError):
     """A state file that can't be used, with every problem found in it."""
 
     def __init__(self, path: Path | str, problems: list[str]):

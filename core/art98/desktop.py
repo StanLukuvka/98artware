@@ -32,6 +32,7 @@ from __future__ import annotations
 import struct
 import time
 
+from .errors import Art98Error
 from .protocol import Out
 from .win32 import (
     COLOR_DESKTOP,
@@ -92,7 +93,7 @@ POINTER_SHAPES = (
 POINTER_SIZE = 32
 
 
-class DesktopError(RuntimeError):
+class DesktopError(Art98Error, RuntimeError):
     """The guest didn't end up blank."""
 
     def __init__(self, problems: list[str], lead: str = "the desktop isn't blank:"):

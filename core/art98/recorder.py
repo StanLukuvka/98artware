@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
 from .base.units import frames
+from .errors import Art98Error
 
 if TYPE_CHECKING:
     from .session import Session
@@ -34,7 +35,7 @@ GIF_COLORS = 128
 LOSSLESS_SUFFIX = ".mkv"
 
 
-class RecorderError(RuntimeError):
+class RecorderError(Art98Error, RuntimeError):
     """ffmpeg failed, or the frames can't go in one clip."""
 
 

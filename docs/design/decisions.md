@@ -402,7 +402,7 @@ that matters. The scene line points at the user's own code. Stale builds caused 
 failures, so they are flagged before a render.
 
 **For new work.** Give a user-facing failure its own exception class with a message that says
-what to do next (for example "run `art98 vm start`"), and add it to `RUN_ERRORS` in `cli.py`.
+what to do next (for example "run `art98 vm start`"), and make it inherit `Art98Error` (`art98/errors.py`), which `cli.py` catches. `test_errors.py` fails on an error that doesn't.
 `test_cli.py` checks the exact stderr.
 
 ## 18. Measure on the real image, keep the probes

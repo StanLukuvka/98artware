@@ -10,16 +10,12 @@ import traceback
 from pathlib import Path
 
 from . import freshness, service
-from .bridge import READY_TIMEOUT, BridgeError
-from .container.host import ENGINE, ContainerError
-from .desktop import DesktopError
-from .guestfiles import GuestBuildMissing, guest_build
-from .qemu import QemuError
-from .recorder import GIF_COLORS, GIF_DITHER, GIF_FPS, GIF_SCALE, RecorderError
-from .service import ServiceError
-from .session import ImageMissing
-from .settings import CONTAINER_CONTROL_PORT, CONTAINER_VNC_PORT, SettingsError, load
-from .state import StateError
+from .bridge import READY_TIMEOUT
+from .container.host import ENGINE
+from .errors import Art98Error
+from .guestfiles import guest_build
+from .recorder import GIF_COLORS, GIF_DITHER, GIF_FPS, GIF_SCALE
+from .settings import CONTAINER_CONTROL_PORT, CONTAINER_VNC_PORT, load
 
 KEY_SECRET_FILE = Path(
     "/run/secrets/art98_key"
@@ -91,7 +87,7 @@ def _product_key(args) -> str | None:
 
 
 def cmd_setup(args) -> int:
-    from art98_setup.builder import Setup, SetupError
+    from art98_setup.builder import Setup
 
     key = _product_key(args)
     work = load(work=args.work).work_dir
@@ -103,27 +99,9 @@ def cmd_setup(args) -> int:
         disk_mb=args.disk_mb,
         watch=args.watch or bool(os.environ.get(VNC_ENV)),
     )
-    try:
-        tool.run(args.from_stage)
-    except SetupError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
+    tool.run(args.from_stage)
     print(f"Ready: {work}")
     return 0
-
-
-RUN_ERRORS = (
-    ImageMissing,
-    ContainerError,
-    RecorderError,
-    StateError,
-    DesktopError,
-    BridgeError,
-    QemuError,
-    GuestBuildMissing,
-    ServiceError,
-    SettingsError,
-)
 
 
 def _scene_frame(error: BaseException, path: Path) -> str:
@@ -146,7 +124,7 @@ def _guarded(run, extra: tuple = ()):
         except KeyboardInterrupt:
             print("interrupted", file=sys.stderr)
             return 130
-        except (*RUN_ERRORS, *extra) as error:
+        except (Art98Error, *extra) as error:
             if os.environ.get("ART98_TRACE"):
                 raise
             where = getattr(error, "art98_where", "")
@@ -212,7 +190,7 @@ def cmd_render(args) -> int:
                 gif_dither=args.gif_dither,
                 session=session,
             )
-    except RUN_ERRORS as error:
+    except Art98Error as error:
         error.art98_where = _scene_frame(error, args.file)
         raise
     print(f"Wrote {written}" + (f" and {args.gif}" if args.gif else ""))
