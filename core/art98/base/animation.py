@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from itertools import pairwise
 
+from ..errors import UsageError
 from .props import Box, Prop, point_of
 from .rate_functions import linear, smooth
 from .units import clamp, distance, lerp
@@ -113,7 +114,7 @@ class AnimationGroup(Animation):
     ):
         super().__init__(run_time=run_time, rate_func=rate_func)
         if lag_ratio < 0:
-            raise ValueError(f"lag_ratio {lag_ratio} is negative; use 0 or more")
+            raise UsageError(f"lag_ratio {lag_ratio} is negative; use 0 or more")
         self.animations = animations
         self.lag_ratio = lag_ratio
         self._spans: list[tuple[float, float]] = []
@@ -135,7 +136,7 @@ class AnimationGroup(Animation):
                 a, b = self._spans[i], self._spans[j]
                 shared = set(first.claims) & set(second.claims)
                 if shared and a[0] < b[1] and b[0] < a[1]:
-                    raise ValueError(
+                    raise UsageError(
                         f"two animations in a group both drive the {shared.pop()}"
                     )
 
@@ -202,7 +203,7 @@ def path_function(path) -> Callable[[float], tuple[float, float]]:
         return path
     points = [point_of(p) for p in path]
     if len(points) < 2:
-        raise ValueError("a path needs at least two points")
+        raise UsageError("a path needs at least two points")
     lengths = [distance(a, b) for a, b in pairwise(points)]
     total = sum(lengths) or 1.0
 

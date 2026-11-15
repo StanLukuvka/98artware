@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ...base.animation import Instant
 from ...base.vectors import ORIGIN
+from ...errors import UsageError
 from ...win32 import (  # noqa: F401
     SC_MAXIMIZE,
     SC_MINIMIZE,
@@ -71,7 +72,7 @@ class Teleport(Instant):
         **kwargs,
     ):
         if to is None and size is None:
-            raise ValueError("Teleport needs somewhere to go, a size, or both")
+            raise UsageError("Teleport needs somewhere to go, a size, or both")
         super().__init__(target, **kwargs)
         self.claims = target.claims
         self.to, self.aligned_edge, self.new_size = to, aligned_edge, size

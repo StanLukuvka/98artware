@@ -6,6 +6,7 @@ import time
 
 from ...base.vectors import Vec
 from ...bridge import BridgeTimeout
+from ...errors import UsageError
 from ..window.win import Win
 
 
@@ -33,7 +34,7 @@ class Screensaver(Win):
 
     def __init__(self, name: str = "3D Pipes"):
         if name not in self.NAMES:
-            raise ValueError(
+            raise UsageError(
                 f"no screensaver {name!r}; the image has {', '.join(self.NAMES)}"
             )
         super().__init__(command=f'"C:\\WINDOWS\\SYSTEM\\{name}.scr" /s')

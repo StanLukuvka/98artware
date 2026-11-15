@@ -136,8 +136,10 @@ Windows won't make a window smaller than 112 x 27, so `"size": [40, 20]` stops w
 Every error art98 raises on purpose (`StateError`, `PlacementError`, `RecorderError`, `BridgeError`
 and the rest) inherits `art98.Art98Error`, so `except art98.Art98Error` catches them all. Each
 also keeps its built-in base, so `except ValueError`, `RuntimeError` and `FileNotFoundError` still
-work. The `art98` command prints any of them as one `error:` line. A plain `ValueError` from a
-mistake in your own scene is not an `Art98Error` and keeps its traceback.
+work. The `art98` command prints any of them as one `error:` line. A mistake in what your scene
+passes to art98, such as an empty `play()` or an unknown icon name, raises `art98.UsageError`
+(a `ValueError`), and a name that isn't there raises `art98.NotFound` (a `KeyError`). A plain
+exception from your own code, or a plain one from art98, keeps its traceback.
 
 The wallpaper reaches the guest on a CD in drive D:, not through `put_file`, so a 1.4 MB BMP
 costs under a second (see [Desktop colour and wallpaper](#desktop-colour-and-wallpaper)).

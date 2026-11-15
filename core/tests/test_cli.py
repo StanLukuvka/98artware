@@ -94,6 +94,30 @@ def test_error_names_the_scene_line(monkeypatch, capsys, tmp_path):
     )
 
 
+EMPTY_PLAY_SCENE = (
+    "from art98.anim import Scene\n\n\n"
+    "class Demo(Scene):\n"
+    "    def construct(self):\n"
+    "        self.play()\n"
+)
+
+
+def test_a_scene_authors_mistake_is_one_line_at_the_scene_line(
+    monkeypatch, capsys, tmp_path
+):
+    path = tmp_path / "scene.py"
+    path.write_text(EMPTY_PLAY_SCENE)
+
+    def render(scene, *args, **kwargs):
+        scene().construct()
+
+    monkeypatch.setattr("art98.anim.render", render)
+    assert cli.main(["render", str(path)]) == 1
+    assert capsys.readouterr().err == (
+        "error: play needs at least one animation (scene.py:6, in construct)\n"
+    )
+
+
 def test_error_outside_the_scene_is_unchanged(monkeypatch, capsys, scene):
     fail_with(monkeypatch, BridgeTimeout("slow"))
     assert cli.main(["render", str(scene)]) == 1

@@ -6,6 +6,7 @@ import struct
 from typing import ClassVar
 
 from ... import win32
+from ...errors import UsageError
 from ...win32 import GWL_STYLE, MB_ICONINFORMATION, SS_ICON, STM_SETICON
 from ..window.win import Win
 
@@ -80,7 +81,7 @@ class Dialog(Win):
         elif icon in self.CUSTOM_ICONS:
             self._custom = self.CUSTOM_ICONS[icon]
         elif icon not in self.ICONS:
-            raise ValueError(f"unknown icon {icon!r}")
+            raise UsageError(f"unknown icon {icon!r}")
         # A custom icon reserves the information icon's slot, which is then replaced.
         base = MB_ICONINFORMATION if self._custom else self.ICONS[icon]
         self.style = base | self.BUTTONS[buttons]
@@ -120,7 +121,7 @@ class Dialog(Win):
             self._size_checked = True
             if self._size[0] < self._sent[2] or self._size[1] < self._sent[3]:
                 # lazy: the box stays open on the guest until the next revert.
-                raise ValueError(
+                raise UsageError(
                     f"size {self._size} is smaller than the stock box "
                     f"{self._sent[2:]}: the text and buttons would be clipped"
                 )
@@ -149,7 +150,7 @@ class Dialog(Win):
     def _set_icon(self, slot: int, dll: str, index: int) -> None:
         hicon = self.guest.shell32.ExtractIconA(0, dll, index).value
         if hicon in (0, 1):
-            raise ValueError(f"{dll} has no icon {index}")
+            raise UsageError(f"{dll} has no icon {index}")
         self.guest.user32.SendMessageA(slot, STM_SETICON, hicon, 0)
         # The static does not copy the icon, so it is destroyed only in remove().
         self._hicon = hicon
@@ -200,7 +201,7 @@ class Dialog(Win):
             win32.window_rect(self.guest, w.hwnd) for w in self.children("Button")
         ]
         if buttons and top + height > min(b[1] for b in buttons):
-            raise ValueError(
+            raise UsageError(
                 "the message is too tall for the box: give the Dialog a bigger size"
             )
         user32.MoveWindow(

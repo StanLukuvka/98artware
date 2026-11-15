@@ -12,6 +12,7 @@ from ..base.animation import Animation
 from ..base.props import Box, Prop
 from ..base.space import STOCK, DesktopSpace
 from ..base.units import frames
+from ..errors import NotFound, UsageError
 from ..recorder import warn_if_late
 from . import setstate
 
@@ -30,7 +31,7 @@ def pin_legacy(cls) -> None:
     let it be ignored silently. Never maps an old name onto a new one."""
     for name, why in RETIRED.items():
         if name in vars(cls):
-            raise TypeError(f"{cls.__name__}.{name}: {why}")
+            raise UsageError(f"{cls.__name__}.{name}: {why}")
 
 
 class Scene:
@@ -111,7 +112,7 @@ class Scene:
     def run(self, session, video) -> None:
         """Play this scene on a booted session, into an open recorder."""
         if self.desktop not in DESKTOPS:
-            raise ValueError(
+            raise UsageError(
                 f"desktop {self.desktop!r}: use one of {', '.join(DESKTOPS)}"
             )
         self.session, self.recorder = session, video
@@ -162,7 +163,7 @@ class Scene:
             return self._state_props[window_id]
         except KeyError:
             known = ", ".join(self._state_props) or "none"
-            raise KeyError(
+            raise NotFound(
                 f"no window {window_id!r} in the state (it has {known})"
             ) from None
 
@@ -228,7 +229,7 @@ class Scene:
         host clock, for guest behaviour that needs real time to happen.
         """
         if not animations:
-            raise ValueError("play needs at least one animation")
+            raise UsageError("play needs at least one animation")
         self._check_claims(animations)
         for animation in animations:
             if run_time is not None:
@@ -310,7 +311,7 @@ class Scene:
         closed clip's path, or None when nothing was recorded since the last cut.
         """
         if not isinstance(name, str) or not name.strip():
-            raise ValueError("next_section needs a name")
+            raise UsageError("next_section needs a name")
         self.sections.append((name, self.time))
         return self.cut()
 
@@ -331,7 +332,7 @@ class Scene:
         for animation in animations:
             for claim in animation.claims:
                 if claim in taken:
-                    raise ValueError(
+                    raise UsageError(
                         f"two animations in one play both drive the {claim}"
                     )
                 taken.add(claim)

@@ -9,6 +9,7 @@ from ... import win32
 from ...base.props import Prop, Spot
 from ...base.vectors import DR, Vec
 from ...bridge import BridgeTimeout, Window
+from ...errors import GuestError, NotFound
 from ...protocol import Out
 from ...win32 import (
     GWL_STYLE,
@@ -263,7 +264,7 @@ class Win(Prop):
         """A child window as a prop, for clicking or moving."""
         found = self.children(class_name, title)
         if not found:
-            raise LookupError(
+            raise NotFound(
                 f"no {class_name or 'child'} {title or ''} in window {self.hwnd:#x}"
             )
         child = Win(hwnd=found[0].hwnd)
@@ -309,7 +310,7 @@ class Win(Prop):
         self.guest.sync()
         pointer.place(home)
         if user32.GetForegroundWindow().value != self.hwnd:
-            raise RuntimeError(
+            raise GuestError(
                 f"could not activate window {self.hwnd:#x}: is it covered?"
             )
 

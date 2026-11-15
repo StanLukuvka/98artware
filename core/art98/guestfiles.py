@@ -13,7 +13,7 @@ import os
 import struct
 from pathlib import Path
 
-from .errors import Art98Error
+from .errors import Art98Error, UsageError
 from .win32 import INVALID_FILE_ATTRIBUTES
 
 GUEST_DIR = r"C:\ART98"
@@ -74,10 +74,10 @@ def title_problem(title: str) -> str | None:
 
 
 def check_name(name: str) -> str:
-    """Return the file name, or raise ValueError saying what is wrong with it."""
+    """Return the file name, or raise UsageError saying what is wrong with it."""
     problem = name_problem(name)
     if problem:
-        raise ValueError(f"{name!r} can't be a file name on the guest: it {problem}")
+        raise UsageError(f"{name!r} can't be a file name on the guest: it {problem}")
     return name
 
 
@@ -105,12 +105,12 @@ def viewer() -> bytes:
 
 
 def check_bmp(data: bytes, source: str = "image") -> tuple[int, int]:
-    """Return a BMP's (width, height), or raise ValueError if it isn't one Windows 98 can load."""
+    """Return a BMP's (width, height), or raise UsageError if it isn't one Windows 98 can load."""
     if len(data) < 26 or data[:2] != b"BM":
-        raise ValueError(f"{source} is not a BMP file")
+        raise UsageError(f"{source} is not a BMP file")
     header = struct.unpack_from("<I", data, 14)[0]
     if header not in BMP_HEADER_SIZES or len(data) < 14 + header:
-        raise ValueError(
+        raise UsageError(
             f"{source} has a BMP header Windows 98 can't read (size {header})"
         )
     compression = 0
@@ -119,35 +119,35 @@ def check_bmp(data: bytes, source: str = "image") -> tuple[int, int]:
     else:
         width, height, _, depth, compression = struct.unpack_from("<iiHHI", data, 18)
     if width <= 0 or height == 0:
-        raise ValueError(f"{source} has no pixels ({width}x{height})")
+        raise UsageError(f"{source} has no pixels ({width}x{height})")
     if depth not in BMP_DEPTHS:
-        raise ValueError(
+        raise UsageError(
             f"{source} uses {depth} bits per pixel, which Windows 98 can't load"
         )
     # LoadImage on Windows 98 can crash reading past the end, so the pixels must all be there.
     pixels = struct.unpack_from("<I", data, 10)[0]
     needed = pixels + (width * depth + 31) // 32 * 4 * abs(height)
     if compression in (BI_RGB, BI_BITFIELDS) and len(data) < needed:
-        raise ValueError(
+        raise UsageError(
             f"{source} is cut short: {len(data)} bytes, its header needs {needed}"
         )
     if pixels >= len(data):
-        raise ValueError(f"{source} is cut short: its pixels would start past the end")
+        raise UsageError(f"{source} is cut short: its pixels would start past the end")
     return width, abs(height)
 
 
 def check_text(data: bytes, source: str = "text") -> bytes:
     """Check a text file Windows 98 Notepad can open, and return it with CRLF line ends."""
     if b"\0" in data:
-        raise ValueError(f"{source} has NUL bytes, so it isn't a text file")
+        raise UsageError(f"{source} has NUL bytes, so it isn't a text file")
     if len(data) > TEXT_LIMIT:
-        raise ValueError(
+        raise UsageError(
             f"{source} is {len(data)} bytes; Notepad on Windows 98 takes at most {TEXT_LIMIT}"
         )
     try:
         data.decode("cp1252")
     except UnicodeDecodeError as error:
-        raise ValueError(
+        raise UsageError(
             f"{source} has bytes outside Windows 1252 (at {error.start})"
         ) from None
     # A bare LF shows as a box in Windows 98 Notepad.

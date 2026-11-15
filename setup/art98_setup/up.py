@@ -14,6 +14,7 @@ from pathlib import Path
 
 from art98.container import compose
 from art98.container.host import ContainerError, Engine
+from art98.errors import MissingFile
 from art98.freshness import container_warning, inspect_created
 from art98.settings import Settings, load
 
@@ -74,14 +75,14 @@ def setup_inputs(engine: Engine, settings: Settings, iso, disk_mb: int) -> dict:
             f"compose.override.yaml mounts the disc {disc}; drop --iso or that mount"
         )
     if not disc or not Path(disc).is_file():
-        raise FileNotFoundError(
+        raise MissingFile(
             f"no disc at {disc}: pass --iso with your Windows 98 SE disc image, or "
             "mount it in compose.override.yaml"
         )
     secret = config.get("secrets", {}).get("art98_key", {})
     if "file" in secret:
         if not Path(secret["file"]).is_file():
-            raise FileNotFoundError(
+            raise MissingFile(
                 f"no product key file at {secret['file']}, which "
                 "compose.override.yaml names"
             )

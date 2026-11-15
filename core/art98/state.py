@@ -36,7 +36,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .desktop import STYLES
-from .errors import Art98Error
+from .errors import Art98Error, NotFound
 from .guestfiles import check_bmp, check_text, name_problem, title_problem
 
 VERSION = 1
@@ -111,7 +111,7 @@ class State:
         for window in self.windows:
             if window.id == id:
                 return window
-        raise KeyError(f"{self.path} has no window {id!r}")
+        raise NotFound(f"{self.path} has no window {id!r}")
 
 
 def _whole_numbers(value, count: int) -> bool:

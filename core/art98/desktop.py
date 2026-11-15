@@ -32,7 +32,7 @@ from __future__ import annotations
 import struct
 import time
 
-from .errors import Art98Error
+from .errors import Art98Error, UsageError
 from .protocol import Out
 from .win32 import (
     COLOR_DESKTOP,
@@ -114,21 +114,21 @@ def shell_windows(guest) -> tuple[int, int, int]:
 
 
 def resolve_colour(colour) -> tuple[int, int, int]:
-    """A colour name from NAMED_COLOURS or an (r, g, b) of ints 0..255, as a tuple. Raises ValueError."""
+    """A colour name from NAMED_COLOURS or an (r, g, b) of ints 0..255, as a tuple. Raises UsageError."""
     if isinstance(colour, str):
         if colour not in NAMED_COLOURS:
-            raise ValueError(
+            raise UsageError(
                 f"unknown colour {colour!r}; use one of {sorted(NAMED_COLOURS)} or (r, g, b)"
             )
         return NAMED_COLOURS[colour]
     try:
         rgb = tuple(colour)
     except TypeError:
-        raise ValueError(
+        raise UsageError(
             f"colour must be a name or (r, g, b), not {colour!r}"
         ) from None
     if len(rgb) != 3 or not all(type(c) is int and 0 <= c <= 255 for c in rgb):
-        raise ValueError(f"colour must be three ints from 0 to 255, not {colour!r}")
+        raise UsageError(f"colour must be three ints from 0 to 255, not {colour!r}")
     return rgb
 
 

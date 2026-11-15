@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ...base.animation import Succession
 from ...base.props import Spot
+from ...errors import NotFound, UsageError
 from ...protocol import Out
 from ...win32 import MF_BYPOSITION, menu_item_rect
 from ..pointer import Click
@@ -21,7 +22,7 @@ class Menu(Succession):
 
     def __init__(self, window: Win, *labels: str, step: float = 0.45):
         if not labels:
-            raise ValueError("Menu needs at least one label")
+            raise UsageError("Menu needs at least one label")
         clicks = [
             Click(Spot(_item_finder(window, labels[: depth + 1])), run_time=step)
             for depth in range(len(labels))
@@ -48,7 +49,7 @@ def _item_finder(window: Win, labels: tuple[str, ...]):
         for position, name in enumerate(names):
             if name.lower() == label.lower():
                 return position
-        raise LookupError(f"no menu item {label!r}: found {[n for n in names if n]}")
+        raise NotFound(f"no menu item {label!r}: found {[n for n in names if n]}")
 
     def locate():
         user32 = window.guest.user32
@@ -59,7 +60,7 @@ def _item_finder(window: Win, labels: tuple[str, ...]):
             window.guest, window.hwnd, menu, position_of(menu, labels[-1])
         )
         if rect is None:
-            raise LookupError(f"menu {' > '.join(labels)} is not open")
+            raise NotFound(f"menu {' > '.join(labels)} is not open")
         left, top, right, bottom = rect
         return (left + right) / 2, (top + bottom) / 2
 

@@ -12,6 +12,7 @@ from ..base.props import Prop, Spot, point_of
 from ..base.rate_functions import smooth
 from ..base.units import lerp
 from ..base.vectors import Vec
+from ..errors import UsageError
 from ..win32 import MOUSE_BUTTONS, cursor_pos
 
 BUTTONS = MOUSE_BUTTONS
@@ -178,7 +179,7 @@ class Drag(PointerAction):
 
     def __init__(self, source, to=None, *, by=None, button: str = "left", **kwargs):
         if (to is None) == (by is None):
-            raise ValueError("Drag needs either to= or by=")
+            raise UsageError("Drag needs either to= or by=")
         super().__init__(source, **kwargs)
         self.to, self.by, self.button = to, by, button
         self.grab = self.goal = Vec(0, 0)

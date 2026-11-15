@@ -7,7 +7,7 @@ import struct
 from pathlib import Path
 
 import pytest
-from art98 import anim
+from art98 import UsageError, anim
 from art98 import recorder as recorder_module
 from art98 import session as session_module
 from art98.actions import keyboard as keys_module
@@ -275,7 +275,7 @@ def test_there_and_back_returns():
 
 @pytest.mark.parametrize("name", ["fps", "clock"])
 def test_a_scene_defining_a_retired_setting_fails_at_class_definition(name):
-    with pytest.raises(TypeError, match=f"Old.{name}"):
+    with pytest.raises(UsageError, match=f"Old.{name}"):
         type("Old", (Scene,), {name: 30})
 
 
@@ -493,7 +493,7 @@ def test_a_win_starts_its_program_and_finds_its_own_window(guest, scene):
 
 
 def test_a_prop_not_on_stage_says_so():
-    with pytest.raises(RuntimeError, match="add it"):
+    with pytest.raises(UsageError, match="add it"):
         Notepad().guest  # noqa: B018
 
 
