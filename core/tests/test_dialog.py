@@ -4,7 +4,7 @@ import struct
 
 import pytest
 from art98.actions.programs.dialog import Dialog
-from art98.bridge import CallResult
+from art98.guest.bridge import CallResult
 from test_anim import FakeDll, FakeGuest, FakeSession, FakeVideo, Stage
 
 BOX, ICON, TEXT, YES, NO = 0x70, 0x71, 0x72, 0x73, 0x74

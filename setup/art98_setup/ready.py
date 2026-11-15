@@ -13,11 +13,11 @@ import json
 import struct
 import time
 
-from art98.bridge import Bridge, BridgeError
-from art98.protocol import Out
-from art98.qemu import VM
+from art98.guest.bridge import Bridge, BridgeError
+from art98.guest.protocol import Out
+from art98.guest.qemu import VM
+from art98.guest.win32 import HKCU, HKLM, REG_BINARY, REG_SZ, set_display_mode
 from art98.session import IMAGE_FILE, SNAPSHOT
-from art98.win32 import HKCU, HKLM, REG_BINARY, REG_SZ, set_display_mode
 
 from .builder import AGENT_RUN_VALUE, Setup, SetupError
 

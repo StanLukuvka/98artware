@@ -17,9 +17,9 @@ import os
 import time
 from pathlib import Path
 
-from art98 import win32
 from art98.anim import *
 from art98.base.animation import Instant
+from art98.guest import win32
 
 OUT = Path(os.environ.get("STRAY_OUT", "."))
 LOG = []

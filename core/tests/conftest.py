@@ -1,6 +1,6 @@
 import pytest
-from art98 import freshness
 from art98.anim import Scene
+from art98.container import freshness
 
 
 @pytest.fixture(autouse=True)

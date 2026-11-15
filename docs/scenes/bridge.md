@@ -11,7 +11,8 @@ format is in the [Instruction set](instruction-set.md). Tested calls are in
 ![Action stack](../diagrams/action-stack.png)
 
 ```python
-from art98 import attach, win32
+from art98 import attach
+from art98.guest import win32
 
 with attach() as session:
     guest = session.bridge
@@ -24,7 +25,7 @@ with attach() as session:
 
 The top-level names are `attach`, `Session`, `Bridge`, `CallResult`, `Window`, `Out`, `VM`, `VMConfig`,
 `BridgeError`, `BridgeTimeout`, `GuestCrashed`, `Recorder` and `RecorderError`. `private_stage` is in
-`art98.session`. `QemuError` and `QMP` are in `art98.qemu`.
+`art98.session`. `QemuError` and `QMP` are in `art98.guest.qemu`.
 
 ## Sessions
 
@@ -44,7 +45,7 @@ block releases the VM: the disc is ejected and the VM is paused again. The VM ke
 
 Raises `NotRunning` when no VM answers, `Busy` when another run holds it, and `Unhealthy` when the
 VM has no `ready` snapshot or the agent does not answer. These are `ServiceError`s from
-`art98.service`.
+`art98.container.service`.
 
 Each attach starts from the same moment: the revert brings back what an earlier run changed. Two
 attaches can't run at once.
@@ -89,7 +90,7 @@ One running stage. `with` closes it on exit.
 
 ### Recorder
 
-`class Recorder(session, path, output_fps, lossless=False, defer=False)`, in `art98.recorder`
+`class Recorder(session, path, output_fps, lossless=False, defer=False)`, in `art98.output.recorder`
 
 Encodes frames to video clips. Frames are taken when the script asks, so a slow host makes the same
 video as a fast one. Use it as a context manager, because a clip is only complete after `close`.
@@ -216,7 +217,7 @@ bytes were written.
 | `clear_events()` | Forgets all unread events. |
 
 To move a window or switch the display mode, use `place_window` and `set_display_mode` in
-`art98.win32`: see [Move and resize](win32-recipes.md#move-and-resize) and
+`art98.guest.win32`: see [Move and resize](win32-recipes.md#move-and-resize) and
 [Display modes](win32-recipes.md#display-modes).
 
 The bridge keeps the last 256 `HELLO`, `CRASH` and `BADFRAME` events. `DONE` goes to the
@@ -323,8 +324,8 @@ If the link closes, `wait` raises `BridgeError`.
 | `BridgeError` | The guest refused a request, such as `FILE: C:\NOPE.TXT`, or the link closed. Also when the agent reports `BADFRAME`: the event has no id, so every open request fails at once. |
 | `BridgeTimeout` | No reply came in time. A subclass of `BridgeError`. |
 | `GuestCrashed` | The agent crashed while a request was open. A subclass of `BridgeError`. The text has the code and address. |
-| `QemuError` | QEMU failed to start or a QMP command failed. From `art98.qemu`. |
-| `FrameError` | A frame failed its checks. From `art98.protocol`. The bridge drops such a frame, and the open request times out. |
+| `QemuError` | QEMU failed to start or a QMP command failed. From `art98.guest.qemu`. |
+| `FrameError` | A frame failed its checks. From `art98.guest.protocol`. The bridge drops such a frame, and the open request times out. |
 
 After `BridgeTimeout` the request may still be running in the guest, and its reply is dropped when
 it arrives. A `Sleep(1500)` with a 0.3 s timeout keeps the agent busy for the full 1.5 s, and later
@@ -447,7 +448,7 @@ within a second. A shutdown does not exit, so call `close`.
 
 ## QMP
 
-`class QMP` in `art98.qemu`, as `vm.qmp`
+`class QMP` in `art98.guest.qemu`, as `vm.qmp`
 
 The QEMU control socket. It has no lock, so use it from one thread.
 

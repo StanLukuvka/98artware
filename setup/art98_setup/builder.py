@@ -17,11 +17,11 @@ from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
 
-from art98.bridge import Bridge, BridgeError, BridgeTimeout
 from art98.errors import Art98Error
-from art98.guestfiles import GUEST_DIR
-from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
-from art98.win32 import EWX_FORCE, EWX_REBOOT
+from art98.guest.bridge import Bridge, BridgeError, BridgeTimeout
+from art98.guest.guestfiles import GUEST_DIR
+from art98.guest.qemu import QEMU_BINARY, VM, QemuError, VMConfig
+from art98.guest.win32 import EWX_FORCE, EWX_REBOOT
 
 DISK_MB = 2047  # the virtual disk size, in MB; compose.yaml repeats it
 SECTOR = 512

@@ -325,7 +325,7 @@ First VM:
    Shots are `harden-*`.
 2. `apply_settings` writes every entry in `HARDEN_SETTINGS` over the bridge, then
    empties the `RUN_KEYS` except for the names in `KEPT_RUN_VALUES`.
-3. `set_display_mode(bridge, *DISPLAY_MODE)` from `art98.win32` sets 800x600x16 and saves it to the
+3. `set_display_mode(bridge, *DISPLAY_MODE)` from `art98.guest.win32` sets 800x600x16 and saves it to the
    registry. It uses a mode the video driver itself reports.
 4. `_reboot` shuts Windows down, so the settings apply on the next boot.
 

@@ -12,8 +12,8 @@ import sys
 import time
 from pathlib import Path
 
-from art98 import service
 from art98.anim import render
+from art98.container import service
 from common import SETTINGS, Longer, cpu
 
 out = Path(sys.argv[1])

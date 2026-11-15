@@ -6,9 +6,9 @@ import threading
 import time
 
 import pytest
-from art98 import win32
-from art98.bridge import Bridge, BridgeError, BridgeTimeout, GuestCrashed
-from art98.protocol import frame, parse_values, unframe
+from art98.guest import win32
+from art98.guest.bridge import Bridge, BridgeError, BridgeTimeout, GuestCrashed
+from art98.guest.protocol import frame, parse_values, unframe
 
 
 class FakeAgent:

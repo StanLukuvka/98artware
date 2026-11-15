@@ -15,7 +15,8 @@ All recipes share this setup.
 import struct
 import time
 
-from art98 import Out, attach, win32
+from art98 import Out, attach
+from art98.guest import win32
 
 WM_CLOSE, WM_SETTEXT, WM_GETTEXT, WM_COMMAND, WM_CHAR = 0x10, 0x0C, 0x0D, 0x111, 0x102
 WM_SYSCOMMAND, WM_LBUTTONDOWN, WM_LBUTTONUP = 0x112, 0x201, 0x202

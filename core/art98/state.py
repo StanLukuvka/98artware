@@ -37,7 +37,7 @@ from pathlib import Path
 
 from .desktop import STYLES
 from .errors import Art98Error, NotFound
-from .guestfiles import check_bmp, check_text, name_problem, title_problem
+from .guest.guestfiles import check_bmp, check_text, name_problem, title_problem
 
 VERSION = 1
 SHOWS = ("normal", "minimized", "maximized")

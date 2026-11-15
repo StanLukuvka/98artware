@@ -11,8 +11,8 @@ puts them on an image, the core drives that image, and scenes and samples sit on
 | 1 | [Front door](#1-front-door) | repo root | What art98 is, how to install and run it. |
 | 2 | [Guest programs](#2-guest-programs) | `guest/` | C and assembly that run inside Windows 98. |
 | 3 | [Setup tool](#3-setup-tool) | `setup/` | Builds the prepared image, once. |
-| 4 | [Container and VM service](#4-container-and-vm-service) | `core/art98/container/`, `core/art98/service.py`, `setup/` | Runs QEMU in Docker, as the long-lived VM every render uses. |
-| 5 | [Core: VM and bridge](#5-core-vm-and-bridge) | `core/art98/` | Starts the VM and talks to the agent. |
+| 4 | [Container and VM service](#4-container-and-vm-service) | `core/art98/container/`, `setup/` | Runs QEMU in Docker, as the long-lived VM every render uses. |
+| 5 | [Core: VM and bridge](#5-core-vm-and-bridge) | `core/art98/guest/`, `core/art98/output/`, `core/art98/` | Starts the VM and talks to the agent. |
 | 6 | [Core: scene layer](#6-core-scene-layer) | `core/art98/anim/` | The Manim-style API scenes are written in. |
 | 7 | [Tests](#7-tests) | `*/tests/` | What is checked, and what needs a VM. |
 | 8 | [Samples and experiments](#8-samples-and-experiments) | `recipes/scenes/`, `tools/`, `experiments/` | Scenes to render, the tools that render them, and throwaway probes. |
@@ -89,7 +89,7 @@ in core.
   `RemoteVM` gives the scene layer the same methods as a VM on the host would have.
 - [ ] [compose.py](../core/art98/container/compose.py): the compose project, files and the
   `ART98_*` variables art98 passes from `art98.toml`.
-- [ ] [service.py](../core/art98/service.py): `art98 vm start`, `stop` and `status`, and
+- [ ] [service.py](../core/art98/container/service.py): `art98 vm start`, `stop` and `status`, and
   `attach()`, which takes the running VM for one render and reverts it to `ready`.
 
 Explained in: [Container](design/container.md),
@@ -99,17 +99,17 @@ Explained in: [Container](design/container.md),
 
 The plumbing under every scene. Read in this order, bottom up:
 
-- [ ] [qemu.py](../core/art98/qemu.py): starts and controls the VM (QMP, snapshots, screenshots).
-- [ ] [protocol.py](../core/art98/protocol.py): the host side of the wire format, and `Out`.
-- [ ] [bridge.py](../core/art98/bridge.py): the link to the agent, as `guest.user32.X(...)`.
-- [ ] [guestfiles.py](../core/art98/guestfiles.py): files copied to the guest, named by content.
-- [ ] [win32.py](../core/art98/win32.py): Win32 constants and small named guest reads, so the layers
+- [ ] [qemu.py](../core/art98/guest/qemu.py): starts and controls the VM (QMP, snapshots, screenshots).
+- [ ] [protocol.py](../core/art98/guest/protocol.py): the host side of the wire format, and `Out`.
+- [ ] [bridge.py](../core/art98/guest/bridge.py): the link to the agent, as `guest.user32.X(...)`.
+- [ ] [guestfiles.py](../core/art98/guest/guestfiles.py): files copied to the guest, named by content.
+- [ ] [win32.py](../core/art98/guest/win32.py): Win32 constants and small named guest reads, so the layers
   above don't repeat them.
 - [ ] [session.py](../core/art98/session.py): `Session`, a VM and a bridge together, with `revert`.
   `boot_local` and `private_stage` run QEMU on the host, for experiments only.
-- [ ] [disc.py](../core/art98/disc.py): builds the small CD image that carries a wallpaper to the guest.
-- [ ] [recorder.py](../core/art98/recorder.py): `Recorder`, frames to clips with `cut()`.
-- [ ] [gif.py](../core/art98/gif.py): `write_gif`, `GifOptions` and the GIF defaults, kept out of `anim/` so the CLI can read them.
+- [ ] [disc.py](../core/art98/guest/disc.py): builds the small CD image that carries a wallpaper to the guest.
+- [ ] [recorder.py](../core/art98/output/recorder.py): `Recorder`, frames to clips with `cut()`.
+- [ ] [gif.py](../core/art98/output/gif.py): `write_gif`, `GifOptions` and the GIF defaults, kept out of `anim/` so the CLI can read them.
 - [ ] [state.py](../core/art98/state.py): the JSON state files for a starting desktop.
 - [ ] [desktop.py](../core/art98/desktop.py): the blank start, a black, empty screen after each revert.
 - [ ] [settings.py](../core/art98/settings.py): reads `art98.toml`.
@@ -144,7 +144,7 @@ What a scene author imports with `from art98.anim import *`.
 - [ ] [paint.py](../core/art98/actions/programs/paint.py): Paint, with targets for its tools, palette and canvas.
 - [ ] [minesweeper.py](../core/art98/actions/programs/minesweeper.py): Minesweeper, which can read its mines and win.
 - [ ] [screensaver.py](../core/art98/actions/programs/screensaver.py): a screensaver, started with /s.
-- [ ] [freshness.py](../core/art98/freshness.py): warns when the image or guest programs are older than the code.
+- [ ] [freshness.py](../core/art98/container/freshness.py): warns when the image or guest programs are older than the code.
 - [ ] [setstate.py](../core/art98/anim/setstate.py): applies a state and checks it took.
 - [ ] [renderer.py](../core/art98/anim/renderer.py): VM, recorder, output file.
 

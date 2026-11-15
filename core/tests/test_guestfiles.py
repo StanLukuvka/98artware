@@ -1,6 +1,6 @@
 """guestfiles: where the guest programs are."""
 
-from art98 import guestfiles
+from art98.guest import guestfiles
 
 
 def test_art98_guest_build_overrides_the_checkout_folder(tmp_path, monkeypatch):

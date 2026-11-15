@@ -11,11 +11,11 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Self
 
-from . import disc
-from .bridge import Bridge
 from .errors import Art98Error
-from .qemu import VM, VMConfig
-from .recorder import Recorder
+from .guest import disc
+from .guest.bridge import Bridge
+from .guest.qemu import VM, VMConfig
+from .output.recorder import Recorder
 
 SNAPSHOT = "ready"
 IMAGE_FILE = "image.json"

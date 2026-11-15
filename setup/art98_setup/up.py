@@ -3,7 +3,7 @@
 Both run through compose (see compose.yaml and art98.container.compose): the
 image is built from setup/Dockerfile with the repository root as the build
 context, and the install runs once in the `setup` service. Running the VM
-afterwards is core's job, in art98.service.
+afterwards is core's job, in art98.container.service.
 """
 
 from __future__ import annotations
@@ -13,9 +13,9 @@ import os
 from pathlib import Path
 
 from art98.container import compose
+from art98.container.freshness import container_warning, inspect_created
 from art98.container.host import ContainerError, Engine
 from art98.errors import MissingFile
-from art98.freshness import container_warning, inspect_created
 from art98.settings import Settings, load
 
 from .builder import DISK_MB

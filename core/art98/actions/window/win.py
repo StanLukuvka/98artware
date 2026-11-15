@@ -5,13 +5,13 @@ from __future__ import annotations
 import struct
 import time
 
-from ... import win32
 from ...base.props import Prop, Spot
 from ...base.vectors import DR, Vec
-from ...bridge import BridgeTimeout, Window
 from ...errors import GuestError, NotFound
-from ...protocol import Out
-from ...win32 import (
+from ...guest import win32
+from ...guest.bridge import BridgeTimeout, Window
+from ...guest.protocol import Out
+from ...guest.win32 import (
     GWL_STYLE,
     SWP_NOACTIVATE,
     SWP_NOMOVE,

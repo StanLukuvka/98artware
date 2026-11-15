@@ -3,9 +3,10 @@
 import struct
 
 import pytest
-from art98 import desktop, win32
+from art98 import desktop
 from art98.anim import Scene
-from art98.bridge import CallResult
+from art98.guest import win32
+from art98.guest.bridge import CallResult
 from test_anim import FakeGuest, FakeSession, FakeVideo
 
 TASKBAR, PROGMAN, VIEW, ICONS = 0x50, 0x60, 0x61, 0x62

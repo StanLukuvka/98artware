@@ -55,12 +55,12 @@ The container code is split by job:
 | [core/art98/container/serve.py](../../core/art98/container/serve.py) | `art98 serve`, inside the container: boots `ready` on a run copy and relays the agent and a control channel |
 | [core/art98/container/entry.py](../../core/art98/container/entry.py) | The image's entry point: on a rootful engine, switch to the host's uid, then run the CLI |
 | [core/art98/container/host.py](../../core/art98/container/host.py) | On the host: `Engine`, `open_channel` and `RemoteVM` |
-| [core/art98/service.py](../../core/art98/service.py) | The VM service: `start`, `stop`, `status` and `attach`, which every render uses |
+| [core/art98/container/service.py](../../core/art98/container/service.py) | The VM service: `start`, `stop`, `status` and `attach`, which every render uses |
 | [core/art98/settings.py](../../core/art98/settings.py) | `art98.toml`: names, ports and the work folder, with their defaults |
 | [core/tests/test_container.py](../../core/tests/test_container.py), [test_stage.py](../../core/tests/test_stage.py) | serve and the host side on a fake VM; the real VM through the service (`test_stage.py`, with `art98 vm start` running) |
 | [setup/tests/test_up.py](../../setup/tests/test_up.py) | `up`'s setup run and the image build, without an engine |
 
-Building images is setup's job, and running the VM is core's. `art98.service` starts one
+Building images is setup's job, and running the VM is core's. `art98.container.service` starts one
 long-lived container from the image, and each render attaches to it with `art98.attach()`.
 `art98.session.boot_local()` is QEMU on this host, for experiments only.
 

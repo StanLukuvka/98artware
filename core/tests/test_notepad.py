@@ -4,10 +4,10 @@ import hashlib
 import json
 
 import pytest
-from art98 import guestfiles
 from art98.actions.programs.notepad import notepad_title
 from art98.anim import Notepad, Scene
-from art98.bridge import Window
+from art98.guest import guestfiles
+from art98.guest.bridge import Window
 from art98.state import StateError, load_state
 from test_picture import (  # noqa: F401  (fake_viewer is an autouse fixture)
     GuestWithFiles,

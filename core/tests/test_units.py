@@ -87,7 +87,7 @@ SCANNED = [
     *(ROOT / "core/art98/anim").rglob("*.py"),
     *(ROOT / "core/art98/actions").rglob("*.py"),
     ROOT / "core/art98/desktop.py",
-    ROOT / "core/art98/recorder.py",
+    ROOT / "core/art98/output/recorder.py",
 ]
 
 

@@ -13,7 +13,8 @@ import json
 import sys
 import time
 
-from art98 import bridge, cli
+from art98 import cli
+from art98.guest import bridge
 
 out, args = sys.argv[1], sys.argv[sys.argv.index("--") + 1 :]
 log = {"sync": [], "put_file": [], "timeouts": []}

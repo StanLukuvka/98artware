@@ -11,8 +11,8 @@ from pathlib import Path
 
 from art98.actions.window.win import Win
 from art98.anim import Maximize, Minimize, Notepad, RestoreWindow, Scene, Teleport
-from art98.recorder import Recorder
-from art98.win32 import RDW_REPAINT_ALL, cursor_pos, window_rect
+from art98.guest.win32 import RDW_REPAINT_ALL, cursor_pos, window_rect
+from art98.output.recorder import Recorder
 
 
 class Commands(Scene):

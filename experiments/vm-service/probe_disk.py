@@ -9,8 +9,8 @@ import sys
 import time
 from pathlib import Path
 
-from art98 import service
 from art98.anim import render
+from art98.container import service
 from common import SETTINGS, Short, cpu, run_copy, sizes
 
 out = Path(sys.argv[1])

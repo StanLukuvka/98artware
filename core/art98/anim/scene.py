@@ -6,14 +6,14 @@ import time
 import warnings
 from pathlib import Path
 
-from .. import win32
 from ..actions.pointer import Pointer
 from ..base.animation import Animation
 from ..base.props import Box, Prop
 from ..base.space import STOCK, DesktopSpace
 from ..base.units import frames
 from ..errors import NotFound, UsageError
-from ..recorder import warn_if_late
+from ..guest import win32
+from ..output.recorder import warn_if_late
 from . import setstate
 
 DESKTOPS = ("blank", "stock")

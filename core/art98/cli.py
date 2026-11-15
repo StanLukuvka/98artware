@@ -9,12 +9,12 @@ import sys
 import traceback
 from pathlib import Path
 
-from . import freshness, service
-from .bridge import READY_TIMEOUT
+from .container import freshness, service
 from .container.host import ENGINE
 from .errors import Art98Error
-from .gif import GIF_COLORS, GIF_DITHER, GIF_FPS, GIF_SCALE, GifOptions
-from .guestfiles import guest_build
+from .guest.bridge import READY_TIMEOUT
+from .guest.guestfiles import guest_build
+from .output.gif import GIF_COLORS, GIF_DITHER, GIF_FPS, GIF_SCALE, GifOptions
 from .settings import CONTAINER_CONTROL_PORT, CONTAINER_VNC_PORT, load
 
 KEY_SECRET_FILE = Path(

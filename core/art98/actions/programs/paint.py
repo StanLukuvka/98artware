@@ -6,9 +6,9 @@ import time
 from typing import ClassVar
 
 from ...base.props import Spot
-from ...bridge import BridgeTimeout
 from ...errors import UsageError
-from ...win32 import window_rect
+from ...guest.bridge import BridgeTimeout
+from ...guest.win32 import window_rect
 from ..pointer import Drag
 from ..window.win import Win
 

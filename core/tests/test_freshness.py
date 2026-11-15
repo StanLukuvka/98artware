@@ -3,8 +3,8 @@
 import os
 import subprocess
 
-from art98 import freshness
-from art98.freshness import (
+from art98.container import freshness
+from art98.container.freshness import (
     container_warning,
     digests,
     inspect_created,

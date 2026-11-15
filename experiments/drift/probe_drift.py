@@ -23,10 +23,10 @@ import sys
 import time
 from pathlib import Path
 
-from art98 import service
 from art98.actions.window.win import Win
+from art98.container import service
+from art98.guest.win32 import RDW_REPAINT_ALL
 from art98.settings import load as load_settings
-from art98.win32 import RDW_REPAINT_ALL
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "core" / "tests"))
 import drift_check

@@ -44,6 +44,6 @@ def test_scene_layers_do_not_import_vm_startup(path):
 
 
 def test_the_check_catches_what_it_should():
-    bad = "from ..session import stage\nfrom .. import service\nimport art98.qemu\n"
+    bad = "from ..session import stage\nfrom ..container import service\nimport art98.guest.qemu\n"
     assert len(forbidden(ast.parse(bad))) == 3
     assert forbidden(ast.parse("from ..session import Session\n")) == []

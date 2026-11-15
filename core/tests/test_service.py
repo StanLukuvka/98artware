@@ -1,4 +1,4 @@
-"""art98.service: start/stop's compose calls with a fake Engine, attach/status against
+"""art98.container.service: start/stop's compose calls with a fake Engine, attach/status against
 the real serve.Server (serve_harness) over loopback TCP. No docker, no VM."""
 
 import os
@@ -12,9 +12,9 @@ from types import SimpleNamespace
 
 import pytest
 import serve_harness
-from art98 import service
+from art98.container import service
 from art98.container.host import ContainerError
-from art98.qemu import QemuError
+from art98.guest.qemu import QemuError
 from art98.session import ImageMissing
 from art98.settings import Settings
 from serve_harness import TOKEN, Served
@@ -570,7 +570,7 @@ def test_an_unanswering_guest_is_named_for_the_step_that_failed(
     def silent(self, *args, **kwargs):
         raise service.BridgeError("silence")
 
-    monkeypatch.setattr("art98.bridge.Bridge.ping", silent)
+    monkeypatch.setattr("art98.guest.bridge.Bridge.ping", silent)
     monkeypatch.setattr(service.Session, "revert", silent)
     with (
         pytest.raises(service.Unhealthy) as caught,

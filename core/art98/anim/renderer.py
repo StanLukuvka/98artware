@@ -10,8 +10,8 @@ import warnings
 from pathlib import Path
 
 from ..errors import UsageError
-from ..gif import GifOptions, write_gif
-from ..recorder import (
+from ..output.gif import GifOptions, write_gif
+from ..output.recorder import (
     H264,
     LOSSLESS_SUFFIX,
     RecorderError,

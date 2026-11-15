@@ -6,9 +6,9 @@ import threading
 import time
 
 import pytest
-from art98.bridge import Bridge
 from art98.container.host import ContainerError
-from art98.qemu import QemuError, parse_snapshots
+from art98.guest.bridge import Bridge
+from art98.guest.qemu import QemuError, parse_snapshots
 from serve_harness import TOKEN, Served
 
 

@@ -5,15 +5,16 @@ import os
 from pathlib import Path
 
 import pytest
-from art98 import cli, freshness
-from art98.bridge import BridgeTimeout
+from art98 import cli
+from art98.container import freshness
 from art98.container.host import ContainerError
+from art98.container.service import NotRunning, ServiceError
 from art98.desktop import DesktopError
-from art98.gif import GifOptions
-from art98.guestfiles import GuestBuildMissing
-from art98.qemu import QemuError
-from art98.recorder import RecorderError
-from art98.service import NotRunning, ServiceError
+from art98.guest.bridge import BridgeTimeout
+from art98.guest.guestfiles import GuestBuildMissing
+from art98.guest.qemu import QemuError
+from art98.output.gif import GifOptions
+from art98.output.recorder import RecorderError
 from art98.session import ImageMissing
 from art98.state import StateError
 
@@ -71,7 +72,7 @@ def test_known_failures_are_one_error_line(monkeypatch, capsys, scene, error):
 
 RAISING_SCENE = (
     "from art98.anim import Scene\n"
-    "from art98.bridge import BridgeTimeout\n\n\n"
+    "from art98.guest.bridge import BridgeTimeout\n\n\n"
     "def helper():\n"
     '    raise BridgeTimeout("no window for Notepad")\n\n\n'
     "class Demo(Scene):\n"

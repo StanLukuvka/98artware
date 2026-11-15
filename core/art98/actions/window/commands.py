@@ -5,7 +5,7 @@ from __future__ import annotations
 from ...base.animation import Instant
 from ...base.vectors import ORIGIN
 from ...errors import UsageError
-from ...win32 import (  # noqa: F401
+from ...guest.win32 import (  # noqa: F401
     SC_MAXIMIZE,
     SC_MINIMIZE,
     SC_RESTORE,

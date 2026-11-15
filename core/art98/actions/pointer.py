@@ -6,14 +6,14 @@ is real input: Windows routes it, so menus open and windows drag themselves.
 
 from __future__ import annotations
 
-from .. import win32
 from ..base.animation import Animation, path_function
 from ..base.props import Prop, Spot, point_of
 from ..base.rate_functions import smooth
 from ..base.units import lerp
 from ..base.vectors import Vec
 from ..errors import UsageError
-from ..win32 import MOUSE_BUTTONS, cursor_pos
+from ..guest import win32
+from ..guest.win32 import MOUSE_BUTTONS, cursor_pos
 
 BUTTONS = MOUSE_BUTTONS
 

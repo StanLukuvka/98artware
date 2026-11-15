@@ -362,7 +362,7 @@ revert ejects the disc first. See [Desktop colour and wallpaper](../design/state
 
 ## Hardware
 
-`VMConfig` in `core/art98/qemu.py` holds the VM's hardware, and `argv` turns it into
+`VMConfig` in `core/art98/guest/qemu.py` holds the VM's hardware, and `argv` turns it into
 the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 
 | Field | Value | QEMU | Why |

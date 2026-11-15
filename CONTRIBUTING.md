@@ -203,7 +203,7 @@ control in `ready()`, and adds `text`, `set_text` and a `close()` that skips the
    known already, and [Win32 recipes](docs/scenes/win32-recipes.md) shows the calls.
 3. Write the class in `core/art98/actions/programs/<name>.py`, subclassing `Win`. Set
    `command` and `window_class`, add `ready()` if it needs a child window, and put the verbs
-   on top. Win32 constants and repeated guest reads go in `core/art98/win32.py`.
+   on top. Win32 constants and repeated guest reads go in `core/art98/guest/win32.py`.
 4. Export it from `core/art98/actions/programs/__init__.py`, and import it and list it in
    `__all__` in `core/art98/anim/__init__.py`.
 5. Document it in [Scene API](docs/scenes/scene-api.md) (the docs test fails if a public name
@@ -357,14 +357,14 @@ Beyond that:
 - **Python 3.11+, standard library only.** Don't add a runtime dependency. If something truly
   needs one, raise it in an issue first.
 - **One home per thing.** A Win32 constant or a guest read used twice goes in
-  `core/art98/win32.py`. A program goes in its own file under `actions/programs/`.
+  `core/art98/guest/win32.py`. A program goes in its own file under `actions/programs/`.
 - **Delete what you replace.** No compatibility shims, old import paths or commented-out code.
 - **Lean first.** Build the smallest thing that works, and add more when a measurement or a
   real use asks for it
   ([decision 19](docs/design/decisions.md#19-lean-first-then-measure)).
 - **`lazy:` comments.** When you take a shortcut on purpose, mark it with a comment that
   starts `lazy:` and says what the limit is, so the next reader knows it was a choice and
-  where it stops working. For example, in `core/art98/disc.py`:
+  where it stops working. For example, in `core/art98/guest/disc.py`:
 
   ```python
   # lazy: one directory sector holds about 40 files; a bigger set needs multi-sector directories

@@ -7,10 +7,10 @@ import time
 from pathlib import Path
 
 import pytest
-from art98 import disc
-from art98.guestfiles import guest_build
-from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
-from art98.recorder import ppm_size
+from art98.guest import disc
+from art98.guest.guestfiles import guest_build
+from art98.guest.qemu import QEMU_BINARY, VM, QemuError, VMConfig
+from art98.output.recorder import ppm_size
 from art98.session import Session
 from art98_setup import builder
 from art98_setup import vm as vm_step

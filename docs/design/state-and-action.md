@@ -173,7 +173,7 @@ result is joined with the clips already on disk.
 
 ## Recorder
 
-Built in `core/art98/recorder.py`. Why it works this way:
+Built in `core/art98/output/recorder.py`. Why it works this way:
 [decision 14](decisions.md#14-the-recorder-is-a-class-you-can-steer). The API:
 [Clips](../scenes/scene-api.md#clips) and [bridge.md](../scenes/bridge.md#recorder). The spec, the
 four decisions and the as-built notes are in

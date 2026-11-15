@@ -33,8 +33,8 @@ import struct
 import time
 
 from .errors import Art98Error, UsageError
-from .protocol import Out
-from .win32 import (
+from .guest.protocol import Out
+from .guest.win32 import (
     COLOR_DESKTOP,
     DRIVE_CDROM,
     HKCU,

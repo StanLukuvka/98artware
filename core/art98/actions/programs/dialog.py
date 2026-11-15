@@ -5,9 +5,9 @@ from __future__ import annotations
 import struct
 from typing import ClassVar
 
-from ... import win32
 from ...errors import UsageError
-from ...win32 import GWL_STYLE, MB_ICONINFORMATION, SS_ICON, STM_SETICON
+from ...guest import win32
+from ...guest.win32 import GWL_STYLE, MB_ICONINFORMATION, SS_ICON, STM_SETICON
 from ..window.win import Win
 
 BUTTON_W, BUTTON_H, BUTTON_GAP, BOTTOM_MARGIN = 75, 23, 6, 11

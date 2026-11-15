@@ -117,7 +117,7 @@ second of video for the storm. A read-back of every prop is 3 to 5 ms each.
 ## What was fixed, and where
 
 - `core/art98/desktop.py:147` (`set_colour`): ends with `repaint_all`, so the frame after
-  `Backdrop` is the one a fresh paint draws. `core/art98/win32.py:86` (`repaint_all`): repaints
+  `Backdrop` is the one a fresh paint draws. `core/art98/guest/win32.py:86` (`repaint_all`): repaints
   every visible top-level window back to front, then syncs. Cured the stray pixels above.
 - `core/art98/actions/window/commands.py:22` (`_SysCommand.act`): `self.target.refresh()` after
   Minimize, Maximize and Restore, since Windows moves and sizes the window itself. The `cmds`

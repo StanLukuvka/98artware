@@ -8,14 +8,14 @@ from pathlib import Path
 
 import pytest
 from art98 import UsageError, anim
-from art98 import recorder as recorder_module
 from art98 import session as session_module
 from art98.actions import keyboard as keys_module
 from art98.actions import programs
 from art98.actions.keyboard import char_chord, key_chord
 from art98.actions.pointer import BUTTONS
 from art98.anim import *
-from art98.bridge import CallResult, Window
+from art98.guest.bridge import CallResult, Window
+from art98.output import recorder as recorder_module
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
 

@@ -11,7 +11,7 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 import pytest
-from art98 import service
+from art98.container import service
 from art98.settings import load
 
 HERE = Path(__file__).resolve().parents[2]
@@ -88,7 +88,8 @@ def test_the_proof_scene_renders(booted, tmp_path):
 
 
 def test_disc_insert_revert_insert(booted):
-    from art98 import desktop, win32
+    from art98 import desktop
+    from art98.guest import win32
 
     data = bytes(range(256)) * 100
 
@@ -190,8 +191,8 @@ def test_state_with_wallpaper(booted, tmp_path):
 
 
 def test_same_title_dialogs(booted):
-    from art98 import win32
     from art98.anim import Dialog, Scene
+    from art98.guest import win32
 
     session = booted
     scene = Scene()
@@ -221,7 +222,8 @@ def test_attach_twice_is_busy(booted):
 
 
 def test_revert_between_attaches():
-    from art98 import desktop, win32
+    from art98 import desktop
+    from art98.guest import win32
 
     def disc_attrs(guest):
         drive = desktop.cd_drive(guest)
