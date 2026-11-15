@@ -273,6 +273,17 @@ def test_a_good_close_does_not_raise_and_a_second_close_is_harmless(session, tmp
         video.cut()
 
 
+@needs_ffmpeg
+def test_recording_after_close_or_abort_raises_recorder_error(session, tmp_path):
+    for end in ("close", "abort"):
+        video = session.record(tmp_path / f"{end}.mp4", output_fps=10)
+        getattr(video, end)()
+        with pytest.raises(RecorderError, match="the recorder is closed"):
+            video.frame()
+        with pytest.raises(RecorderError, match="the recorder is closed"):
+            video.live(0.1)
+
+
 # ---- the screen size ----
 
 
@@ -536,12 +547,13 @@ def test_gif_encode_and_join_failures_raise_recorder_error_with_ffmpegs_message(
     with pytest.raises(RecorderError, match=r"encoding out.mp4 failed.*boom"):
         render_module._encode(tmp_path / "in.mkv", tmp_path / "out.mp4")
     video = session.record(tmp_path / "x.mp4", 10)
-    video.clips = video.parts = [tmp_path / "a.mp4"]
-    video._sizes = [(16, 12)]
+    video._clips = [
+        recorder_module.Clip(tmp_path / "a.mp4", tmp_path / "a.part.mp4", (16, 12))
+    ]
     with pytest.raises(RecorderError, match=r"joining 1 clips.*exit 1.*boom"):
         video.join(tmp_path / "x.mp4")
     assert not list(tmp_path.glob("*.part.*"))
-    video.clips = video.parts = []  # the fake clip was never a file
+    video._clips = []  # the fake clip was never a file
     video.close()
 
 

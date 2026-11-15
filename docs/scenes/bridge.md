@@ -82,14 +82,14 @@ One running stage. `with` closes it on exit.
 | --- | --- |
 | `vm` | The [`VM`](#vm). |
 | `bridge` | The [`Bridge`](#bridge-1). |
-| `record(path, output_fps, lossless=False)` | Opens a [`Recorder`](#recorder). |
+| `record(path, output_fps, lossless=False, defer=False)` | Opens a [`Recorder`](#recorder). |
 | `revert(snapshot="ready")` | Restores the snapshot and keeps the bridge. Open calls fail at once. |
 | `attach_disc(files)` | Puts an ISO of `files` in drive `D:`. See [Desktop colour and wallpaper](../design/state-and-action.md#desktop-colour-and-wallpaper). |
 | `close()` | Closes the bridge, then the VM. |
 
 ### Recorder
 
-`class Recorder(session, path, output_fps, lossless=False)`, in `art98.recorder`
+`class Recorder(session, path, output_fps, lossless=False, defer=False)`, in `art98.recorder`
 
 Encodes frames to video clips. Frames are taken when the script asks, so a slow host makes the same
 video as a fast one. Use it as a context manager, because a clip is only complete after `close`.

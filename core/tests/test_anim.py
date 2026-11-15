@@ -1034,7 +1034,7 @@ def test_render_turns_a_class_into_a_scene_and_routes_a_gif(
         def __exit__(self, *exc):
             pass
 
-        def record(self, path, output_fps, lossless=False):
+        def record(self, path, output_fps, lossless=False, defer=False):
             options.update(path=path, output_fps=output_fps, lossless=lossless)
             recorder = Recorder(guest)
             recorder.clips = recorder.parts = [path]
@@ -1235,7 +1235,7 @@ def test_render_uses_a_given_session_and_never_closes_it(tmp_path, monkeypatch, 
         def close(self):
             self.closed = True
 
-        def record(self, path, output_fps, lossless=False):
+        def record(self, path, output_fps, lossless=False, defer=False):
             recorder = Recorder(guest)
             recorder.clips = recorder.parts = [path]
             return recorder

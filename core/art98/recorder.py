@@ -9,6 +9,7 @@ import tempfile
 import time
 import warnings
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
@@ -34,6 +35,15 @@ LOSSLESS_SUFFIX = ".mkv"
 
 class RecorderError(Art98Error, RuntimeError):
     """ffmpeg failed, or the frames can't go in one clip."""
+
+
+@dataclass(frozen=True)
+class Clip:
+    """One finished clip: its final name, the file it is until committed, its size."""
+
+    final: Path
+    part: Path
+    size: tuple[int, int]
 
 
 def part_path(path: Path) -> Path:
@@ -120,10 +130,10 @@ class Recorder:
     with nothing recorded since the last one makes no empty file.
 
     Nothing is written under a final name while the run is going. Every clip
-    lives in `parts`, under a `<name>.part<suffix>` file beside its final name,
-    and `close()` (or leaving the `with` block well) renames them all to `clips`. A run that
-    fails drops its parts and touches no earlier file. With `defer` set, the
-    `close()` leaves the parts in place for the caller to rename or delete,
+    lives as a part, a `<name>.part<suffix>` file beside its final name, and
+    `close()` (or leaving the `with` block well) renames them all to `clips`.
+    A run that fails drops its parts and touches no earlier file. With
+    `defer`, `close()` leaves the parts in place for the caller to rename or delete,
     which is how `render` keeps a whole render all-or-nothing.
     """
 
@@ -133,6 +143,7 @@ class Recorder:
         path: Path | str,
         output_fps: int,
         lossless: bool = False,
+        defer: bool = False,
     ):
         self._session = session
         self._output_fps = output_fps
@@ -143,14 +154,28 @@ class Recorder:
         self._ffmpeg: subprocess.Popen | None = None
         self._log = None
         self._size: tuple[int, int] | None = None
-        self._sizes: list[tuple[int, int]] = []
+        self._clips: list[Clip] = []
+        self._committed = False
+        self._defer = defer
         self._closed = False
         self.path = self._base
-        self.defer = False
-        self.clips: list[Path] = []
-        self.parts: list[Path] = []
         self.count = 0
         self.total = 0
+
+    @property
+    def clips(self) -> list[Path]:
+        """The finished clips' final names."""
+        return [clip.final for clip in self._clips]
+
+    @property
+    def parts(self) -> list[Path]:
+        """The finished clips' files now: parts until `commit()`, then finals."""
+        return [clip.part for clip in self._clips]
+
+    @property
+    def finished(self) -> list[Clip]:
+        """The finished clips, each with its final name, current file and size."""
+        return list(self._clips)
 
     # ---- frames ----
 
@@ -183,6 +208,7 @@ class Recorder:
         warn_if_late(taken, self._output_fps, start, stacklevel + 1)
 
     def _capture(self, hold: int) -> None:
+        self._check_open()
         self._session.vm.screenshot(self._frame, format="ppm")
         data = self._frame.read_bytes()
         self._write(data, hold)
@@ -229,7 +255,7 @@ class Recorder:
             return None
         closed = self._finish(first_is_numbered=True)
         self.count = 0
-        index = len(self.clips) + 1
+        index = len(self._clips) + 1
         self.path = self._clip_path(path) if path is not None else self._numbered(index)
         return closed
 
@@ -237,7 +263,7 @@ class Recorder:
         """Close the last clip and rename every part to its final name.
 
         Raises RecorderError if its ffmpeg failed, after dropping the parts.
-        With `defer` set the parts stay where they are, for `commit()` or the
+        With `defer` the parts stay where they are, for `commit()` or the
         caller to rename or delete.
         """
         if self._closed:
@@ -245,7 +271,7 @@ class Recorder:
         self._closed = True
         try:
             self._finish()
-            if not self.defer:
+            if not self._defer:
                 self.commit()
         except BaseException:
             self._discard()
@@ -255,9 +281,10 @@ class Recorder:
 
     def commit(self) -> None:
         """Rename every part to its final name, replacing what is there."""
-        for part, final in zip(self.parts, self.clips):
-            os.replace(part, final)
-        self.parts = list(self.clips)
+        for clip in self._clips:
+            os.replace(clip.part, clip.final)
+        self._clips = [Clip(c.final, c.final, c.size) for c in self._clips]
+        self._committed = True
 
     def join(self, output: Path | str, stage: bool = False) -> Path:
         """Join the finished clips into one file, by stream copy.
@@ -268,14 +295,13 @@ class Recorder:
         returned, as for `run_ffmpeg`.
         """
         output = Path(output)
-        if not self.parts:
+        if not self._clips:
             raise RecorderError("no clips to join: nothing was recorded")
         if output.resolve() in [clip.resolve() for clip in self.clips]:
             raise RecorderError(f"{output} is one of the clips being joined")
-        if len(set(self._sizes)) > 1:
+        if len({clip.size for clip in self._clips}) > 1:
             sizes = ", ".join(
-                f"{clip.name} {_size(size)}"
-                for clip, size in zip(self.clips, self._sizes)
+                f"{clip.final.name} {_size(clip.size)}" for clip in self._clips
             )
             raise RecorderError(f"clips of different sizes can't be joined: {sizes}")
         # join usually runs after close(), so the listing gets its own folder
@@ -305,7 +331,7 @@ class Recorder:
 
     def _start(self) -> None:
         codec = FFV1 if self._lossless else H264
-        self._log = (self._dir / f"ffmpeg-{len(self.clips) + 1:02d}.log").open("w+b")
+        self._log = (self._dir / f"ffmpeg-{len(self._clips) + 1:02d}.log").open("w+b")
         try:
             self._ffmpeg = subprocess.Popen(
                 [
@@ -362,21 +388,20 @@ class Recorder:
             )
         final = (
             self._numbered(1)
-            if first_is_numbered and path == self._base and not self.clips
+            if first_is_numbered and path == self._base and not self._clips
             else path
         )
         if final != path:  # keep the join's part name, `<stem>.part`, free
             os.replace(part_path(path), part_path(final))
-        self.clips.append(final)
-        self.parts.append(part_path(final))
-        self._sizes.append(size)
+        self._clips.append(Clip(final, part_path(final), size))
         return final
 
     def _discard(self) -> None:
         """Delete the parts of the finished clips; this recorder's files only."""
-        for part in self.parts:
-            part.unlink(missing_ok=True)
-        self.clips, self.parts, self._sizes = [], [], []
+        if not self._committed:  # a committed clip's part is its final file
+            for clip in self._clips:
+                clip.part.unlink(missing_ok=True)
+        self._clips = []
 
     def abort(self) -> None:
         """Drop the clip being written and every finished part: no file is left behind.
@@ -391,7 +416,7 @@ class Recorder:
         if ffmpeg is not None:
             try:
                 ffmpeg.stdin.close()
-            except (BrokenPipeError, OSError):
+            except OSError:
                 pass
             ffmpeg.terminate()
             ffmpeg.wait()

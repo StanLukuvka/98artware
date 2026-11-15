@@ -65,8 +65,10 @@ def render(
         [],
     )  # part files made; (part, final) clips; (part, final) outputs
     try:
-        video = session.record(master, output_fps=scene.output_fps, lossless=bool(gif))
-        video.defer = True  # the parts stay parts until the render is done
+        # defer: the parts stay parts until the render is done
+        video = session.record(
+            master, output_fps=scene.output_fps, lossless=bool(gif), defer=True
+        )
         with video:
             scene.run(session, video)
         staged += video.parts
@@ -98,7 +100,8 @@ def render(
                 results.append((part_path(output), output))
         else:
             results.append((source, output))
-        for clip, part in zip(video.clips, video.parts) if cut and keep_clips else []:
+        for record in video.finished if cut and keep_clips else []:
+            clip, part = record.final, record.part
             if (
                 clip.suffix == LOSSLESS_SUFFIX
             ):  # kept as H.264, the lossless one dropped
