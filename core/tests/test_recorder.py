@@ -5,6 +5,7 @@ Most tests drive the real ffmpeg with tiny generated frames and no VM.
 
 from __future__ import annotations
 
+import dataclasses
 import shutil
 import subprocess
 import warnings
@@ -14,6 +15,15 @@ import pytest
 from art98 import recorder as recorder_module
 from art98.anim import Scene
 from art98.anim import renderer as render_module
+from art98.errors import UsageError
+from art98.gif import (
+    GIF_COLORS,
+    GIF_DITHER,
+    GIF_FPS,
+    GIF_SCALE,
+    GifOptions,
+    write_gif,
+)
 from art98.recorder import Recorder, RecorderError, ppm_size
 from art98.session import Session
 
@@ -392,6 +402,91 @@ def test_a_gif_render_makes_one_gif_and_keeps_the_clips_as_mp4(staged, tmp_path)
     ] == [2, 3, 1]
 
 
+class MixedCuts:
+    """A numbered clip, a named one, then a numbered one."""
+
+    output_fps = 10
+
+    def __init__(self, path):
+        self.path = path
+
+    def run(self, session, video):
+        video.frame(hold=2)
+        video.cut(self.path)
+        video.frame(hold=3)
+        video.cut()
+        video.frame()
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("gif", [False, True])
+def test_clip_numbers_follow_position_when_named_and_numbered_cuts_mix(
+    staged, tmp_path, gif
+):
+    """The numbered clip after a named one is -03, as the recorder names it."""
+    named = tmp_path / "mid.mp4"
+    out = tmp_path / ("out.gif" if gif else "out.mp4")
+    render_module.render(MixedCuts(named), out, session=staged)
+    names = sorted(p.name for p in tmp_path.iterdir() if p.suffix == ".mp4")
+    assert names == sorted(
+        ["out-01.mp4", "mid.mp4", "out-03.mp4"] + ([] if gif else ["out.mp4"])
+    )
+    assert [frames(tmp_path / n) for n in ("out-01.mp4", "mid.mp4", "out-03.mp4")] == [
+        2,
+        3,
+        1,
+    ]
+
+
+@pytest.mark.parametrize(
+    "output, gif",
+    [("out.avi", None), ("out", None), ("out.mp4", "out.mp4"), ("out.mp4", "clip")],
+)
+def test_render_refuses_other_suffixes_before_recording(session, tmp_path, output, gif):
+    class Never:
+        output_fps = 10
+
+        def run(self, session, video):
+            raise AssertionError("nothing may be recorded")
+
+    with pytest.raises(UsageError, match="must end in"):
+        render_module.render(
+            Never(), tmp_path / output, gif=gif and tmp_path / gif, session=session
+        )
+    assert not list(tmp_path.iterdir())
+
+
+def test_gif_options_are_frozen_and_default_to_the_constants():
+    options = GifOptions()
+    assert (options.fps, options.colors, options.scale, options.dither) == (
+        GIF_FPS,
+        GIF_COLORS,
+        GIF_SCALE,
+        GIF_DITHER,
+    )
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        options.fps = 1
+
+
+def test_gif_options_reach_the_ffmpeg_filter(session, tmp_path, monkeypatch):
+    seen = []
+
+    def run(command, **kwargs):
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 1, "", "stop")
+
+    monkeypatch.setattr(recorder_module.subprocess, "run", run)
+    with pytest.raises(RecorderError):
+        write_gif(
+            tmp_path / "in.mkv",
+            tmp_path / "out.gif",
+            GifOptions(fps=7, colors=32, scale=0.5, dither="bayer"),
+        )
+    graph = seen[0][seen[0].index("-filter_complex") + 1]
+    assert "fps=7" in graph and "max_colors=32" in graph and "dither=bayer" in graph
+    assert "scale=iw*0.5" in graph
+
+
 @needs_ffmpeg
 def test_a_gif_and_mp4_render_with_keep_clips_false(staged, tmp_path):
     render_module.render(
@@ -573,13 +668,14 @@ def test_missing_ffmpeg_raises_recorder_error(session, tmp_path, monkeypatch):
 
 
 @needs_ffmpeg
-def test_stale_clips_are_reported_not_deleted(staged, tmp_path, capsys):
+def test_stale_clips_are_reported_not_deleted(staged, tmp_path):
     (tmp_path / "out-05.mp4").write_bytes(b"old")
     (tmp_path / "other-01.mp4").write_bytes(b"mine")
-    render_module.render(Cutting(), tmp_path / "out.mp4", session=staged)
+    with pytest.warns(UserWarning, match=r"out-05\.mp4") as caught:
+        render_module.render(Cutting(), tmp_path / "out.mp4", session=staged)
     assert (tmp_path / "out-05.mp4").read_bytes() == b"old"
-    err = capsys.readouterr().err
-    assert "out-05.mp4" in err and "other-01" not in err and "out-01" not in err
+    text = str(caught[0].message)
+    assert "other-01" not in text and "out-01" not in text
 
 
 @needs_ffmpeg

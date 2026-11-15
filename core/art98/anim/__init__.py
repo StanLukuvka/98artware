@@ -48,6 +48,7 @@ from ..base.rate_functions import (
 )
 from ..base.units import lerp
 from ..base.vectors import DL, DOWN, DR, LEFT, ORIGIN, RIGHT, UL, UP, UR, Vec
+from ..gif import GifOptions
 from .renderer import render
 from .scene import Scene
 
@@ -71,6 +72,7 @@ __all__ = [
     "Dialog",
     "DoubleClick",
     "Drag",
+    "GifOptions",
     "Glide",
     "Hover",
     "Instant",
