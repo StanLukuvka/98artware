@@ -98,7 +98,7 @@ image. Which tests a change needs:
 
 | Path | What |
 | --- | --- |
-| `core/art98/anim/` | What scenes import (`from art98.anim import *`). `scene.py` is `Scene`; `setstate.py` applies and checks a state; `renderer.py` is `render()` |
+| `core/art98/anim/` | What scenes import (`from art98.anim import *`). `scene.py` is `Scene`; `setstate.py` applies and checks a state on the guest (`Scene.set_state` runs the Set); `renderer.py` is `render()` |
 | `core/art98/base/` | Building blocks with no guest I/O of their own: `Animation` and groups, rate functions, vectors, `Box`/`Prop`/`Spot`, `DesktopSpace` (`space.py`) |
 | `core/art98/actions/` | Action families: `pointer.py`, `keyboard.py`, `backdrop.py`, `window/` (`Win`, commands, `Menu`, `Picture`) and `programs/` (one file per program, each a `Win` subclass) |
 | `core/art98/guest/` | The Python side of talking to the VM (not the C programs in the top-level `guest/`): `qemu.py`, `bridge.py`, `protocol.py`, `win32.py`, `guestfiles.py`, `disc.py` |
@@ -136,7 +136,7 @@ Formatting is ruff's: `uv run ruff format core setup tools`.
 - One home per thing. A guest read used twice becomes one helper (in `win32.py`, or on `Win`); a
   Win32 constant goes in `win32.py`, and `test_win32.py` fails on one defined elsewhere; pixel and frame rounding and distance live in
   `base/units.py`, and `test_units.py` fails on a built-in `round` or `math.hypot` elsewhere in the scene layer; the
-  programs a state can open are listed once, in `APPS` in `anim/setstate.py`. No compatibility shims or old import paths when something moves,
+  programs a state can open are listed once, in `APPS` in `actions/apps.py`. No compatibility shims or old import paths when something moves,
   and no commented-out or parked code: delete what you replace and move its callers. A renamed or removed Scene setting goes in `RETIRED` in `anim/scene.py`, which only refuses it and never maps an old name to a new one, and is emptied at each release.
 - Lean first: one module and one code path, and more only when a measurement or a real use
   asks for it.

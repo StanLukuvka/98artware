@@ -33,10 +33,10 @@ These matter only for a program that can appear in a state file (today `picture`
 | Hook | Where | What it does |
 | --- | --- | --- |
 | `from_state(window)` | the class | Builds the prop from one parsed window of a state file. |
-| `APPS` | `core/art98/anim/setstate.py` | The one list: `{"picture": Picture, "notepad": Notepad}`. A state's `app` must be a key. |
+| `APPS` | `core/art98/actions/apps.py` | The one list: `{"picture": Picture, "notepad": Notepad}`. A state's `app` must be a key. |
 | title rule | `core/art98/state.py` | The exact title-bar text, used as the default `title` and checked after Set. |
 
-`state.programs()` reads `APPS`, so adding a key there makes the name valid in a state file.
+`state.py` reads `APPS`, so adding a key there makes the name valid in a state file. Each class also has a `check_file` that checks a state's `open` file.
 
 **The title rule.** After Set, the guest's window title must equal the state's `title` exactly.
 When the state gives none, `state.py` fills in a default.

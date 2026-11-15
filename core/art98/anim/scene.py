@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import time
 import warnings
 from pathlib import Path
@@ -11,9 +12,11 @@ from ..base.animation import Animation
 from ..base.props import Box, Prop
 from ..base.space import STOCK, DesktopSpace
 from ..base.units import frames
+from ..desktop import blank
 from ..errors import NotFound, UsageError
 from ..guest import win32
 from ..output.recorder import warn_if_late
+from ..state import load_state
 from . import setstate
 
 DESKTOPS = ("blank", "stock")
@@ -155,7 +158,18 @@ class Scene:
         relative path is looked for next to the scene's file, then in the
         current folder. Nothing is recorded, so the next frame shows the state.
         """
-        setstate.set_state(self, path)
+        state = load_state(self._find_state(Path(path)))
+        if not self.session.fresh:  # a scene's first Set follows run's revert
+            self.session.revert()
+        self.session.fresh = False
+        for prop in self.props:
+            prop.forget()
+        self.props.clear()
+        self._state_props = {}
+        self._start_desktop()
+        props = setstate.apply_state(self, state)
+        setstate.check_state(self.guest, self.space, state, props)
+        self._state_props = props
 
     def prop(self, window_id: str) -> Prop:
         """The prop for a window the last state opened, by its id."""
@@ -169,11 +183,15 @@ class Scene:
 
     def _start_desktop(self) -> None:
         """After a boot or a revert: the desktop the scene asked for, and a new pointer."""
-        setstate.start_desktop(self)
+        self.prepare_desktop()
+        self.pointer = Pointer()
+        self.pointer.attach(self)
 
     def prepare_desktop(self) -> None:
         """Put the desktop the scene asked for in place, then read the work area."""
-        setstate.prepare_desktop(self)
+        if self.desktop == "blank":
+            blank(self.guest, pointer=self.pointer_visible)
+        self.calibrate()
 
     def calibrate(self) -> None:
         """Read the desktop from the guest again: screen, work area and metrics.
@@ -186,7 +204,15 @@ class Scene:
         return self.space.work_area
 
     def _find_state(self, path: Path) -> Path:
-        return setstate.find_state(self, path)
+        if path.is_absolute():
+            return path
+        try:
+            beside = Path(inspect.getfile(type(self))).resolve().parent / path
+        except (TypeError, OSError):
+            beside = None
+        if beside is not None and beside.exists():
+            return beside
+        return Path.cwd() / path
 
     @property
     def screen(self) -> Box:

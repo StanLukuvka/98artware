@@ -127,7 +127,7 @@ Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256
 | `pointer` | `[x, y]`, placed last. |
 
 Every mistake in the file is listed at once, as a `StateError`, before the desktop is touched. If
-the guest doesn't match the state afterwards, `StateMismatch` lists each difference. For example,
+the guest doesn't match the state afterwards, `StateMismatch` (a `GuestError`, not a `StateError` or `ValueError`) lists each difference. For example,
 Windows won't make a window smaller than 112 x 27, so `"size": [40, 20]` stops with
 `size [40, 20] wanted, the guest has [112, 27]`.
 

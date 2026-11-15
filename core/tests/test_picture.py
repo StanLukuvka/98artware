@@ -350,7 +350,10 @@ def test_a_guest_that_does_not_match_says_how(guest, folder):
     guest.display = (640, 480, 16)
     with pytest.raises(StateMismatch) as caught:
         check_state(
-            scene, load_state(path), {"back": back, "flower": scene.prop("flower")}
+            scene.guest,
+            scene.space,
+            load_state(path),
+            {"back": back, "flower": scene.prop("flower")},
         )
     assert caught.value.problems == [
         "display: [800, 600, 16] wanted, the guest has [640, 480, 16]",
@@ -377,11 +380,11 @@ def test_check_reports_order_and_a_missing_window(guest, folder):
     props = {"back": scene.prop("back"), "flower": scene.prop("flower")}
     guest.rows[0].reverse()
     with pytest.raises(StateMismatch) as caught:
-        check_state(scene, state, props)
+        check_state(scene.guest, scene.space, state, props)
     assert caught.value.problems == [
         "windows: front to back should be ['flower', 'back'], the guest has ['back', 'flower']"
     ]
     guest.rows[0] = guest.rows[0][1:]
     with pytest.raises(StateMismatch) as caught:
-        check_state(scene, state, props)
+        check_state(scene.guest, scene.space, state, props)
     assert caught.value.problems == ["windows[0] 'back': the window isn't there"]

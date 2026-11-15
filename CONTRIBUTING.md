@@ -214,8 +214,9 @@ control in `ready()`, and adds `text`, `set_text` and a `close()` that skips the
    [gallery](docs/scenes/gallery.md) if it shows something new.
 
 That makes a program a scene can add in `construct`. To let a state file open it as well, add
-`from_state(cls, window)`, add the class to `APPS` in `core/art98/anim/setstate.py`, and give
-it a default title rule and a file check for `open` in `core/art98/state.py`. Then document
+`from_state(cls, window)`, add the class to `APPS` in `core/art98/actions/apps.py`, give it a `check_file` for
+its `open` file and `from_state` setting `_maximized` from `show`, and give it a default title
+rule in `core/art98/state.py`. Then document
 its `app` name under [States](docs/scenes/scene-api.md#states). Only `picture` and `notepad`
 are state apps so far.
 

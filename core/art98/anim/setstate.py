@@ -1,27 +1,24 @@
-"""Applying a state to the guest, and checking the guest matches it.
+"""The guest side of a Set: applying a state, and checking the guest matches it.
 
-Set is revert, apply, check. Revert is `Session.revert`. Apply opens the
-state's windows back to front, so each new one lands on top, and places the
-pointer last. Check reads back what the state describes and fails on any
-difference. Anything the state leaves out isn't checked.
+A Set is revert, apply, check. `Scene.set_state` runs it: it finds and loads the
+file, calls `Session.revert`, then `apply_state` here, then `check_state`. Apply
+opens the state's windows back to front, so each new one lands on top, and
+places the pointer last. Check reads back what the state describes and fails on
+any difference. Anything the state leaves out isn't checked.
 """
 
 from __future__ import annotations
 
-import inspect
 import struct
-from pathlib import Path
 
-from ..actions.pointer import Pointer
-from ..actions.programs.notepad import Notepad
-from ..actions.window.picture import Picture
+from ..actions.apps import APPS
 from ..desktop import (
-    blank,
     colourref,
     set_colour,
     set_wallpaper,
     wait_for_disc,
 )
+from ..errors import GuestError
 from ..guest.guestfiles import check_bmp
 from ..guest.win32 import (
     BITSPIXEL,
@@ -34,15 +31,23 @@ from ..guest.win32 import (
     set_display_mode,
     show_window,
 )
-from ..state import State, StateError, load_state
+from ..state import State, problem_text
 
-APPS = {"picture": Picture, "notepad": Notepad}
 DISC_NAME = "WALL0001.BMP"  # the one file name on the wallpaper disc
-PIXEL_TOLERANCE = 12  # per channel: a 16 bpp screen rounds 128 to 120 and 255 to 248
+# Per channel, by screen depth in bits: a 16 bpp screen rounds 128 to 120 and 255 to
+# 248, while 24 and 32 bpp keep each channel but for a little rounding. Any other
+# depth (8 bpp is a palette) isn't compared.
+# lazy: only 16, 24 and 32 bpp have a tolerance. Upgrade path: for a palette depth,
+# look the expected colour up in the system palette and compare that.
+PIXEL_TOLERANCE = {16: 12, 24: 2, 32: 2}
 
 
-class StateMismatch(StateError):
+class StateMismatch(GuestError):
     """The guest doesn't look like the state after applying it."""
+
+    def __init__(self, path, problems: list[str]):
+        self.path, self.problems = path, problems
+        super().__init__(problem_text(path, problems))
 
 
 def display_mode(guest) -> tuple[int, int, int]:
@@ -72,7 +77,6 @@ def apply_state(scene, state: State) -> dict:
         prop = APPS[window.app].from_state(window)
         scene.add(prop)
         props[window.id] = prop
-        prop._maximized = window.show == "maximized"
         # Maximizing activates the window, so it's done before the next one
         # opens on top of it, and the order stays back to front.
         if window.show != "normal":
@@ -153,10 +157,9 @@ def expected_pixel(
     return colour
 
 
-def check_state(scene, state: State, props: dict) -> None:
+def check_state(guest, space, state: State, props: dict) -> None:
     """Raise StateMismatch listing every way the guest differs from the state."""
-    guest = scene.guest
-    bottom = scene.space.work_area[3]
+    bottom = space.work_area[3]
     problems = []
     if state.display:
         actual = display_mode(guest)
@@ -231,7 +234,11 @@ def check_state(scene, state: State, props: dict) -> None:
 
 def wallpaper_problem(guest, state: State, desk, bottom: int) -> str | None:
     """The wallpaper can't be read back (SPI_GETDESKWALLPAPER gives nothing), so one pixel is compared."""
-    screen = screen_size(guest)
+    width, height, depth = display_mode(guest)
+    tolerance = PIXEL_TOLERANCE.get(depth)
+    if tolerance is None:
+        return None
+    screen = (width, height)
     point = wallpaper_sample(state, *screen, bottom)
     if point is None:
         return None
@@ -247,45 +254,6 @@ def wallpaper_problem(guest, state: State, desk, bottom: int) -> str | None:
     finally:
         guest.user32.ReleaseDC(0, dc)
     got = (got & 255, got >> 8 & 255, got >> 16)
-    if any(abs(g - w) > PIXEL_TOLERANCE for g, w in zip(got, want)):
+    if any(abs(g - w) > tolerance for g, w in zip(got, want)):
         return f"desktop.wallpaper: pixel {list(point)} should be about {list(want)}, the guest has {list(got)}"
     return None
-
-
-def set_state(scene, path) -> None:
-    state = load_state(scene._find_state(Path(path)))
-    if not scene.session.fresh:  # a scene's first Set follows run's revert
-        scene.session.revert()
-    scene.session.fresh = False
-    for prop in scene.props:
-        prop.forget()
-    scene.props.clear()
-    scene._state_props = {}
-    scene._start_desktop()
-    props = apply_state(scene, state)
-    check_state(scene, state, props)
-    scene._state_props = props
-
-
-def find_state(scene, path: Path) -> Path:
-    if path.is_absolute():
-        return path
-    try:
-        beside = Path(inspect.getfile(type(scene))).resolve().parent / path
-    except (TypeError, OSError):
-        beside = None
-    if beside is not None and beside.exists():
-        return beside
-    return Path.cwd() / path
-
-
-def start_desktop(scene) -> None:
-    scene.prepare_desktop()
-    scene.pointer = Pointer()
-    scene.pointer.attach(scene)
-
-
-def prepare_desktop(scene) -> None:
-    if scene.desktop == "blank":
-        blank(scene.guest, pointer=scene.pointer_visible)
-    scene.calibrate()

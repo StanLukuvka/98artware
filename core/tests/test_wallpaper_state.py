@@ -9,6 +9,7 @@ import pytest
 from art98 import desktop
 from art98.anim import setstate
 from art98.base.space import STOCK
+from art98.errors import GuestError
 from art98.guest.bridge import CallResult
 from art98.state import DesktopState, State, StateError, WindowState, load_state
 from test_backdrop import DiskGuest
@@ -108,11 +109,12 @@ class Session:
 class Guest(DiskGuest):
     """A CD that holds WALL0001.BMP, an 800x600 screen and one readable pixel colour."""
 
-    def __init__(self, pixel=(10, 200, 30), colour=(0, 128, 128), log=None):
+    def __init__(self, pixel=(10, 200, 30), colour=(0, 128, 128), log=None, depth=16):
         super().__init__(files={"D:\\WALL0001.BMP"})
-        self.pixel, self.colour, self.log = (
+        self.pixel, self.colour, self.depth, self.log = (
             pixel,
             colour,
+            depth,
             log if log is not None else [],
         )
         self.gdi32 = self.user32
@@ -127,6 +129,9 @@ class Guest(DiskGuest):
 
     def do_GetSysColor(self, index):
         return CallResult(desktop.colourref(self.colour), 0, [])
+
+    def do_GetDeviceCaps(self, dc, index):
+        return CallResult(self.depth, 0, [])
 
     def do_GetDC(self, hwnd):
         return CallResult(5, 0, [])
@@ -204,7 +209,7 @@ def checked(tmp_path, guest, desk, windows=()):
     props = {w.id: SimpleNamespace(hwnd=1) for w in windows}
     guest.windows = list
     try:
-        setstate.check_state(SimpleNamespace(guest=guest, space=STOCK), state, props)
+        setstate.check_state(guest, STOCK, state, props)
     except setstate.StateMismatch as error:
         # the stand-in has no windows, so only the desktop lines matter here
         error.problems = [p for p in error.problems if p.startswith("desktop.")]
@@ -227,6 +232,29 @@ def test_check_state_compares_one_wallpaper_pixel_within_tolerance(tmp_path):
     with pytest.raises(setstate.StateMismatch) as caught:
         checked(tmp_path, Guest(pixel=(200, 0, 0)), wall)
     assert caught.value.problems[0].startswith("desktop.wallpaper: pixel [")
+
+
+def test_the_pixel_tolerance_follows_the_screen_depth(tmp_path):
+    wall = {"wallpaper": ref(tmp_path, data=bmp(800, 600, (10, 200, 30)))}
+    off_by_six = (16, 194, 24)
+    checked(tmp_path, Guest(pixel=off_by_six, depth=16), wall)  # inside 12
+    for depth in (24, 32):
+        checked(tmp_path, Guest(pixel=(12, 198, 28), depth=depth), wall)  # inside 2
+        with pytest.raises(setstate.StateMismatch):
+            checked(tmp_path, Guest(pixel=off_by_six, depth=depth), wall)
+
+
+def test_the_pixel_check_is_skipped_on_a_depth_without_a_tolerance(tmp_path):
+    wall = {"wallpaper": ref(tmp_path, data=bmp(800, 600, (10, 200, 30)))}
+    guest = Guest(pixel=(200, 0, 0), depth=8)
+    checked(tmp_path, guest, wall)
+    assert not guest.named("GetPixel") and ("GetPixel", 400, 300) not in guest.log
+
+
+def test_a_state_mismatch_is_a_guest_failure_not_a_bad_file():
+    mismatch = setstate.StateMismatch("s.json", ["display: wanted"])
+    assert isinstance(mismatch, GuestError) and not isinstance(mismatch, ValueError)
+    assert str(mismatch) == str(StateError("s.json", ["display: wanted"]))
 
 
 def test_the_wallpaper_pixel_is_taken_where_no_window_is_and_above_the_taskbar(
@@ -291,3 +319,18 @@ def test_rle_and_os2_bmps_skip_the_pixel_check_without_raising(tmp_path):
             Guest(pixel=(200, 0, 0)),
             {"wallpaper": ref(tmp_path, data=data), "style": "tile"},
         )
+
+
+def test_each_app_checks_its_own_file_and_sets_maximized_from_show(tmp_path):
+    from art98.actions.apps import APPS
+    from art98.errors import UsageError
+
+    with pytest.raises(UsageError):
+        APPS["picture"].check_file(b"not a bmp", "x")
+    APPS["notepad"].check_file(b"hello", "x")
+    with pytest.raises(UsageError):
+        APPS["notepad"].check_file(b"a\0b", "x")
+    for app, cls in APPS.items():
+        for show in ("normal", "maximized"):
+            window = WindowState("w", app, "T", (1, 2), (300, 200), show)
+            assert cls.from_state(window)._maximized == (show == "maximized")
