@@ -108,6 +108,11 @@ def test_a_wrong_hash_says_what_it_should_be(folder):
     assert problem.startswith("windows[0].open.sha256: should be " + actual)
 
 
+def test_old_desktop_colour_key_names_the_new_one(folder):
+    found = problems(folder, {"version": 1, "desktop": {"colour": [1, 2, 3]}})
+    assert found == ["desktop.colour: renamed to fill_colour"]
+
+
 def test_unknown_and_later_fields_fail(folder):
     found = problems(
         folder,

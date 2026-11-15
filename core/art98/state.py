@@ -6,7 +6,7 @@ touched, so a mistake in the file never leaves a half-made desktop.
     {
       "version": 1,
       "display": [800, 600, 16],
-      "desktop": {"colour": [0, 128, 128],
+      "desktop": {"fill_colour": [0, 128, 128],
                   "wallpaper": {"file": "assets/wall.bmp", "sha256": "..."},
                   "style": "center" | "tile" | "stretch"},
       "windows": [
@@ -21,7 +21,9 @@ Windows are listed back to front, so the last one is on top and active.
 Anything a state leaves out stays as it is on the baseline. Files are found
 relative to the state file, and their hash must match. Unknown fields fail.
 
-`desktop` is optional, and so is each part of it. `style` needs a wallpaper
+`desktop` is optional, and so is each part of it. `fill_colour` is the plain desktop colour
+behind the icons and around a centred wallpaper (Windows calls it "Desktop" in Display
+Properties, Appearance), not the taskbar or selection colour. `style` needs a wallpaper
 (default "center"). The wallpaper reaches the guest on a CD, so a state without
 one never touches the drive. Desktop icons and the tray come later.
 """
@@ -41,7 +43,7 @@ VERSION = 1
 SHOWS = ("normal", "minimized", "maximized")
 DEPTHS = (8, 16, 24, 32)
 TOP_FIELDS = {"version", "display", "desktop", "windows", "pointer"}
-DESKTOP_FIELDS = {"colour", "wallpaper", "style"}
+DESKTOP_FIELDS = {"fill_colour", "wallpaper", "style"}
 WINDOW_FIELDS = {"id", "app", "title", "at", "size", "show", "open"}
 FILE_FIELDS = {"file", "sha256"}
 LATER = {"focus": "the last window is the active one"}
@@ -49,6 +51,8 @@ LATER_DESKTOP = {
     "icons": "desktop icons come after this milestone",
     "tray": "the tray comes after this milestone",
 }
+RENAMED_DESKTOP = {"colour": "fill_colour"}
+RENAMED_NONE: dict = {}
 
 
 def programs() -> tuple[str, ...]:
@@ -90,7 +94,7 @@ class WindowState:
 
 @dataclass(frozen=True)
 class DesktopState:
-    colour: tuple[int, int, int] | None = None
+    fill_colour: tuple[int, int, int] | None = None
     wallpaper: FileRef | None = None
     style: str = "center"
 
@@ -125,16 +129,26 @@ class _Reader:
     def fail(self, where: str, message: str) -> None:
         self.problems.append(f"{where}: {message}")
 
-    def fields(self, value, allowed: set[str], where: str, later: dict = LATER) -> bool:
+    def fields(
+        self,
+        value,
+        allowed: set[str],
+        where: str,
+        later: dict = LATER,
+        renamed: dict = RENAMED_NONE,
+    ) -> bool:
         if not isinstance(value, dict):
             self.fail(where, "should be an object")
             return False
         for key in sorted(set(value) - allowed):
             reason = later.get(key)
-            self.fail(
-                f"{where}.{key}" if where != "state" else key,
-                f"not supported yet: {reason}" if reason else "unknown field",
-            )
+            if key in renamed:
+                message = f"renamed to {renamed[key]}"
+            elif reason:
+                message = f"not supported yet: {reason}"
+            else:
+                message = "unknown field"
+            self.fail(f"{where}.{key}" if where != "state" else key, message)
         return True
 
     def numbers(self, value, count: int, where: str, positive: bool = False):
@@ -169,14 +183,16 @@ class _Reader:
         return FileRef(path, actual, data)
 
     def desktop(self, value, where: str) -> DesktopState | None:
-        if not self.fields(value, DESKTOP_FIELDS, where, LATER_DESKTOP):
+        if not self.fields(
+            value, DESKTOP_FIELDS, where, LATER_DESKTOP, RENAMED_DESKTOP
+        ):
             return None
         problems = len(self.problems)
-        colour = wallpaper = None
-        if "colour" in value:
-            colour = self.numbers(value["colour"], 3, f"{where}.colour")
-            if colour and not all(0 <= c <= 255 for c in colour):
-                self.fail(f"{where}.colour", "needs numbers from 0 to 255")
+        fill_colour = wallpaper = None
+        if "fill_colour" in value:
+            fill_colour = self.numbers(value["fill_colour"], 3, f"{where}.fill_colour")
+            if fill_colour and not all(0 <= c <= 255 for c in fill_colour):
+                self.fail(f"{where}.fill_colour", "needs numbers from 0 to 255")
         if "wallpaper" in value:
             wallpaper = self.file(value["wallpaper"], f"{where}.wallpaper")
             if wallpaper is not None:
@@ -193,7 +209,7 @@ class _Reader:
             )
         if len(self.problems) > problems:
             return None
-        return DesktopState(colour, wallpaper, style)
+        return DesktopState(fill_colour, wallpaper, style)
 
     def window(self, value, where: str) -> WindowState | None:
         if not self.fields(value, WINDOW_FIELDS, where):
