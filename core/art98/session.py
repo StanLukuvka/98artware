@@ -53,9 +53,13 @@ class Session:
         self._disc = True
 
     def record(
-        self, path: Path | str, output_fps: int, lossless: bool = False
+        self,
+        path: Path | str,
+        output_fps: int,
+        lossless: bool = False,
+        defer: bool = False,
     ) -> Recorder:
-        return Recorder(self, path, output_fps, lossless)
+        return Recorder(self, path, output_fps, lossless, defer=defer)
 
     def revert(self, snapshot: str = SNAPSHOT) -> None:
         """Put the running guest back to the snapshot, keeping the bridge.
