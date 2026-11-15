@@ -29,7 +29,7 @@ def test_resolve_colour():
 
 
 def test_colourref_puts_red_in_the_low_byte():
-    assert desktop.colourref((200, 10, 30)) == 0x1E0AC8
+    assert win32.colourref((200, 10, 30)) == 0x1E0AC8
 
 
 def test_backdrop_sets_the_colour_in_one_frame():
