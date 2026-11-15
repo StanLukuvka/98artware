@@ -108,7 +108,8 @@ The plumbing under every scene. Read in this order, bottom up:
 - [ ] [session.py](../core/art98/session.py): `Session`, a VM and a bridge together, with `revert`.
   `boot_local` and `private_stage` run QEMU on the host, for experiments only.
 - [ ] [disc.py](../core/art98/disc.py): builds the small CD image that carries a wallpaper to the guest.
-- [ ] [recorder.py](../core/art98/recorder.py): `Recorder`, frames to clips with `cut()`, and the GIF defaults.
+- [ ] [recorder.py](../core/art98/recorder.py): `Recorder`, frames to clips with `cut()`.
+- [ ] [gif.py](../core/art98/gif.py): `write_gif` and the GIF defaults, kept out of `anim/` so the CLI can read them.
 - [ ] [state.py](../core/art98/state.py): the JSON state files for a starting desktop.
 - [ ] [desktop.py](../core/art98/desktop.py): the blank start, a black, empty screen after each revert.
 - [ ] [settings.py](../core/art98/settings.py): reads `art98.toml`.

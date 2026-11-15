@@ -735,8 +735,8 @@ art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
 
 ### Python
 
-`render(scene, output=None, *, session, gif=None, gif_fps=15, gif_colors=128, gif_scale=1.0,
-gif_dither="none", keep_clips=True)`
+`render(scene, output=None, *, session, gif=None, gif_fps=None, gif_colors=None, gif_scale=None,
+gif_dither=None, keep_clips=True)`; a `gif_*` left as `None` takes `write_gif`'s default.
 
 `scene` is a class or an instance. `session` is required: take one with `art98.attach()`. Render
 never boots or closes it. Returns the path written. `keep_clips` is for scenes that [cut](#clips). A scene that records no frames raises
@@ -745,7 +745,7 @@ never boots or closes it. Returns the path written. `keep_clips` is for scenes t
 A render does not copy the image. It plays on the VM that `art98 vm start` runs, from its copy
 under `work/runs/vm-*`. One render runs at a time. See [`ready` snapshot](../glossary.md).
 
-`write_gif(source, output, fps=15, colors=128, scale=1.0, dither="none")` converts a video to a
+`art98.gif.write_gif(source, output, fps=15, colors=128, scale=1.0, dither="none")` converts a video to a
 GIF with `palettegen` and `paletteuse`.
 
 A video goes through 4:2:0 H.264, which smears 1-pixel coloured text. A GIF comes from a lossless

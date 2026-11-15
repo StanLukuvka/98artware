@@ -259,7 +259,7 @@ class Scene:
                 )
             self.recorder.frame()
         if live:
-            warn_if_late(count, self.output_fps, started)
+            warn_if_late(count, self.output_fps, started, stacklevel=2)
 
     def wait(
         self, duration: float = 1.0, stop_condition=None, frozen_frame: bool = False
@@ -273,7 +273,7 @@ class Scene:
         if frozen_frame:
             self.pause(duration)
         else:
-            self.live(duration, stop_condition)
+            self._live(duration, stop_condition)
 
     def pause(self, duration: float = 1.0) -> None:
         """Hold one capture. Nothing the guest does in this time is seen."""
@@ -286,8 +286,13 @@ class Scene:
         Frames follow the host clock and skip the repaint wait, so this
         stretch depends on host speed. It wraps `Recorder.live`.
         """
+        self._live(seconds, stop_condition)
+
+    def _live(self, seconds: float, stop_condition) -> None:
+        # Called by live, wait and wait_until, each called by the scene's own
+        # script: three frames up from Recorder.live is that script's line.
         self._apply()
-        self.recorder.live(seconds, stop_condition)
+        self.recorder.live(seconds, stop_condition, stacklevel=3)
 
     def cut(self, path: Path | str | None = None) -> Path | None:
         """End the current clip here and start a new one, between two frames.
@@ -311,7 +316,7 @@ class Scene:
 
     def wait_until(self, stop_condition, max_time: float = 60.0) -> None:
         """Hold until stop_condition() is true, giving up after max_time."""
-        self.live(max_time, stop_condition)
+        self._live(max_time, stop_condition)
         if not stop_condition():
             warnings.warn(f"wait_until gave up after {max_time} s", stacklevel=2)
 

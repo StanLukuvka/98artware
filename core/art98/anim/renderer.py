@@ -9,11 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from ..gif import write_gif
 from ..recorder import (
-    GIF_COLORS,
-    GIF_DITHER,
-    GIF_FPS,
-    GIF_SCALE,
     H264,
     LOSSLESS_SUFFIX,
     RecorderError,
@@ -23,44 +20,16 @@ from ..recorder import (
 )
 
 
-def write_gif(
-    source: Path | str,
-    output: Path | str,
-    fps: int = GIF_FPS,
-    colors: int = GIF_COLORS,
-    scale: float = GIF_SCALE,
-    dither: str = GIF_DITHER,
-    stage: bool = False,
-) -> Path:
-    """Convert a video to a GIF with its own palette, keeping pixels sharp.
-
-    With stage, the GIF is left as `part_path(output)` for the caller to rename.
-    """
-    size = "" if scale == 1 else f"scale=iw*{scale}:ih*{scale}:flags=neighbor,"
-    graph = (
-        f"fps={fps},{size}split[a][b];"
-        f"[a]palettegen=max_colors={colors}:stats_mode=diff[palette];"
-        f"[b][palette]paletteuse=dither={dither}:diff_mode=rectangle"
-    )
-    run_ffmpeg(
-        ["-i", str(source), "-filter_complex", graph, "-loop", "0"],
-        Path(output),
-        "making the GIF",
-        stage,
-    )
-    return Path(output)
-
-
 def render(
     scene,
     output: Path | str | None = None,
     *,
     session,
     gif: Path | str | None = None,
-    gif_fps: int = GIF_FPS,
-    gif_colors: int = GIF_COLORS,
-    gif_scale: float = GIF_SCALE,
-    gif_dither: str = GIF_DITHER,
+    gif_fps: int | None = None,
+    gif_colors: int | None = None,
+    gif_scale: float | None = None,
+    gif_dither: str | None = None,
     keep_clips: bool = True,
 ) -> Path:
     """Play a scene on `session` and write the video.
@@ -109,8 +78,17 @@ def render(
             source = video.join(master, stage=True)
             staged.append(source)
         if gif:
+            given = {
+                "fps": gif_fps,
+                "colors": gif_colors,
+                "scale": gif_scale,
+                "dither": gif_dither,
+            }
             write_gif(
-                source, gif, gif_fps, gif_colors, gif_scale, gif_dither, stage=True
+                source,
+                gif,
+                stage=True,
+                **{name: value for name, value in given.items() if value is not None},
             )
             staged.append(part_path(gif))
             results.append((part_path(gif), gif))

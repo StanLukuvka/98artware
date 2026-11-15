@@ -48,7 +48,7 @@ from ..base.rate_functions import (
 )
 from ..base.units import lerp
 from ..base.vectors import DL, DOWN, DR, LEFT, ORIGIN, RIGHT, UL, UP, UR, Vec
-from .renderer import render, write_gif
+from .renderer import render
 from .scene import Scene
 
 __all__ = [
@@ -108,5 +108,4 @@ __all__ = [
     "smooth",
     "smoothstep",
     "there_and_back",
-    "write_gif",
 ]
