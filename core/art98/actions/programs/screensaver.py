@@ -13,7 +13,7 @@ from ..window.win import Win
 class Screensaver(Win):
     """A screensaver, started directly with /s.
 
-    Adding it starts it. Follow with `self.live(seconds)`, because it runs by
+    Adding it starts it. Follow with `self.wait(seconds)`, because it runs by
     itself. `stop` nudges the pointer, which is how a real one is dismissed.
     """
 

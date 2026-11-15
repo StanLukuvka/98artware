@@ -176,13 +176,19 @@ def test_a_stock_scene_leaves_the_desktop_alone():
     assert guest.named("SetSysColors") == []
 
 
-def test_an_unknown_desktop_is_refused():
-    class Odd(Blank):
-        desktop = "teal"
+def test_an_unknown_desktop_is_refused_where_the_class_is_defined():
+    with pytest.raises(ValueError, match="Odd.desktop 'teal'"):
 
+        class Odd(Blank):
+            desktop = "teal"
+
+
+def test_an_unknown_desktop_set_on_an_instance_is_refused_at_run():
+    scene = Blank()
+    scene.desktop = "teal"
     guest = DesktopGuest()
     with pytest.raises(ValueError, match="desktop 'teal'"):
-        Odd().run(FakeSession(guest), FakeVideo(guest))
+        scene.run(FakeSession(guest), FakeVideo(guest))
 
 
 def test_scenes_start_blank_unless_told_otherwise(monkeypatch):

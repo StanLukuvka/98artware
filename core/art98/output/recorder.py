@@ -95,26 +95,38 @@ def ppm_size(data: bytes) -> tuple[int, int]:
     return int(fields[1]), int(fields[2])
 
 
-def warn_if_late(
-    count: int, output_fps: float, started: float, stacklevel: int = 1
-) -> None:
-    """Warn once if `count` frames paced by the host clock since `started` (a
-    `time.monotonic()` reading) ended more than a frame later than they should.
+class Pacer:
+    """Paces frames by the host clock: frame `index` is due at `index / output_fps`
+    after the pacer was made, so frame 0 is due at once.
 
     A stretch that runs late stretches what the guest times for itself, so
     caret blinks and screensavers look slower in the video than they were.
-    `stacklevel` counts from the caller of this function (1 is that caller), so
-    the warning can point at the scene author's line.
     """
-    planned = count / output_fps
-    took = time.monotonic() - started
-    if took - planned > 1 / output_fps:
-        warnings.warn(
-            f"a live stretch meant to take {planned:.2f} s took {took:.2f} s: "
-            "capturing is slower than the frame rate, so guest-timed motion in it "
-            "will look slower in the video",
-            stacklevel=stacklevel + 1,
-        )
+
+    def __init__(self, output_fps: float):
+        self._output_fps = output_fps
+        self._started = time.monotonic()
+
+    def wait(self, index: int) -> None:
+        """Sleep until frame `index` is due."""
+        due = self._started + index / self._output_fps
+        time.sleep(max(0.0, due - time.monotonic()))
+
+    def done(self, count: int, stacklevel: int = 1) -> None:
+        """Warn once if `count` frames ended more than a frame later than planned.
+
+        `stacklevel` counts from the caller of this method (1 is that caller), so
+        the warning can point at the scene author's line.
+        """
+        planned = count / self._output_fps
+        took = time.monotonic() - self._started
+        if took - planned > 1 / self._output_fps:
+            warnings.warn(
+                f"a live stretch meant to take {planned:.2f} s took {took:.2f} s: "
+                "capturing is slower than the frame rate, so guest-timed motion in it "
+                "will look slower in the video",
+                stacklevel=stacklevel + 1,
+            )
 
 
 class Recorder:
@@ -197,15 +209,15 @@ class Recorder:
         is checked before each frame and ends the stretch early. A late-capture
         warning points `stacklevel` frames up from here (1 is the caller).
         """
-        start = time.monotonic()
+        pacer = Pacer(self._output_fps)
         taken = 0
         for index in range(frames(seconds, self._output_fps)):
             if stop_condition is not None and stop_condition():
                 break
-            time.sleep(max(0.0, start + index / self._output_fps - time.monotonic()))
+            pacer.wait(index)
             self._capture(1)
             taken += 1
-        warn_if_late(taken, self._output_fps, start, stacklevel + 1)
+        pacer.done(taken, stacklevel + 1)
 
     def _capture(self, hold: int) -> None:
         self._check_open()

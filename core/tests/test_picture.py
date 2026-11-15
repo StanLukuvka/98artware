@@ -227,7 +227,7 @@ def test_teleport_moves_and_resizes_in_one_frame(guest):
 
     scene, _ = run(guest, Jump)
     assert guest.rects[scene.pic.hwnd] == (40, 40, 240, 140)
-    assert len(scene.video.frames) == 1
+    assert len(scene.recorder.frames) == 1
     with pytest.raises(ValueError, match="somewhere to go"):
         Teleport(scene.pic)
 
