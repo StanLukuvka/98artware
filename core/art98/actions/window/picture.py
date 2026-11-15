@@ -23,6 +23,9 @@ class Picture(Win):
     """
 
     window_class = "Art98View"
+    check_file = staticmethod(
+        guestfiles.check_bmp
+    )  # what a state's `open` file must pass
 
     def __init__(
         self,
@@ -46,12 +49,14 @@ class Picture(Win):
 
     @classmethod
     def from_state(cls, window) -> Picture:
-        return cls(
+        prop = cls(
             window.title,
             image=window.open.path if window.open else None,
             at=window.at,
             size=window.size,
         )
+        prop._maximized = window.show == "maximized"
+        return prop
 
     def attach(self, scene) -> None:
         guest = scene.guest

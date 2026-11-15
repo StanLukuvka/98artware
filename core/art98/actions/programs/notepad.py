@@ -35,6 +35,9 @@ class Notepad(Win):
 
     command = "notepad.exe"
     window_class = "Notepad"
+    check_file = staticmethod(
+        guestfiles.check_text
+    )  # what a state's `open` file must pass
 
     def __init__(
         self,
@@ -58,7 +61,9 @@ class Notepad(Win):
     @classmethod
     def from_state(cls, window) -> Notepad:
         file = window.open.path if window.open else None
-        return cls(window.title, open=file, at=window.at, size=window.size)
+        prop = cls(window.title, open=file, at=window.at, size=window.size)
+        prop._maximized = window.show == "maximized"
+        return prop
 
     def attach(self, scene) -> None:
         if self._file_data is not None:

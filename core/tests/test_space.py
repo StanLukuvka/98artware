@@ -215,7 +215,7 @@ def test_a_display_switch_calibrates_a_new_space(guest, scene):
     old = scene.space
     guest.metrics.update({0: 640, 1: 480})
     guest.area = (0, 0, 640, 452)
-    setstate.prepare_desktop(scene)
+    scene.prepare_desktop()
     assert scene.space is not old
     assert scene.space.screen == (640, 480) and scene.work_area == (0, 0, 640, 452)
     assert scene.screen.rect == (0, 0, 640, 452)

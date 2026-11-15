@@ -218,7 +218,7 @@ after that is **actions**: free Python in `construct`, with no limits and no JSO
 
 **What follows.** A script is ordinary Python, so how many states or videos it uses is up to it;
 art98 has no "video" or "project" concept. The programs a state can open are one list, `APPS` in
-`anim/setstate.py` (today `picture` and `notepad`).
+`actions/apps.py` (today `picture` and `notepad`).
 
 **For new work.** A new state field is read and fully checked in `state.py`, applied in
 `apply_state`, and verified in `check_state`, in that order (see

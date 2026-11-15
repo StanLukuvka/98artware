@@ -35,9 +35,11 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from .actions.apps import APPS
+from .actions.programs.notepad import notepad_title
 from .desktop import STYLES
 from .errors import Art98Error, NotFound
-from .guest.guestfiles import check_bmp, check_text, name_problem, title_problem
+from .guest.guestfiles import check_bmp, name_problem, title_problem
 
 VERSION = 1
 SHOWS = ("normal", "minimized", "maximized")
@@ -55,15 +57,9 @@ RENAMED_DESKTOP = {"colour": "fill_colour"}
 RENAMED_NONE: dict = {}
 
 
-def programs() -> tuple[str, ...]:
-    """The programs a state can open, by their name in the file.
-
-    They're listed once, with their classes, in anim/setstate.py. That module
-    imports this one, so the import happens here at call time.
-    """
-    from .anim.setstate import APPS
-
-    return tuple(APPS)
+def problem_text(path: Path | str, problems: list[str]) -> str:
+    """The message of an error about a state file: its path, then one line per problem."""
+    return f"{path}:\n" + "\n".join(f"  {p}" for p in problems)
 
 
 class StateError(Art98Error, ValueError):
@@ -71,7 +67,7 @@ class StateError(Art98Error, ValueError):
 
     def __init__(self, path: Path | str, problems: list[str]):
         self.path, self.problems = Path(path), problems
-        super().__init__(f"{path}:\n" + "\n".join(f"  {p}" for p in problems))
+        super().__init__(problem_text(path, problems))
 
 
 @dataclass(frozen=True)
@@ -219,10 +215,9 @@ class _Reader:
         if not isinstance(id_, str) or not id_:
             self.fail(f"{where}.id", "needs a name")
         app = value.get("app")
-        apps = programs()
-        if app not in apps:
+        if app not in APPS:
             self.fail(
-                f"{where}.app", f"should be one of {', '.join(apps)}, not {app!r}"
+                f"{where}.app", f"should be one of {', '.join(APPS)}, not {app!r}"
             )
         title = value.get("title")
         if title is not None and not isinstance(title, str):
@@ -245,18 +240,14 @@ class _Reader:
                     f"{opened.path.name!r} can't be a file name on the"
                     f" guest: it {name_problem(opened.path.name)}",
                 )
-            elif opened is not None and app in apps:
+            elif opened is not None and app in APPS:
                 try:
-                    (check_bmp if app == "picture" else check_text)(
-                        opened.data, str(opened.path)
-                    )
+                    APPS[app].check_file(opened.data, str(opened.path))
                 except ValueError as error:
                     self.fail(f"{where}.open", str(error))
         if len(self.problems) > problems:
             return None
         if title is None:
-            from .actions.programs.notepad import notepad_title  # lazy, like programs()
-
             title = (
                 "Picture"
                 if app == "picture"
