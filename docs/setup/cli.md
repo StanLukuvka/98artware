@@ -295,7 +295,7 @@ it. The protocol is in [the container design](../design/container.md#art98-serve
 | `ART98_IMAGE`, `ART98_WORK`, `ART98_TOKEN_PATH`, `ART98_SOCKET_DIR`, `ART98_CONTROL_PORT`, `ART98_ISO`, `ART98_DISK_MB` | `compose.yaml` | Set by art98 from `art98.toml` and the flags when it runs compose. Don't set them yourself, except `ART98_IMAGE` |
 | `ART98_IMAGE` | `art98.settings` | The image name. Overrides `[vm] image` in [art98.toml](config.md), `localhost/art98:latest` by default |
 | `ART98_TRANSPORT` | `art98.container.host.transport_name` | `unix` (the default on Linux) or `tcp` (the default elsewhere): how a client reaches the VM service. Overrides `[vm] transport` in [art98.toml](config.md#keys). See [timing](../design/container.md#timing) |
-| `ART98_WATCH_DISPLAY` | `Setup._config` | The QEMU display for `--watch`, `gtk` by default. compose.yaml sets it to VNC in the container |
+| `ART98_WATCH_DISPLAY` | `Setup.config` | The QEMU display for `--watch`, `gtk` by default. compose.yaml sets it to VNC in the container |
 | `ART98_TRACE` | `art98.cli` | Set to `1` to get the full Python traceback instead of the one-line `error:` message |
 | `ART98_TEST_WORK` | `test_stage.py` | The prepared work directory the stage tests boot |
 | `ART98_TEST_WINEPREFIX` | `test_agent_wine.py` | A Wine prefix to reuse, so the Wine tests skip creating a new one |

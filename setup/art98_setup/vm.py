@@ -21,9 +21,9 @@ from .builder import (
     SECTORS_PER_TRACK,
     Setup,
     SetupError,
-    _mtool,
-    _run,
     disk_spec,
+    mtool,
+    run_command,
 )
 
 CD_SECTOR = 2048
@@ -58,7 +58,7 @@ def extract_setup_files(iso: Path, dest: Path) -> Path:
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    _run("7z", "x", "-y", "-ssc-", f"-o{dest}", str(iso), "WIN98")
+    run_command("7z", "x", "-y", "-ssc-", f"-o{dest}", str(iso), "WIN98")
     found = [p for p in dest.iterdir() if p.is_dir() and p.name.upper() == "WIN98"]
     if not found:
         raise SetupError(f"{iso} has no WIN98 folder; is it a Windows 98 disc?")
@@ -102,7 +102,7 @@ def create_disk(path: Path, size_mb: int, boot_code: bytes) -> None:
     with open(path, "wb") as disk:
         disk.truncate(total * SECTOR)
         disk.write(build_mbr(boot_code, total))
-    _mtool(
+    mtool(
         "mformat",
         "-i",
         f"{path}@@{PARTITION_OFFSET}",
@@ -229,7 +229,7 @@ def render_config_sys() -> str:
 
 def patch_floppy(image: Path, scratch: Path) -> None:
     """Replace the disc's boot menu with a direct call to Setup."""
-    listing = _mtool(
+    listing = mtool(
         "mdir", "-a", "-b", "-i", str(image), "::", text=True
     ).stdout.upper()
     if "HIMEM.SYS" not in listing:
@@ -237,15 +237,15 @@ def patch_floppy(image: Path, scratch: Path) -> None:
     # JO.SYS is the disc's startup menu. IO.SYS runs it before CONFIG.SYS, and
     # after a timeout it boots the hard disk, so Setup would never start.
     if "JO.SYS" in listing:
-        _mtool("mattrib", "-i", str(image), "-r", "-h", "-s", "::JO.SYS")
-        _mtool("mdel", "-i", str(image), "::JO.SYS")
+        mtool("mattrib", "-i", str(image), "-r", "-h", "-s", "::JO.SYS")
+        mtool("mdel", "-i", str(image), "::JO.SYS")
     for name, text in (
         ("AUTOEXEC.BAT", render_autoexec()),
         ("CONFIG.SYS", render_config_sys()),
     ):
         local = scratch / name
         local.write_bytes(text.encode("ascii"))
-        _mtool("mcopy", "-o", "-i", str(image), str(local), f"::{name}")
+        mtool("mcopy", "-o", "-i", str(image), str(local), f"::{name}")
 
 
 # ---- the step ----
@@ -274,16 +274,14 @@ def disk(setup: Setup) -> None:
     create_disk(setup.raw, setup.disk_mb, mbr)
     spec = disk_spec(setup.raw)
     setup.log("  copying setup files to the disk")
-    _mtool("mmd", "-i", spec, "::WIN98")
-    _mtool("mmd", "-i", spec, "::ART98")
-    _mtool(
-        "mcopy", "-s", "-Q", "-m", "-i", spec, *map(str, win98.iterdir()), "::WIN98/"
-    )
+    mtool("mmd", "-i", spec, "::WIN98")
+    mtool("mmd", "-i", spec, "::ART98")
+    mtool("mcopy", "-s", "-Q", "-m", "-i", spec, *map(str, win98.iterdir()), "::WIN98/")
     answer = setup.work / "MSBATCH.INF"
     answer.write_bytes(render_msbatch(setup.product_key).encode("ascii"))
-    _mtool("mcopy", "-o", "-i", spec, str(answer), "::WIN98/MSBATCH.INF")
+    mtool("mcopy", "-o", "-i", spec, str(answer), "::WIN98/MSBATCH.INF")
     answer.unlink()  # it holds the product key
-    _mtool(
+    mtool(
         "mcopy",
         "-o",
         "-i",
@@ -294,5 +292,6 @@ def disk(setup: Setup) -> None:
 
 
 def run(setup: Setup) -> None:
+    """The step entry point: Setup imports this module and calls run(setup) by name."""
     media(setup)
     disk(setup)

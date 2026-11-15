@@ -29,14 +29,14 @@ the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 | `NoPrompt2Boot` | Microsoft's table and sample disagree on what `1` means | Follows the sample | `render_msbatch` |
 | Warm reboot freeze | Windows hangs on its logo after a reset in the same QEMU process | `-no-reboot`, and a new VM per boot | `VMConfig`, `setup.py` |
 | `ExitWindowsEx` never replies | A plain call would block the bridge until it timed out | Uses `acall`, then waits for QEMU to exit | `_reboot` |
-| Blinking caret | A dialog waiting forever still changes the screen | The stall rule watches the disk instead | `_wait_for_agent` |
+| Blinking caret | A dialog waiting forever still changes the screen | The stall rule watches the disk instead | `wait_for_agent` |
 | Modern toolchains | They build files that fail on 98 with a vague error | Links without the mingw CRT, and checks the result on the host | `guest/Makefile`, `pecheck` |
 
 ## The stall rule
 
 **A stall means no disk writes for 20 minutes**; screen changes don't count. `STALL_LIMIT` is `20 * 60`.
 
-Every `SHOT_INTERVAL`, 30 seconds, `_wait_for_agent` reads the modified time of the
+Every `SHOT_INTERVAL`, 30 seconds, `wait_for_agent` reads the modified time of the
 disk file on the host. When it changes, the timer resets. When it has not changed for
 20 minutes, setup raises:
 
@@ -54,7 +54,7 @@ Other limits apply at the same time:
 |-------|----------|-------|
 | One boot of `setup` | `INSTALL_TIMEOUT` | 3 hours, so a very bad run could last far longer in total |
 | Number of boots | `SETUP_BOOTS` | 8 |
-| Waiting for the agent in `init_api` and `ready` | Literal in `_require_agent` | 15 minutes |
+| Waiting for the agent in `init_api` and `ready` | Literal in `require_agent` | 15 minutes |
 | One wizard page | `WIZARD_PAGE_TIMEOUT` | 2 minutes |
 | Windows shutting down | `SHUTDOWN_TIMEOUT` | 5 minutes |
 | A ready agent after `HELLO` | `wait_ready` default | 60 seconds |

@@ -70,8 +70,8 @@ def test_disk_holds_files_in_a_fat32_partition(tmp_path):
     vm_step.create_disk(disk, 600, b"\xfa")
     (tmp_path / "HELLO.TXT").write_text("hi")
     spec = builder.disk_spec(disk)
-    builder._mtool("mcopy", "-i", spec, str(tmp_path / "HELLO.TXT"), "::HELLO.TXT")
-    assert builder._mtool("mtype", "-i", spec, "::HELLO.TXT").stdout == b"hi"
+    builder.mtool("mcopy", "-i", spec, str(tmp_path / "HELLO.TXT"), "::HELLO.TXT")
+    assert builder.mtool("mtype", "-i", spec, "::HELLO.TXT").stdout == b"hi"
     boot_sector = disk.read_bytes()[
         builder.PARTITION_OFFSET : builder.PARTITION_OFFSET + 512
     ]
@@ -83,16 +83,16 @@ def test_disk_holds_files_in_a_fat32_partition(tmp_path):
 def test_patch_floppy_replaces_boot_files(tmp_path):
     floppy = tmp_path / "boot.img"
     floppy.write_bytes(bytes(1474560))
-    builder._mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
+    builder.mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
     himem = tmp_path / "HIMEM.SYS"
     himem.write_bytes(b"x")
-    builder._mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
-    builder._mtool("mcopy", "-i", str(floppy), str(himem), "::JO.SYS")
-    builder._mtool("mattrib", "-i", str(floppy), "+h", "+s", "+r", "::JO.SYS")
+    builder.mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
+    builder.mtool("mcopy", "-i", str(floppy), str(himem), "::JO.SYS")
+    builder.mtool("mattrib", "-i", str(floppy), "+h", "+s", "+r", "::JO.SYS")
     vm_step.patch_floppy(floppy, tmp_path)
-    autoexec = builder._mtool("mtype", "-i", str(floppy), "::AUTOEXEC.BAT").stdout
+    autoexec = builder.mtool("mtype", "-i", str(floppy), "::AUTOEXEC.BAT").stdout
     assert b"MSBATCH.INF" in autoexec and b"\r\n" in autoexec
-    listing = builder._mtool(
+    listing = builder.mtool(
         "mdir", "-a", "-b", "-i", str(floppy), "::", text=True
     ).stdout
     assert "JO.SYS" not in listing.upper()
@@ -102,10 +102,10 @@ def test_patch_floppy_replaces_boot_files(tmp_path):
 def test_patch_floppy_accepts_a_disc_without_the_menu(tmp_path):
     floppy = tmp_path / "boot.img"
     floppy.write_bytes(bytes(1474560))
-    builder._mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
+    builder.mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
     himem = tmp_path / "HIMEM.SYS"
     himem.write_bytes(b"x")
-    builder._mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
+    builder.mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
     vm_step.patch_floppy(floppy, tmp_path)
 
 
@@ -157,10 +157,10 @@ def rehearsal_disc(tmp_path):
     pycdlib = pytest.importorskip("pycdlib")
     floppy = tmp_path / "source-floppy.img"
     floppy.write_bytes(bytes(1474560))
-    builder._mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
+    builder.mtool("mformat", "-i", str(floppy), "-f", "1440", "::")
     himem = tmp_path / "HIMEM.SYS"
     himem.write_bytes(b"himem")
-    builder._mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
+    builder.mtool("mcopy", "-i", str(floppy), str(himem), "::HIMEM.SYS")
 
     disc = pycdlib.PyCdlib()
     disc.new(interchange_level=3, joliet=3)
@@ -194,20 +194,20 @@ def test_media_and_disk_stages_lay_out_a_ready_to_install_disk(
         log=lambda _: None,
     )
     vm_step.media(tool)
-    autoexec = builder._mtool("mtype", "-i", str(tool.floppy), "::AUTOEXEC.BAT").stdout
+    autoexec = builder.mtool("mtype", "-i", str(tool.floppy), "::AUTOEXEC.BAT").stdout
     assert b"SETUP.EXE" in autoexec
 
     vm_step.disk(tool)
     spec = builder.disk_spec(tool.raw)
-    listing = builder._mtool("mdir", "-b", "-i", spec, "::WIN98").stdout.upper()
+    listing = builder.mtool("mdir", "-b", "-i", spec, "::WIN98").stdout.upper()
     assert (
         b"SETUP.EXE" in listing
         and b"PRECOPY1.CAB" in listing
         and b"MSBATCH.INF" in listing
     )
-    answer = builder._mtool("mtype", "-i", spec, "::WIN98/MSBATCH.INF").stdout
+    answer = builder.mtool("mtype", "-i", spec, "::WIN98/MSBATCH.INF").stdout
     assert b'ProductKey="AAAAA-BBBBB"' in answer
-    agent = builder._mtool("mtype", "-i", spec, "::ART98/AGENT.EXE").stdout
+    agent = builder.mtool("mtype", "-i", spec, "::ART98/AGENT.EXE").stdout
     assert agent == (GUEST_BUILD / "agent.exe").read_bytes()
     assert not list(tool.work.glob("MSBATCH*"))
 
@@ -359,7 +359,7 @@ def test_blinking_screen_with_an_idle_disk_counts_as_a_stall(tmp_path, monkeypat
     tool = wizard_tool(tmp_path, monkeypatch)
     monkeypatch.setattr(tool, "_answer_setup_prompts", lambda vm: None)
     with pytest.raises(builder.SetupError, match="no disk writes"):
-        tool._wait_for_agent(BlinkingVM(), SilentBridge(), "install", 60)
+        tool.wait_for_agent(BlinkingVM(), SilentBridge(), "install", 60)
 
 
 def logon_screen() -> bytes:

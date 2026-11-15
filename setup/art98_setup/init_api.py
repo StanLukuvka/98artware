@@ -10,7 +10,7 @@ from __future__ import annotations
 from art98.guest.bridge import Bridge
 from art98.guest.qemu import VM
 
-from .builder import Setup, _mtool, _run, disk_spec
+from .builder import Setup, disk_spec, mtool, run_command
 
 MSDOS_SYS_OPTIONS = {
     "AutoScan": "0",  # no ScanDisk prompt if a run is cut short
@@ -52,14 +52,14 @@ def patch_msdos_sys(text: str, options: dict[str, str]) -> str:
 
 def patch(setup: Setup) -> None:
     spec = disk_spec(setup.raw)
-    text = _mtool("mtype", "-i", spec, "::MSDOS.SYS").stdout.decode("cp437")
+    text = mtool("mtype", "-i", spec, "::MSDOS.SYS").stdout.decode("cp437")
     patched = setup.work / "MSDOS.SYS"
     patched.write_bytes(patch_msdos_sys(text, MSDOS_SYS_OPTIONS).encode("cp437"))
-    _mtool("mattrib", "-i", spec, "-r", "-h", "-s", "::MSDOS.SYS")
-    _mtool("mcopy", "-o", "-i", spec, str(patched), "::MSDOS.SYS")
-    _mtool("mattrib", "-i", spec, "+r", "+h", "+s", "::MSDOS.SYS")
+    mtool("mattrib", "-i", spec, "-r", "-h", "-s", "::MSDOS.SYS")
+    mtool("mcopy", "-o", "-i", spec, str(patched), "::MSDOS.SYS")
+    mtool("mattrib", "-i", spec, "+r", "+h", "+s", "::MSDOS.SYS")
     patched.unlink()
-    _run(
+    run_command(
         "qemu-img",
         "convert",
         "-f",
@@ -74,13 +74,14 @@ def patch(setup: Setup) -> None:
 def boot_and_ping(setup: Setup) -> None:
     """Boot the converted image once and shut it down: the agent must answer."""
     with (
-        VM(setup._config(), log=setup._vm_log()) as vm,
+        VM(setup.config(), log=setup.vm_log()) as vm,
         Bridge.connect(vm.serial_path) as bridge,
     ):
-        setup._require_agent(vm, bridge, "init_api")
-        setup._reboot(vm, bridge)
+        setup.require_agent(vm, bridge, "init_api")
+        setup.reboot(vm, bridge)
 
 
 def run(setup: Setup) -> None:
+    """The step entry point: Setup imports this module and calls run(setup) by name."""
     patch(setup)
     boot_and_ping(setup)
