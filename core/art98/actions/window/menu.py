@@ -5,8 +5,8 @@ from __future__ import annotations
 from ...base.animation import Succession
 from ...base.props import Spot
 from ...errors import NotFound, UsageError
-from ...protocol import Out
-from ...win32 import MF_BYPOSITION, menu_item_rect
+from ...guest.protocol import Out
+from ...guest.win32 import MF_BYPOSITION, menu_item_rect
 from ..pointer import Click
 from .win import Win
 

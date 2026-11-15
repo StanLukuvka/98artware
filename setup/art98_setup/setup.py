@@ -8,8 +8,8 @@ AGENT.EXE says HELLO, with a clean shutdown.
 
 from __future__ import annotations
 
-from art98.bridge import Bridge
-from art98.qemu import VM
+from art98.guest.bridge import Bridge
+from art98.guest.qemu import VM
 
 from .builder import Setup, SetupError
 

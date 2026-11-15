@@ -8,8 +8,8 @@ from pathlib import Path
 
 from art98.container.host import ContainerError, RemoteVM, open_channel
 from art98.container.serve import Server
-from art98.protocol import frame, unframe
-from art98.qemu import QemuError
+from art98.guest.protocol import frame, unframe
+from art98.guest.qemu import QemuError
 
 TOKEN = "s3cret-token"
 PPM = b"P6\n2 1\n255\n" + bytes(range(6))

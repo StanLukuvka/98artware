@@ -12,7 +12,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from art98.freshness import ROOT
+from art98.container.freshness import ROOT
 from art98.settings import Settings
 
 from .host import transport_name

@@ -10,7 +10,6 @@ from pathlib import Path
 
 import pytest
 from art98 import session as session_module
-from art98.bridge import Bridge, BridgeError
 from art98.container import compose
 from art98.container import host as container
 from art98.container.host import (
@@ -20,7 +19,8 @@ from art98.container.host import (
     open_channel,
 )
 from art98.container.serve import MAX_DISC, Server
-from art98.qemu import VM, QemuError, VMConfig
+from art98.guest.bridge import Bridge, BridgeError
+from art98.guest.qemu import VM, QemuError, VMConfig
 from art98.settings import Settings
 from serve_harness import PPM, TOKEN, FakeSerial, FakeVM, Served
 

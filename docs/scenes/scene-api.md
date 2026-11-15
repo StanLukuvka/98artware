@@ -750,7 +750,7 @@ never boots or closes it. Returns the path written. `keep_clips` is for scenes t
 A render does not copy the image. It plays on the VM that `art98 vm start` runs, from its copy
 under `work/runs/vm-*`. One render runs at a time. See [`ready` snapshot](../glossary.md).
 
-`art98.gif.write_gif(source, output, options=GifOptions())` converts a video to a
+`art98.output.gif.write_gif(source, output, options=GifOptions())` converts a video to a
 GIF with `palettegen` and `paletteuse`.
 
 A video goes through 4:2:0 H.264, which smears 1-pixel coloured text. A GIF comes from a lossless

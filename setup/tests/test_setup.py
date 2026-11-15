@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import ClassVar
 
 import pytest
-from art98.guestfiles import guest_build
+from art98.guest.guestfiles import guest_build
 from art98_setup import builder, init_api, pecheck
 from art98_setup import setup as install_step
 from art98_setup import vm as vm_step

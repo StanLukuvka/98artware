@@ -22,9 +22,8 @@ from ..desktop import (
     set_wallpaper,
     wait_for_disc,
 )
-from ..guestfiles import check_bmp
-from ..state import State, StateError, load_state
-from ..win32 import (
+from ..guest.guestfiles import check_bmp
+from ..guest.win32 import (
     BITSPIXEL,
     COLOR_DESKTOP,
     SW_MAXIMIZE,
@@ -35,6 +34,7 @@ from ..win32 import (
     set_display_mode,
     show_window,
 )
+from ..state import State, StateError, load_state
 
 APPS = {"picture": Picture, "notepad": Notepad}
 DISC_NAME = "WALL0001.BMP"  # the one file name on the wallpaper disc

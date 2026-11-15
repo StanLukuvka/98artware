@@ -18,7 +18,7 @@ import time
 from pathlib import Path
 
 from art98.errors import Art98Error
-from art98.qemu import HOLD_MS, QemuError
+from art98.guest.qemu import HOLD_MS, QemuError
 from art98.settings import TRANSPORTS, SettingsError
 
 from .serve import keepalive, nodelay, read_line
@@ -175,7 +175,7 @@ class RemoteVM:
         *,
         shared_dir: Path | None = None,
     ):
-        # The VM belongs to the long-lived container (art98.service): close()
+        # The VM belongs to the long-lived container (art98.container.service): close()
         # only releases it.
         self._shared_dir = shared_dir
         self._sock = sock

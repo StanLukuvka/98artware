@@ -7,8 +7,8 @@ down cleanly. Failing here means the call proxy does not come up on its own.
 
 from __future__ import annotations
 
-from art98.bridge import Bridge
-from art98.qemu import VM
+from art98.guest.bridge import Bridge
+from art98.guest.qemu import VM
 
 from .builder import Setup, _mtool, _run, disk_spec
 

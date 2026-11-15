@@ -14,7 +14,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 # (built file under guest/build, its source under guest/)
 # (renders never use mbr.bin, only setup does, so it is not checked here)
 PROGRAMS = (("agent.exe", "call_proxy/agent.c"), ("view.exe", "picture_viewer/view.c"))

@@ -16,8 +16,8 @@ import time
 from pathlib import Path
 
 from art98.desktop import blank, shell_windows
+from art98.guest.win32 import RDW_REPAINT_ALL
 from art98.session import stage
-from art98.win32 import RDW_REPAINT_ALL
 
 COLOURS = {
     "teal": (0, 128, 128),

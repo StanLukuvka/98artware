@@ -248,7 +248,7 @@ frames straight into that folder; elsewhere they are a loopback TCP port. The de
 
 | Folder | What it holds |
 | --- | --- |
-| [core/](core/art98/) | The `art98` package. `anim/` is what scenes import; it sits on `base/` (animations, props, vectors, the desktop space) and `actions/` (the pointer, the keyboard, windows and programs). Beside them: the bridge, QEMU control, state files, and the VM service in `service.py` and `container/` |
+| [core/](core/art98/) | The `art98` package. `anim/` is what scenes import; it sits on `base/` (animations, props, vectors, the desktop space) and `actions/` (the pointer, the keyboard, windows and programs). Beside them: `guest/` (the Python side of talking to the VM: bridge, QEMU control, Win32 constants), `output/` (the recorder and GIFs), `container/` (the VM service), and the state files |
 | [setup/](setup/art98_setup/) | `art98 setup` and `art98 up`, which turn a disc into `work/golden.qcow2`, and the `Dockerfile` |
 | [guest/](guest/) | The programs that run inside Windows 98: `AGENT.EXE`, the `VIEW.EXE` picture viewer and the install disk's boot record |
 | [recipes/scenes/](recipes/scenes/) | Maintained scenes: the MVP, the dialog storm, the blank-start proof scene, the gallery, `hello.py` and `showcase.py`. The docs embed them |

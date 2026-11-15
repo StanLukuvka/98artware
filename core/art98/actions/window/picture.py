@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ... import guestfiles
-from ...bridge import Window
 from ...errors import GuestError, UsageError
+from ...guest import guestfiles
+from ...guest.bridge import Window
 from .win import Win
 
 DEFAULT_AT = (100, 100)

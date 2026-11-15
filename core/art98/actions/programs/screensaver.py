@@ -5,8 +5,8 @@ from __future__ import annotations
 import time
 
 from ...base.vectors import Vec
-from ...bridge import BridgeTimeout
 from ...errors import UsageError
+from ...guest.bridge import BridgeTimeout
 from ..window.win import Win
 
 

@@ -17,8 +17,8 @@ import time
 from pathlib import Path
 
 from art98.desktop import blank
+from art98.guest.win32 import cursor_pos
 from art98.session import stage
-from art98.win32 import cursor_pos
 
 OUT = (
     Path(sys.argv[1])

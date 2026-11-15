@@ -45,7 +45,8 @@ pressure "after ping"
 (cd "$S/host" && "$ART" vm status --work "$REPO/work")
 run python3 $IMG -c '
 import time
-from art98 import service, settings
+from art98 import settings
+from art98.container import service
 s = settings.load()
 t = time.monotonic()
 with service.attach(s) as session:

@@ -5,10 +5,10 @@ import json
 from pathlib import Path
 
 import pytest
-from art98 import guestfiles
 from art98.anim import UL, Close, Picture, Scene, Teleport
 from art98.anim.setstate import StateMismatch
-from art98.bridge import CallResult, Window
+from art98.guest import guestfiles
+from art98.guest.bridge import CallResult, Window
 from art98.state import StateError
 from test_anim import FakeGuest, FakeVideo, FakeVM
 from test_state import bmp

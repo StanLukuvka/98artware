@@ -35,9 +35,9 @@ import threading
 import time
 from pathlib import Path
 
-from art98.bridge import READY_TIMEOUT
 from art98.errors import Art98Error
-from art98.qemu import HOLD_MS
+from art98.guest.bridge import READY_TIMEOUT
+from art98.guest.qemu import HOLD_MS
 from art98.settings import CONTAINER_CONTROL_PORT, CONTAINER_VNC_PORT
 
 PORT = CONTAINER_CONTROL_PORT
@@ -92,7 +92,7 @@ class DesyncError(ControlError):
 class Server:
     """Answers the host on one listening socket until stopped or the VM dies.
 
-    vm is anything with the VM methods used here (a real art98.qemu.VM in the
+    vm is anything with the VM methods used here (a real art98.guest.qemu.VM in the
     container, a fake in tests); serial_path is the guest's COM1 socket.
     """
 
@@ -468,8 +468,8 @@ def run(
     unix: Path | str | None = None,
 ) -> int:
     """Boot the stage and serve it. Used by `art98 serve` inside the container."""
-    from art98.bridge import Bridge
-    from art98.qemu import VM, VMConfig
+    from art98.guest.bridge import Bridge
+    from art98.guest.qemu import VM, VMConfig
     from art98.session import IMAGE_FILE, SNAPSHOT, private_stage
 
     token = read_token(token_file)

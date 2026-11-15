@@ -14,10 +14,15 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from .bridge import Bridge, BridgeError
-from .container import compose
-from .container.compose import socket_dir
-from .container.host import (
+from ..errors import Art98Error
+from ..guest.bridge import Bridge, BridgeError
+from ..guest.qemu import QemuError
+from ..session import SNAPSHOT, ImageMissing, Session
+from ..settings import CONTAINER_VNC_PORT, Settings, load
+from . import compose
+from .compose import socket_dir
+from .freshness import container_warning, inspect_created
+from .host import (
     START_TIMEOUT,
     ChannelBusy,
     ContainerError,
@@ -26,12 +31,7 @@ from .container.host import (
     open_channel,
     transport_name,
 )
-from .container.serve import keepalive, nodelay, read_line
-from .errors import Art98Error
-from .freshness import container_warning, inspect_created
-from .qemu import QemuError
-from .session import SNAPSHOT, ImageMissing, Session
-from .settings import CONTAINER_VNC_PORT, Settings, load
+from .serve import keepalive, nodelay, read_line
 
 ATTACH_TIMEOUT = 3.0  # attach: a dead socket is NotRunning in ~3 s, not 120
 BUSY_POLL = 0.5

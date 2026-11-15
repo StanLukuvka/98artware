@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .errors import Art98Error, UsageError
+from ..errors import Art98Error, UsageError
 
 ENCODING = "cp1252"
 PROTOCOL_VERSION = 1

@@ -9,7 +9,7 @@ from ...base.props import Spot
 from ...base.units import distance
 from ...base.vectors import Vec
 from ...errors import GuestError
-from ...win32 import SW_HIDE, SW_SHOWNA
+from ...guest.win32 import SW_HIDE, SW_SHOWNA
 from ..keyboard import Keys, TypeKeys
 from ..pointer import Click, RightClick
 from ..window.win import Win

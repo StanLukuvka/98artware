@@ -300,7 +300,7 @@ it. The protocol is in [the container design](../design/container.md#art98-serve
 | `ART98_TEST_WORK` | `test_stage.py` | The prepared work directory the stage tests boot |
 | `ART98_TEST_WINEPREFIX` | `test_agent_wine.py` | A Wine prefix to reuse, so the Wine tests skip creating a new one |
 | `ART98_TOKEN_FILE` | `art98 serve` (`read_token`) | The token file, when `--token-file` is not given. The default is `/run/secrets/art98_token` |
-| `XDG_RUNTIME_DIR` | `VM.__init__`, `art98.service` | Where each VM's temporary folder for its QMP and serial sockets goes, and the VM service's socket folder. If unset, Python's default temp directory is used |
+| `XDG_RUNTIME_DIR` | `VM.__init__`, `art98.container.service` | Where each VM's temporary folder for its QMP and serial sockets goes, and the VM service's socket folder. If unset, Python's default temp directory is used |
 
 `MTOOLS_SKIP_CHECK=1` is not yours to set. Setup sets it for its own mtools calls.
 

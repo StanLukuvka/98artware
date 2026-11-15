@@ -101,13 +101,14 @@ image. Which tests a change needs:
 | `core/art98/anim/` | What scenes import (`from art98.anim import *`). `scene.py` is `Scene`; `setstate.py` applies and checks a state; `renderer.py` is `render()` |
 | `core/art98/base/` | Building blocks with no guest I/O of their own: `Animation` and groups, rate functions, vectors, `Box`/`Prop`/`Spot`, `DesktopSpace` (`space.py`) |
 | `core/art98/actions/` | Action families: `pointer.py`, `keyboard.py`, `backdrop.py`, `window/` (`Win`, commands, `Menu`, `Picture`) and `programs/` (one file per program, each a `Win` subclass) |
-| `core/art98/win32.py` | Win32 constants and small named guest reads. Put a new constant or a repeated guest read here, not inline |
-| `core/art98/bridge.py`, `protocol.py` | The host side of the agent protocol. Transport only |
+| `core/art98/guest/` | The Python side of talking to the VM (not the C programs in the top-level `guest/`): `qemu.py`, `bridge.py`, `protocol.py`, `win32.py`, `guestfiles.py`, `disc.py` |
+| `core/art98/guest/win32.py` | Win32 constants and small named guest reads. Put a new constant or a repeated guest read here, not inline |
+| `core/art98/guest/bridge.py`, `protocol.py` | The host side of the agent protocol. Transport only |
 | `core/art98/session.py` | `Session`: a VM and a bridge, with `revert`. `boot_local`/`stage` are host QEMU for experiments only |
-| `core/art98/service.py`, `container/` | The VM service: `start`, `stop`, `status`, and `attach()` for Python callers; `serve.py` runs inside the container, `host.py` and `compose.py` on the host |
+| `core/art98/container/service.py`, `container/` | The VM service: `start`, `stop`, `status`, and `attach()` for Python callers; `serve.py` runs inside the container, `host.py` and `compose.py` on the host |
 | `compose.yaml`, `compose.tcp.yaml` | How the containers run (`vm`, and `setup` behind a profile). A new mount, port or container variable goes here, not in Python; every published port stays on `127.0.0.1` |
 | `compose.override.example.yaml` | The start for a user's own `compose.override.yaml` (gitignored): key file, disc, VNC |
-| `core/art98/recorder.py` | `Recorder`: frames to clips, `cut()`, the join |
+| `core/art98/output/recorder.py` | `Recorder`: frames to clips, `cut()`, the join |
 | `core/art98/state.py` | Reading and checking state JSON files |
 | `core/art98/desktop.py` | The blank start |
 | `core/art98/settings.py` | `art98.toml` |

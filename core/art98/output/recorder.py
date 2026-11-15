@@ -13,11 +13,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
-from .base.units import frames
-from .errors import Art98Error
+from ..base.units import frames
+from ..errors import Art98Error
 
 if TYPE_CHECKING:
-    from .session import Session
+    from ..session import Session
 
 
 # The libx264 settings for every MP4 art98 writes. No reason for crf 12 or

@@ -20,9 +20,9 @@ import tempfile
 import time
 from pathlib import Path
 
-from art98.protocol import Out
+from art98.guest.protocol import Out
+from art98.guest.win32 import window_rect
 from art98.session import stage
-from art98.win32 import window_rect
 
 args = sys.argv[1:]
 OUT = (

@@ -4,13 +4,13 @@ import struct
 import warnings
 
 import pytest
-from art98 import win32
 from art98.actions import keyboard as keys_module
 from art98.actions.programs import Notepad
 from art98.actions.window.commands import Teleport
 from art98.anim import RIGHT, linear, setstate
 from art98.base.space import PlacementError, PlacementWarning
-from art98.bridge import CallResult
+from art98.guest import win32
+from art98.guest.bridge import CallResult
 from test_anim import FakeGuest, FakeSession, FakeVideo, Stage
 
 THICK = win32.WS_THICKFRAME

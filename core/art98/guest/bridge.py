@@ -11,7 +11,7 @@ from itertools import count
 from pathlib import Path
 from typing import Self
 
-from .errors import Art98Error
+from ..errors import Art98Error
 from .protocol import (
     PROTOCOL_VERSION,
     FrameError,

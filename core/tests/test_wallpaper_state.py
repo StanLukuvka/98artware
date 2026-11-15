@@ -9,7 +9,7 @@ import pytest
 from art98 import desktop
 from art98.anim import setstate
 from art98.base.space import STOCK
-from art98.bridge import CallResult
+from art98.guest.bridge import CallResult
 from art98.state import DesktopState, State, StateError, WindowState, load_state
 from test_backdrop import DiskGuest
 

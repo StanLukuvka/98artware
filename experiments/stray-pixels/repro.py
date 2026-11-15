@@ -2,7 +2,7 @@
 
 Run: . .tools/env.sh; .venv/bin/python experiments/stray-pixels/repro.py OUTDIR N [local|service]
 local: a fresh boot on local QEMU (art98.session.stage). service: the running VM service
-(`art98 vm start` must be running; art98.service.attach, reverts first).
+(`art98 vm start` must be running; art98.container.service.attach, reverts first).
 (service on Docker: env -u DOCKER_HOST sg docker -c '... service')
 Per run: revert, blank, open the DialogStorm boxes (8 cascade, 2 pair, 1 typing), set the colour
 with art98.desktop.set_colour (or a pre-fix sequence with PRE=1), screendump (A), force a full
@@ -16,10 +16,10 @@ import time
 from pathlib import Path
 
 import art98.desktop
+from art98.container.service import attach
 from art98.desktop import blank, set_colour
-from art98.service import attach
+from art98.guest.win32 import RDW_REPAINT_ALL, place_window
 from art98.session import stage
-from art98.win32 import RDW_REPAINT_ALL, place_window
 
 OUT = Path(sys.argv[1]).resolve()
 N = int(sys.argv[2])

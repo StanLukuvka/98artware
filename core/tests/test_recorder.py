@@ -12,11 +12,11 @@ import warnings
 from pathlib import Path
 
 import pytest
-from art98 import recorder as recorder_module
 from art98.anim import Scene
 from art98.anim import renderer as render_module
 from art98.errors import UsageError
-from art98.gif import (
+from art98.output import recorder as recorder_module
+from art98.output.gif import (
     GIF_COLORS,
     GIF_DITHER,
     GIF_FPS,
@@ -24,7 +24,7 @@ from art98.gif import (
     GifOptions,
     write_gif,
 )
-from art98.recorder import Recorder, RecorderError, ppm_size
+from art98.output.recorder import Recorder, RecorderError, ppm_size
 from art98.session import Session
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")

@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 
 import pytest
-from art98.protocol import (
+from art98.guest.protocol import (
     PROTOCOL_VERSION,
     FrameError,
     Out,

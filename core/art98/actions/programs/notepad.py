@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ... import guestfiles
-from ...win32 import EM_SETMODIFY, WM_SETTEXT
+from ...guest import guestfiles
+from ...guest.win32 import EM_SETMODIFY, WM_SETTEXT
 from ..window.win import Win
 
 

@@ -13,7 +13,7 @@ import os
 import struct
 from pathlib import Path
 
-from .errors import Art98Error, UsageError
+from ..errors import Art98Error, UsageError
 from .win32 import INVALID_FILE_ATTRIBUTES
 
 GUEST_DIR = r"C:\ART98"
@@ -33,7 +33,7 @@ def guest_build() -> Path:
     overrides it, for a copy of the library that lives outside the checkout."""
     if os.environ.get("ART98_GUEST_BUILD"):
         return Path(os.environ["ART98_GUEST_BUILD"]).expanduser()
-    return Path(__file__).resolve().parents[2] / "guest" / "build"
+    return Path(__file__).resolve().parents[3] / "guest" / "build"
 
 
 def _not_cp1252(text: str) -> bool:

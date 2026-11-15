@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import struct
 
-from .base.space import DesktopSpace, Metrics
+from ..base.space import DesktopSpace, Metrics
 from .bridge import BridgeError
 from .protocol import Out
 

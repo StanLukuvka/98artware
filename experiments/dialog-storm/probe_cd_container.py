@@ -15,8 +15,8 @@ import sys
 import time
 from pathlib import Path
 
+from art98.container.service import attach
 from art98.desktop import cd_drive, set_wallpaper, wait_for_disc
-from art98.service import attach
 from art98.session import stage
 
 OUT = Path(sys.argv[1]).resolve()

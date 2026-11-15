@@ -3,7 +3,7 @@ import os
 
 import pycdlib
 import pytest
-from art98.disc import build_iso
+from art98.guest.disc import build_iso
 
 
 def read_back(iso: bytes) -> dict[str, bytes]:

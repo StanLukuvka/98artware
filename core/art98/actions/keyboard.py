@@ -13,7 +13,7 @@ from ..base.animation import Animation
 from ..base.rate_functions import linear
 from ..base.units import count
 from ..errors import UsageError
-from ..win32 import VK_BACK, WM_CHAR, repaint_window
+from ..guest.win32 import VK_BACK, WM_CHAR, repaint_window
 from .window.win import Win
 
 KEY_HOLD_MS = 40

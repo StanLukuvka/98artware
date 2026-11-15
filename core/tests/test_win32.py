@@ -4,8 +4,8 @@ import ast
 import struct
 from pathlib import Path
 
-from art98 import win32
-from art98.protocol import Out
+from art98.guest import win32
+from art98.guest.protocol import Out
 
 
 class Result:
@@ -82,7 +82,7 @@ def module_constants(path: Path) -> set[str]:
 
 
 def test_win32_constants_live_only_in_win32_py():
-    home = ROOT / "core/art98/win32.py"
+    home = ROOT / "core/art98/guest/win32.py"
     defined_here = module_constants(home)
     sources = [
         *(ROOT / "core/art98").rglob("*.py"),
@@ -95,4 +95,4 @@ def test_win32_constants_live_only_in_win32_py():
         for name in module_constants(path)
         if name in defined_here or name.startswith(WIN32_PREFIXES)
     )
-    assert strays == [], "import these from art98.win32 instead"
+    assert strays == [], "import these from art98.guest.win32 instead"

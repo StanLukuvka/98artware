@@ -3,9 +3,10 @@
 import struct
 
 import pytest
-from art98 import desktop, win32
+from art98 import desktop
 from art98.anim import Backdrop
-from art98.bridge import CallResult
+from art98.guest import win32
+from art98.guest.bridge import CallResult
 from test_anim import FakeGuest, FakeSession, FakeVideo, Stage
 from test_desktop import ICONS, DesktopGuest
 
