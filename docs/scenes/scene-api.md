@@ -116,7 +116,7 @@ Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256
 | --- | --- |
 | `version` | `1`. The only field that must be there. |
 | `display` | `[width, height, depth]`, a mode the guest's driver offers. Depth is 8, 16, 24 or 32. |
-| `desktop` | `colour` as `[r, g, b]`, and `wallpaper` as a BMP (`file` and `sha256`) with a `style` of `"center"` (the default), `"tile"` or `"stretch"`. Each part is optional, and `style` needs a `wallpaper`. |
+| `desktop` | `fill_colour` as `[r, g, b]` (the plain desktop colour behind the icons and around a centred wallpaper, not the taskbar or selection colour), and `wallpaper` as a BMP (`file` and `sha256`) with a `style` of `"center"` (the default), `"tile"` or `"stretch"`. Each part is optional, and `style` needs a `wallpaper`. |
 | `windows` | Listed back to front, so the last one is on top. |
 | `id` | The name for `prop(id)`. Each one is used once. |
 | `app` | `"picture"`, a [`Picture`](#picture), or `"notepad"`, a [`Notepad`](#notepad). |

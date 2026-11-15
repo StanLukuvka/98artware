@@ -62,8 +62,8 @@ def apply_state(scene, state: State) -> dict:
         set_display_mode(guest, *state.display, persist=False)
         scene.prepare_desktop()
     desk = state.desktop
-    if desk and desk.colour:
-        set_colour(guest, desk.colour)
+    if desk and desk.fill_colour:
+        set_colour(guest, desk.fill_colour)
     if desk and desk.wallpaper:
         scene.session.attach_disc({DISC_NAME: desk.wallpaper.data})
         set_wallpaper(guest, wait_for_disc(guest, DISC_NAME), desk.style)
@@ -165,11 +165,11 @@ def check_state(scene, state: State, props: dict) -> None:
                 f"display: {list(state.display)} wanted, the guest has {list(actual)}"
             )
     desk = state.desktop
-    if desk and desk.colour:
+    if desk and desk.fill_colour:
         actual = guest.user32.GetSysColor(COLOR_DESKTOP).value & 0xFFFFFF
-        if actual != colourref(desk.colour):
+        if actual != colourref(desk.fill_colour):
             problems.append(
-                f"desktop.colour: {colourref(desk.colour):06x} wanted, the guest has {actual:06x} (as BGR)"
+                f"desktop.fill_colour: {colourref(desk.fill_colour):06x} wanted, the guest has {actual:06x} (as BGR)"
             )
     if desk and desk.wallpaper:
         problem = wallpaper_problem(guest, state, desk, bottom)

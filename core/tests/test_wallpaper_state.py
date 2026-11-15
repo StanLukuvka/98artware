@@ -47,12 +47,13 @@ def problems(folder, desk):
 
 def test_a_full_desktop_block_loads(tmp_path):
     state = load(
-        tmp_path, {"colour": [0, 128, 128], "wallpaper": ref(tmp_path), "style": "tile"}
+        tmp_path,
+        {"fill_colour": [0, 128, 128], "wallpaper": ref(tmp_path), "style": "tile"},
     )
-    assert state.desktop.colour == (0, 128, 128)
+    assert state.desktop.fill_colour == (0, 128, 128)
     assert state.desktop.style == "tile"
     assert state.desktop.wallpaper.data == bmp()
-    assert load(tmp_path, {"colour": [1, 2, 3]}).desktop == DesktopState(
+    assert load(tmp_path, {"fill_colour": [1, 2, 3]}).desktop == DesktopState(
         (1, 2, 3), None, "center"
     )
     assert load(tmp_path, {"wallpaper": ref(tmp_path)}).desktop.style == "center"
@@ -66,17 +67,17 @@ def test_a_state_without_desktop_has_none(tmp_path):
 def test_every_desktop_error_message(tmp_path):
     ok = ref(tmp_path)
     junk = ref(tmp_path, "text.bmp", b"hello world, not a bitmap at all")
-    assert problems(tmp_path, {"colour": [1, 2]}) == [
-        "desktop.colour: needs 3 whole numbers"
+    assert problems(tmp_path, {"fill_colour": [1, 2]}) == [
+        "desktop.fill_colour: needs 3 whole numbers"
     ]
-    assert problems(tmp_path, {"colour": [1, 2, True]}) == [
-        "desktop.colour: needs 3 whole numbers"
+    assert problems(tmp_path, {"fill_colour": [1, 2, True]}) == [
+        "desktop.fill_colour: needs 3 whole numbers"
     ]
-    assert problems(tmp_path, {"colour": [1, 2, 256]}) == [
-        "desktop.colour: needs numbers from 0 to 255"
+    assert problems(tmp_path, {"fill_colour": [1, 2, 256]}) == [
+        "desktop.fill_colour: needs numbers from 0 to 255"
     ]
-    assert problems(tmp_path, {"colour": [-1, 2, 3]}) == [
-        "desktop.colour: needs numbers from 0 to 255"
+    assert problems(tmp_path, {"fill_colour": [-1, 2, 3]}) == [
+        "desktop.fill_colour: needs numbers from 0 to 255"
     ]
     [p] = problems(tmp_path, {"wallpaper": {"file": "nope.bmp", "sha256": "0"}})
     assert p.startswith("desktop.wallpaper.file:") and "doesn't exist" in p
@@ -168,7 +169,8 @@ def test_apply_attaches_the_disc_before_windows_and_sets_colour_then_wallpaper(
     guest = Guest(log=log)
     scene = stub_scene(guest, log, monkeypatch)
     state = load(
-        tmp_path, {"colour": [1, 2, 3], "wallpaper": ref(tmp_path), "style": "stretch"}
+        tmp_path,
+        {"fill_colour": [1, 2, 3], "wallpaper": ref(tmp_path), "style": "stretch"},
     )
     state = State(state.path, None, (window(),), None, state.desktop)
     setstate.apply_state(scene, state)
@@ -212,9 +214,9 @@ def checked(tmp_path, guest, desk, windows=()):
 
 def test_check_state_fails_on_a_wrong_colour(tmp_path):
     with pytest.raises(setstate.StateMismatch) as caught:
-        checked(tmp_path, Guest(colour=(1, 2, 3)), {"colour": [4, 5, 6]})
-    assert caught.value.problems[0].startswith("desktop.colour:")
-    checked(tmp_path, Guest(colour=(4, 5, 6)), {"colour": [4, 5, 6]})
+        checked(tmp_path, Guest(colour=(1, 2, 3)), {"fill_colour": [4, 5, 6]})
+    assert caught.value.problems[0].startswith("desktop.fill_colour:")
+    checked(tmp_path, Guest(colour=(4, 5, 6)), {"fill_colour": [4, 5, 6]})
 
 
 def test_check_state_compares_one_wallpaper_pixel_within_tolerance(tmp_path):

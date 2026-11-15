@@ -163,7 +163,7 @@ def test_state_with_wallpaper(booted, tmp_path):
             {
                 "version": 1,
                 "desktop": {
-                    "colour": [0, 128, 128],
+                    "fill_colour": [0, 128, 128],
                     "wallpaper": {
                         "file": "wall.bmp",
                         "sha256": hashlib.sha256(data).hexdigest(),
