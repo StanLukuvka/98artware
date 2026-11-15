@@ -16,6 +16,8 @@ import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .errors import Art98Error
+
 CONFIG_NAME = "art98.toml"
 # Ports INSIDE the image, fixed; the host-side ports are Settings fields.
 CONTAINER_CONTROL_PORT = 7598
@@ -23,7 +25,7 @@ CONTAINER_VNC_PORT = 5900
 TRANSPORTS = ("unix", "tcp")
 
 
-class SettingsError(ValueError):
+class SettingsError(Art98Error, ValueError):
     pass
 
 

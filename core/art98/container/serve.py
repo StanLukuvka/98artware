@@ -36,6 +36,7 @@ import time
 from pathlib import Path
 
 from art98.bridge import READY_TIMEOUT
+from art98.errors import Art98Error
 from art98.qemu import HOLD_MS
 from art98.settings import CONTAINER_CONTROL_PORT, CONTAINER_VNC_PORT
 
@@ -80,7 +81,7 @@ def read_line(sock: socket.socket, limit: int = MAX_LINE) -> bytes:
     raise ConnectionError("handshake line too long")
 
 
-class ControlError(RuntimeError):
+class ControlError(Art98Error, RuntimeError):
     pass
 
 

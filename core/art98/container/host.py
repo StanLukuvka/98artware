@@ -17,6 +17,7 @@ import threading
 import time
 from pathlib import Path
 
+from art98.errors import Art98Error
 from art98.qemu import HOLD_MS, QemuError
 from art98.settings import TRANSPORTS
 
@@ -30,7 +31,7 @@ RELEASE_TIMEOUT = 15.0  # pause and eject are QMP calls; seconds under load
 START_TIMEOUT = 120.0
 
 
-class ContainerError(RuntimeError):
+class ContainerError(Art98Error, RuntimeError):
     pass
 
 

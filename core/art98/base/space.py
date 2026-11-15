@@ -5,6 +5,7 @@ from __future__ import annotations
 import warnings
 from dataclasses import dataclass
 
+from ..errors import Art98Error
 from .units import clamp
 
 
@@ -12,7 +13,7 @@ class PlacementWarning(UserWarning):
     """A window was asked for a size or place Windows would change, or lose."""
 
 
-class PlacementError(ValueError):
+class PlacementError(Art98Error, ValueError):
     """The same, in strict mode."""
 
 

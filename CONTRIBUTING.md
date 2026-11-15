@@ -372,8 +372,8 @@ Beyond that:
 
   Keep these true, and remove one only when you fix what it describes.
 - **Errors say what to do.** A failure a user can cause gets its own exception class, a message
-  that says what to do next, and a place in `RUN_ERRORS` in `core/art98/cli.py`, so it prints
-  as one `error:` line.
+  that says what to do next, and `Art98Error` (from `core/art98/errors.py`) as its first base, so
+  the CLI prints it as one `error:` line.
 - **Windows 98 facts are measured.** A comment or docstring that states how Windows 98 behaves
   says it was checked on the real image, or doesn't state it
   ([decision 18](docs/design/decisions.md#18-measure-on-the-real-image-keep-the-probes)).

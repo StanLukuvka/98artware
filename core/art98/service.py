@@ -27,6 +27,7 @@ from .container.host import (
     transport_name,
 )
 from .container.serve import keepalive, nodelay, read_line
+from .errors import Art98Error
 from .freshness import container_warning, inspect_created
 from .qemu import QemuError
 from .session import SNAPSHOT, ImageMissing, Session
@@ -37,7 +38,7 @@ BUSY_POLL = 0.5
 OLD_IMAGE = "the container image is older than the code; run `art98 up --rebuild`"
 
 
-class ServiceError(RuntimeError):
+class ServiceError(Art98Error, RuntimeError):
     pass
 
 

@@ -13,11 +13,13 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Self
 
+from .errors import Art98Error
+
 QEMU_BINARY = "qemu-system-i386"
 HOLD_MS = 80  # how long a key press is held, in ms
 
 
-class QemuError(RuntimeError):
+class QemuError(Art98Error, RuntimeError):
     pass
 
 

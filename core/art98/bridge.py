@@ -11,6 +11,7 @@ from itertools import count
 from pathlib import Path
 from typing import Self
 
+from .errors import Art98Error
 from .protocol import (
     PROTOCOL_VERSION,
     FrameError,
@@ -25,7 +26,7 @@ READY_TIMEOUT = 60.0  # wait_ready: the agent answering after a boot
 CHUNK_SIZE = 4096
 
 
-class BridgeError(RuntimeError):
+class BridgeError(Art98Error, RuntimeError):
     """The guest refused a request, or the link went away."""
 
 

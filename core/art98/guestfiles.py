@@ -13,6 +13,7 @@ import os
 import struct
 from pathlib import Path
 
+from .errors import Art98Error
 from .win32 import INVALID_FILE_ATTRIBUTES
 
 GUEST_DIR = r"C:\ART98"
@@ -23,7 +24,7 @@ BI_RGB, BI_BITFIELDS = 0, 3
 TEXT_LIMIT = 50_000  # Windows 98 Notepad offers WordPad above this
 
 
-class GuestBuildMissing(FileNotFoundError):
+class GuestBuildMissing(Art98Error, FileNotFoundError):
     """guest/build has no programs: make hasn't run."""
 
 

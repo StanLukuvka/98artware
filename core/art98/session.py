@@ -13,6 +13,7 @@ from typing import Self
 
 from . import disc
 from .bridge import Bridge
+from .errors import Art98Error
 from .qemu import VM, VMConfig
 from .recorder import Recorder
 
@@ -20,7 +21,7 @@ SNAPSHOT = "ready"
 IMAGE_FILE = "image.json"
 
 
-class ImageMissing(FileNotFoundError):
+class ImageMissing(Art98Error, FileNotFoundError):
     """The work directory has no finished image: setup hasn't run there."""
 
 

@@ -9,6 +9,8 @@ from __future__ import annotations
 import struct
 from pathlib import Path
 
+from art98.errors import Art98Error
+
 MAX_SUBSYSTEM_VERSION = (4, 10)
 
 # Every import the agent uses, each confirmed present in Windows 98.
@@ -108,7 +110,7 @@ VIEWER_IMPORTS = {
 }
 
 
-class PEError(ValueError):
+class PEError(Art98Error, ValueError):
     pass
 
 
