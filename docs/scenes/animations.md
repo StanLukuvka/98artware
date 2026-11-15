@@ -326,7 +326,7 @@ Opens a window's menu with real clicks, and picks an item. It is a `Succession` 
 label, `step` seconds each. Labels are matched in the live menu, ignoring case and `&` marks.
 
 Windows only knows where a menu item is once its menu is open, so each click is aimed when its
-turn comes. An unknown label raises `LookupError` listing what is there.
+turn comes. An unknown label raises `NotFound` (a `LookupError`) listing what is there.
 
 ![Menus and keys](../assets/gifs/menus-keys.gif)
 

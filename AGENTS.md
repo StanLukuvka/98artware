@@ -146,8 +146,9 @@ Formatting is ruff's: `uv run ruff format core setup tools`.
 - Errors a user can cause get their own exception class with a message that says what to do.
   Every error art98 raises on purpose inherits `Art98Error` from `art98/errors.py` (with its
   built-in base second, `class X(Art98Error, ValueError)`), which is how the CLI prints one
-  `error:` line; `test_errors.py` fails on one that doesn't. A plain `ValueError` for a
-  programming mistake keeps its traceback.
+  `error:` line; `test_errors.py` fails on one that doesn't. A plain Python exception means
+  art98 has a bug and keeps its traceback; anything expected, including a mistake in what a
+  scene author passed in, raises an art98 error (`UsageError` for API misuse).
 - Write about measured behaviour: a comment or docstring that states a Windows 98 fact says it
   was checked on the real image, or doesn't state it.
 

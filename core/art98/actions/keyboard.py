@@ -12,6 +12,7 @@ import time
 from ..base.animation import Animation
 from ..base.rate_functions import linear
 from ..base.units import count
+from ..errors import UsageError
 from ..win32 import VK_BACK, WM_CHAR, repaint_window
 from .window.win import Win
 
@@ -66,7 +67,7 @@ def char_chord(char: str) -> tuple[str, ...]:
         return (char,)
     if char in UNSHIFTED:
         return (QCODES[char],)
-    raise ValueError(f"no key types {char!r}")
+    raise UsageError(f"no key types {char!r}")
 
 
 class TypeWithCursor(Animation):

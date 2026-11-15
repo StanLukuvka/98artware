@@ -19,7 +19,7 @@ from pathlib import Path
 
 from art98.errors import Art98Error
 from art98.qemu import HOLD_MS, QemuError
-from art98.settings import TRANSPORTS
+from art98.settings import TRANSPORTS, SettingsError
 
 from .serve import keepalive, nodelay, read_line
 
@@ -49,7 +49,7 @@ def transport_name(default: str | None = None) -> str:
         or ("unix" if sys.platform == "linux" else "tcp")
     )
     if name not in TRANSPORTS:
-        raise ValueError(
+        raise SettingsError(
             f"unknown transport {name!r}; choose from {', '.join(TRANSPORTS)}"
         )
     return name

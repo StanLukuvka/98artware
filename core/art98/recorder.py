@@ -271,7 +271,7 @@ class Recorder:
         if not self.parts:
             raise RecorderError("no clips to join: nothing was recorded")
         if output.resolve() in [clip.resolve() for clip in self.clips]:
-            raise ValueError(f"{output} is one of the clips being joined")
+            raise RecorderError(f"{output} is one of the clips being joined")
         if len(set(self._sizes)) > 1:
             sizes = ", ".join(
                 f"{clip.name} {_size(size)}"

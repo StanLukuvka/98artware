@@ -94,3 +94,14 @@ class _Session:
 
     def __exit__(self, *exc):
         return False
+
+
+def test_usage_errors_keep_their_built_in_bases():
+    assert issubclass(errors.UsageError, ValueError)
+    assert issubclass(errors.NotFound, (errors.UsageError, KeyError, LookupError))
+    assert (
+        str(errors.NotFound("no window 'a'")) == "no window 'a'"
+    )  # not KeyError's quoting
+    with pytest.raises(ValueError):
+        art98.anim.Scene().play()
+    assert art98.UsageError is errors.UsageError and art98.NotFound is errors.NotFound

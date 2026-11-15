@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from ..errors import UsageError
 from .space import STOCK, DesktopSpace
 from .units import pixel
 from .vectors import DL, LEFT, ORIGIN, RIGHT, Vec
@@ -165,7 +166,7 @@ class Prop(Box):
     @property
     def guest(self):
         if self.scene is None:
-            raise RuntimeError(
+            raise UsageError(
                 f"{type(self).__name__} is not on stage: add it to the scene first"
             )
         return self.scene.guest

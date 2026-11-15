@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ... import guestfiles
 from ...bridge import Window
+from ...errors import GuestError, UsageError
 from .win import Win
 
 DEFAULT_AT = (100, 100)
@@ -32,7 +33,7 @@ class Picture(Win):
         size: tuple[int, int] | None = None,
     ):
         if guestfiles.title_problem(title):
-            raise ValueError(
+            raise UsageError(
                 f"{title!r} can't be a picture window's title: it {guestfiles.title_problem(title)}"
             )
         super().__init__(title, at=at or DEFAULT_AT, size=size or DEFAULT_SIZE)
@@ -81,13 +82,13 @@ class Picture(Win):
                 and window.class_name == "#32770"
                 and window.title == "View"
             ):
-                raise RuntimeError(
+                raise GuestError(
                     f"VIEW.EXE crashed opening {self.image or 'its window'}, and Windows 98's"
                     " crash dialog is on the desktop"
                 )
         if pid not in {p for p, _ in self.guest.processes()}:
             what = f"the image {self.image}" if self.image else "its window"
-            raise RuntimeError(
+            raise GuestError(
                 f"VIEW.EXE closed without a window: Windows 98 couldn't open {what}"
             )
         return None

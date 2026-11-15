@@ -8,6 +8,7 @@ from typing import ClassVar
 from ...base.props import Spot
 from ...base.units import distance
 from ...base.vectors import Vec
+from ...errors import GuestError
 from ...win32 import SW_HIDE, SW_SHOWNA
 from ..keyboard import Keys, TypeKeys
 from ..pointer import Click, RightClick
@@ -89,7 +90,7 @@ class Minesweeper(Win):
 
         expected = self.MINES.get((columns, rows))
         if expected is not None and len(mines) != expected:
-            raise RuntimeError(f"expected {expected} mines, read {len(mines)}")
+            raise GuestError(f"expected {expected} mines, read {len(mines)}")
         self.mines = mines
         return mines
 
