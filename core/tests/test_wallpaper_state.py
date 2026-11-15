@@ -269,18 +269,83 @@ def test_the_wallpaper_pixel_is_taken_where_no_window_is_and_above_the_taskbar(
     assert y < 572
 
 
-def test_expected_pixel_for_each_style():
+def test_expected_pixels_for_each_style():
     data = bmp(2, 2, (9, 8, 7))
     desk = lambda style: DesktopState(None, SimpleNamespace(data=data), style)
     bg = (1, 1, 1)
-    assert setstate.expected_pixel(desk("center"), (800, 600), bg, 400, 300) == (
-        9,
-        8,
-        7,
+    pixels = setstate.expected_pixels
+    assert pixels(desk("center"), (800, 600), bg, 400, 300) == [
+        (9, 8, 7),
+        bg,
+    ]  # edge of a 2x2
+    assert pixels(desk("center"), (800, 600), bg, 10, 10) == [bg]
+    assert pixels(desk("tile"), (800, 600), bg, 10, 10) == [(9, 8, 7)]
+    assert pixels(desk("stretch"), (800, 600), bg, 10, 10) == [(9, 8, 7)]
+
+
+def gradient(width, height):
+    """A 24 bpp BMP whose pixel (x, y) is (x * 2, y * 2, 0)."""
+    stride = (width * 3 + 3) // 4 * 4
+    rows = [
+        b"".join(bytes((0, y * 2, x * 2)) for x in range(width)).ljust(stride, b"\0")
+        for y in range(height)
+    ]
+    pixels = b"".join(reversed(rows))
+    return (
+        b"BM"
+        + struct.pack("<IHHI", 54 + len(pixels), 0, 0, 54)
+        + struct.pack(
+            "<IiiHHIIiiII", 40, width, height, 1, 24, 0, len(pixels), 0, 0, 0, 0
+        )
+        + pixels
     )
-    assert setstate.expected_pixel(desk("center"), (800, 600), bg, 10, 10) == bg
-    assert setstate.expected_pixel(desk("tile"), (800, 600), bg, 10, 10) == (9, 8, 7)
-    assert setstate.expected_pixel(desk("stretch"), (800, 600), bg, 10, 10) == (9, 8, 7)
+
+
+def test_stretch_accepts_the_bmp_pixels_around_the_guess_clamped_to_the_image():
+    data = gradient(100, 100)
+    desk = DesktopState(None, SimpleNamespace(data=data), "stretch")
+    bg = (1, 1, 1)
+    # Screen (400, 300) on 800x600 lands on BMP (50, 50) ...
+    wanted = setstate.expected_pixels(desk, (800, 600), bg, 400, 300)
+    assert wanted[0] == (50 * 2, 50 * 2, 0)
+    assert len(wanted) == 9
+    # ... and the pixel one over is accepted, two over is not.
+    assert (51 * 2, 50 * 2, 0) in wanted
+    assert (52 * 2, 50 * 2, 0) not in wanted
+    # At a corner the 3x3 is clamped to the image, so there are fewer candidates.
+    assert len(setstate.expected_pixels(desk, (800, 600), bg, 0, 0)) == 4
+
+
+def test_center_accepts_a_pixel_over_and_the_fill_next_to_the_image_edge():
+    data = gradient(100, 100)
+    desk = DesktopState(None, SimpleNamespace(data=data), "center")
+    bg = (1, 1, 1)
+    pixels = setstate.expected_pixels
+    # The image spans x 350..449, y 250..349 on 800x600.
+    inside = pixels(desk, (800, 600), bg, 400, 300)
+    assert len(inside) == 9 and bg not in inside
+    assert inside[0] == (50 * 2, 50 * 2, 0)
+    assert (51 * 2, 50 * 2, 0) in inside
+    edge = pixels(desk, (800, 600), bg, 350, 300)  # first column
+    assert bg in edge and edge[0] == (0, 50 * 2, 0)
+    assert pixels(desk, (800, 600), bg, 349, 300)[0] == bg  # just outside
+    assert (0, 50 * 2, 0) in pixels(desk, (800, 600), bg, 349, 300)
+    assert pixels(desk, (800, 600), bg, 347, 300) == [bg]  # well outside
+
+
+def test_a_detailed_wallpaper_passes_when_windows_rounds_to_the_next_pixel(tmp_path):
+    wall = {"wallpaper": ref(tmp_path, data=gradient(100, 100)), "style": "stretch"}
+    # Screen (400, 300) is BMP (50, 50); the guest shows (51, 50) instead.
+    checked(tmp_path, Guest(pixel=(51 * 2, 50 * 2, 0)), wall)
+    with pytest.raises(setstate.StateMismatch, match="should be about"):
+        checked(tmp_path, Guest(pixel=(60 * 2, 50 * 2, 0)), wall)
+
+
+def test_bmp_pixel_is_none_outside_the_image():
+    data = gradient(4, 3)
+    assert setstate.bmp_pixel(data, 3, 2) == (6, 4, 0)
+    for x, y in ((4, 0), (-1, 0), (0, 3), (0, -1)):
+        assert setstate.bmp_pixel(data, x, y) is None
 
 
 def odd_bmps():
@@ -305,7 +370,7 @@ def test_rle_and_os2_bmps_skip_the_pixel_check_without_raising(tmp_path):
         assert setstate.bmp_pixel(data, 1, 0) is None
         for style in ("tile", "stretch"):
             assert (
-                setstate.expected_pixel(
+                setstate.expected_pixels(
                     DesktopState(None, SimpleNamespace(data=data), style),
                     (800, 600),
                     (1, 1, 1),
