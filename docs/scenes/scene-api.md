@@ -546,7 +546,8 @@ every target stays right after the window moves or resizes.
 `periwinkle`, `rose`, `orange`.
 
 Paint doesn't report its canvas size. `canvas_size` finds the edge with `GetPixel`, and that needs
-a blank canvas, so read it before you draw or use `resize_canvas` first.
+a blank canvas, so read it before you draw or use `resize_canvas` first. A canvas bigger than the
+window raises `GuestError`: make the window bigger.
 
 Keep the canvas smaller than the grey area around it. A larger canvas gets scroll bars, and
 `canvas(x, y)` doesn't follow the scroll position. Closing a changed Paint brings up its save
@@ -566,8 +567,8 @@ Starts `WINMINE.EXE`. The cell positions come from the client area.
 | --- | --- |
 | `board_size` | `(columns, rows)`. |
 | `cell(column, row)` | `Spot` on a cell. |
-| `find_mines()` | Read the board. Returns the set of mine cells. |
-| `mines` | The result of `find_mines`. |
+| `find_mines()` | Read the board. Returns the set of mine cells (a `frozenset`). |
+| `mines` | The result of `find_mines`, or `None` before it has run. |
 | `neighbours(cell)` | The cells around a cell. |
 | `opened_by(cell)` | The cells a click on this cell opens, by flood fill. |
 | `clear()` | Win the game, with real clicks. Plays its own animations. |
@@ -576,6 +577,10 @@ Starts `WINMINE.EXE`. The cell positions come from the client area.
 `find_mines` uses Minesweeper's own XYZZY cheat. It types the cheat, then moves the pointer over
 every cell with Progman hidden and reads pixel (0, 0). This happens between two frames, so it
 takes no video time. No window may cover the top left corner of the screen.
+
+Read the mines once per game. Typing the cheat again turns it off, so a second `find_mines` finds
+none. Windows 98 moves a mine away from a first click that lands on one, so a set read before the
+first click is out by at most one mine. `clear()` never clicks a mine first, so it is not affected.
 
 ![Minesweeper win](../assets/gifs/minesweeper-win.gif)
 
@@ -587,7 +592,9 @@ Source: [minesweeper_win.py](../../recipes/scenes/gallery/minesweeper_win.py).
 
 Starts `<name>.scr /s`. Follow it with `self.wait(seconds)`, because a screensaver runs by itself.
 `stop(timeout=5.0)` nudges the pointer, which is how a real one is dismissed, and waits for it to
-exit.
+exit, then puts the pointer back where it was. It raises `BridgeTimeout` if the screensaver is
+still running after the timeout. It fills the screen, so `at`, `size` and the other layout calls
+do nothing to it.
 
 `NAMES` lists what works: 3D Flower Box, 3D Flying Objects, 3D Maze, 3D Pipes, 3D Text, Blank
 Screen, Curves and Colors, Flying Through Space, Flying Windows, Mystify Your Mind, Scrolling
@@ -683,8 +690,12 @@ pixels each. It raises `ValueError` if the new text would reach the buttons: giv
 bigger `size`. `button(label)` gives a button as a `Win`. `answer` is the lower-case name of the
 button pressed, and it waits for the box to close.
 
-A Yes/No box ignores the close that its title bar sends, so `close()` doesn't shut it. Click one of its
-buttons.
+The text and the title must fit Windows 1252. Other characters raise `ValueError` rather than
+showing as `?`.
+
+A Yes/No or Abort/Retry/Ignore box has no Cancel button, and it ignores the close that its title
+bar sends. So `close()` doesn't shut it. `remove()` presses its No or Abort button, and then
+destroys the custom icon. It raises `GuestError` if the box is still open after 5 seconds.
 
 ![Hover and dialog](../assets/gifs/hover-dialog.gif)
 

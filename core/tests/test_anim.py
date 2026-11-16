@@ -97,7 +97,7 @@ class FakeGuest:
         return CallResult(1, 0, [struct.pack("<iiii", 0, 0, 800, 572)])
 
     def do_GetSystemMetrics(self, index):
-        return CallResult({4: 18, 33: 3}.get(index, 0), 0, [])
+        return CallResult({0: 800, 1: 600, 4: 18, 33: 3}.get(index, 0), 0, [])
 
     def do_ClientToScreen(self, hwnd, point):
         x, y = struct.unpack("<ii", point)
@@ -1060,7 +1060,7 @@ def test_paint_measures_the_canvas_between_white_and_grey(guest, scene):
 
 def test_resizing_the_canvas_drags_the_handle_and_remembers(guest, scene):
     prop = paint(guest, scene)
-    prop._canvas_size = (400, 300)
+    prop.canvas_size = (400, 300)
     origin = prop.canvas(0, 0).point()
     scene.play(prop.resize_canvas(500, 350, run_time=0.5))
     log = events(guest)
@@ -1122,7 +1122,11 @@ def test_screensaver_stops_by_moving_the_pointer(guest, scene):
     alive = iter([1, 0])
     guest.do_IsWindow = lambda hwnd: CallResult(next(alive), 0, [])
     saver.stop()
-    assert guest.cursor == (440, 340)
+    assert guest.named("SetCursorPos")[0][1] == (
+        440,
+        340,
+    )  # one step towards the middle
+    assert guest.cursor == (400, 300)  # then back where it started
 
 
 def test_dialog_opens_on_a_guest_thread_and_reports_its_answer(guest, scene):
