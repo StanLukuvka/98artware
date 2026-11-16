@@ -94,6 +94,21 @@ while u.IsWindow(pad.hwnd):
     time.sleep(0.05)
 ```
 
+### Wait for any condition
+
+`wait_for(look, timeout, poll)` calls `look` until it returns something other than `None`, and
+returns that, or `None` after `timeout` seconds. It does not raise.
+
+```python
+from art98.guest.bridge import wait_for
+
+g.spawn("notepad.exe")
+pad = g.find_window(class_name="Notepad")
+u.PostMessageA(pad.hwnd, WM_CLOSE, 0, 0)
+closed = wait_for(lambda: True if not u.IsWindow(pad.hwnd) else None, 3.0, 0.05)
+assert closed
+```
+
 ### Move and resize
 
 Use `win32.place_window` for moves. It calls `SetWindowPos`, then repaints the window, because a
@@ -1158,8 +1173,8 @@ while True:
 assert len(modes) == 9 and (1280, 1024, 8) in modes
 ```
 
-Screen captures follow the mode. A video keeps the size of its first frame, so ffmpeg scales later
-frames to fit.
+Screen captures follow the mode. Every frame of a clip must have the same size, so a recorder
+raises `RecorderError` when the screen changes size inside a clip. Call `cut()` before the change.
 
 ## Screensavers
 

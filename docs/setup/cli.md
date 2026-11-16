@@ -1,8 +1,8 @@
 # Commands and the work directory
 
 The `art98` command is `core/art98/cli.py`. Run it with `uv run art98`, from a source
-checkout: it finds `guest/build` relative to the source file, so an installed wheel
-would not find it.
+checkout: it finds `guest/build` relative to the source file (or in the folder
+`ART98_GUEST_BUILD` names), so an installed wheel would not find it.
 
 This page covers `doctor`, `setup`, `vm`, `ping`, `up`, `serve` and a short `render` section. For
 the GIF options of `art98 render`, see [the scene API](../scenes/scene-api.md#command-line). Settings for these commands live in
@@ -23,10 +23,9 @@ mcopy                    /usr/bin/mcopy
 7z                       /usr/bin/7z
 ffmpeg                   /usr/bin/ffmpeg
 make                     /usr/bin/make
-as                       /usr/bin/as
 i686-w64-mingw32-gcc     /usr/bin/i686-w64-mingw32-gcc
 /dev/kvm                 not used: Windows 98 runs under software emulation
-docker                   /usr/bin/docker (for `art98 up` and `art98 vm`)
+docker                   /usr/bin/docker (for `art98 up` and `art98 vm`, as `docker compose`)
 
 The VM is usable (run `art98 up` first). `art98 setup` on the host needs: qemu-system-i386, qemu-img
 ```
@@ -100,8 +99,8 @@ Ready: /home/you/98artware/work
 | Exit code | Meaning |
 |-----------|---------|
 | 0 | All steps are done. It prints `Ready: <work directory>` |
-| 1 | It failed. `SetupError`, `QemuError` and `BridgeError` print one `error: <message>` line to stderr. `ART98_TRACE=1` adds the traceback |
-| 1 | `PEError` and a plain `FileNotFoundError` are not caught: they print a Python traceback |
+| 1 | It failed. Every `Art98Error` (`SetupError`, `PEError`, `QemuError`, `BridgeError`, `MissingFile` and the rest) prints one `error: <message>` line to stderr. `ART98_TRACE=1` adds the traceback |
+| 1 | Any other exception, such as a plain `FileNotFoundError`, is not caught: it prints a Python traceback |
 
 [stages.md](stages.md) lists the messages for each step.
 
@@ -238,8 +237,8 @@ uv run art98 up --iso /path/to/win98se.iso
 ```
 
 1. Builds the image `localhost/art98:latest` if it is missing, or always with `--rebuild`.
-2. Copies `agent.exe`, `view.exe` and `mbr.bin` out of the image into `guest/build`
-   if `view.exe` isn't there, since scenes send `VIEW.EXE` to the guest from the host.
+2. Copies the guest programs (`agent.exe`, `view.exe`, `mbr.bin`) out of the image into
+   `guest/build` if `view.exe` or `sources.sha256` isn't there, since scenes send `VIEW.EXE` to the guest from the host.
 3. If `image.json` is missing from the work directory, runs `docker compose run --rm setup`,
    the `setup` service of [compose.yaml](../../compose.yaml), with the disc mounted read-only.
    First it reads compose's resolved config and checks the disc and the key are there, since
@@ -296,6 +295,8 @@ it. The protocol is in [the container design](../design/container.md#art98-serve
 | `ART98_IMAGE` | `art98.settings` | The image name. Overrides `[vm] image` in [art98.toml](config.md), `localhost/art98:latest` by default |
 | `ART98_TRANSPORT` | `art98.container.host.transport_name` | `unix` (the default on Linux) or `tcp` (the default elsewhere): how a client reaches the VM service. Overrides `[vm] transport` in [art98.toml](config.md#keys). See [timing](../design/container.md#timing) |
 | `ART98_WATCH_DISPLAY` | `Setup.config` | The QEMU display for `--watch`, `gtk` by default. compose.yaml sets it to VNC in the container |
+| `ART98_GUEST_BUILD` | `art98.guest.guestfiles.guest_build` | The folder that holds the guest programs, instead of `guest/build` in the checkout. For a copy of the library outside it |
+| `ART98_TOKEN` | `art98.container.service` | The VM token a client sends. When set, it is used instead of reading the token file |
 | `ART98_TRACE` | `art98.cli` | Set to `1` to get the full Python traceback instead of the one-line `error:` message |
 | `ART98_TEST_WORK` | `test_stage.py` | The prepared work directory the stage tests boot |
 | `ART98_TEST_WINEPREFIX` | `test_agent_wine.py` | A Wine prefix to reuse, so the Wine tests skip creating a new one |

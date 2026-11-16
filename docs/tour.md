@@ -9,7 +9,7 @@ puts them on an image, the core drives that image, and scenes and samples sit on
 | # | Section | Folder | One line |
 | --- | --- | --- | --- |
 | 1 | [Front door](#1-front-door) | repo root | What art98 is, how to install and run it. |
-| 2 | [Guest programs](#2-guest-programs) | `guest/` | C and assembly that run inside Windows 98. |
+| 2 | [Guest programs](#2-guest-programs) | `guest/` | C that runs inside Windows 98. |
 | 3 | [Setup tool](#3-setup-tool) | `setup/` | Builds the prepared image, once. |
 | 4 | [Container and VM service](#4-container-and-vm-service) | `core/art98/container/`, `setup/` | Runs QEMU in Docker, as the long-lived VM every render uses. |
 | 5 | [Core: VM and bridge](#5-core-vm-and-bridge) | `core/art98/guest/`, `core/art98/output/`, `core/art98/` | Starts the VM and talks to the agent. |
@@ -43,8 +43,9 @@ Built with `make -C guest`, into `guest/build/`.
   host over COM1 and is a thin remote Win32 call proxy. The header comment is the wire format.
 - [ ] [picture_viewer/view.c](../guest/picture_viewer/view.c): the picture window,
   a plain window showing one BMP at 1:1.
-- [ ] [Makefile](../guest/Makefile): why the agent links without the mingw CRT, and where
-  `mbr.bin` comes from: syslinux's, since mtools writes no boot code.
+- [ ] [Makefile](../guest/Makefile): why the agent links without the mingw CRT, where
+  `mbr.bin` comes from (syslinux's, since mtools writes no boot code), and `sources.sha256`, the
+  hash of the sources that `freshness.py` compares.
 
 Explained in: [Instruction set](scenes/instruction-set.md), [Win32 recipes](scenes/win32-recipes.md).
 
@@ -60,6 +61,8 @@ snapshot that every scene restores.
 - [ ] [init_api.py](../setup/art98_setup/init_api.py): step 3, make the agent start and check it.
 - [ ] [ready.py](../setup/art98_setup/ready.py): step 4, the desktop every run starts from.
 - [ ] [pecheck.py](../setup/art98_setup/pecheck.py): checks an .exe can load on Windows 98.
+- [ ] [__init__.py](../setup/art98_setup/__init__.py): the package's one-line docstring.
+  [up.py](../setup/art98_setup/up.py) is `art98 up`, in the next section.
 
 Explained in: [Setup overview](setup/README.md), [Steps](setup/stages.md), [CLI](setup/cli.md),
 [The image](setup/image.md), [Troubleshooting](setup/troubleshooting.md).
@@ -90,7 +93,12 @@ in core.
 - [ ] [compose.py](../core/art98/container/compose.py): the compose project, files and the
   `ART98_*` variables art98 passes from `art98.toml`.
 - [ ] [service.py](../core/art98/container/service.py): `art98 vm start`, `stop` and `status`, and
-  `attach()`, which takes the running VM for one render and reverts it to `ready`.
+  `attach()`, which takes the running VM for one render and reverts it to `ready`. It also holds
+  the service errors (`NotRunning`, `Unhealthy`, `Busy`).
+- [ ] [freshness.py](../core/art98/container/freshness.py): warns when the image or guest programs
+  are older than the code. Warnings only.
+- [ ] [`container/__init__.py`](../core/art98/container/__init__.py): says which module is the
+  container side and which the host side.
 
 Explained in: [Container](design/container.md),
 [Quick path in a container](setup/README.md#quick-path-in-a-container), [CLI](setup/cli.md).
@@ -99,20 +107,29 @@ Explained in: [Container](design/container.md),
 
 The plumbing under every scene. Read in this order, bottom up:
 
+- [ ] [errors.py](../core/art98/errors.py): the error classes. Everything art98 raises on purpose is
+  an `Art98Error`; `UsageError` (with `NotFound`), `GuestError` and `MissingFile` are the three
+  kinds the other errors build on.
 - [ ] [qemu.py](../core/art98/guest/qemu.py): starts and controls the VM (QMP, snapshots, screenshots).
 - [ ] [protocol.py](../core/art98/guest/protocol.py): the host side of the wire format, and `Out`.
-- [ ] [bridge.py](../core/art98/guest/bridge.py): the link to the agent, as `guest.user32.X(...)`.
+- [ ] [bridge.py](../core/art98/guest/bridge.py): the link to the agent, as `guest.user32.X(...)`,
+  and `wait_for(look, timeout, poll)`, the one polling loop.
 - [ ] [guestfiles.py](../core/art98/guest/guestfiles.py): files copied to the guest, named by content.
-- [ ] [win32.py](../core/art98/guest/win32.py): Win32 constants and small named guest reads, so the layers
-  above don't repeat them.
+- [ ] [win32.py](../core/art98/guest/win32.py): Win32 constants and small named guest calls (placing and
+  closing windows, the display mode, the screen's pixels, `calibrate`), so the layers above don't
+  repeat them.
 - [ ] [session.py](../core/art98/session.py): `Session`, a VM and a bridge together, with `revert`.
   `boot_local` and `private_stage` run QEMU on the host, for experiments only.
-- [ ] [disc.py](../core/art98/guest/disc.py): builds the small CD image that carries a wallpaper to the guest.
+- [ ] [disc.py](../core/art98/guest/disc.py): builds the small CD image that carries a wallpaper to the
+  guest, and waits for the drive to show it.
 - [ ] [recorder.py](../core/art98/output/recorder.py): `Recorder`, frames to clips with `cut()`.
+  `output/__init__.py` and `guest/__init__.py` only describe their folders.
 - [ ] [gif.py](../core/art98/output/gif.py): `write_gif`, `GifOptions` and the GIF defaults, kept out of `anim/` so the CLI can read them.
 - [ ] [state.py](../core/art98/state.py): the JSON state files for a starting desktop.
 - [ ] [desktop.py](../core/art98/desktop.py): the blank start, a black, empty screen after each revert.
 - [ ] [settings.py](../core/art98/settings.py): reads `art98.toml`.
+- [ ] [legacy.py](../core/art98/legacy.py): old names kept for the Hermes agent plugin only. Scenes and
+  docs use the current ones; delete it when the plugin is updated.
 - [ ] [cli.py](../core/art98/cli.py): the `art98` command. Errors print as one `error:` line, ending
   with the scene file's line when the error came from there.
 
@@ -129,6 +146,7 @@ What a scene author imports with `from art98.anim import *`.
   [rate_functions.py](../core/art98/base/rate_functions.py): what changes over a run time.
 - [ ] [props.py](../core/art98/base/props.py): host-side handles on things in the guest.
 - [ ] [vectors.py](../core/art98/base/vectors.py): screen directions, with y running down.
+- [ ] [units.py](../core/art98/base/units.py): the one home of pixel, frame and progress math.
 - [ ] [space.py](../core/art98/base/space.py): `DesktopSpace`, the screen, work area and metrics every
   window action places against.
 - [ ] [backdrop.py](../core/art98/actions/backdrop.py): `Backdrop`, the desktop colour.
@@ -136,16 +154,19 @@ What a scene author imports with `from art98.anim import *`.
 - [ ] [keyboard.py](../core/art98/actions/keyboard.py): typing and key presses.
 - [ ] [win.py](../core/art98/actions/window/win.py): a real window or control as a prop.
 - [ ] [commands.py](../core/art98/actions/window/commands.py): minimize, maximize, restore, close, and `Teleport`.
+  `window/__init__.py` and `actions/__init__.py` only list what each folder holds.
 - [ ] [menu.py](../core/art98/actions/window/menu.py): open a window's menu and pick an item.
 - [ ] [picture.py](../core/art98/actions/programs/picture.py): the picture window.
 - [ ] [notepad.py](../core/art98/actions/programs/notepad.py): Notepad as a program. Programs live in
-  `actions/programs/`, one file each, and subclass `Win`.
+  `actions/programs/`, one file each, and subclass `Win`. `programs/__init__.py` exports them.
+- [ ] [apps.py](../core/art98/actions/apps.py): `APPS`, the programs a state file can open (`picture`,
+  `notepad`).
 - [ ] [dialog.py](../core/art98/actions/programs/dialog.py): a real message box, opened by the agent.
 - [ ] [paint.py](../core/art98/actions/programs/paint.py): Paint, with targets for its tools, palette and canvas.
 - [ ] [minesweeper.py](../core/art98/actions/programs/minesweeper.py): Minesweeper, which can read its mines and win.
 - [ ] [screensaver.py](../core/art98/actions/programs/screensaver.py): a screensaver, started with /s.
-- [ ] [freshness.py](../core/art98/container/freshness.py): warns when the image or guest programs are older than the code.
-- [ ] [setstate.py](../core/art98/anim/setstate.py): applies a state and checks it took.
+- [ ] [setstate.py](../core/art98/anim/setstate.py): applies a state and checks it took (`Scene.set_state`
+  calls it).
 - [ ] [renderer.py](../core/art98/anim/renderer.py): VM, recorder, output file.
 
 Explained in: [Tutorial](scenes/tutorial.md) (start here), [Scene API](scenes/scene-api.md),
@@ -163,7 +184,28 @@ says which tests a change needs. Tests that need QEMU, Wine or the prepared imag
 - [ ] [test_desktop.py](../core/tests/test_desktop.py): the blank start against a fake guest.
 - [ ] [test_bridge.py](../core/tests/test_bridge.py) and
   [test_protocol.py](../core/tests/test_protocol.py): the bridge and wire format.
-- [ ] [test_state.py](../core/tests/test_state.py): state file mistakes are caught early.
+- [ ] [test_state.py](../core/tests/test_state.py) and
+  [test_wallpaper_state.py](../core/tests/test_wallpaper_state.py): state file mistakes are caught
+  early, and a state's desktop block is read, applied and checked.
+- [ ] [test_notepad.py](../core/tests/test_notepad.py), [test_dialog.py](../core/tests/test_dialog.py),
+  [test_programs.py](../core/tests/test_programs.py) (Minesweeper, Paint, Screensaver) and
+  [test_backdrop.py](../core/tests/test_backdrop.py): programs and the colour and CD helpers, each
+  against a stand-in guest.
+- [ ] [test_win32.py](../core/tests/test_win32.py), [test_guestfiles.py](../core/tests/test_guestfiles.py),
+  [test_disc.py](../core/tests/test_disc.py) and [test_units.py](../core/tests/test_units.py): the
+  guest helpers and the unit math.
+- [ ] [test_recorder.py](../core/tests/test_recorder.py): clips, `cut()` and the ffmpeg checks, on
+  the real ffmpeg.
+- [ ] [test_settings.py](../core/tests/test_settings.py), [test_cli.py](../core/tests/test_cli.py),
+  [test_errors.py](../core/tests/test_errors.py) and [test_legacy.py](../core/tests/test_legacy.py):
+  `art98.toml`, the one-line errors, the error base, and the names the Hermes plugin uses.
+- [ ] [test_freshness.py](../core/tests/test_freshness.py): the stale-build warnings.
+- [ ] [test_anim_boundary.py](../core/tests/test_anim_boundary.py): scenes never boot or reach a VM.
+- [ ] [test_drift.py](../core/tests/test_drift.py): the host-side drift fixes, on stand-in guests.
+  [drift_check.py](../core/tests/drift_check.py) holds the checks `test_stage.py` shares with the
+  drift probe.
+- [ ] [serve_harness.py](../core/tests/serve_harness.py): the real server on a fake VM and agent,
+  shared by `test_container.py`, `test_serve.py` and `test_service.py`.
 - [ ] [test_agent_wine.py](../core/tests/test_agent_wine.py): the real agent.exe under Wine.
 - [ ] [test_qemu.py](../core/tests/test_qemu.py): real QEMU, no Windows.
 - [ ] [test_anim_docs.py](../core/tests/test_anim_docs.py): the docs match the code.
@@ -182,6 +224,8 @@ says which tests a change needs. Tests that need QEMU, Wine or the prepared imag
 
 ## 8. Samples and experiments
 
+Scene folders keep their own `assets/` (BMPs, a text file) and `states/` (the JSON state files).
+
 - [ ] [hello.py](../recipes/scenes/hello.py): the smallest scene. Renders to `hello.mp4`.
 - [ ] [showcase.py](../recipes/scenes/showcase.py): a longer tour of the desktop.
 - [ ] [blank_start/blank_start.py](../recipes/scenes/blank_start/blank_start.py): the proof scene: a Picture and a
@@ -190,12 +234,20 @@ says which tests a change needs. Tests that need QEMU, Wine or the prepared imag
   [state files](../recipes/scenes/mvp/states/two_windows.json), then moved on camera.
 - [ ] [dialog_storm/dialog_storm.py](../recipes/scenes/dialog_storm/dialog_storm.py): message boxes, the
   desktop colour and a wallpaper from a state.
-- [ ] [gallery/](../recipes/scenes/gallery/): one short scene per feature;
-  [render_all.py](../tools/render_all.py) makes the GIFs in `docs/assets/gifs`.
+- [ ] [readme/hero.py](../recipes/scenes/readme/hero.py): the README's opening clip.
+- [ ] [gallery/](../recipes/scenes/gallery/): one short scene per feature (`drag_window`,
+  `hover_dialog`, `menus_keys`, `minesweeper_win`, `paint_drawing`, `pointer_clicks`,
+  `screensaver`, `typing`, `window_motion`); [render_all.py](../tools/render_all.py) makes the GIFs
+  in `docs/assets/gifs`.
+- [ ] `make_assets.py` in [mvp/](../recipes/scenes/mvp/make_assets.py) and
+  [dialog_storm/](../recipes/scenes/dialog_storm/make_assets.py): draw the sample's BMPs and print
+  the hashes for its state files.
 - [ ] [recipes/helpers/](../recipes/helpers/__init__.py): modules that scenes import, as
   `from helpers.<module> import ...`. On the path for `uv run`; not in the wheel.
 - [ ] [check_docs.py](../tools/check_docs.py): renders every sample in `docs/scenes`
   on the real image.
+- [ ] [vendor_to_hermes.py](../tools/vendor_to_hermes.py): copies `core/art98` into the Hermes
+  plugin's `vendor/` folder.
 - [ ] [experiments/](https://github.com/StanLukuvka/98artware/tree/dev/experiments): throwaway probes behind design decisions, each with a
   README of what it found: [revert-test](https://github.com/StanLukuvka/98artware/blob/dev/experiments/revert-test/README.md) for the state design,
   [vm-service](https://github.com/StanLukuvka/98artware/blob/dev/experiments/vm-service/README.md), [drift](https://github.com/StanLukuvka/98artware/blob/dev/experiments/drift/README.md) and

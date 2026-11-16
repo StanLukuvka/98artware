@@ -192,8 +192,8 @@ agreed before you write it. Check [Scope](#scope) and the
 A program is an action class: one Python class that starts a program on the guest, finds its
 window, and holds the verbs that drive it. `Notepad`
 ([core/art98/actions/programs/notepad.py](core/art98/actions/programs/notepad.py)) is the
-model to copy. It is about 90 lines: it sets `command` and `window_class`, finds its Edit
-control in `ready()`, and adds `text`, `set_text` and a `close()` that skips the save prompt.
+model to copy. It is about 95 lines: it sets `command` and `window_class`, finds its Edit
+control in `ready()`, exposes it as `edit_hwnd`, and adds a `close()` that skips the save prompt.
 [Programs](docs/design/programs.md) explains the design. The steps:
 
 1. Check it ships with Windows 98 SE. See [Scope](#scope).
@@ -214,10 +214,11 @@ control in `ready()`, and adds `text`, `set_text` and a `close()` that skips the
    [gallery](docs/scenes/gallery.md) if it shows something new.
 
 That makes a program a scene can add in `construct`. To let a state file open it as well, add
-`from_state(cls, window)`, add the class to `APPS` in `core/art98/actions/apps.py`, give it a `check_file` for
-its `open` file, a `default_title`, and `open_keyword` (the constructor keyword the file is passed as). `from_state` is inherited from `Win`, and `show` is applied by `setstate`. Give it a default title
-rule in `core/art98/state.py`. Then document
-its `app` name under [States](docs/scenes/scene-api.md#states). Only `picture` and `notepad`
+the class to `APPS` in `core/art98/actions/apps.py` and give it three things: `check_file` for
+its `open` file, a `default_title(file)` (the title a state gives a window that names none),
+and `open_keyword` (the constructor keyword the file is passed as). `from_state` is inherited
+from `Win`, and `show` is applied by `setstate`; `state.py` reads `APPS`. Then document its
+`app` name under [States](docs/scenes/scene-api.md#states). Only `picture` and `notepad`
 are state apps so far.
 
 A stock program needs no guest change. A program of art98's own, like `VIEW.EXE`, is C in
@@ -229,7 +230,7 @@ catalog records. Say in the pull request which Windows behaviour you could not c
 ### Adding to states
 
 A **state file** is JSON you write by hand; see [States](docs/scenes/scene-api.md#states). To
-add one for an example, put it in the example's `states/` folder and any file it opens beside
+add one for a scene, put it in the scene's `states/` folder and any file it opens beside
 it, referenced by path and `sha256`.
 
 A **new state field** (say, desktop icons) touches three places, in this order:
@@ -294,7 +295,7 @@ no Windows (boot chain, QMP, snapshots) and needs `qemu-system-i386`, mtools and
 | You changed | Run |
 | --- | --- |
 | Docs only | Unit tests (`test_anim_docs.py` checks the scene docs) |
-| The scene layer, animations, props, vectors, state parsing | Unit tests, plus a real render of an affected example |
+| The scene layer, animations, props, vectors, state parsing | Unit tests, plus a real render of an affected scene from `recipes/scenes/` |
 | A program class, `setstate.py`, the blank start, anything that makes Win32 calls | Unit tests and VM tests |
 | The bridge, the protocol, the recorder | Unit tests and VM tests |
 | The VM service, `container/`, `settings.py`, the CLI's attach path | Unit tests and VM tests, on Docker and, if you can, on Podman |

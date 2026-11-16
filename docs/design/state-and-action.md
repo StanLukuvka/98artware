@@ -27,12 +27,11 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
 ```json
 {
   "version": 1,
+  "display": [800, 600, 16],
   "desktop": {
     "fill_colour": [128, 0, 0],
     "wallpaper": {"file": "assets/clouds.bmp", "sha256": "..."},
-    "style": "tile",
-    "icons": {"My Computer": [8, 8], "Recycle Bin": [8, 80]},
-    "tray": ["volume"]
+    "style": "tile"
   },
   "windows": [
     {
@@ -42,7 +41,6 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
       "at": [10, 10],
       "size": [640, 480],
       "show": "normal",
-      "focus": true,
       "open": {"file": "assets/flower.bmp", "sha256": "..."}
     }
   ],
@@ -56,12 +54,13 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
   default state: blank Paint, an untitled Notepad, a new Minesweeper game.
 - Files sit beside the state and are referenced by path and hash, never embedded in the JSON.
 - One Python schema defines the fields, and a state is validated on load. Unknown fields fail.
-- `app` maps to a prop class through `APPS`. See [Programs](programs.md).
+- `app` maps to a prop class through `APPS` in `actions/apps.py`. See [Programs](programs.md).
 - States are always written with fixed key order, so diffs stay clean and hashes are stable.
 
 The schema starts small, with display, windows and pointer. Other fields join once they pass
-their tests. `desktop` has `fill_colour`, `wallpaper` and `style` (below). `icons`,
-`tray` and `focus` are rejected as "not supported yet" until they pass theirs. A window has
+their tests. `show` is `normal`, `minimized` or `maximized`. `desktop` has `fill_colour`, `wallpaper` and `style` (below). Desktop `icons` and
+`tray`, and a window's `focus`, are rejected as "not supported yet" (the last window is the active
+one) until they pass theirs. A window has
 `at` and the outer `size` instead of a rect, the same way `Win(at=..., size=...)` takes them.
 
 ### Desktop colour and wallpaper
@@ -206,7 +205,7 @@ Each of these needs a test on the real image before the schema is final.
 | Icon positions | Another program owns them, and Windows 98 has refused some calls that reach into other programs' windows |
 | Tray | Adding icons is likely. Removing another program's icon is unproven |
 | Window order and focus | Taskbar order follows the order windows opened, so it may not match the JSON |
-| Opening files in programs | Not built yet. Titles change, and Paint may not show the image at the expected zoom or size |
+| Opening files in more programs | Built for `picture` and `notepad` only. Elsewhere titles change, and Paint may not show the image at the expected zoom or size |
 | Paint with an opened file | Not built yet. `canvas_size` assumes a blank canvas, so canvas positions and `resize_canvas` would be wrong. `ready()` must also run on an adopted window |
 | Capture off | Some actions depend on real time, so a run with capture off may differ from a recorded one |
 | Clock and randomness | A new Minesweeper board differs each run unless these are fixed |

@@ -316,7 +316,7 @@ Setup's `BootMulti=1`, `DoubleBuffer=1` and `WinVer=4.10.2222` are kept.
 ## Display
 
 `DISPLAY_MODE` is `(800, 600, 16)`. `docs/archive/PLAN.md` calls it period-correct and reliable.
-`win32.set_display_mode` picks a mode the driver reports and saves it with
+`set_display_mode` in `art98/guest/win32.py` picks a mode the driver reports and saves it with
 `CDS_UPDATEREGISTRY`, so it survives the reboot. Windows reports 800, 600 and 16 from
 `GetDeviceCaps`.
 
@@ -369,7 +369,7 @@ the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 |-------|-------|------|-----|
 | `accel` | `tcg` | `-machine ...,accel=tcg` | KVM on a recent CPU exposes the Windows 9x TLB bug and needs a patched VMM. `art98 doctor` says so too |
 | `cpu` | `pentium3` | `-cpu pentium3` | Keeps Windows away from its timing bugs on fast processors. Windows sees family 6 model 7 |
-| `machine` | `pc-i440fx-10.2` here | `-machine ...` | Pinned. `_machine` reads what the `pc` alias means on this QEMU, because snapshots load only on the version they came from. The default `"pc"` in `VMConfig` is not used for the image |
+| `machine` | `pc-i440fx-10.2` here | `-machine ...` | Pinned. `Setup._machine` in `builder.py` reads what the `pc` alias means on this QEMU, because snapshots load only on the version they came from. The default `"pc"` in `VMConfig` is not used for the image |
 | | | `acpi=off,hpet=off` | Not explained in the code. Both are always off |
 | `memory_mb` | 128 | `-m 128` | Not explained in the code. A size from the period |
 | `vga` | `cirrus` | `-vga cirrus` | Windows 98 has its own driver for it, confirmed in the guest |
@@ -379,7 +379,7 @@ the QEMU command line. The docstring gives the reasons for TCG and `-no-reboot`.
 | | | `-boot order=c` | Boots the disk. `boot_once="a"` adds `once=a` for the first install boot |
 | | | `-no-reboot` | See below |
 | | | `-nic none` | No network adapter, so nothing to configure or wait for. The bridge uses COM1 |
-| `display` | `none` | `-display none` | `gtk` with `--watch`, or `vnc` when `compose.override.yaml` sets `ART98_VNC` |
+| `display` | `none` | `-display none` | `gtk` with `--watch` on the host, or VNC in the container when `compose.override.yaml` sets `ART98_VNC` |
 | | | `-serial chardev:guest` | COM1 is a Unix socket on the host. It carries the bridge |
 | | | `-mon chardev=qmp,mode=control` | QMP is a second Unix socket. It handles screenshots, keys and snapshots |
 | `floppy` | `None` | `-drive ...,if=floppy` when set | Only the first install boot |
