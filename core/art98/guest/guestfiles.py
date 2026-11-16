@@ -14,18 +14,23 @@ import struct
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..errors import Art98Error, UsageError
-from .win32 import INVALID_FILE_ATTRIBUTES
+from ..errors import MissingFile, UsageError
+from .win32 import BI_BITFIELDS, BI_JPEG, BI_PNG, BI_RGB, INVALID_FILE_ATTRIBUTES
 
 GUEST_DIR = r"C:\ART98"
 BAD_NAME_CHARS = set('\\/:*?"<>|')
 BMP_HEADER_SIZES = {12, 40, 52, 56, 108, 124}
 BMP_DEPTHS = {1, 4, 8, 16, 24, 32}
-BI_RGB, BI_BITFIELDS = 0, 3
+# A path is at most 260 characters with its NUL; `C:\ART98\F1234567\` takes 17.
+MAX_NAME = 260 - 1 - len(GUEST_DIR + "\\F1234567\\")
+DOS_DEVICES = {"CON", "PRN", "AUX", "NUL"}
+DOS_DEVICES |= {f"{kind}{n}" for kind in ("COM", "LPT") for n in range(1, 10)}
+BMP_COMPRESSIONS = {BI_RGB, BI_BITFIELDS}  # the ones whose pixel size is known
+BMP_REFUSED = {BI_JPEG, BI_PNG}  # LoadImage on Windows 98 can't read these
 TEXT_LIMIT = 50_000  # Windows 98 Notepad offers WordPad above this
 
 
-class GuestBuildMissing(Art98Error, FileNotFoundError):
+class GuestBuildMissing(MissingFile):
     """guest/build has no programs: make hasn't run."""
 
 
@@ -58,6 +63,10 @@ def name_problem(name: str) -> str | None:
         return "ends in a space or a dot, which Windows drops"
     if _not_cp1252(name):
         return "has characters outside Windows 1252, which would become '?'"
+    if len(name) > MAX_NAME:
+        return f"is {len(name)} characters; the longest the guest path allows is {MAX_NAME}"
+    if name.split(".")[0].upper() in DOS_DEVICES:
+        return "is a DOS device name (CON, PRN, AUX, NUL, COM1-9, LPT1-9)"
     return None
 
 
@@ -89,7 +98,11 @@ def guest_path(data: bytes, name: str) -> str:
 
 
 def ensure(guest, data: bytes, name: str) -> str:
-    """Copy data to the guest unless it is there already, and return its path."""
+    """Copy data to the guest unless a file is there already, and return its path.
+
+    The folder name is the first 7 hex digits of the data's hash, so a file found there is
+    almost certainly these bytes. A copy cut short earlier in the same boot would be reused.
+    """
     path = guest_path(data, name)
     if guest.kernel32.GetFileAttributesA(path).value == INVALID_FILE_ATTRIBUTES:
         guest.kernel32.CreateDirectoryA(path.rsplit("\\", 1)[0], 0)
@@ -141,9 +154,14 @@ def read_bmp_header(data: bytes, source: str = "image") -> BmpHeader:
     # LoadImage on Windows 98 can crash reading past the end, so the pixels must all be there.
     pixels = struct.unpack_from("<I", data, 10)[0]
     needed = pixels + (width * depth + 31) // 32 * 4 * abs(height)
-    if compression in (BI_RGB, BI_BITFIELDS) and len(data) < needed:
+    if compression in BMP_COMPRESSIONS and len(data) < needed:
         raise UsageError(
             f"{source} is cut short: {len(data)} bytes, its header needs {needed}"
+        )
+    if compression in BMP_REFUSED:
+        raise UsageError(
+            f"{source} uses BMP compression {compression} (JPEG or PNG inside a BMP),"
+            " which Windows 98 can't load"
         )
     if pixels >= len(data):
         raise UsageError(f"{source} is cut short: its pixels would start past the end")
@@ -160,10 +178,6 @@ def check_text(data: bytes, source: str = "text") -> bytes:
     """Check a text file Windows 98 Notepad can open, and return it with CRLF line ends."""
     if b"\0" in data:
         raise UsageError(f"{source} has NUL bytes, so it isn't a text file")
-    if len(data) > TEXT_LIMIT:
-        raise UsageError(
-            f"{source} is {len(data)} bytes; Notepad on Windows 98 takes at most {TEXT_LIMIT}"
-        )
     try:
         data.decode("cp1252")
     except UnicodeDecodeError as error:
@@ -171,4 +185,10 @@ def check_text(data: bytes, source: str = "text") -> bytes:
             f"{source} has bytes outside Windows 1252 (at {error.start})"
         ) from None
     # A bare LF shows as a box in Windows 98 Notepad.
-    return data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    data = data.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    if len(data) > TEXT_LIMIT:
+        raise UsageError(
+            f"{source} is {len(data)} bytes after line ends are fixed;"
+            f" Notepad on Windows 98 takes at most {TEXT_LIMIT}"
+        )
+    return data

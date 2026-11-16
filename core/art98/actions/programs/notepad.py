@@ -58,6 +58,11 @@ class Notepad(Win):
             title = notepad_title(self.open_file) if self.open_file is not None else ""
         super().__init__(title, at=at, size=size)
 
+    @staticmethod
+    def default_title(file: Path | None) -> str:
+        """The title a state gives a Notepad window that names none."""
+        return notepad_title(file)
+
     @classmethod
     def from_state(cls, window) -> Notepad:
         file = window.open.path if window.open else None

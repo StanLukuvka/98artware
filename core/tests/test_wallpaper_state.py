@@ -75,10 +75,13 @@ def test_every_desktop_error_message(tmp_path):
         "desktop.fill_colour: needs 3 whole numbers"
     ]
     assert problems(tmp_path, {"fill_colour": [1, 2, 256]}) == [
-        "desktop.fill_colour: needs numbers from 0 to 255"
+        "desktop.fill_colour: colour must be three ints from 0 to 255, not (1, 2, 256)"
     ]
     assert problems(tmp_path, {"fill_colour": [-1, 2, 3]}) == [
-        "desktop.fill_colour: needs numbers from 0 to 255"
+        "desktop.fill_colour: colour must be three ints from 0 to 255, not (-1, 2, 3)"
+    ]
+    assert problems(tmp_path, {"wallpaper": ok, "style": []}) == [
+        "desktop.style: should be one of center, tile, stretch, not []"
     ]
     [p] = problems(tmp_path, {"wallpaper": {"file": "nope.bmp", "sha256": "0"}})
     assert p.startswith("desktop.wallpaper.file:") and "doesn't exist" in p

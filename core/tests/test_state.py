@@ -151,7 +151,7 @@ def test_every_problem_is_reported_at_once(folder):
         "windows[0].size: needs numbers above 0",
         "windows[1].title: 'say \"hi\"' has a double quote",
         "windows[1].show: should be one of normal, minimized, maximized, not 'hidden'",
-        "pointer: should be on the screen",
+        "pointer: can't be negative",
     ]
 
 
@@ -261,3 +261,69 @@ def test_a_file_name_with_a_space_and_an_accent_loads(folder):
         write(folder, {"version": 1, "windows": [named(folder, "my caf\u00e9.bmp")]})
     )
     assert state.windows[0].open.path.name == "my caf\u00e9.bmp"
+
+
+def test_a_list_where_a_name_is_expected_is_a_problem_not_a_crash(folder):
+    found = problems(folder, {"version": 1, "windows": [flower(folder, app=[])]})
+    assert found == ["windows[0].app: should be one of picture, notepad, not []"]
+
+
+def test_display_size_must_be_a_cirrus_mode(folder):
+    [found] = problems(folder, {"version": 1, "display": [123, 456, 16]})
+    assert found == (
+        "display: size should be one of 640x480, 800x600, 1024x768, 1280x1024"
+    )
+    for size in ([640, 480], [800, 600], [1024, 768], [1280, 1024]):
+        assert load_state(write(folder, {"version": 1, "display": [*size, 16]}))
+
+
+def test_pointer_is_checked_against_the_display_when_given(folder):
+    state = {"version": 1, "pointer": [99999, 99999]}
+    assert load_state(write(folder, state)).pointer == (99999, 99999)  # screen unknown
+    [found] = problems(folder, {**state, "display": [800, 600, 16]})
+    assert found == "pointer: should be on the 800x600 screen"
+    ok = {**state, "pointer": [799, 599], "display": [800, 600, 16]}
+    assert load_state(write(folder, ok)).pointer == (799, 599)
+
+
+def test_a_capital_sha256_is_the_same_hash(folder):
+    window = flower(folder)
+    window["open"]["sha256"] = window["open"]["sha256"].upper()
+    assert load_state(write(folder, {"version": 1, "windows": [window]}))
+
+
+def test_a_default_title_comes_from_the_app(folder):
+    window = flower(folder)
+    del window["title"]
+    state = load_state(write(folder, {"version": 1, "windows": [window]}))
+    assert state.windows[0].title == "Picture"
+
+
+def test_a_folder_given_as_the_state_file_is_a_problem(folder):
+    with pytest.raises(StateError, match="can't read the file: Is a directory"):
+        load_state(folder)
+
+
+def test_a_file_that_cannot_be_read_is_a_problem(folder):
+    picture = folder / "assets" / "flower.bmp"
+    window = flower(folder)
+    picture.chmod(0)
+    try:
+        picture.read_bytes()
+    except PermissionError:
+        pass
+    else:
+        pytest.skip("running as a user that ignores file permissions")
+    [found] = problems(folder, {"version": 1, "windows": [window]})
+    assert found.startswith("windows[0].open.file: can't read ")
+    assert found.endswith("Permission denied")
+
+
+def test_a_state_file_is_read_as_utf8(folder):
+    path = folder / "u.json"
+    path.write_bytes(
+        json.dumps({"version": 1, "windows": [flower(folder, title="Café")]}).encode(
+            "utf-8"
+        )
+    )
+    assert load_state(path).windows[0].title == "Café"

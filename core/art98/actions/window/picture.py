@@ -47,6 +47,11 @@ class Picture(Win):
             self._image_data = self.image.read_bytes()
             self.image_size = guestfiles.check_bmp(self._image_data, str(self.image))
 
+    @staticmethod
+    def default_title(file: Path | None) -> str:
+        """The title a state gives a Picture window that names none."""
+        return "Picture"
+
     @classmethod
     def from_state(cls, window) -> Picture:
         prop = cls(

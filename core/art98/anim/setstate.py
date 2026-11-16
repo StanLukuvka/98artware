@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from ..actions.apps import APPS
 from ..base.units import clamp
-from ..desktop import set_colour, set_wallpaper, wait_for_disc
+from ..desktop import set_colour, set_wallpaper
 from ..errors import GuestError
+from ..guest.disc import wait_for_disc
 from ..guest.guestfiles import check_bmp, read_bmp_header
 from ..guest.win32 import (
     BITSPIXEL,

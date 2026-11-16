@@ -88,23 +88,22 @@ def test_the_proof_scene_renders(booted, tmp_path):
 
 
 def test_disc_insert_revert_insert(booted):
-    from art98 import desktop
-    from art98.guest import win32
+    from art98.guest import disc, win32
 
     data = bytes(range(256)) * 100
 
     def attrs(session):
-        drive = desktop.cd_drive(session.bridge)
+        drive = disc.cd_drive(session.bridge)
         return session.bridge.kernel32.GetFileAttributesA(drive + "WALL0001.BMP").value
 
     session = booted
     session.attach_disc({"WALL0001.BMP": data})
-    path = desktop.wait_for_disc(session.bridge, "WALL0001.BMP")
+    path = disc.wait_for_disc(session.bridge, "WALL0001.BMP")
     assert session.bridge.get_file(path) == data
     session.revert()
     assert attrs(session) == win32.INVALID_FILE_ATTRIBUTES
     session.attach_disc({"WALL0001.BMP": data})
-    path = desktop.wait_for_disc(session.bridge, "WALL0001.BMP")
+    path = disc.wait_for_disc(session.bridge, "WALL0001.BMP")
     assert session.bridge.get_file(path) == data
 
 
@@ -223,11 +222,10 @@ def test_attach_twice_is_busy(booted):
 
 
 def test_revert_between_attaches():
-    from art98 import desktop
-    from art98.guest import win32
+    from art98.guest import disc, win32
 
     def disc_attrs(guest):
-        drive = desktop.cd_drive(guest)
+        drive = disc.cd_drive(guest)
         if drive is None:
             return win32.INVALID_FILE_ATTRIBUTES
         return guest.kernel32.GetFileAttributesA(drive + "WALL0001.BMP").value
@@ -237,7 +235,7 @@ def test_revert_between_attaches():
         guest.spawn("notepad.exe")
         guest.find_window(class_name="Notepad")
         first.attach_disc({"WALL0001.BMP": b"x" * 512})
-        desktop.wait_for_disc(guest, "WALL0001.BMP")
+        disc.wait_for_disc(guest, "WALL0001.BMP")
         assert any(w.class_name == "Notepad" for w in guest.windows())
     with attached() as second:  # revert=True is the default: back to the snapshot
         assert not any(w.class_name == "Notepad" for w in second.bridge.windows())
