@@ -16,6 +16,7 @@ from ..base.units import frames
 from ..desktop import blank
 from ..errors import MissingFile, NotFound, UsageError
 from ..guest import win32
+from ..legacy import scene_fps
 from ..output.recorder import Pacer
 from ..state import load_state
 from . import setstate
@@ -26,7 +27,6 @@ DESKTOPS = ("blank", "stock")
 # Only Scene class attributes a scene author sets, whose rename or removal would
 # otherwise be silently ignored, go here. It is emptied at each release.
 RETIRED = {
-    "fps": "renamed to output_fps",
     "clock": "removed: the guest always runs on its own clock",
 }
 
@@ -82,6 +82,7 @@ class Scene:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+        scene_fps(cls)
         pin_legacy(cls)
         check_desktop(cls)
 

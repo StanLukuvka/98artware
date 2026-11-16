@@ -136,8 +136,8 @@ Formatting is ruff's: `uv run ruff format core setup tools`.
 - One home per thing. A guest read used twice becomes one helper (in `win32.py`, or on `Win`); a
   Win32 constant goes in `win32.py`, and `test_win32.py` fails on one defined elsewhere; pixel and frame rounding and distance live in
   `base/units.py`, and `test_units.py` fails on a built-in `round` or `math.hypot` elsewhere in the scene layer; the
-  programs a state can open are listed once, in `APPS` in `actions/apps.py`. No compatibility shims or old import paths when something moves,
-  and no commented-out or parked code: delete what you replace and move its callers. A renamed or removed Scene setting goes in `RETIRED` in `anim/scene.py`, which only refuses it and never maps an old name to a new one, and is emptied at each release.
+  programs a state can open are listed once, in `APPS` in `actions/apps.py`. No compatibility shims or old import paths when something moves (the one exception is `core/art98/legacy.py`: old names kept only for the Hermes agent plugin, pinned at 94f0fd3; it goes when the plugin is re-vendored, and nothing else may import from it),
+  and no commented-out or parked code: delete what you replace and move its callers. A renamed or removed Scene setting goes in `RETIRED` in `anim/scene.py`, which only refuses it and never maps an old name to a new one, and is emptied at each release (`fps` is the Hermes plugin's alias in `legacy.py`, not a retired name).
 - Lean first: one module and one code path, and more only when a measurement or a real use
   asks for it.
 - New action code goes in its family's folder: a program in `actions/programs/<name>.py`
