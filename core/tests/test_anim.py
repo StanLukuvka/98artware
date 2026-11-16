@@ -325,7 +325,7 @@ def test_there_and_back_returns():
 # ---- retired settings ----
 
 
-@pytest.mark.parametrize("name", ["fps", "clock"])
+@pytest.mark.parametrize("name", ["clock"])
 def test_a_scene_defining_a_retired_setting_fails_at_class_definition(name):
     with pytest.raises(UsageError, match=f"Old.{name}"):
         type("Old", (Scene,), {name: 30})

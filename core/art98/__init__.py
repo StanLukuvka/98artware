@@ -1,5 +1,6 @@
 """art98: script animations with a real Windows 98 desktop inside a VM."""
 
+from . import legacy  # noqa: F401  (the Hermes plugin's old names; see legacy.py)
 from .container.service import attach
 from .errors import Art98Error, NotFound, UsageError
 from .guest.bridge import (
