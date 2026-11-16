@@ -11,7 +11,7 @@ from pathlib import Path
 
 from art98.actions.window.win import Win
 from art98.anim import Maximize, Minimize, Notepad, RestoreWindow, Scene, Teleport
-from art98.guest.win32 import RDW_REPAINT_ALL, cursor_pos, window_rect
+from art98.guest.win32 import RDW_REPAINT_ALL, cursor_pos, show_state, window_rect
 from art98.output.recorder import Recorder
 
 
@@ -52,8 +52,8 @@ def a_bad(scene, guest) -> list[dict]:
     for prop in scene.props:
         if isinstance(prop, Win) and prop.hwnd is not None:
             real = window_rect(guest, prop.hwnd)
-            if real is None:
-                continue
+            if real is None or show_state(guest, prop.hwnd) == "minimized":
+                continue  # refresh() keeps a minimized window's last place, not the parked one
             model = (*prop.rect[:2], *prop.size)
             got = (real[0], real[1], real[2] - real[0], real[3] - real[1])
             if model != got:
