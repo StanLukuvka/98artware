@@ -215,7 +215,7 @@ control in `ready()`, and adds `text`, `set_text` and a `close()` that skips the
 
 That makes a program a scene can add in `construct`. To let a state file open it as well, add
 `from_state(cls, window)`, add the class to `APPS` in `core/art98/actions/apps.py`, give it a `check_file` for
-its `open` file and `from_state` setting `_maximized` from `show`, and give it a default title
+its `open` file, a `default_title`, and `open_keyword` (the constructor keyword the file is passed as). `from_state` is inherited from `Win`, and `show` is applied by `setstate`. Give it a default title
 rule in `core/art98/state.py`. Then document
 its `app` name under [States](docs/scenes/scene-api.md#states). Only `picture` and `notepad`
 are state apps so far.

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from art98.anim import UL, Close, Picture, Scene, Teleport
 from art98.anim.setstate import StateMismatch
+from art98.errors import MissingFile
 from art98.guest import guestfiles
 from art98.guest.bridge import CallResult, Window
 from art98.state import StateError
@@ -388,3 +389,12 @@ def test_check_reports_order_and_a_missing_window(guest, folder):
     with pytest.raises(StateMismatch) as caught:
         check_state(scene.guest, scene.space, state, props)
     assert caught.value.problems == ["windows[0] 'back': the window isn't there"]
+
+
+def test_a_missing_image_is_a_missing_file(tmp_path):
+    with pytest.raises(MissingFile):
+        Picture(image=tmp_path / "flwoer.bmp")
+
+
+def test_a_picture_without_an_image_has_no_image_size():
+    assert Picture().image_size is None

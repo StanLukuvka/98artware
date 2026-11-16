@@ -5,10 +5,12 @@ from __future__ import annotations
 from ...base.animation import Succession
 from ...base.props import Spot
 from ...errors import NotFound, UsageError
+from ...guest import win32
 from ...guest.protocol import Out
-from ...guest.win32 import MF_BYPOSITION, menu_item_rect
 from ..pointer import Click
 from .win import Win
+
+MENU_LABEL_MAX = 64  # the longest label read; a longer one is cut
 
 
 class Menu(Succession):
@@ -34,29 +36,39 @@ class Menu(Succession):
 def _item_finder(window: Win, labels: tuple[str, ...]):
     def label_of(menu: int, position: int) -> str:
         result = window.guest.user32.GetMenuStringA(
-            menu, position, Out(64), 64, MF_BYPOSITION
+            menu, position, Out(MENU_LABEL_MAX), MENU_LABEL_MAX, win32.MF_BYPOSITION
         )
         return (
             result.buffers[0][: result.value]
-            .decode("cp1252")
+            .decode("cp1252", errors="replace")
             .split("\t")[0]
             .replace("&", "")
         )
 
     def position_of(menu: int, label: str) -> int:
-        count = window.guest.user32.GetMenuItemCount(menu).value
-        names = [label_of(menu, position) for position in range(count)]
-        for position, name in enumerate(names):
-            if name.lower() == label.lower():
+        count = window.guest.user32.GetMenuItemCount(menu).signed
+        if count < 0:
+            raise NotFound(f"window {window.hwnd:#x} has no menu {menu:#x}")
+        for position in range(count):
+            if label_of(menu, position).lower() == label.lower():
                 return position
+        names = [label_of(menu, position) for position in range(count)]
         raise NotFound(f"no menu item {label!r}: found {[n for n in names if n]}")
+
+    def submenu_of(menu: int, label: str) -> int:
+        submenu = window.guest.user32.GetSubMenu(menu, position_of(menu, label)).value
+        if not submenu:
+            raise NotFound(f"{label!r} has no submenu")
+        return submenu
 
     def locate():
         user32 = window.guest.user32
         menu = user32.GetMenu(window.hwnd).value
+        if not menu:
+            raise NotFound(f"window {window.hwnd:#x} has no menu")
         for label in labels[:-1]:
-            menu = user32.GetSubMenu(menu, position_of(menu, label)).value
-        rect = menu_item_rect(
+            menu = submenu_of(menu, label)
+        rect = win32.menu_item_rect(
             window.guest, window.hwnd, menu, position_of(menu, labels[-1])
         )
         if rect is None:

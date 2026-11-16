@@ -38,6 +38,19 @@ class GuestCrashed(BridgeError):
     """The agent crashed while a request was open. It restarts by itself."""
 
 
+def wait_for(look, timeout: float, poll: float):
+    """Call `look` every `poll` seconds until it returns something but None, or
+    `timeout` seconds pass. Returns what `look` returned, or None on timeout."""
+    deadline = time.monotonic() + timeout
+    while True:
+        found = look()
+        if found is not None:
+            return found
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(poll)
+
+
 @dataclass
 class CallResult:
     value: int
@@ -74,6 +87,20 @@ class Window:
             v - (1 << 32) if v & 0x80000000 else v for v in (left, top, right, bottom)
         )
         return cls(hwnd, pid, bool(visible), rect, class_name, title)
+
+    def matches(
+        self,
+        title: str | None = None,
+        class_name: str | None = None,
+        pid: int | None = None,
+    ) -> bool:
+        """Whether this window fits each filter given (None accepts any): a title
+        as a substring, a class and a pid. Case is ignored. Visibility is not checked."""
+        return (
+            (pid is None or self.pid == pid)
+            and (title is None or title.lower() in self.title.lower())
+            and (class_name is None or class_name.lower() == self.class_name.lower())
+        )
 
 
 @dataclass
@@ -383,21 +410,21 @@ class Bridge:
         timeout: float = 10.0,
     ) -> Window:
         """Wait for a visible window. Titles match on a substring."""
-        deadline = time.monotonic() + timeout
-        while True:
-            for window in self.windows(parent):
-                if (
-                    window.visible
-                    and (title is None or title.lower() in window.title.lower())
-                    and (
-                        class_name is None
-                        or class_name.lower() == window.class_name.lower()
-                    )
-                ):
-                    return window
-            if time.monotonic() >= deadline:
-                raise BridgeTimeout(f"no window matching {title=} {class_name=}")
-            time.sleep(0.1)
+        found = wait_for(
+            lambda: next(
+                (
+                    window
+                    for window in self.windows(parent)
+                    if window.visible and window.matches(title, class_name)
+                ),
+                None,
+            ),
+            timeout,
+            poll=0.1,
+        )
+        if found is None:
+            raise BridgeTimeout(f"no window matching {title=} {class_name=}")
+        return found
 
     def processes(self) -> list[tuple[int, str]]:
         return [(row[0], row[1]) for row in self.request("PROCS")[1]]

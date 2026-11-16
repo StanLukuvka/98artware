@@ -478,7 +478,7 @@ first.
 
 The image is checked when the prop is made, so a file that isn't a BMP, or one cut short, raises
 `ValueError` straight away. Windows 98 crashes on a cut-short BMP instead of failing.
-`image_size` is the picture's `(width, height)`.
+`image_size` is the picture's `(width, height)`, or `None` for a window with no image.
 
 Move one with `.animate`, jump it with [`Teleport`](animations.md#teleport), close it with
 `Close`, and open another with `add`.

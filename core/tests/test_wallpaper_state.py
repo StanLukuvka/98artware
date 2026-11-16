@@ -391,7 +391,7 @@ def test_rle_and_os2_bmps_skip_the_pixel_check_without_raising(tmp_path):
         )
 
 
-def test_each_app_checks_its_own_file_and_sets_maximized_from_show(tmp_path):
+def test_each_app_checks_its_own_file_and_builds_its_prop_from_its_window(tmp_path):
     from art98.actions.apps import APPS
     from art98.errors import UsageError
 
@@ -401,6 +401,8 @@ def test_each_app_checks_its_own_file_and_sets_maximized_from_show(tmp_path):
     with pytest.raises(UsageError):
         APPS["notepad"].check_file(b"a\0b", "x")
     for app, cls in APPS.items():
-        for show in ("normal", "maximized"):
-            window = WindowState("w", app, "T", (1, 2), (300, 200), show)
-            assert cls.from_state(window)._maximized == (show == "maximized")
+        for hook in ("check_file", "default_title", "from_state"):
+            assert callable(getattr(cls, hook))
+        window = WindowState("w", app, "T", (1, 2), (300, 200), "normal")
+        prop = cls.from_state(window)
+        assert (prop.title_text, prop._at, prop._size) == ("T", (1, 2), (300, 200))

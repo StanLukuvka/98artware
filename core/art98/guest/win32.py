@@ -9,6 +9,7 @@ import struct
 from contextlib import contextmanager
 
 from ..base.space import DesktopSpace, Metrics
+from ..errors import UsageError
 from .bridge import BridgeError
 from .protocol import Out
 
@@ -22,6 +23,7 @@ SC_MINIMIZE, SC_MAXIMIZE, SC_RESTORE = 0xF020, 0xF030, 0xF120
 SW_HIDE, SW_SHOWNA = 0, 8
 SW_SHOWMINNOACTIVE, SW_MAXIMIZE = 7, 3
 # SetWindowPos
+HWND_TOP = 0
 SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOACTIVATE = 0x0001, 0x0002, 0x0004, 0x0010
 # RedrawWindow
 RDW_INVALIDATE, RDW_ERASE, RDW_ALLCHILDREN, RDW_UPDATENOW, RDW_FRAME = (
@@ -60,6 +62,7 @@ BITSPIXEL = 12  # GetDeviceCaps
 EM_SETMODIFY = 0x00B9
 STM_SETICON, SS_ICON = 0x0170, 3
 MB_ICONINFORMATION = 0x40
+DIALOG_CLASS = "#32770"  # the window class of every message box and common dialog
 # registry
 HKCU, HKLM = 0x80000001, 0x80000002
 KEY_SET_VALUE = 2
@@ -117,6 +120,23 @@ def window_rect(guest, hwnd: int) -> tuple[int, int, int, int] | None:
     if not result:
         return None
     return struct.unpack("<iiii", result.buffers[0])
+
+
+def window_style(guest, hwnd: int) -> int:
+    """A window's WS_* and control style bits (GWL_STYLE, read as unsigned)."""
+    return guest.user32.GetWindowLongA(hwnd, GWL_STYLE & 0xFFFFFFFF).value
+
+
+def client_size(guest, hwnd: int) -> tuple[int, int]:
+    """A window's client area size: width and height."""
+    rect = guest.user32.GetClientRect(hwnd, Out(16)).buffers[0]
+    return struct.unpack("<iiii", rect)[2:]
+
+
+def client_to_screen(guest, hwnd: int, x: int, y: int) -> tuple[int, int]:
+    """A point in a window's client coordinates, as screen coordinates."""
+    point = struct.pack("<ii", x, y)
+    return struct.unpack("<ii", guest.user32.ClientToScreen(hwnd, point).buffers[0])
 
 
 def cursor_pos(guest) -> tuple[int, int]:
@@ -229,7 +249,14 @@ def show_state(guest, hwnd: int) -> str:
     return "normal"
 
 
+def check_mouse_button(button: str) -> None:
+    """Raise UsageError unless `button` is one of MOUSE_BUTTONS."""
+    if button not in MOUSE_BUTTONS:
+        raise UsageError(f"no mouse button {button!r}; use left, right or middle")
+
+
 def mouse_button(guest, button: str, down: bool) -> None:
+    check_mouse_button(button)
     guest.user32.mouse_event(MOUSE_BUTTONS[button][0 if down else 1], 0, 0, 0, 0)
 
 

@@ -5,47 +5,27 @@ from __future__ import annotations
 from ...base.animation import Instant
 from ...base.vectors import ORIGIN
 from ...errors import UsageError
-from ...guest.win32 import (  # noqa: F401
-    SC_MAXIMIZE,
-    SC_MINIMIZE,
-    SC_RESTORE,
-    WM_SYSCOMMAND,
-    sys_command,
-)
 
 
-class _SysCommand(Instant):
-    command = 0
-    maximized: bool | None = (
-        None  # what the command does to Win._maximized, if anything
-    )
-
-    def act(self) -> None:
-        sys_command(self.target.guest, self.target.hwnd, self.command)
-        self.target.guest.sync(self.target.hwnd)
-        if self.maximized is not None:
-            self.target._maximized = self.maximized
-        self.target.refresh()  # Windows moved and sized the window itself
-
-
-class Minimize(_SysCommand):
+class Minimize(Instant):
     """Send a window to the taskbar."""
 
-    command = SC_MINIMIZE
+    def act(self) -> None:
+        self.target.minimize()
 
 
-class Maximize(_SysCommand):
+class Maximize(Instant):
     """Fill the desktop with a window."""
 
-    command = SC_MAXIMIZE
-    maximized = True
+    def act(self) -> None:
+        self.target.maximize()
 
 
-class RestoreWindow(_SysCommand):
+class RestoreWindow(Instant):
     """Bring a minimized or maximized window back."""
 
-    command = SC_RESTORE
-    maximized = False
+    def act(self) -> None:
+        self.target.restore()
 
 
 class Close(Instant):

@@ -16,13 +16,19 @@ from ..actions.pointer import (
     RightClick,
     Stroke,
 )
-from ..actions.programs import Dialog, Minesweeper, Notepad, Paint, Screensaver
+from ..actions.programs import (
+    Dialog,
+    Minesweeper,
+    Notepad,
+    Paint,
+    Picture,
+    Screensaver,
+)
 from ..actions.window import (
     Close,
     Maximize,
     Menu,
     Minimize,
-    Picture,
     RestoreWindow,
     Teleport,
     Win,

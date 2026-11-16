@@ -237,3 +237,10 @@ def test_a_file_name_the_guest_cannot_take_fails_before_the_guest_is_asked(folde
     Notepad(open=folder / "my caf\u00e9.txt")  # accepted: inner space, cp1252 accent
     with pytest.raises(ValueError, match="control"):
         guestfiles.guest_path(b"x", "a\x01")
+
+
+def test_a_missing_text_file_is_a_missing_file(tmp_path):
+    from art98.errors import MissingFile
+
+    with pytest.raises(MissingFile):
+        Notepad(open=tmp_path / "nope.txt")
