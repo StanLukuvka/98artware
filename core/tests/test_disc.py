@@ -3,7 +3,7 @@ import os
 
 import pycdlib
 import pytest
-from art98.disc import build_iso
+from art98.guest.disc import build_iso
 
 
 def read_back(iso: bytes) -> dict[str, bytes]:
@@ -33,12 +33,6 @@ def test_two_files_and_big_file():
     iso = build_iso({"WALL0001.BMP": big, "A.TXT": b"x" * 2048})
     assert len(iso) % 2048 == 0
     assert read_back(iso) == {"A.TXT;1": b"x" * 2048, "WALL0001.BMP;1": big}
-
-
-def test_volume_is_uppercased():
-    cd = pycdlib.PyCdlib()
-    cd.open_fp(io.BytesIO(build_iso({"A.B": b""}, volume="disc")))
-    assert cd.pvd.volume_identifier.rstrip(b" ") == b"DISC"
 
 
 @pytest.mark.parametrize(

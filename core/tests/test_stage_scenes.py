@@ -11,7 +11,7 @@ from test_stage import (  # noqa: F401  (also brings the skip marks)
     pytestmark,
 )
 
-STATE = HERE / "examples" / "blank_start" / "states" / "desk.json"
+STATE = HERE / "recipes" / "scenes" / "blank_start" / "states" / "desk.json"
 APPS = {"MSPaintApp", "Minesweeper", "Notepad"}
 
 

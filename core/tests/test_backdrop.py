@@ -3,9 +3,11 @@
 import struct
 
 import pytest
-from art98 import desktop, win32
+from art98 import desktop
 from art98.anim import Backdrop
-from art98.bridge import CallResult
+from art98.errors import GuestError
+from art98.guest import disc, win32
+from art98.guest.bridge import CallResult
 from test_anim import FakeGuest, FakeSession, FakeVideo, Stage
 from test_desktop import ICONS, DesktopGuest
 
@@ -28,7 +30,7 @@ def test_resolve_colour():
 
 
 def test_colourref_puts_red_in_the_low_byte():
-    assert desktop.colourref((200, 10, 30)) == 0x1E0AC8
+    assert win32.colourref((200, 10, 30)) == 0x1E0AC8
 
 
 def test_backdrop_sets_the_colour_in_one_frame():
@@ -84,7 +86,7 @@ class DiskGuest(FakeGuest):
 
     def do_GetFileAttributesA(self, path):
         return CallResult(
-            0x20 if path in self.files else desktop.INVALID_FILE_ATTRIBUTES, 0, []
+            0x20 if path in self.files else win32.INVALID_FILE_ATTRIBUTES, 0, []
         )
 
 
@@ -110,19 +112,24 @@ def test_set_wallpaper_call_order():
         desktop.set_wallpaper(guest, "D:\\W.BMP", "bogus")
 
 
+def test_set_wallpaper_says_so_when_the_registry_key_will_not_open():
+    guest = DiskGuest()
+    guest.do_RegOpenKeyExA = lambda *args: CallResult(2, 0, [struct.pack("<I", 0)])
+    with pytest.raises(desktop.DesktopError, match="could not open Control Panel"):
+        desktop.set_wallpaper(guest, "D:\\W.BMP", "tile")
+    assert guest.named("RegSetValueExA") == []
+
+
 def test_cd_drive_picks_the_type_5_drive():
-    assert desktop.cd_drive(DiskGuest(drives=(("C", 3), ("E", 5), ("F", 5)))) == "E:\\"
-    assert desktop.cd_drive(DiskGuest(drives=(("C", 3),))) is None
+    assert disc.cd_drive(DiskGuest(drives=(("C", 3), ("E", 5), ("F", 5)))) == "E:\\"
+    assert disc.cd_drive(DiskGuest(drives=(("C", 3),))) is None
 
 
 def test_wait_for_disc(monkeypatch):
-    assert desktop.wait_for_disc(DiskGuest(files={"D:\\W.BMP"}), "W.BMP") == "D:\\W.BMP"
+    assert disc.wait_for_disc(DiskGuest(files={"D:\\W.BMP"}), "W.BMP") == "D:\\W.BMP"
     now = [0.0]
-    monkeypatch.setattr(desktop.time, "monotonic", lambda: now[0])
-    monkeypatch.setattr(desktop.time, "sleep", lambda s: now.__setitem__(0, now[0] + s))
-    with pytest.raises(
-        desktop.DesktopError,
-        match="wallpaper disc failed:\n  the CD with W.BMP did not show up",
-    ):
-        desktop.wait_for_disc(DiskGuest(), "W.BMP")
-    assert 2.0 <= now[0] < 2.2
+    monkeypatch.setattr(disc.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(disc.time, "sleep", lambda s: now.__setitem__(0, now[0] + s))
+    with pytest.raises(GuestError, match="the CD with W.BMP did not show up"):
+        disc.wait_for_disc(DiskGuest(), "W.BMP")
+    assert disc.DISC_TIMEOUT <= now[0] < disc.DISC_TIMEOUT + 2 * disc.DISC_POLL

@@ -27,7 +27,7 @@ To change art98 itself, read [Contributing](../CONTRIBUTING.md), the
 | [Overview](setup/README.md) | What `art98 up` and `art98 setup` do, what you need, and the quick paths. |
 | [Steps](setup/stages.md) | The four setup steps in detail: inputs, outputs, failures. |
 | [CLI](setup/cli.md) | Every `art98` command and flag, environment variables, and the work directory. |
-| [Configuration](setup/config.md) | `art98.toml`: the container name, the image, the work folder, the ports, and how to attach from another container. |
+| [Configuration](setup/config.md) | `art98.toml`: the image, the work folder, the ports, and how to attach from another container. |
 | [The image](setup/image.md) | What the finished image holds, every setting and why, including your product key. |
 | [Troubleshooting](setup/troubleshooting.md) | Setup quirks, a busy host, and how to recover from a failed run. |
 

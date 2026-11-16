@@ -7,7 +7,7 @@ step. When the VM is involved, these show what happened:
 |-------|---------------|
 | `work/shots/` | The newest `install*`, `init_api*`, `harden*` or `reboot*` PNG is the last screen, at most 30 seconds old |
 | `work/qemu.log` | Why QEMU would not start. Appended across runs, so read the end |
-| `--watch` | The live screen |
+| `art98 setup --watch` | The live screen of a setup run. In the container, set `ART98_VNC` for the `setup` service in `compose.override.yaml` instead. `art98 up` has no `--watch`, and neither has `art98 vm start` |
 | `C:\SETUPLOG.TXT`, `DETLOG.TXT` | Setup's own logs. On a failed install, read them from `work/install.img` with `mtype -i "work/install.img@@32256" ::SETUPLOG.TXT`. Set `MTOOLS_SKIP_CHECK=1` first |
 
 The logs are fine to paste into an issue, but don't share the disk itself: it is an installed
@@ -21,22 +21,22 @@ the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 | Quirk | Why it matters | What setup does | Where |
 |-------|----------------|----------------|-------|
 | `JO.SYS` on the boot floppy | It is the disc's startup menu. `IO.SYS` runs it before `CONFIG.SYS`, and after a timeout it boots the hard disk, so Setup never starts | Deletes it | `patch_floppy` |
-| Setup writes no MBR | Only the partition's boot sector is written, and a blank MBR will not boot | Supplies `guest/boot_record/mbr.S` | `build_mbr` |
+| Setup writes no MBR | Only the partition's boot sector is written, and a blank MBR will not boot | Supplies syslinux's `mbr.bin` | `build_mbr` |
 | mtools rejects the geometry | It refuses images that are not a textbook floppy or disk | Sets `MTOOLS_SKIP_CHECK=1` | `_mtools_env` |
 | OEM first-boot wizard | OEM media ignores the answer file's request to skip it. Four pages: name, licence, product key, finish. Name and key are filled in from the answer file | Presses through it, with `alt+a` on page two for "I accept the Agreement" | `WIZARD_PAGES`, `_answer_setup_wizard` |
 | Logon prompt | Appears once on the first real boot and waits forever | Presses Enter. A blank password means it never comes back | `_answer_setup_prompts` |
 | Workgroup page | Setup asks for a workgroup unless the answer file gives one, and Windows refuses one with the computer's name | `Workgroup="WORKGROUP"`, computer `art98`, `Display=0` | `render_msbatch` |
 | `NoPrompt2Boot` | Microsoft's table and sample disagree on what `1` means | Follows the sample | `render_msbatch` |
 | Warm reboot freeze | Windows hangs on its logo after a reset in the same QEMU process | `-no-reboot`, and a new VM per boot | `VMConfig`, `setup.py` |
-| `ExitWindowsEx` never replies | A plain call would block the bridge until it timed out | Uses `acall`, then waits for QEMU to exit | `_reboot` |
-| Blinking caret | A dialog waiting forever still changes the screen | The stall rule watches the disk instead | `_wait_for_agent` |
+| `ExitWindowsEx` never replies | A plain call would block the bridge until it timed out | Uses `acall`, then waits for QEMU to exit | `Setup.reboot` |
+| Blinking caret | A dialog waiting forever still changes the screen | The stall rule watches the disk instead | `wait_for_agent` |
 | Modern toolchains | They build files that fail on 98 with a vague error | Links without the mingw CRT, and checks the result on the host | `guest/Makefile`, `pecheck` |
 
 ## The stall rule
 
 **A stall means no disk writes for 20 minutes**; screen changes don't count. `STALL_LIMIT` is `20 * 60`.
 
-Every `SHOT_INTERVAL`, 30 seconds, `_wait_for_agent` reads the modified time of the
+Every `SHOT_INTERVAL`, 30 seconds, `wait_for_agent` reads the modified time of the
 disk file on the host. When it changes, the timer resets. When it has not changed for
 20 minutes, setup raises:
 
@@ -54,7 +54,7 @@ Other limits apply at the same time:
 |-------|----------|-------|
 | One boot of `setup` | `INSTALL_TIMEOUT` | 3 hours, so a very bad run could last far longer in total |
 | Number of boots | `SETUP_BOOTS` | 8 |
-| Waiting for the agent in `init_api` and `ready` | Literal in `_require_agent` | 15 minutes |
+| Waiting for the agent in `init_api` and `ready` | Literal in `require_agent` | 15 minutes |
 | One wizard page | `WIZARD_PAGE_TIMEOUT` | 2 minutes |
 | Windows shutting down | `SHUTDOWN_TIMEOUT` | 5 minutes |
 | A ready agent after `HELLO` | `wait_ready` default | 60 seconds |
@@ -153,7 +153,7 @@ A guest reboot ends the QEMU process. This is on purpose, see
 ## On a busy host
 
 When the host is under CPU pressure, a render is slower but gives the same video. Measured on a
-20-CPU host with 28 busy loops running, on host QEMU (before the VM service), with `examples/blank_start/blank_start.py`
+20-CPU host with 28 busy loops running, on host QEMU (before the VM service), with `recipes/scenes/blank_start/blank_start.py`
 (3 clips, 263 frames). The pressure column is `some avg10` from `/proc/pressure/cpu`, before, during
 (min to max) and after the render.
 

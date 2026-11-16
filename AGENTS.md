@@ -57,7 +57,7 @@ commands. Doc samples on the real VM: `uv run python tools/check_docs.py`.
 `make -C guest` needs the mingw cross-compiler.
 
 CI (`.github/workflows/tests.yml`) runs the ruff and unit-test commands above on Python 3.11 and
-3.13, with no VM. Its test command does not ignore `test_stage_scenes.py`, which skips without an
+3.13, with no VM, after `make -C guest` so the guest-program checks run. Its test command does not ignore `test_stage_scenes.py`, which skips without an
 image. Which tests a change needs:
 [CONTRIBUTING.md](CONTRIBUTING.md#which-tests-a-change-needs).
 
@@ -67,8 +67,10 @@ image. Which tests a change needs:
   share. Never copy, commit or upload anything from `work/`, including `work/runs/`. Reading your
   own setup logs and screenshots there is fine. `.gitignore` and `.dockerignore` keep it out;
   keep them that way.
-- **Windows 98 product keys** are public and reusable, not secrets; still never add one to the
-  repo: you supply your own.
+- **Windows 98 product keys** are public and reusable, not secrets; still never put one in the
+  repo, in any file, test or doc: you supply your own. A key lives in `ART98_PRODUCT_KEY`, the
+  `art98 up` prompt, or a key file named in `compose.override.yaml` (`product-key.txt` by
+  convention). Both files are in `.gitignore` and `.dockerignore`; keep them there.
 - **Prep and the `ready` snapshot need an issue first**, as in
   [CONTRIBUTING.md](CONTRIBUTING.md#scope). That means `setup/art98_setup/` steps that change the
   image, the answer file, `ready.py`, and anything that would need a new `art98 setup` run. Do at
@@ -84,8 +86,9 @@ image. Which tests a change needs:
 - **No AI credit lines** in commits, PRs or code: see [CONTRIBUTING.md](CONTRIBUTING.md#commits-and-pull-requests).
 - **Git safety.** Don't commit, push, switch branches or reset unless your user asked you to.
   Never discard changes you did not make.
-- **Branches.** Branch off `dev` and open PRs against `dev`. Never commit to `main`; it only
-  moves at a release.
+- **Branches.** Branch off `dev` and open PRs against `dev`; they are squash-merged. Never
+  commit to `main`; it only moves at a release, through a pull request from a `release/*`
+  branch.
 - **Kill a stray VM with `art98 vm stop`, or by its PID**, never `pkill -f qemu-system-i386`: the
   pattern can match the shell that runs it.
 - `lazy:` comments mark a known shortcut with its limit. Keep them true; remove one only when you
@@ -95,23 +98,29 @@ image. Which tests a change needs:
 
 | Path | What |
 | --- | --- |
-| `core/art98/anim/` | What scenes import (`from art98.anim import *`). `scene.py` is `Scene`; `setstate.py` applies and checks a state; `timeline.py` is `play`/`wait`/`pause`/`live`; `renderer.py` is `render()` |
+| `core/art98/anim/` | What scenes import (`from art98.anim import *`). `scene.py` is `Scene`; `setstate.py` applies and checks a state on the guest (`Scene.set_state` runs the Set); `renderer.py` is `render()` |
 | `core/art98/base/` | Building blocks with no guest I/O of their own: `Animation` and groups, rate functions, vectors, `Box`/`Prop`/`Spot`, `DesktopSpace` (`space.py`) |
-| `core/art98/actions/` | Action families: `pointer.py`, `keyboard.py`, `backdrop.py`, `window/` (`Win`, commands, `Menu`, `Picture`) and `programs/` (one file per program, each a `Win` subclass) |
-| `core/art98/win32.py` | Win32 constants and small named guest reads. Put a new constant or a repeated guest read here, not inline |
-| `core/art98/bridge.py`, `protocol.py` | The host side of the agent protocol. Transport only |
+| `core/art98/actions/` | Action families: `pointer.py`, `keyboard.py`, `backdrop.py`, `window/` (`Win`, commands, `Menu`) and `programs/` (one file per program, each a `Win` subclass, `Picture` included) |
+| `core/art98/guest/` | The Python side of talking to the VM (not the C programs in the top-level `guest/`): `qemu.py`, `bridge.py`, `protocol.py`, `win32.py`, `guestfiles.py`, `disc.py` |
+| `core/art98/guest/win32.py` | Win32 constants and small named guest reads. Put a new constant or a repeated guest read here, not inline |
+| `core/art98/guest/bridge.py`, `protocol.py` | The host side of the agent protocol. Transport only |
 | `core/art98/session.py` | `Session`: a VM and a bridge, with `revert`. `boot_local`/`stage` are host QEMU for experiments only |
-| `core/art98/service.py`, `container/` | The VM service: `start`, `stop`, `status`, and `attach()` for Python callers; `serve.py` runs inside the container, `host.py` on the host |
-| `core/art98/recorder.py` | `Recorder`: frames to clips, `cut()`, the join |
+| `core/art98/container/` | The VM service: `service.py` has `start`, `stop`, `status`, and `attach()` for Python callers; `serve.py` runs inside the container (`entry.py` is its entry point), `host.py` and `compose.py` are on the host, `freshness.py` warns about an old image |
+| `compose.yaml`, `compose.tcp.yaml` | How the containers run (`vm`, and `setup` behind a profile). A new mount, port or container variable goes here, not in Python; every published port stays on `127.0.0.1` |
+| `compose.override.example.yaml` | The start for a user's own `compose.override.yaml` (gitignored): key file, disc, VNC |
+| `core/art98/output/` | `recorder.py` is `Recorder` (frames to clips, `cut()`, the join); `gif.py` is `write_gif` and `GifOptions` |
 | `core/art98/state.py` | Reading and checking state JSON files |
+| `core/art98/errors.py` | `Art98Error` and its base classes (`UsageError`, `NotFound`, `GuestError`, `MissingFile`) |
+| `core/art98/legacy.py` | Old names kept only for the Hermes agent plugin; nothing else imports it |
 | `core/art98/desktop.py` | The blank start |
 | `core/art98/settings.py` | `art98.toml` |
 | `core/art98/cli.py` | The `art98` command |
 | `setup/art98_setup/` | `art98 setup` (four steps) and `art98 up`; `setup/Dockerfile` |
-| `guest/` | C and assembly built with `make -C guest` into `guest/build/` (gitignored): `agent.exe`, `view.exe`, `mbr.bin` |
+| `guest/` | C built with `make -C guest` into `guest/build/` (gitignored): `agent.exe`, `view.exe`, `mbr.bin` |
 | `core/tests/`, `setup/tests/` | Tests. `pythonpath` in `pyproject.toml` puts `core` and `setup` on the path |
-| `examples/` | Maintained scenes the docs embed. Keep them rendering |
-| `tools/` | `render_all.py` (gallery GIFs), `check_docs.py` (renders doc samples on the real VM) |
+| `recipes/scenes/` | Maintained scenes the docs embed. Keep them rendering |
+| `recipes/helpers/` | Action modules that scenes import (`from helpers.<module> import ...`) |
+| `tools/` | `render_all.py` (gallery GIFs), `check_docs.py` (renders doc samples on the real VM), `vendor_to_hermes.py` (the copy of art98 for the Hermes plugin) |
 | `experiments/` | Throwaway probes. No tests, not imported by art98. On `dev` only |
 | `docs/` | Every page; index in `docs/README.md`. `docs/status.md` is the pick-up point |
 | `work/` | The prepared image. **Never copy, commit or upload anything from it** |
@@ -127,17 +136,22 @@ Formatting is ruff's: `uv run ruff format core setup tools`.
   `from __future__ import annotations`.
 - No runtime dependencies. Don't add any to `[project] dependencies`.
 - One home per thing. A guest read used twice becomes one helper (in `win32.py`, or on `Win`); a
-  Win32 constant goes in `win32.py`; the programs a state can open are listed once, in
-  `APPS` in `anim/setstate.py`. No compatibility shims or old import paths when something moves,
-  and no commented-out or parked code: delete what you replace and move its callers.
+  Win32 constant goes in `win32.py`, and `test_win32.py` fails on one defined elsewhere; pixel and frame rounding and distance live in
+  `base/units.py`, and `test_units.py` fails on a built-in `round` or `math.hypot` elsewhere in the scene layer; the
+  programs a state can open are listed once, in `APPS` in `actions/apps.py`. No compatibility shims or old import paths when something moves (the one exception is `core/art98/legacy.py`: old names kept only for the Hermes agent plugin, pinned at 94f0fd3; it goes when the plugin is re-vendored, and nothing else may import from it),
+  and no commented-out or parked code: delete what you replace and move its callers. A renamed or removed Scene setting goes in `RETIRED` in `anim/scene.py`, which only refuses it and never maps an old name to a new one, and is emptied at each release (`fps` is the Hermes plugin's alias in `legacy.py`, not a retired name).
 - Lean first: one module and one code path, and more only when a measurement or a real use
   asks for it.
 - New action code goes in its family's folder: a program in `actions/programs/<name>.py`
   subclassing `Win`, never in a shared grab-bag module.
 - Props mirror the guest; the guest is the truth. Read back before acting (`refresh`), and
   check after (`check_state`, the placement read-back). Don't cache what Windows can change.
-- Errors a user can cause get their own exception class with a message that says what to do,
-  and are added to `RUN_ERRORS` in `cli.py` so the CLI prints one `error:` line.
+- Errors a user can cause get their own exception class with a message that says what to do.
+  Every error art98 raises on purpose inherits `Art98Error` from `art98/errors.py` (with its
+  built-in base second, `class X(Art98Error, ValueError)`), which is how the CLI prints one
+  `error:` line; `test_errors.py` fails on one that doesn't. A plain Python exception means
+  art98 has a bug and keeps its traceback; anything expected, including a mistake in what a
+  scene author passed in, raises an art98 error (`UsageError` for API misuse).
 - Write about measured behaviour: a comment or docstring that states a Windows 98 fact says it
   was checked on the real image, or doesn't state it.
 

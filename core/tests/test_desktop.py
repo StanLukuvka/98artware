@@ -3,9 +3,11 @@
 import struct
 
 import pytest
-from art98 import desktop, win32
+from art98 import desktop
 from art98.anim import Scene
-from art98.bridge import CallResult
+from art98.errors import GuestError
+from art98.guest import win32
+from art98.guest.bridge import CallResult
 from test_anim import FakeGuest, FakeSession, FakeVideo
 
 TASKBAR, PROGMAN, VIEW, ICONS = 0x50, 0x60, 0x61, 0x62
@@ -52,7 +54,7 @@ class DesktopGuest(FakeGuest):
         return CallResult(int(hwnd in self.visible), 0, [])
 
     def do_SetSysColors(self, count, indexes, colours):
-        if struct.unpack("<I", indexes)[0] == desktop.COLOR_DESKTOP:
+        if struct.unpack("<I", indexes)[0] == win32.COLOR_DESKTOP:
             self.colour = struct.unpack("<I", colours)[0]
         return CallResult(1, 0, [])
 
@@ -111,6 +113,36 @@ def test_blank_can_keep_the_pointer():
     guest = DesktopGuest()
     desktop.blank(guest, pointer=True)
     assert guest.named("SetSystemCursor") == []
+
+
+def test_blank_says_so_when_there_is_no_empty_pointer():
+    guest = DesktopGuest()
+    guest.do_CreateCursor = lambda *args: CallResult(0, 0, [])
+    with pytest.raises(desktop.DesktopError, match="CreateCursor returned no cursor"):
+        desktop.blank(guest)
+    assert guest.named("SetSystemCursor") == []
+
+
+def test_blank_says_so_when_a_pointer_shape_will_not_swap():
+    guest = DesktopGuest()
+    guest.do_SetSystemCursor = lambda handle, shape: CallResult(0, 0, [])
+    with pytest.raises(desktop.DesktopError, match="SetSystemCursor failed for"):
+        desktop.blank(guest)
+    assert guest.named("DestroyCursor") == [("DestroyCursor", (EMPTY,))]
+
+
+def test_desktop_error_is_a_guest_error():
+    assert issubclass(desktop.DesktopError, GuestError)
+
+
+def test_the_effect_and_pointer_tables_use_the_named_constants():
+    assert desktop.POINTER_SHAPES[0] == win32.OCR_NORMAL == 32512
+    assert desktop.POINTER_SHAPES[-1] == win32.OCR_APPSTARTING == 32650
+    assert desktop.UI_EFFECTS[0] == (
+        "menu animation",
+        win32.SPI_GETMENUANIMATION,
+        win32.SPI_SETMENUANIMATION,
+    )
 
 
 @pytest.mark.parametrize(
@@ -175,13 +207,19 @@ def test_a_stock_scene_leaves_the_desktop_alone():
     assert guest.named("SetSysColors") == []
 
 
-def test_an_unknown_desktop_is_refused():
-    class Odd(Blank):
-        desktop = "teal"
+def test_an_unknown_desktop_is_refused_where_the_class_is_defined():
+    with pytest.raises(ValueError, match="Odd.desktop 'teal'"):
 
+        class Odd(Blank):
+            desktop = "teal"
+
+
+def test_an_unknown_desktop_set_on_an_instance_is_refused_at_run():
+    scene = Blank()
+    scene.desktop = "teal"
     guest = DesktopGuest()
     with pytest.raises(ValueError, match="desktop 'teal'"):
-        Odd().run(FakeSession(guest), FakeVideo(guest))
+        scene.run(FakeSession(guest), FakeVideo(guest))
 
 
 def test_scenes_start_blank_unless_told_otherwise(monkeypatch):

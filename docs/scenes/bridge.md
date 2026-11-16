@@ -12,19 +12,24 @@ format is in the [Instruction set](instruction-set.md). Tested calls are in
 
 ```python
 from art98 import attach
+from art98.guest import win32
 
 with attach() as session:
     guest = session.bridge
     guest.spawn("notepad.exe")
     pad = guest.find_window(class_name="Notepad")
-    guest.move_window(pad.hwnd, 100, 80)
+    win32.place_window(guest, pad.hwnd, 100, 80, 0, 0, win32.SWP_NOSIZE | win32.SWP_NOZORDER)
     guest.sync()
     session.vm.screenshot("notepad.png")
 ```
 
 The top-level names are `attach`, `Session`, `Bridge`, `CallResult`, `Window`, `Out`, `VM`, `VMConfig`,
-`BridgeError`, `BridgeTimeout`, `GuestCrashed`, `Recorder` and `RecorderError`. `private_stage` is in
-`art98.session`. `QemuError` and `QMP` are in `art98.qemu`.
+`BridgeError`, `BridgeTimeout`, `GuestCrashed`, `Recorder`, `RecorderError`, `Art98Error`, `UsageError`
+and `NotFound`. The code lives in subpackages. `art98.guest.bridge` holds `Bridge`, `CallResult`,
+`Window`, `AsyncCall`, the bridge errors and `wait_for`. `art98.guest.protocol` holds `Out` and
+`FrameError`. `art98.guest.qemu` holds `VM`, `VMConfig`, `QMP` and `QemuError`. `art98.output.recorder`
+holds `Recorder`. `art98.session` holds `Session`, `boot_local` and `private_stage`. `attach` and
+`NotRunning`, `Busy` and `Unhealthy` are in `art98.container.service`. See [Exceptions](#exceptions).
 
 ## Sessions
 
@@ -44,7 +49,7 @@ block releases the VM: the disc is ejected and the VM is paused again. The VM ke
 
 Raises `NotRunning` when no VM answers, `Busy` when another run holds it, and `Unhealthy` when the
 VM has no `ready` snapshot or the agent does not answer. These are `ServiceError`s from
-`art98.service`.
+`art98.container.service`.
 
 Each attach starts from the same moment: the revert brings back what an earlier run changed. Two
 attaches can't run at once.
@@ -82,19 +87,24 @@ One running stage. `with` closes it on exit.
 | --- | --- |
 | `vm` | The [`VM`](#vm). |
 | `bridge` | The [`Bridge`](#bridge-1). |
-| `record(path, fps=30, lossless=False)` | Opens a [`Recorder`](#recorder). |
+| `record(path, output_fps, lossless=False, defer=False)` | Opens a [`Recorder`](#recorder). |
 | `revert(snapshot="ready")` | Restores the snapshot and keeps the bridge. Open calls fail at once. |
 | `attach_disc(files)` | Puts an ISO of `files` in drive `D:`. See [Desktop colour and wallpaper](../design/state-and-action.md#desktop-colour-and-wallpaper). |
 | `close()` | Closes the bridge, then the VM. |
 
 ### Recorder
 
-`class Recorder(session, path, fps=30, lossless=False)`, in `art98.recorder`
+`class Recorder(session, path, output_fps, lossless=False, defer=False)`, in `art98.output.recorder`
 
 Encodes frames to video clips. Frames are taken when the script asks, so a slow host makes the same
 video as a fast one. Use it as a context manager, because a clip is only complete after `close`.
 
 ![Frame loop](../diagrams/frame-loop.png)
+
+A clip is written as a part file, `<name>.part<suffix>`, beside its final name. `close` renames every
+part to its final name, so a run that fails leaves no half clip and touches no earlier file. With
+`defer=True`, `close` leaves the parts for the caller: `commit()` renames them, and `abort()` deletes
+them. `render` uses this to keep a whole render all or nothing.
 
 By default ffmpeg writes H.264 with `-preset veryfast -crf 12 -pix_fmt yuv420p`. With
 `lossless=True` it writes FFV1 in `bgr0`, in Matroska: every clip's suffix becomes `.mkv`. `ffmpeg`
@@ -103,17 +113,19 @@ must be on `PATH`. Each clip's ffmpeg starts at the clip's first frame.
 | Member | Meaning |
 | --- | --- |
 | `frame(hold=1)` | Runs `sync`, captures one frame and writes it `hold` times. |
-| `live(seconds, stop_condition=None)` | Captures `round(seconds * fps)` frames on the host's clock, with no `sync`. |
-| `cut(path=None)` | Closes the current clip, raising `RecorderError` if its ffmpeg failed, and starts the next one at `path`, or at `<stem>-02<suffix>` and on. The first cut renames the clip so far from `path` to `<stem>-01<suffix>`. Returns the closed clip's path, or `None` if nothing was recorded since the last cut. |
+| `live(seconds, stop_condition=None)` | Captures `seconds * output_fps` frames, rounded half up, on the host's clock, with no `sync`. |
+| `cut(path=None)` | Closes the current clip, raising `RecorderError` if its ffmpeg failed, and starts the next one at `path`, or at `<stem>-02<suffix>` and on. The first cut renames the clip so far from `path` to `<stem>-01<suffix>`. Returns the closed clip's final name, or `None` if nothing was recorded since the last cut. |
 | `path` | The clip being written now. |
 | `clips` | Finished clips, in order. A run with no cut has one, at the `path` it was opened with. |
 | `count`, `total` | Frames in this clip, and in all clips so far. |
-| `close()` | Closes the last clip, and raises `RecorderError` if its ffmpeg exited with an error, with ffmpeg's message. Closing twice does nothing. |
-| `join(output)` | Joins `clips` into `output` by stream copy. Raises `RecorderError` if the clips have different sizes, naming each. |
+| `close()` | Closes the last clip and renames the parts to their final names. Raises `RecorderError` if its ffmpeg exited with an error, with ffmpeg's message, and drops the parts. Closing twice does nothing. |
+| `commit()` | Renames every part to its final name. `close` does it unless `defer` is set. |
+| `abort()` | Stops ffmpeg and deletes the clip being written and every finished part. `clips` is emptied. |
+| `join(output)` | Joins `clips` into `output` by stream copy. Raises `RecorderError` if there are no clips, if `output` is one of them, or if the clips have different sizes, naming each. |
 
 Every frame of a clip must have the same size. A frame of another size raises `RecorderError`
-and suggests `cut()`. When the code in the `with` block raises, the recorder still closes ffmpeg,
-but a failure there doesn't replace the error: it is added to it as a note.
+and suggests `cut()`. When the code in the `with` block raises, the recorder calls `abort`: the clips are
+deleted and the error is the one you see.
 
 `frame` is for what the script drives. `hold` is cheap: 30 held copies take 45 ms, against about
 340 ms for 30 separate frames.
@@ -124,14 +136,13 @@ true to stop early. If a capture takes longer than a frame, `live` does not skip
 long.
 
 ```python
-with session.record("demo.mp4", fps=30) as video:
+with session.record("demo.mp4", output_fps=30) as video:
     video.frame(hold=30)
     guest.spawn(r'"C:\WINDOWS\SYSTEM\3D Pipes.scr" /s')
     video.live(3.0)
 ```
 
-Calling `frame` after `close` raises `QemuError`, because the capture folder has gone, and
-`cut` raises `RecorderError`.
+Calling `frame`, `live` or `cut` after `close` raises `RecorderError`.
 
 ## Bridge
 
@@ -179,14 +190,14 @@ Names are the exported ones, so an ANSI function ends in `A`. Windows 98 has few
 
 | Python | Sent as | The function gets |
 | --- | --- | --- |
-| `int` | `123` | The value masked to 32 bits, so `-1` becomes `0xFFFFFFFF`. |
+| `int` | `123` | The value masked to 32 bits, so `-1` becomes `0xFFFFFFFF`. Outside `-2**31` to `2**32 - 1` raises `UsageError`. |
 | `bool` | `1` or `0` | The number. |
 | `None` | `0` | A null pointer. |
 | `str` | `"text"` | A pointer to cp1252 text. Characters outside cp1252 become `?`. |
 | `bytes`, `bytearray`, `memoryview` | `#hex` | A pointer to a copy. It comes back in `buffers`. |
 | `Out(size)` | `&size` | A pointer to zeroed bytes. They come back in `buffers`. |
 
-Anything else, such as a `float`, raises `TypeError`. At most 14 arguments fit a call.
+Anything else, such as a `float`, raises `UsageError` too. At most 14 arguments fit a call.
 
 ### Windows
 
@@ -194,9 +205,7 @@ Anything else, such as a `float`, raises `TypeError`. At most 14 arguments fit a
 | --- | --- |
 | `windows(parent=0)` | Lists windows as [`Window`](#window) objects. With 0, all top-level windows. With a handle, all descendants. Hidden ones are included, and the agent's own window is not. |
 | `find_window(title=None, class_name=None, parent=0, timeout=10.0)` | Waits for a visible window, checking every 0.1 s. `title` is a case-insensitive substring. `class_name` is case-insensitive and exact. Raises `BridgeTimeout` if none appears. |
-| `move_window(hwnd, x, y)` | Moves a window with `SetWindowPos`, keeping its size and stacking order, then repaints it. A plain move leaves stale pixels on the frame on Windows 98. |
 | `sync(hwnd=0, timeout_ms=500)` | Waits for one window, or all visible ones, to repaint. Returns the tick count. |
-| `set_display_mode(width, height, depth, persist=True)` | Switches display mode. `persist=True` also writes it to the registry. Raises `BridgeError` if the driver has no such mode. See [Display modes](win32-recipes.md#display-modes). |
 
 ### Processes and files
 
@@ -207,8 +216,8 @@ Anything else, such as a `float`, raises `TypeError`. At most 14 arguments fit a
 | `put_file(path, data)` | Writes a guest file in 4 KB chunks. Replaces any existing file. |
 | `get_file(path)` | Reads a guest file in 4 KB chunks. |
 
-A failed `spawn`, `put_file` or `get_file` raises `BridgeError`. `put_file` does not check how many
-bytes were written.
+A failed `spawn`, `put_file` or `get_file` raises `BridgeError`. `put_file` also raises it if the guest
+wrote fewer bytes than it was sent, as it does when its disk is full.
 
 ### Events
 
@@ -216,6 +225,11 @@ bytes were written.
 | --- | --- |
 | `wait_event(name, timeout=None)` | Takes the oldest unread event called `name`, and returns its values. Waits for one if needed. Raises `BridgeTimeout`. |
 | `clear_events()` | Forgets all unread events. |
+| `abandon(reason)` | Fails every open request and `AsyncCall` now with `BridgeError(reason)`, and drops unread events. `Session.revert` calls it, because what was running in the guest no longer exists. |
+
+To move a window or switch the display mode, use `place_window` and `set_display_mode` in
+`art98.guest.win32`: see [Move and resize](win32-recipes.md#move-and-resize) and
+[Display modes](win32-recipes.md#display-modes).
 
 The bridge keeps the last 256 `HELLO`, `CRASH` and `BADFRAME` events. `DONE` goes to the
 `AsyncCall` instead, so `wait_event("DONE")` never finds it. See [Events](instruction-set.md#events).
@@ -228,6 +242,27 @@ guest.wait_event("HELLO", timeout=3)
 ```
 
 To send `QUIT`, use `request("QUIT")`. There is no method for it.
+
+### wait_for
+
+`wait_for(look, timeout, poll)`, in `art98.guest.bridge`
+
+A plain function, not a method. Calls `look()` every `poll` seconds until it returns something other
+than `None`, or `timeout` seconds pass. It returns what `look` returned, or `None` on timeout. It
+always calls `look` once, even with a `timeout` of 0, and it does not raise. `find_window` is built on
+it, and so are the program classes.
+
+```python
+from art98.guest.bridge import wait_for
+
+def gone():
+    return True if not any(w.title == "Untitled" for w in guest.windows()) else None
+
+wait_for(gone, timeout=3.0, poll=0.1)  # True, or None if it never closed
+```
+
+Return something that is not `None` when the condition holds, because `0`, `False` and an empty
+list also count as found.
 
 ## CallResult
 
@@ -290,7 +325,9 @@ coordinates. Values are signed, and a window can lie off screen.
 | Taskbar | `(-2, 572, 802, 602)` |
 | After `SetWindowPos(100, 80, 400, 300)` | `(100, 80, 500, 380)` |
 
-`Window.from_row(row)` builds one from a raw `WINDOWS` row.
+`Window.from_row(row)` builds one from a raw `WINDOWS` row. `window.matches(title=None,
+class_name=None, pid=None)` is true when the window fits every filter given: `title` as a
+case-insensitive substring, `class_name` case-insensitive and exact. It does not check `visible`.
 
 ## AsyncCall
 
@@ -318,11 +355,26 @@ If the link closes, `wait` raises `BridgeError`.
 
 | Exception | Raised when |
 | --- | --- |
-| `BridgeError` | The guest refused a request, such as `FILE: C:\NOPE.TXT`, or the link closed. |
+| `BridgeError` | The guest refused a request, such as `FILE: C:\NOPE.TXT`, or the link closed. Also when the agent reports `BADFRAME`: the event has no id, so every open request fails at once. |
 | `BridgeTimeout` | No reply came in time. A subclass of `BridgeError`. |
 | `GuestCrashed` | The agent crashed while a request was open. A subclass of `BridgeError`. The text has the code and address. |
-| `QemuError` | QEMU failed to start or a QMP command failed. From `art98.qemu`. |
-| `FrameError` | A frame failed its checks. From `art98.protocol`. The bridge drops such a frame, and the open request times out. |
+| `QemuError` | QEMU failed to start or a QMP command failed. From `art98.guest.qemu`. |
+| `FrameError` | A frame failed its checks. From `art98.guest.protocol`. The bridge drops such a frame, and the open request times out. |
+| `RecorderError` | ffmpeg is missing or failed, frames change size inside a clip, or the recorder is closed. From `art98.output.recorder`. |
+| `NotRunning`, `Busy`, `Unhealthy` | `attach` could not get a working VM. These are `ServiceError`s from `art98.container.service`. |
+
+All of them inherit from `Art98Error`, in `art98.errors`, which `art98` also exports. Each keeps a
+built-in base, so `except ValueError` and the like still work.
+
+| Class | Also a | Examples |
+| --- | --- | --- |
+| `Art98Error` | `Exception` | The base of all of them. |
+| `UsageError` | `ValueError` | A wrong argument from the scene author. `PlacementError` is one. |
+| `StateError`, `SettingsError`, `FrameError` | `ValueError` | Each is its own `Art98Error`, not a `UsageError`. |
+| `NotFound` | `KeyError` | A window, menu item or child that isn't there. A `UsageError`. |
+| `GuestError` | `RuntimeError` | The guest did something unexpected. `StateMismatch` and `DesktopError`. |
+| `MissingFile` | `FileNotFoundError` | `ImageMissing` and `GuestBuildMissing`. |
+| `BridgeError`, `QemuError`, `RecorderError`, `ServiceError` | `RuntimeError` | Each is its own `Art98Error`. |
 
 After `BridgeTimeout` the request may still be running in the guest, and its reply is dropped when
 it arrives. A `Sleep(1500)` with a 0.3 s timeout keeps the agent busy for the full 1.5 s, and later
@@ -445,7 +497,7 @@ within a second. A shutdown does not exit, so call `close`.
 
 ## QMP
 
-`class QMP` in `art98.qemu`, as `vm.qmp`
+`class QMP` in `art98.guest.qemu`, as `vm.qmp`
 
 The QEMU control socket. It has no lock, so use it from one thread.
 
@@ -483,11 +535,9 @@ The QEMU settings, kept in `image.json`. `to_json()` and `from_json(data)` conve
 | `vga` | `"cirrus"` | Video card. |
 | `sound` | True | Keeps the Sound Blaster in the machine. Audio is not supported yet. |
 | `rtc_base` | `"1998-06-25T09:00:00"` | Guest clock at power on. The clock runs from there on guest time. |
-| `icount_shift` | None | Sets QEMU's `-icount` for deterministic time. |
 | `floppy` | None | Floppy image. |
 | `boot_once` | None | Boot device for the first boot. |
 | `loadvm` | None | Snapshot to start from. `boot_local` sets `"ready"`. None is a cold boot, which reaches `HELLO` in 11.5 s. |
-| `audio_wav` | None | Audio output file. Not supported yet. |
 | `display` | `"none"` | QEMU's `-display` value. |
 | `extra_args` | `[]` | More QEMU arguments. |
 

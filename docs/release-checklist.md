@@ -14,8 +14,8 @@ A hand-run list for checking a release. A release is a git tag `vX.Y.Z` and a Gi
 
 ## Renders
 
-- [ ] `uv run art98 render examples/blank_start/blank_start.py -o out/blank_start.mp4 --gif out/blank_start.gif`
-- [ ] `uv run art98 render examples/mvp/mvp.py -o out/mvp.mp4`
+- [ ] `uv run art98 render recipes/scenes/blank_start/blank_start.py -o out/blank_start.mp4 --gif out/blank_start.gif`
+- [ ] `uv run art98 render recipes/scenes/mvp/mvp.py -o out/mvp.mp4`
 
 ## Frames
 
@@ -28,7 +28,7 @@ A hand-run list for checking a release. A release is a git tag `vX.Y.Z` and a Gi
 ## VM service
 
 - [ ] `uv run art98 vm start`, then `uv run art98 vm status` prints `up since` and `ready snapshot: yes`.
-- [ ] `uv run art98 render examples/mvp/mvp.py -o out/mvp.mp4`, then `uv run art98 vm stop`.
+- [ ] `uv run art98 render recipes/scenes/mvp/mvp.py -o out/mvp.mp4`, then `uv run art98 vm stop`.
 
 ## Tests
 
@@ -45,6 +45,7 @@ A hand-run list for checking a release. A release is a git tag `vX.Y.Z` and a Gi
 - [ ] `LICENSE` is present.
 - [ ] `git log --format=%B | grep -ci "co-authored-by\|generated with"` prints `0`.
 - [ ] The version in `pyproject.toml` matches the tag.
+- [ ] `RETIRED` in `core/art98/anim/scene.py` is empty, and so are its entries in the tests (`test_anim.py`).
 - [ ] `git status` is clean, and `git status --ignored` and `git ls-files --others` show nothing untracked that is fit to leak.
 - [ ] `art98.toml` equals the defaults in `docs/setup/config.md` (no `transport`, `token_file` or `connect`).
 - [ ] `CHANGELOG.md` has an entry for this version, with its known limits.
@@ -57,7 +58,7 @@ A hand-run list for checking a release. A release is a git tag `vX.Y.Z` and a Gi
 
 ## Busy host
 
-- [ ] With another heavy job running on the host, run `uv run art98 render examples/mvp/mvp.py -o out/mvp.mp4` once. Note the timing next to `/proc/pressure/cpu`.
+- [ ] With another heavy job running on the host, run `uv run art98 render recipes/scenes/mvp/mvp.py -o out/mvp.mp4` once. Note the timing next to `/proc/pressure/cpu`.
 
 ---
 

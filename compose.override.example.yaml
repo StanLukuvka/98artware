@@ -1,0 +1,29 @@
+# Your own settings for the art98 containers. Copy this file to compose.override.yaml
+# (gitignored) and keep the parts you want; compose merges it over compose.yaml.
+#   cp compose.override.example.yaml compose.override.yaml
+# Never commit a product key: compose.override.yaml and product-key.txt stay out of git.
+
+services:
+  # Watch the VM on VNC: point a viewer at 127.0.0.1:5900. View only, fixed at
+  # `art98 vm start`. Publish on 127.0.0.1 only, never wider.
+  vm:
+    environment:
+      ART98_VNC: "1"
+    ports:
+      - 127.0.0.1:5900:5900
+
+  setup:
+    # Watch the install on VNC at 127.0.0.1:5998.
+    environment:
+      ART98_VNC: "1"
+    ports:
+      - 127.0.0.1:5998:5900
+    # Your Windows 98 SE disc, so `art98 up` needs no --iso.
+    volumes:
+      - ~/Downloads/win98se.iso:/media/win98.iso:ro
+
+# Keep your product key in a file instead of typing it or setting ART98_PRODUCT_KEY.
+# The path is against this folder; product-key.txt here is gitignored.
+secrets:
+  art98_key: !override
+    file: ./product-key.txt

@@ -7,21 +7,26 @@ import struct
 from pathlib import Path
 
 import pytest
-from art98 import anim
+from art98 import UsageError, anim
 from art98 import session as session_module
 from art98.actions import keyboard as keys_module
 from art98.actions import programs
 from art98.actions.keyboard import char_chord, key_chord
-from art98.actions.pointer import BUTTONS
 from art98.anim import *
-from art98.bridge import CallResult, Window
+from art98.anim import scene as scene_module
+from art98.base.animation import path_function
+from art98.base.props import Spot
+from art98.errors import MissingFile, NotFound
+from art98.guest.bridge import CallResult, Window
+from art98.guest.win32 import MOUSE_BUTTONS
+from art98.output import recorder as recorder_module
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
 
 WM_CHAR, WM_CLOSE, WM_SYSCOMMAND = 0x0102, 0x0010, 0x0112
 SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOACTIVATE = 1, 2, 4, 0x10
-LDOWN, LUP = BUTTONS["left"]
-RDOWN, RUP = BUTTONS["right"]
+LDOWN, LUP = MOUSE_BUTTONS["left"]
+RDOWN, RUP = MOUSE_BUTTONS["right"]
 
 
 class FakeDll:
@@ -42,6 +47,10 @@ class FakeGuest:
         self.calls = []
         self.rects = {}
         self.rows = {0: []}
+        self.iconic, self.zoomed = (
+            set(),
+            set(),
+        )  # hwnds the guest shows minimized / maximized
         self.cursor = (400, 300)
         self.foreground = 0
         self.spawned = []
@@ -72,6 +81,8 @@ class FakeGuest:
         return CallResult(1, 0, [])
 
     def do_GetWindowRect(self, hwnd, out):
+        if hwnd not in self.rects:  # Windows: FALSE for a window that has gone
+            return CallResult(0, 0, [])
         return CallResult(1, 0, [struct.pack("<iiii", *self.rects[hwnd])])
 
     def do_SetWindowPos(self, hwnd, after, x, y, width, height, flags):
@@ -87,12 +98,18 @@ class FakeGuest:
         return CallResult(1, 0, [struct.pack("<iiii", 0, 0, 800, 572)])
 
     def do_GetSystemMetrics(self, index):
-        return CallResult({4: 18, 33: 3}.get(index, 0), 0, [])
+        return CallResult({0: 800, 1: 600, 4: 18, 33: 3}.get(index, 0), 0, [])
 
     def do_ClientToScreen(self, hwnd, point):
         x, y = struct.unpack("<ii", point)
         left, top = self.rects[hwnd][:2]
         return CallResult(1, 0, [struct.pack("<ii", left + 3 + x, top + 41 + y)])
+
+    def do_IsIconic(self, hwnd):
+        return CallResult(int(hwnd in self.iconic), 0, [])
+
+    def do_IsZoomed(self, hwnd):
+        return CallResult(int(hwnd in self.zoomed), 0, [])
 
     def do_GetClientRect(self, hwnd, out):
         return CallResult(1, 0, [struct.pack("<iiii", 0, 0, 148, 191)])
@@ -160,7 +177,7 @@ class FakeVideo:
         self.cuts.append((self.count, path))
         return Path(f"clip{len(self.cuts)}.mp4")
 
-    def live(self, seconds, stop_condition=None):
+    def live(self, seconds, stop_condition=None, stacklevel=1):
         self.live_calls.append(seconds)
         for _ in range(round(seconds * 30)):
             if stop_condition is not None and stop_condition():
@@ -200,6 +217,57 @@ def test_revert_ejects_the_disc_before_loadvm_only_when_one_was_inserted():
     assert vm.calls[1:] == ["insert_disc", "eject_disc", "load_snapshot"]
     session.revert()
     assert vm.calls[4:] == ["load_snapshot"]
+
+
+def test_a_failed_insert_still_gets_ejected_by_revert():
+    class Refusing(FakeVM):
+        def insert_disc(self, iso):
+            raise OSError("reply lost")
+
+    vm = Refusing()
+    session = session_module.Session(vm, QuietBridge())
+    with pytest.raises(OSError):
+        session.attach_disc({"WALL0001.BMP": b"x" * 10})
+    session.revert()
+    assert vm.calls == ["eject_disc", "load_snapshot"]
+
+
+def test_a_failed_revert_leaves_the_guest_not_fresh():
+    class Broken(FakeVM):
+        def load_snapshot(self, name):
+            raise OSError("no such snapshot")
+
+    session = session_module.Session(Broken(), QuietBridge())
+    session.fresh = True
+    with pytest.raises(OSError):
+        session.revert()
+    assert session.fresh is False
+
+
+def test_close_closes_the_vm_even_if_the_bridge_will_not():
+    class BadBridge(QuietBridge):
+        def close(self):
+            raise OSError("broken pipe")
+
+    class ClosingVM(FakeVM):
+        def close(self):
+            self.calls.append("close")
+
+    vm = ClosingVM()
+    with pytest.raises(OSError):
+        session_module.Session(vm, BadBridge()).close()
+    assert vm.calls == ["close"]
+
+
+def test_stage_without_an_image_says_to_run_setup(tmp_path):
+    with (
+        pytest.raises(session_module.ImageMissing, match="art98 setup"),
+        session_module.stage(tmp_path),
+    ):
+        pass
+    with pytest.raises(session_module.ImageMissing, match="art98 setup"):
+        session_module.boot_local(tmp_path)
+    assert issubclass(session_module.ImageMissing, MissingFile)
 
 
 class Stage(Scene):
@@ -269,13 +337,42 @@ def test_there_and_back_returns():
     assert there_and_back(1) == pytest.approx(0)
 
 
+# ---- retired settings ----
+
+
+def test_a_scene_defining_a_retired_setting_fails_at_class_definition(monkeypatch):
+    monkeypatch.setattr(scene_module, "RETIRED", {"old": "removed"})
+    with pytest.raises(UsageError, match="Old.old"):
+        type("Old", (Scene,), {"old": 30})
+
+
+def test_a_scene_defining_output_fps_is_fine():
+    assert type("New", (Scene,), {"output_fps": 24}).output_fps == 24
+
+
+def test_a_live_play_that_runs_late_warns_once(scene, monkeypatch):
+    now = [100.0]
+    monkeypatch.setattr(recorder_module.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(recorder_module.time, "sleep", lambda s: None)
+    video_frame = scene.recorder.frame
+
+    def slow(hold=1):
+        now[0] += 0.1  # capturing takes 0.1 s against 1/30 s
+        video_frame(hold)
+
+    scene.recorder.frame = slow
+    with pytest.warns(UserWarning, match="took 1.50 s") as record:
+        scene.play(Probe(run_time=0.5, rate_func=linear), live=True)
+    assert len(record) == 1 and "slower" in str(record[0].message)
+
+
 # ---- the frame loop ----
 
 
 def test_play_writes_run_time_times_fps_frames_and_ends_at_exactly_1(scene):
     probe = Probe(run_time=0.5, rate_func=linear)
     scene.play(probe)
-    assert scene.video.count == 15
+    assert scene.recorder.count == 15
     assert scene.time == pytest.approx(0.5)
     assert probe.log[0] == "begin" and probe.log[-1] == "finish"
     assert probe.log[-2] == 1.0
@@ -288,7 +385,7 @@ def test_one_play_runs_animations_together_and_short_ones_hold(scene):
         Probe(run_time=0.5, rate_func=linear),
     )
     scene.play(long, short)
-    assert scene.video.count == 30
+    assert scene.recorder.count == 30
     assert short.log.count("finish") == 1
     assert short.log.index(1.0) == 15
     assert long.log[-2] == 1.0
@@ -297,14 +394,14 @@ def test_one_play_runs_animations_together_and_short_ones_hold(scene):
 def test_play_overrides_run_time_and_rate_func(scene):
     probe = Probe()
     scene.play(probe, run_time=0.1, rate_func=lambda t: 0.25)
-    assert scene.video.count == 3
+    assert scene.recorder.count == 3
     assert set(probe.log[1:-1]) == {0.25}
 
 
 def test_an_instant_animation_takes_one_frame(guest, scene):
     pad = notepad(guest, scene)
     scene.play(Minimize(pad))
-    assert scene.video.count == 1
+    assert scene.recorder.count == 1
     assert ("PostMessageA", (0x10, WM_SYSCOMMAND, 0xF020, 0)) in guest.calls
 
 
@@ -318,23 +415,61 @@ def test_play_needs_an_animation(scene):
         scene.play()
 
 
+@pytest.mark.parametrize("how", ["play", "wait", "wait_until"])
+def test_a_late_warning_points_at_the_scene_script(scene, monkeypatch, how):
+    now = [100.0]
+    monkeypatch.setattr(recorder_module.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(recorder_module.time, "sleep", lambda s: None)
+
+    class SlowVideo(FakeVideo):
+        live = recorder_module.Recorder.live  # the real one, on a fake
+        _output_fps = 10
+
+        def _capture(self, hold):
+            now[0] += 0.5  # half a second a frame against 0.1 s planned
+            self.count += hold
+
+        def frame(self, hold=1):
+            now[0] += 0.5
+            super().frame(hold)
+
+    scene.recorder.__class__ = SlowVideo
+    scene.output_fps = 10
+    calls = {
+        "play": lambda: scene.play(Probe(run_time=1, rate_func=linear), live=True),
+        "wait": lambda: scene.wait(1),
+        "wait_until": lambda: scene.wait_until(
+            iter([False, False, True, True]).__next__, max_time=1
+        ),
+    }
+    with pytest.warns(UserWarning, match="slower") as record:
+        calls[how]()
+    assert [w.filename for w in record] == [__file__]
+
+
 def test_pause_holds_one_capture(scene):
     scene.pause(2)
-    assert scene.video.frames == [(60, 0, (400, 300))]
+    assert scene.recorder.frames == [(60, 0, (400, 300))]
     assert scene.time == 2
 
 
-def test_wait_records_live_unless_frozen(scene):
+def test_wait_records_live_and_pause_holds_one_capture(scene):
     scene.wait(1)
-    assert scene.video.live_calls == [1]
-    scene.wait(1, frozen_frame=True)
-    assert scene.video.live_calls == [1] and scene.time == 2
+    assert scene.recorder.live_calls == [1]
+    scene.pause(1)
+    assert scene.recorder.live_calls == [1] and scene.time == 2
+
+
+def test_wait_has_no_frozen_frame_and_scene_has_no_live_or_video(scene):
+    with pytest.raises(TypeError):
+        scene.wait(1, frozen_frame=True)
+    assert not hasattr(scene, "live") and not hasattr(scene, "video")
 
 
 def test_wait_stops_on_its_condition(scene):
     answers = iter([False, False, True])
     scene.wait(10, stop_condition=lambda: next(answers))
-    assert scene.video.count == 2
+    assert scene.recorder.count == 2
 
 
 def test_wait_until_warns_when_it_gives_up(scene):
@@ -346,14 +481,6 @@ def test_wait_until_warning_points_at_the_caller(scene):
     with pytest.warns(UserWarning, match="gave up") as record:
         scene.wait_until(lambda: False, max_time=0.1)
     assert record[0].filename == __file__
-
-
-def test_only_the_free_clock_exists(guest):
-    class Stepped(Scene):
-        clock = "stepped"
-
-    with pytest.raises(NotImplementedError):
-        Stepped().run(FakeSession(guest), FakeVideo(guest))
 
 
 def test_run_calls_the_hooks_in_order_and_exposes_the_guest(guest):
@@ -377,7 +504,7 @@ def test_run_calls_the_hooks_in_order_and_exposes_the_guest(guest):
 def test_succession_starts_each_child_where_the_last_left_off(guest, scene):
     first, second = Glide((100, 100), run_time=0.5), Glide((200, 100), run_time=0.5)
     scene.play(Succession(first, second))
-    assert scene.video.count == 30
+    assert scene.recorder.count == 30
     assert second.start == (100, 100)
     assert guest.cursor == (200, 100)
 
@@ -388,7 +515,7 @@ def test_a_group_with_lag_starts_late(scene):
         Probe(run_time=1, rate_func=linear),
     )
     scene.play(LaggedStart(first, second, lag_ratio=0.5))
-    assert scene.video.count == 45
+    assert scene.recorder.count == 45
     assert first.log[-2] == 1.0 and second.log[-2] == 1.0
 
 
@@ -438,7 +565,7 @@ def test_a_win_starts_its_program_and_finds_its_own_window(guest, scene):
 
 
 def test_a_prop_not_on_stage_says_so():
-    with pytest.raises(RuntimeError, match="add it"):
+    with pytest.raises(UsageError, match="add it"):
         Notepad().guest  # noqa: B018
 
 
@@ -574,14 +701,14 @@ def test_click_arrives_then_presses_then_releases(guest, scene):
     assert press < release
     assert log[press - 1] == ("SetCursorPos", (500, 400))
     assert guest.cursor == (500, 400)
-    assert scene.video.count == round(Click.run_time * 30)
+    assert scene.recorder.count == round(Click.run_time * 30)
 
 
 def test_press_and_release_land_on_different_frames(guest, scene):
     scene.play(Click((500, 400)))
     press = guest.calls.index(("mouse_event", (LDOWN, 0, 0, 0, 0)))
     release = guest.calls.index(("mouse_event", (LUP, 0, 0, 0, 0)))
-    assert any(press < index <= release for _, index, _ in scene.video.frames)
+    assert any(press < index <= release for _, index, _ in scene.recorder.frames)
 
 
 def test_right_click_uses_the_right_button(guest, scene):
@@ -602,7 +729,7 @@ def test_double_click_is_two_clicks_inside_one_stretch(guest, scene):
     ]
     held = [
         i
-        for i, (_, index, _) in enumerate(scene.video.frames)
+        for i, (_, index, _) in enumerate(scene.recorder.frames)
         if index >= guest.calls.index(("mouse_event", (LDOWN, 0, 0, 0, 0)))
     ]
     last = (
@@ -610,7 +737,7 @@ def test_double_click_is_two_clicks_inside_one_stretch(guest, scene):
         - 1
         - guest.calls[::-1].index(("mouse_event", (LUP, 0, 0, 0, 0)))
     )
-    span = [i for i in held if scene.video.frames[i][1] <= last]
+    span = [i for i in held if scene.recorder.frames[i][1] <= last]
     assert len(span) <= 5  # under 170 ms of video, well inside 500 ms
 
 
@@ -668,6 +795,51 @@ def test_hover_records_in_real_time(guest, scene):
     assert guest.cursor == (10, 10)
 
 
+def test_hover_refuses_run_time_and_takes_no_time_without_a_division_error():
+    with pytest.raises(UsageError, match="travel_time"):
+        Hover((1, 2), run_time=3)
+    assert Hover((1, 2), hold=0, travel_time=0).run_time == 0
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: Click((1, 2), button="rigth"),
+        lambda: Drag((1, 2), (3, 4), button="rigth"),
+        lambda: Stroke([(1, 2), (3, 4)], button="rigth"),
+    ],
+)
+def test_a_misspelled_mouse_button_is_refused_when_the_action_is_built(make):
+    with pytest.raises(UsageError, match="rigth"):
+        make()
+
+
+@pytest.mark.parametrize("run_time", [0.75, 5.0])
+def test_a_double_click_keeps_its_presses_0_09_seconds_apart(run_time):
+    double = DoubleClick((1, 2), run_time=run_time)
+    presses = [at for at, event in double.schedule() if event == double._press]
+    assert (presses[1] - presses[0]) * run_time == pytest.approx(0.09)
+
+
+def test_a_click_holds_the_button_for_the_same_time_at_any_run_time():
+    click = Click((1, 2), run_time=5.0)
+    (press_at, _), (release_at, _) = click.schedule()
+    assert (release_at - press_at) * 5.0 == pytest.approx(0.065)
+
+
+def test_a_stroke_needs_at_least_one_step_per_frame():
+    with pytest.raises(UsageError, match="steps_per_frame"):
+        Stroke([(1, 2), (3, 4)], steps_per_frame=0)
+
+
+def test_a_path_with_a_spot_is_located_when_the_animation_begins():
+    where = [(10, 10)]
+    path = path_function([Spot(lambda: where[0]), (50, 10)])
+    where[0] = (30, 10)  # the window moved after the path was made
+    point = path(0)
+    assert (point[0], point[1]) == (30, 10)
+
+
 def menu_guest(guest):
     labels = {
         (0x50, 0): "&File",
@@ -706,6 +878,18 @@ def test_menu_reports_a_missing_label(guest, scene):
         scene.play(Menu(pad, "Paste"))
 
 
+def test_a_window_with_no_menu_or_a_label_with_no_submenu_is_not_found(guest, scene):
+    pad = notepad(guest, scene)
+    menu_guest(guest)
+    guest.do_GetMenu = lambda hwnd: CallResult(0, 0, [])
+    with pytest.raises(NotFound, match="has no menu"):
+        scene.play(Menu(pad, "File", "Exit"))
+    menu_guest(guest)
+    guest.do_GetSubMenu = lambda menu, position: CallResult(0, 0, [])
+    with pytest.raises(NotFound, match="has no submenu"):
+        scene.play(Menu(pad, "File", "Exit"))
+
+
 # ---- keyboard ----
 
 
@@ -715,7 +899,7 @@ def test_typing_sends_each_letter_to_the_edit_control(guest, scene):
     assert guest.named("SendMessageA") == [
         ("SendMessageA", (0x11, WM_CHAR, code, 1)) for code in (97, 13, 98)
     ]
-    assert scene.video.count == 9
+    assert scene.recorder.count == 9
 
 
 def test_typing_invalidates_the_edit_so_the_frame_shows_the_text(guest, scene):
@@ -732,8 +916,8 @@ def test_typing_invalidates_the_edit_so_the_frame_shows_the_text(guest, scene):
 def test_typing_spreads_letters_over_the_frames(guest, scene):
     pad = notepad(guest, scene)
     scene.play(TypeWithCursor(pad, "abcdef", run_time=0.2))
-    assert [hold for hold, _, _ in scene.video.frames] == [1] * 6
-    indices = [index for _, index, _ in scene.video.frames]
+    assert [hold for hold, _, _ in scene.recorder.frames] == [1] * 6
+    indices = [index for _, index, _ in scene.recorder.frames]
     assert indices == sorted(set(indices))
 
 
@@ -748,6 +932,13 @@ def test_key_names_become_qemu_names():
     assert key_chord("Alt+F4") == ("alt", "f4")
     assert key_chord("enter") == ("ret",)
     assert key_chord("win") == ("meta_l",)
+
+
+def test_a_key_chord_with_an_unknown_or_empty_name_is_refused():
+    with pytest.raises(UsageError, match="'sx'"):
+        key_chord("ctrl+sx")
+    with pytest.raises(UsageError, match="no key called ''"):
+        key_chord("ctrl++")
 
 
 @pytest.mark.parametrize(
@@ -774,10 +965,25 @@ def test_a_character_with_no_key_is_refused():
         char_chord("é")
 
 
+def test_typing_takes_windows_line_ends_and_refuses_what_cp1252_cannot_hold(
+    guest, scene
+):
+    pad = notepad(guest, scene)
+    assert TypeWithCursor(pad, "a\r\nb").items == b"a\rb"
+    with pytest.raises(UsageError, match="日本"):
+        TypeWithCursor(pad, "日本")
+
+
+def test_untyping_needs_at_least_one_letter(guest, scene):
+    pad = notepad(guest, scene)
+    with pytest.raises(UsageError, match="count is 0"):
+        UntypeWithCursor(pad, 0)
+
+
 def test_keys_press_in_order_on_the_real_keyboard(scene):
     scene.play(Keys("ctrl+a", "delete"))
     assert scene.vm.keys == [("ctrl", "a"), ("delete",)]
-    assert scene.video.count == 15
+    assert scene.recorder.count == 15
 
 
 def test_type_keys_presses_every_character(scene):
@@ -855,7 +1061,7 @@ def test_paint_measures_the_canvas_between_white_and_grey(guest, scene):
 
 def test_resizing_the_canvas_drags_the_handle_and_remembers(guest, scene):
     prop = paint(guest, scene)
-    prop._canvas_size = (400, 300)
+    prop.canvas_size = (400, 300)
     origin = prop.canvas(0, 0).point()
     scene.play(prop.resize_canvas(500, 350, run_time=0.5))
     log = events(guest)
@@ -917,7 +1123,11 @@ def test_screensaver_stops_by_moving_the_pointer(guest, scene):
     alive = iter([1, 0])
     guest.do_IsWindow = lambda hwnd: CallResult(next(alive), 0, [])
     saver.stop()
-    assert guest.cursor == (440, 340)
+    assert guest.named("SetCursorPos")[0][1] == (
+        440,
+        340,
+    )  # one step towards the middle
+    assert guest.cursor == (400, 300)  # then back where it started
 
 
 def test_dialog_opens_on_a_guest_thread_and_reports_its_answer(guest, scene):
@@ -979,8 +1189,8 @@ def test_render_turns_a_class_into_a_scene_and_routes_a_gif(
         def __exit__(self, *exc):
             pass
 
-        def record(self, path, fps=30, lossless=False):
-            options.update(path=path, fps=fps, lossless=lossless)
+        def record(self, path, output_fps, lossless=False, defer=False):
+            options.update(path=path, output_fps=output_fps, lossless=lossless)
             recorder = Recorder(guest)
             recorder.clips = recorder.parts = [path]
             return recorder
@@ -1043,17 +1253,17 @@ def test_star_import_gives_the_scene_api():
 
 
 def test_next_section_cuts_and_labels(scene):
-    scene.video.count = 45
+    scene.recorder.count = 45
     assert scene.next_section("intro") == Path("clip1.mp4")
     assert scene.sections == [("intro", 1.5)]
-    assert scene.video.cuts == [(45, None)]
+    assert scene.recorder.cuts == [(45, None)]
 
 
 @pytest.mark.parametrize("name", ["", "  ", None, 3])
 def test_next_section_needs_a_name(scene, name):
     with pytest.raises(ValueError):
         scene.next_section(name)
-    assert scene.video.cuts == []
+    assert scene.recorder.cuts == []
 
 
 def test_a_scene_without_a_state_is_not_reverted(guest):
@@ -1180,7 +1390,7 @@ def test_render_uses_a_given_session_and_never_closes_it(tmp_path, monkeypatch, 
         def close(self):
             self.closed = True
 
-        def record(self, path, fps=30, lossless=False):
+        def record(self, path, output_fps, lossless=False, defer=False):
             recorder = Recorder(guest)
             recorder.clips = recorder.parts = [path]
             return recorder
@@ -1193,3 +1403,31 @@ def test_render_uses_a_given_session_and_never_closes_it(tmp_path, monkeypatch, 
     session = Given(guest)
     written = Tiny().render(tmp_path / "out.gif", session=session)
     assert written == tmp_path / "out.gif" and not session.closed
+
+
+def test_a_state_file_missing_everywhere_names_both_places(
+    scene, tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(MissingFile) as caught:
+        scene._find_state(Path("nope.json"))
+    message = str(caught.value)
+    assert str(Path(__file__).resolve().parent / "nope.json") in message
+    assert str(tmp_path / "nope.json") in message
+
+
+def test_play_overrides_do_not_stick_to_the_animation(scene):
+    plain = Probe()  # run_time and rate_func come from the class
+    own = Probe(run_time=0.5, rate_func=linear)
+    scene.play(plain, own, run_time=2, rate_func=smooth)
+    assert scene.time == 2
+    assert "run_time" not in vars(plain) or plain.run_time == 1.0
+    assert "rate_func" not in vars(plain)
+    assert own.run_time == 0.5 and own.rate_func is linear
+    scene.play(plain)
+    assert scene.time == 3
+
+
+def test_time_before_run_is_a_usage_error():
+    with pytest.raises(UsageError, match="isn't running"):
+        _ = Stage().time

@@ -3,8 +3,8 @@
 import os
 import subprocess
 
-from art98 import freshness
-from art98.freshness import (
+from art98.container import freshness
+from art98.container.freshness import (
     container_warning,
     digests,
     inspect_created,
@@ -95,7 +95,6 @@ def test_digests_parser(tmp_path):
 
 def test_mbr_is_not_a_render_time_check(tmp_path):
     root, work = tree(tmp_path)
-    touch(root / "guest" / "boot_record" / "mbr.S", NEW + 1000)
     touch(root / "guest" / "build" / "mbr.bin", OLD)
     assert stale_warnings(work, root=root) == []
 

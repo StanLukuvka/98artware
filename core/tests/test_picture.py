@@ -5,10 +5,11 @@ import json
 from pathlib import Path
 
 import pytest
-from art98 import guestfiles
 from art98.anim import UL, Close, Picture, Scene, Teleport
 from art98.anim.setstate import StateMismatch
-from art98.bridge import CallResult, Window
+from art98.errors import MissingFile
+from art98.guest import guestfiles
+from art98.guest.bridge import CallResult, Window
 from art98.state import StateError
 from test_anim import FakeGuest, FakeVideo, FakeVM
 from test_state import bmp
@@ -227,7 +228,7 @@ def test_teleport_moves_and_resizes_in_one_frame(guest):
 
     scene, _ = run(guest, Jump)
     assert guest.rects[scene.pic.hwnd] == (40, 40, 240, 140)
-    assert len(scene.video.frames) == 1
+    assert len(scene.recorder.frames) == 1
     with pytest.raises(ValueError, match="somewhere to go"):
         Teleport(scene.pic)
 
@@ -350,7 +351,10 @@ def test_a_guest_that_does_not_match_says_how(guest, folder):
     guest.display = (640, 480, 16)
     with pytest.raises(StateMismatch) as caught:
         check_state(
-            scene, load_state(path), {"back": back, "flower": scene.prop("flower")}
+            scene.guest,
+            scene.space,
+            load_state(path),
+            {"back": back, "flower": scene.prop("flower")},
         )
     assert caught.value.problems == [
         "display: [800, 600, 16] wanted, the guest has [640, 480, 16]",
@@ -377,11 +381,20 @@ def test_check_reports_order_and_a_missing_window(guest, folder):
     props = {"back": scene.prop("back"), "flower": scene.prop("flower")}
     guest.rows[0].reverse()
     with pytest.raises(StateMismatch) as caught:
-        check_state(scene, state, props)
+        check_state(scene.guest, scene.space, state, props)
     assert caught.value.problems == [
         "windows: front to back should be ['flower', 'back'], the guest has ['back', 'flower']"
     ]
     guest.rows[0] = guest.rows[0][1:]
     with pytest.raises(StateMismatch) as caught:
-        check_state(scene, state, props)
+        check_state(scene.guest, scene.space, state, props)
     assert caught.value.problems == ["windows[0] 'back': the window isn't there"]
+
+
+def test_a_missing_image_is_a_missing_file(tmp_path):
+    with pytest.raises(MissingFile):
+        Picture(image=tmp_path / "flwoer.bmp")
+
+
+def test_a_picture_without_an_image_has_no_image_size():
+    assert Picture().image_size is None

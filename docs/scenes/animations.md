@@ -73,7 +73,7 @@ class Chained(Scene):
 
 ![Window motion](../assets/gifs/window-motion.gif)
 
-Source: [window_motion.py](../../examples/gallery/window_motion.py).
+Source: [window_motion.py](../../recipes/scenes/gallery/window_motion.py).
 
 ### Teleport
 
@@ -140,7 +140,7 @@ wherever the pointer is by then.
 The default run time is what the children need. The group's `rate_func` shapes the group's time
 and defaults to `linear`.
 
-Children that overlap can't drive the same thing. That raises `ValueError`.
+Children that overlap can't drive the same thing. That raises `UsageError`.
 
 ### Succession
 
@@ -190,11 +190,11 @@ class Staggered(Scene):
 
 These are real input ([Pointer](scene-api.md#pointer)), so Windows decides what each press
 means. A target is a point, a [`Spot`](scene-api.md#spot) or a prop. Only one pointer animation
-can run in a `play`; a second raises `ValueError`.
+can run in a `play`; a second raises `UsageError`.
 
 ![Pointer and clicks](../assets/gifs/pointer-clicks.gif)
 
-Source: [pointer_clicks.py](../../examples/gallery/pointer_clicks.py).
+Source: [pointer_clicks.py](../../recipes/scenes/gallery/pointer_clicks.py).
 
 ### Glide
 
@@ -270,7 +270,7 @@ frame corner resizes it. Afterwards every prop reads its real position back.
 
 ![Drag](../assets/gifs/drag-window.gif)
 
-Source: [drag_window.py](../../examples/gallery/drag_window.py).
+Source: [drag_window.py](../../recipes/scenes/gallery/drag_window.py).
 
 ```python
 from art98.anim import *
@@ -289,11 +289,11 @@ class DragAndResize(Scene):
 
 ### Stroke
 
-`Stroke(path, *, button="left", steps_per_frame=4, run_time=2.0, rate_func=smooth)`
+`Stroke(path, *, button="left", steps_per_frame=4, travel_time=0.4, run_time=2.0, rate_func=smooth)`
 
 Holds a button down along a path, as a pen does. The path is a list of points or a function from
-0..1 to a point. The pointer first travels to the start for 0.4 s, and `rate_func` shapes only
-the drawing.
+0..1 to a point. The pointer first travels to the start for `travel_time` seconds (at most half
+the run time), and `rate_func` shapes only the drawing.
 
 Each frame moves the pointer `steps_per_frame` times and waits for the guest after each move.
 Windows keeps only the latest pointer position, so without the wait an app sees a few corners
@@ -326,11 +326,11 @@ Opens a window's menu with real clicks, and picks an item. It is a `Succession` 
 label, `step` seconds each. Labels are matched in the live menu, ignoring case and `&` marks.
 
 Windows only knows where a menu item is once its menu is open, so each click is aimed when its
-turn comes. An unknown label raises `LookupError` listing what is there.
+turn comes. An unknown label raises `NotFound` (a `LookupError`) listing what is there.
 
 ![Menus and keys](../assets/gifs/menus-keys.gif)
 
-Source: [menus_keys.py](../../examples/gallery/menus_keys.py).
+Source: [menus_keys.py](../../recipes/scenes/gallery/menus_keys.py).
 
 ```python
 from art98.anim import *
@@ -401,7 +401,7 @@ Presses keys or chords, evenly over the run time. Each argument is one press, su
 
 `TypeKeys(text, *, run_time=None, rate_func=linear)`
 
-Types on the real keyboard, at 0.15 s a key by default. It raises `ValueError` for a character
+Types on the real keyboard, at 0.15 s a key by default. It raises `UsageError` for a character
 the US layout can't type.
 
 ```python
@@ -425,7 +425,9 @@ frame.
 ### Minimize, Maximize, RestoreWindow
 
 `Minimize(window)` sends it to the taskbar. `Maximize(window)` fills the desktop.
-`RestoreWindow(window)` brings it back.
+`RestoreWindow(window)` brings it back. The same commands are `window.minimize()`,
+`window.maximize()` and `window.restore()` for use between animations. Afterwards the prop holds
+the place Windows gave the window, and `window.show` says which state it is in.
 
 ```python
 from art98.anim import *
