@@ -54,6 +54,16 @@ All notable changes to art98 are listed here. The format follows
 ### Fixed
 
 - `recipes/scenes/hello.py` and its copies in the scene docs place Notepad clear of the desktop icons.
+- `Dialog.remove()` closes Yes/No and Abort/Retry/Ignore boxes, which ignore the title bar's close,
+  by pressing their No or Abort button. The custom icon is destroyed only after the box has gone.
+- Program errors that were raw Python errors are art98 errors: an unknown `Dialog` button set, a
+  `Dialog` or `Paint` with text outside Windows 1252 or a bad icon, `answer` or `set_message` before
+  the box is on stage or after it has closed, `Notepad` and `Paint` used before they are on stage,
+  a `Minesweeper` board too small to read, and a best-time prompt that never comes.
+- `Screensaver.stop` moves the pointer towards the middle of the screen, so it works near the edges,
+  and puts the pointer back afterwards.
+- `Minesweeper.find_mines` reads the board size once and restores the desktop and the pointer even
+  when the read fails.
 
 ## [0.1.0] - 2026-11-11
 

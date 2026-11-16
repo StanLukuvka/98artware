@@ -244,3 +244,15 @@ def test_a_missing_text_file_is_a_missing_file(tmp_path):
 
     with pytest.raises(MissingFile):
         Notepad(open=tmp_path / "nope.txt")
+
+
+def test_a_notepad_not_on_stage_says_so():
+    from art98.errors import UsageError
+
+    pad = Notepad()
+    with pytest.raises(UsageError, match="not on stage"):
+        _ = pad.edit_hwnd
+    with pytest.raises(UsageError, match="not on stage"):
+        _ = pad.text
+    with pytest.raises(UsageError, match="not on stage"):
+        pad.close()
