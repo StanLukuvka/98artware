@@ -16,11 +16,17 @@ class Spot:
     """A place on screen that is worked out when it is needed.
 
     Controls move with their windows, so a target such as a Paint tool is
-    located when an animation begins, not when the scene names it.
+    located when an animation begins, not when the scene names it. `window` is
+    the Win the place is on, when a Drag from it should repaint that window.
     """
 
-    def __init__(self, locate: Callable[[], tuple[float, float]]):
+    def __init__(
+        self,
+        locate: Callable[[], tuple[float, float]],
+        window=None,
+    ):
         self._locate = locate
+        self.window = window
 
     def point(self) -> Vec:
         return Vec(*self._locate())

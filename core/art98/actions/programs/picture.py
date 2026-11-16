@@ -1,4 +1,4 @@
-"""The art98 picture window."""
+"""Picture: art98's own picture window, a BMP shown by VIEW.EXE, as a prop."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ from pathlib import Path
 from ...errors import GuestError, UsageError
 from ...guest import guestfiles
 from ...guest.bridge import Window
-from .win import Win
+from ...guest.win32 import DIALOG_CLASS
+from ..window.win import Win
 
 DEFAULT_AT = (100, 100)
 DEFAULT_SIZE = (320, 240)
@@ -23,6 +24,7 @@ class Picture(Win):
     """
 
     window_class = "Art98View"
+    open_keyword = "image"
     check_file = staticmethod(
         guestfiles.check_bmp
     )  # what a state's `open` file must pass
@@ -35,33 +37,23 @@ class Picture(Win):
         at: tuple[int, int] | None = None,
         size: tuple[int, int] | None = None,
     ):
-        if guestfiles.title_problem(title):
+        if problem := guestfiles.title_problem(title):
             raise UsageError(
-                f"{title!r} can't be a picture window's title: it {guestfiles.title_problem(title)}"
+                f"{title!r} can't be a picture window's title: it {problem}"
             )
         super().__init__(title, at=at or DEFAULT_AT, size=size or DEFAULT_SIZE)
         self.image = Path(image) if image is not None else None
         self._image_data = None
+        self.image_size = None  # (width, height) of the BMP, when there is one
         if self.image is not None:
             guestfiles.check_name(self.image.name)
-            self._image_data = self.image.read_bytes()
+            self._image_data = guestfiles.read_host_file(self.image)
             self.image_size = guestfiles.check_bmp(self._image_data, str(self.image))
 
     @staticmethod
     def default_title(file: Path | None) -> str:
         """The title a state gives a Picture window that names none."""
         return "Picture"
-
-    @classmethod
-    def from_state(cls, window) -> Picture:
-        prop = cls(
-            window.title,
-            image=window.open.path if window.open else None,
-            at=window.at,
-            size=window.size,
-        )
-        prop._maximized = window.show == "maximized"
-        return prop
 
     def attach(self, scene) -> None:
         guest = scene.guest
@@ -80,16 +72,13 @@ class Picture(Win):
 
     def _look(self, pid: int | None) -> Window | None:
         """Look for the window, failing at once if VIEW.EXE gave up or crashed."""
+        found = super()._look(pid)
+        if found is not None:
+            return found
         for window in self.guest.windows():
             if (
-                window.pid == pid
-                and window.visible
-                and window.class_name == self.class_name
-            ):
-                return window
-            if (
                 window.visible
-                and window.class_name == "#32770"
+                and window.class_name == DIALOG_CLASS
                 and window.title == "View"
             ):
                 raise GuestError(
@@ -102,6 +91,3 @@ class Picture(Win):
                 f"VIEW.EXE closed without a window: Windows 98 couldn't open {what}"
             )
         return None
-
-    def _not_found(self, pid: int | None) -> str:
-        return f"no window for Picture {self.title_text!r}"

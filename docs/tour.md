@@ -137,7 +137,7 @@ What a scene author imports with `from art98.anim import *`.
 - [ ] [win.py](../core/art98/actions/window/win.py): a real window or control as a prop.
 - [ ] [commands.py](../core/art98/actions/window/commands.py): minimize, maximize, restore, close, and `Teleport`.
 - [ ] [menu.py](../core/art98/actions/window/menu.py): open a window's menu and pick an item.
-- [ ] [picture.py](../core/art98/actions/window/picture.py): the picture window.
+- [ ] [picture.py](../core/art98/actions/programs/picture.py): the picture window.
 - [ ] [notepad.py](../core/art98/actions/programs/notepad.py): Notepad as a program. Programs live in
   `actions/programs/`, one file each, and subclass `Win`.
 - [ ] [dialog.py](../core/art98/actions/programs/dialog.py): a real message box, opened by the agent.

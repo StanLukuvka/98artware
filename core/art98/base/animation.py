@@ -198,22 +198,34 @@ class MoveAlongPath(Animation):
 
 
 def path_function(path) -> Callable[[float], tuple[float, float]]:
-    """Turn a list of points into a function of 0..1, by distance along it."""
+    """Turn a list of points into a function of 0..1, by distance along it.
+
+    Points given as Spots are located at the first call, which is when the
+    animation begins, so a path built up front follows the windows as they are then.
+    """
     if callable(path):
         return path
-    points = [point_of(p) for p in path]
-    if len(points) < 2:
+    if len(path) < 2:
         raise UsageError("a path needs at least two points")
-    lengths = [distance(a, b) for a, b in pairwise(points)]
-    total = sum(lengths) or 1.0
+    measured = {}
+
+    def measure():
+        points = [point_of(p) for p in path]
+        pairs = list(pairwise(points))
+        lengths = [distance(a, b) for a, b in pairs]
+        measured.update(
+            points=points, pairs=pairs, lengths=lengths, total=sum(lengths) or 1.0
+        )
 
     def along(t: float):
-        remaining = clamp(t, 0.0, 1.0) * total
-        for (a, b), length in zip(pairwise(points), lengths):
+        if not measured:
+            measure()
+        remaining = clamp(t, 0.0, 1.0) * measured["total"]
+        for (a, b), length in zip(measured["pairs"], measured["lengths"]):
             if remaining <= length and length:
                 return lerp(a, b, remaining / length)
             remaining -= length
-        return points[-1]
+        return measured["points"][-1]
 
     return along
 

@@ -42,13 +42,18 @@ def guest_build() -> Path:
     return Path(__file__).resolve().parents[3] / "guest" / "build"
 
 
-def _not_cp1252(text: str) -> bool:
-    """True if protocol.py would turn part of it into "?" (it encodes with errors="replace")."""
+def not_cp1252(text: str) -> str:
+    """The characters of `text` that Windows 1252 can't hold, which protocol.py
+    would turn into "?". Empty if none."""
+    return "".join(sorted({c for c in text if not _fits_cp1252(c)}))
+
+
+def _fits_cp1252(char: str) -> bool:
     try:
-        text.encode("cp1252")
+        char.encode("cp1252")
     except UnicodeEncodeError:
-        return True
-    return False
+        return False
+    return True
 
 
 def name_problem(name: str) -> str | None:
@@ -61,7 +66,7 @@ def name_problem(name: str) -> str | None:
         return "has a control character"
     if name[-1] in " .":
         return "ends in a space or a dot, which Windows drops"
-    if _not_cp1252(name):
+    if not_cp1252(name):
         return "has characters outside Windows 1252, which would become '?'"
     if len(name) > MAX_NAME:
         return f"is {len(name)} characters; the longest the guest path allows is {MAX_NAME}"
@@ -78,9 +83,17 @@ def title_problem(title: str) -> str | None:
         return "has a control character"
     if title.endswith("\\"):
         return "ends in a backslash, which would escape the closing quote"
-    if _not_cp1252(title):
+    if not_cp1252(title):
         return "has characters outside Windows 1252, which would become '?'"
     return None
+
+
+def read_host_file(path: Path) -> bytes:
+    """The bytes of a file on the host, or MissingFile if it isn't there."""
+    try:
+        return path.read_bytes()
+    except FileNotFoundError:
+        raise MissingFile(f"no file {str(path)!r}") from None
 
 
 def check_name(name: str) -> str:

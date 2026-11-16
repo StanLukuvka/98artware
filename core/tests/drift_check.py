@@ -118,7 +118,7 @@ class AuditRecorder(Recorder):
         self._sync_ms = (time.perf_counter() - t) * 1000
         self._capture(hold, "play")
 
-    def live(self, seconds, stop_condition=None):
+    def live(self, seconds, stop_condition=None, stacklevel=1):
         for _ in range(round(seconds * self._output_fps)):
             if stop_condition is not None and stop_condition():
                 return

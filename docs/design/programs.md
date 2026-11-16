@@ -21,7 +21,7 @@ The layers are Action, then Window, then programs.
 | Action | `core/art98/actions/` | The base: anything the scene can do on screen. |
 | Window | `core/art98/actions/window/win.py` | `Win`: start a command, find the window, move, size, close. |
 | Programs | `core/art98/actions/programs/` | One file per stock Windows program, `notepad.py`, `paint.py`, `minesweeper.py`, `screensaver.py` and `dialog.py`. |
-| art98's own | `core/art98/actions/window/picture.py` | `Picture`, the window for VIEW.EXE. |
+| art98's own | `core/art98/actions/programs/picture.py` | `Picture`, the window for VIEW.EXE. |
 
 A program is one file, or one folder once it needs more than one. Docs, outputs and experiments stay
 out of these folders.
@@ -32,11 +32,11 @@ These matter only for a program that can appear in a state file (today `picture`
 
 | Hook | Where | What it does |
 | --- | --- | --- |
-| `from_state(window)` | the class | Builds the prop from one parsed window of a state file. |
+| `from_state(window)` | `Win`, inherited | Builds the prop from one parsed window of a state file: the file's `open` goes to the constructor keyword `open_keyword` names. `show` is applied by `setstate` after the prop is added. |
 | `APPS` | `core/art98/actions/apps.py` | The one list: `{"picture": Picture, "notepad": Notepad}`. A state's `app` must be a key. |
 | title rule | `core/art98/state.py` | The exact title-bar text, used as the default `title` and checked after Set. |
 
-`state.py` reads `APPS`, so adding a key there makes the name valid in a state file. Each class also has a `check_file` that checks a state's `open` file.
+`state.py` reads `APPS`, so adding a key there makes the name valid in a state file. Each class also has a `check_file` that checks a state's `open` file, a `default_title`, and an `open_keyword`. `Win` declares all three and raises `NotImplementedError` until a program sets them.
 
 **The title rule.** After Set, the guest's window title must equal the state's `title` exactly.
 When the state gives none, `state.py` fills in a default.

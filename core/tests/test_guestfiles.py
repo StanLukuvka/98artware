@@ -60,3 +60,8 @@ def test_a_name_over_max_name_is_refused():
     assert "characters" in guestfiles.name_problem("a" * (guestfiles.MAX_NAME + 1))
     path = guestfiles.guest_path(b"x", "a" * guestfiles.MAX_NAME)
     assert len(path) < 260
+
+
+def test_not_cp1252_names_the_characters_windows_cannot_hold():
+    assert guestfiles.not_cp1252("caf\u00e9") == ""
+    assert guestfiles.not_cp1252("a\u65e5\u672cb") == "\u65e5\u672c"

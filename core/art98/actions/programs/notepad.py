@@ -35,6 +35,7 @@ class Notepad(Win):
 
     command = "notepad.exe"
     window_class = "Notepad"
+    open_keyword = "open"
     check_file = staticmethod(
         guestfiles.check_text
     )  # what a state's `open` file must pass
@@ -52,7 +53,7 @@ class Notepad(Win):
         if self.open_file is not None:
             guestfiles.check_name(self.open_file.name)
             self._file_data = guestfiles.check_text(
-                self.open_file.read_bytes(), str(self.open_file)
+                guestfiles.read_host_file(self.open_file), str(self.open_file)
             )
         if title is None:
             title = notepad_title(self.open_file) if self.open_file is not None else ""
@@ -62,13 +63,6 @@ class Notepad(Win):
     def default_title(file: Path | None) -> str:
         """The title a state gives a Notepad window that names none."""
         return notepad_title(file)
-
-    @classmethod
-    def from_state(cls, window) -> Notepad:
-        file = window.open.path if window.open else None
-        prop = cls(window.title, open=file, at=window.at, size=window.size)
-        prop._maximized = window.show == "maximized"
-        return prop
 
     def attach(self, scene) -> None:
         if self._file_data is not None:

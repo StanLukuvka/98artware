@@ -7,7 +7,7 @@ import time
 
 import pytest
 from art98.guest import win32
-from art98.guest.bridge import Bridge, BridgeError, BridgeTimeout, GuestCrashed
+from art98.guest.bridge import Bridge, BridgeError, BridgeTimeout, GuestCrashed, Window
 from art98.guest.protocol import frame, parse_values, unframe
 
 
@@ -252,3 +252,11 @@ def test_missing_display_mode_is_an_error(pair):
     agent.handlers["CALL"] = lambda i, a: agent.send(b"%d OK 0 0 #00" % i)
     with pytest.raises(BridgeError, match="no 800x600x16"):
         win32.set_display_mode(bridge, 800, 600, 16)
+
+
+def test_a_window_matches_each_filter_given_and_ignores_case():
+    window = Window(1, 7, True, (0, 0, 1, 1), "Notepad", "Untitled - Notepad")
+    assert window.matches(title="untitled", class_name="notepad", pid=7)
+    assert window.matches()
+    assert not window.matches(title="other")
+    assert not window.matches(pid=8)

@@ -12,18 +12,20 @@ from art98 import session as session_module
 from art98.actions import keyboard as keys_module
 from art98.actions import programs
 from art98.actions.keyboard import char_chord, key_chord
-from art98.actions.pointer import BUTTONS
 from art98.anim import *
-from art98.errors import MissingFile
+from art98.base.animation import path_function
+from art98.base.props import Spot
+from art98.errors import MissingFile, NotFound
 from art98.guest.bridge import CallResult, Window
+from art98.guest.win32 import MOUSE_BUTTONS
 from art98.output import recorder as recorder_module
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
 
 WM_CHAR, WM_CLOSE, WM_SYSCOMMAND = 0x0102, 0x0010, 0x0112
 SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOACTIVATE = 1, 2, 4, 0x10
-LDOWN, LUP = BUTTONS["left"]
-RDOWN, RUP = BUTTONS["right"]
+LDOWN, LUP = MOUSE_BUTTONS["left"]
+RDOWN, RUP = MOUSE_BUTTONS["right"]
 
 
 class FakeDll:
@@ -44,6 +46,10 @@ class FakeGuest:
         self.calls = []
         self.rects = {}
         self.rows = {0: []}
+        self.iconic, self.zoomed = (
+            set(),
+            set(),
+        )  # hwnds the guest shows minimized / maximized
         self.cursor = (400, 300)
         self.foreground = 0
         self.spawned = []
@@ -74,6 +80,8 @@ class FakeGuest:
         return CallResult(1, 0, [])
 
     def do_GetWindowRect(self, hwnd, out):
+        if hwnd not in self.rects:  # Windows: FALSE for a window that has gone
+            return CallResult(0, 0, [])
         return CallResult(1, 0, [struct.pack("<iiii", *self.rects[hwnd])])
 
     def do_SetWindowPos(self, hwnd, after, x, y, width, height, flags):
@@ -95,6 +103,12 @@ class FakeGuest:
         x, y = struct.unpack("<ii", point)
         left, top = self.rects[hwnd][:2]
         return CallResult(1, 0, [struct.pack("<ii", left + 3 + x, top + 41 + y)])
+
+    def do_IsIconic(self, hwnd):
+        return CallResult(int(hwnd in self.iconic), 0, [])
+
+    def do_IsZoomed(self, hwnd):
+        return CallResult(int(hwnd in self.zoomed), 0, [])
 
     def do_GetClientRect(self, hwnd, out):
         return CallResult(1, 0, [struct.pack("<iiii", 0, 0, 148, 191)])
@@ -780,6 +794,51 @@ def test_hover_records_in_real_time(guest, scene):
     assert guest.cursor == (10, 10)
 
 
+def test_hover_refuses_run_time_and_takes_no_time_without_a_division_error():
+    with pytest.raises(UsageError, match="travel_time"):
+        Hover((1, 2), run_time=3)
+    assert Hover((1, 2), hold=0, travel_time=0).run_time == 0
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: Click((1, 2), button="rigth"),
+        lambda: Drag((1, 2), (3, 4), button="rigth"),
+        lambda: Stroke([(1, 2), (3, 4)], button="rigth"),
+    ],
+)
+def test_a_misspelled_mouse_button_is_refused_when_the_action_is_built(make):
+    with pytest.raises(UsageError, match="rigth"):
+        make()
+
+
+@pytest.mark.parametrize("run_time", [0.75, 5.0])
+def test_a_double_click_keeps_its_presses_0_09_seconds_apart(run_time):
+    double = DoubleClick((1, 2), run_time=run_time)
+    presses = [at for at, event in double.schedule() if event == double._press]
+    assert (presses[1] - presses[0]) * run_time == pytest.approx(0.09)
+
+
+def test_a_click_holds_the_button_for_the_same_time_at_any_run_time():
+    click = Click((1, 2), run_time=5.0)
+    (press_at, _), (release_at, _) = click.schedule()
+    assert (release_at - press_at) * 5.0 == pytest.approx(0.065)
+
+
+def test_a_stroke_needs_at_least_one_step_per_frame():
+    with pytest.raises(UsageError, match="steps_per_frame"):
+        Stroke([(1, 2), (3, 4)], steps_per_frame=0)
+
+
+def test_a_path_with_a_spot_is_located_when_the_animation_begins():
+    where = [(10, 10)]
+    path = path_function([Spot(lambda: where[0]), (50, 10)])
+    where[0] = (30, 10)  # the window moved after the path was made
+    point = path(0)
+    assert (point[0], point[1]) == (30, 10)
+
+
 def menu_guest(guest):
     labels = {
         (0x50, 0): "&File",
@@ -816,6 +875,18 @@ def test_menu_reports_a_missing_label(guest, scene):
     menu_guest(guest)
     with pytest.raises(LookupError, match="Paste"):
         scene.play(Menu(pad, "Paste"))
+
+
+def test_a_window_with_no_menu_or_a_label_with_no_submenu_is_not_found(guest, scene):
+    pad = notepad(guest, scene)
+    menu_guest(guest)
+    guest.do_GetMenu = lambda hwnd: CallResult(0, 0, [])
+    with pytest.raises(NotFound, match="has no menu"):
+        scene.play(Menu(pad, "File", "Exit"))
+    menu_guest(guest)
+    guest.do_GetSubMenu = lambda menu, position: CallResult(0, 0, [])
+    with pytest.raises(NotFound, match="has no submenu"):
+        scene.play(Menu(pad, "File", "Exit"))
 
 
 # ---- keyboard ----
@@ -862,6 +933,13 @@ def test_key_names_become_qemu_names():
     assert key_chord("win") == ("meta_l",)
 
 
+def test_a_key_chord_with_an_unknown_or_empty_name_is_refused():
+    with pytest.raises(UsageError, match="'sx'"):
+        key_chord("ctrl+sx")
+    with pytest.raises(UsageError, match="no key called ''"):
+        key_chord("ctrl++")
+
+
 @pytest.mark.parametrize(
     "char, chord",
     [
@@ -884,6 +962,21 @@ def test_characters_become_keys(char, chord):
 def test_a_character_with_no_key_is_refused():
     with pytest.raises(ValueError):
         char_chord("é")
+
+
+def test_typing_takes_windows_line_ends_and_refuses_what_cp1252_cannot_hold(
+    guest, scene
+):
+    pad = notepad(guest, scene)
+    assert TypeWithCursor(pad, "a\r\nb").items == b"a\rb"
+    with pytest.raises(UsageError, match="日本"):
+        TypeWithCursor(pad, "日本")
+
+
+def test_untyping_needs_at_least_one_letter(guest, scene):
+    pad = notepad(guest, scene)
+    with pytest.raises(UsageError, match="count is 0"):
+        UntypeWithCursor(pad, 0)
 
 
 def test_keys_press_in_order_on_the_real_keyboard(scene):

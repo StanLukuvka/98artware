@@ -7,7 +7,13 @@ from typing import ClassVar
 
 from ...errors import UsageError
 from ...guest import win32
-from ...guest.win32 import GWL_STYLE, MB_ICONINFORMATION, SS_ICON, STM_SETICON
+from ...guest.win32 import (
+    DIALOG_CLASS,
+    MB_ICONINFORMATION,
+    SS_ICON,
+    STM_SETICON,
+    window_style,
+)
 from ..window.win import Win
 
 BUTTON_W, BUTTON_H, BUTTON_GAP, BOTTOM_MARGIN = 75, 23, 6, 11
@@ -25,7 +31,7 @@ class Dialog(Win):
     fit. `disabled` greys every button. `set_message` changes the text.
     """
 
-    window_class = "#32770"
+    window_class = DIALOG_CLASS
     ICONS: ClassVar[dict[str | None, int]] = {
         None: 0,
         "error": 0x10,
@@ -130,10 +136,7 @@ class Dialog(Win):
     def ready(self) -> None:
         user32 = self.guest.user32
         statics = self.children("Static")
-        styles = {
-            w.hwnd: user32.GetWindowLongA(w.hwnd, GWL_STYLE & 0xFFFFFFFF).value
-            for w in statics
-        }
+        styles = {w.hwnd: window_style(self.guest, w.hwnd) for w in statics}
         text = [w.hwnd for w in statics if styles[w.hwnd] & 0x1F != SS_ICON]
         self._text_hwnd = text[0] if text else None
         if self._custom:
