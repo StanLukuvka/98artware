@@ -7,9 +7,87 @@ All notable changes to art98 are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-16
+
+A clean-up release: the containers run from a committed `compose.yaml`, the library is regrouped
+into packages, and a review pass hardened the window and program actions. A scene written for
+0.1.0 needs a few edits; see "Changed" and "Removed".
+
 ### Changed
 
-- `art98` parses every command without importing `art98_setup`; `setup` and `up` read the default disk size when they run, so the Hermes plugin's vendored copy no longer needs a stand-in `art98_setup`.
+- The containers run from a committed `compose.yaml` instead of `docker run` commands built in
+  Python. `art98 up` runs `docker compose build` and `docker compose run --rm setup`, and
+  `art98 vm start`/`stop` run `docker compose up -d --wait`/`down`, one compose project per work
+  folder. art98 now needs Docker's compose plugin, or `podman-docker` and `docker-compose` on a
+  Podman host (`podman-compose` does not work). Your own settings for the containers (a product
+  key file, the disc, VNC) go in a gitignored `compose.override.yaml`; start from
+  `compose.override.example.yaml`. See [configuration](docs/setup/config.md#where-each-setting-lives).
+- `art98 up` checks the disc and the key before it starts setup, and `--iso` together with a disc
+  mounted in `compose.override.yaml` is an error. It says setup usually takes 20 to 30 minutes.
+- `[ports] connect` defaults to `127.0.0.1`.
+- `art98` parses every command without importing `art98_setup`; `setup` and `up` read the default
+  disk size when they run.
+- `examples/` is now `recipes/`. Scenes are in `recipes/scenes/`, and modules that scenes import
+  are in `recipes/helpers/` (`from helpers.<module> import ...`). The folder is on the path for
+  `uv run` and is not part of the wheel.
+- `core/art98` is regrouped into packages: `guest/` (bridge, protocol, QEMU, `win32`, disc and
+  guest files), `container/` (compose, service, serve and the freshness checks), `output/`
+  (recorder and GIF writer) and `actions/` (pointer, keyboard, `window/` and `programs/`). Import
+  from the new paths. `Picture` is in `actions/window/`, and `timeline.py` is folded into `Scene`.
+- `core/art98/legacy.py` keeps the old module paths (`art98.service`, `art98.win32`), `Scene.fps`
+  as `output_fps` and `Settings(source=)` working for the Hermes plugin pinned at 94f0fd3. It is
+  the one allowed shim, and `test_legacy.py` pins the VM server's wire exchange.
+- `Scene.fps` is now `output_fps`, the frame rate of the finished video. A scene that still sets
+  `fps` or `clock` is refused at import instead of ignored.
+- The state file's desktop `colour` is now `fill_colour`. An old `colour` key fails with a
+  message that names the new one.
+- The bridge only moves bytes: a garbled frame (`BADFRAME`) fails every open request at once, and
+  an integer outside -2**31 to 2**32-1 is refused instead of masked.
+- Expected failures raise art98 errors (`Art98Error` and its `UsageError`, `NotFound`,
+  `GuestError` and `MissingFile`) instead of bare Python ones, and the CLI prints them as one
+  line. A drifted desktop is a `GuestError` (`StateMismatch`).
+- The guest-program freshness check compares source digests (`guest/build/sources.sha256`,
+  written by `make -C guest`) instead of file times, and the image check uses git commit times
+  in a git checkout. A fresh `art98 up` no longer warns that the guest programs are out of date.
+  After updating, run `make -C guest` once, or `art98 up --rebuild` on a host with only a
+  container engine, so `sources.sha256` exists.
+- The renderer checks output suffixes, numbers kept clips by position, and takes `GifOptions`.
+  The recorder refuses frames after it is closed. A live stretch that ends more than a frame
+  late warns, since guest-timed motion in it plays slower in the video.
+- Scene: one reset, one pacer and one name per way of holding; `play` overrides no longer stick.
+- Windows, pointer and keyboard (#27 to #30):
+  - `Win.refresh` reads the show state first, so a minimized window keeps its last place and
+    pending moves are sent on restore. `maximize`, `minimize` and `restore` go through the
+    system command path. The drift check skips minimized windows.
+  - `Win()` with no command, handle, title or class is a `UsageError`. A missing handle, a window
+    that never appears and a missing control or menu are `NotFound` with a plain message (`find`
+    waits 15 s).
+  - `Hover` takes `hold=` and `travel_time=`, not `run_time=`. `Click`, `Drag`, `Stroke` and
+    `DoubleClick` refuse unknown mouse buttons when built. `DoubleClick` presses 0.09 s apart and
+    `Click` holds 0.065 s at any `run_time`. `Stroke` refuses `steps_per_frame` below 1.
+  - `Keys` and `TypeKeys` refuse unknown key names, typing refuses text outside Windows 1252 and
+    normalises line endings, and `Untype` refuses a count below 1.
+  - `Picture` and `Notepad` raise `MissingFile` for a missing file.
+  - State checks: one check per part, an RGB colour in the mismatch message, the pixel
+    tolerance chosen by colour depth, and the sample taken clear of the pointer.
+- Programs (#31): `Dialog`, `Notepad`, `Paint`, `Minesweeper` and `Screensaver` raise art98
+  errors for bad input and use before they are on stage. `Paint`, `Minesweeper` and `Notepad`
+  take `at` and `size` only. `Minesweeper` reads the board size once and `find_mines` returns a
+  frozenset. A `Dialog` smaller than the stock box is refused before it is placed.
+- Development moves to the `dev` branch; `main` changes only at a release, and `experiments/`
+  lives on `dev` only.
+
+### Added
+
+- A client can be handed the VM token instead of reading a token file: `Settings.token` (for a
+  program that uses art98 as a library) or the `ART98_TOKEN` environment variable. The token
+  file stays the default.
+- `ART98_GUEST_BUILD` points art98 at the guest programs when the library is a copy outside
+  the checkout, and `tools/vendor_to_hermes.py` makes that copy for the Hermes plugin.
+- `Screensaver` can run Scrolling Marquee.
+- `SECURITY.md`, which points to private reporting.
+- In `experiments/` (on `dev` only): probes for the Windows 98 add-on install path and the
+  vmdisp9x free-resolution driver.
 
 ### Removed
 
@@ -22,52 +100,41 @@ All notable changes to art98 are listed here. The format follows
   a VM, and art98 finds it by its project. Delete `container` from your `art98.toml` if you
   copied it. A stopped `art98-vm` container from before is no longer used: remove it with
   `docker rm art98-vm`, and delete `work/vm.cid` if it is there.
-
-### Added
-
-- A client can be handed the VM token instead of reading a token file: `Settings.token` (for a
-  program that uses art98 as a library) or the `ART98_TOKEN` environment variable. The token
-  file stays the default.
-- `ART98_GUEST_BUILD` points art98 at the guest programs when the library is a copy outside
-  the checkout, and `tools/vendor_to_hermes.py` makes that copy for the Hermes plugin.
-
-### Changed
-
-- The containers run from a committed `compose.yaml` instead of `docker run` commands built in
-  Python. `art98 up` runs `docker compose build` and `docker compose run --rm setup`, and
-  `art98 vm start`/`stop` run `docker compose up -d --wait`/`down`, one compose project per work
-  folder. art98 now needs Docker's compose plugin, or `podman-docker` and `docker-compose` on a
-  Podman host (`podman-compose` does not work). Your own settings for the containers (a product
-  key file, the disc, VNC) go in a gitignored `compose.override.yaml`; start from
-  `compose.override.example.yaml`. See [configuration](docs/setup/config.md#where-each-setting-lives).
-- `art98 up` checks the disc and the key before it starts setup, and `--iso` together with a disc
-  mounted in `compose.override.yaml` is an error.
-- `[ports] connect` defaults to `127.0.0.1`.
-- `examples/` is now `recipes/`. Scenes are in `recipes/scenes/`, and modules that scenes import are in
-  `recipes/helpers/` (`from helpers.<module> import ...`). The folder is on the path for `uv run`
-  and is not part of the wheel.
-- The guest-program freshness check compares source digests (`guest/build/sources.sha256`,
-  written by `make -C guest`) instead of file times, and the image check uses git commit times
-  in a git checkout. A fresh `art98 up` no longer warns that the guest programs are out of date.
-  After updating, run `make -C guest` once, or `art98 up --rebuild` on a host with only a
-  container engine, so `sources.sha256` exists.
-- `art98 up` says setup usually takes 20 to 30 minutes.
-- Development moves to the `dev` branch; `main` changes only at a release, and
-  `experiments/` lives on `dev` only.
+- Dead settings and parameters: `icount_shift`, `audio_wav` (the audio backend is always
+  `none`), `Bridge.move_window` (use `win32.place_window`) and the `timeline.py` module.
 
 ### Fixed
 
 - `recipes/scenes/hello.py` and its copies in the scene docs place Notepad clear of the desktop icons.
 - `Dialog.remove()` closes Yes/No and Abort/Retry/Ignore boxes, which ignore the title bar's close,
   by pressing their No or Abort button. The custom icon is destroyed only after the box has gone.
-- Program errors that were raw Python errors are art98 errors: an unknown `Dialog` button set, a
-  `Dialog` or `Paint` with text outside Windows 1252 or a bad icon, `answer` or `set_message` before
-  the box is on stage or after it has closed, `Notepad` and `Paint` used before they are on stage,
-  a `Minesweeper` board too small to read, and a best-time prompt that never comes.
 - `Screensaver.stop` moves the pointer towards the middle of the screen, so it works near the edges,
   and puts the pointer back afterwards.
-- `Minesweeper.find_mines` reads the board size once and restores the desktop and the pointer even
-  when the read fails.
+- `Minesweeper.find_mines` restores the desktop and the pointer even when the read fails.
+- A wallpaper check reads one BMP header and allows one pixel of slack for stretch and centre.
+- Setup and the CI tests: the Windows 98 boot record now comes from syslinux's `mbr.bin`; CI
+  builds `guest/` and still runs when the runner cannot install ffmpeg.
+
+### Known limits
+
+- The colour depth is fixed (16-bit); a state's colours show the 5-6-5 rounding.
+- Resolutions are fixed to the four Cirrus modes. Wider displays are only probed in `experiments/`.
+- An image prepared before `guest/call_proxy/agent.c` changed warns "the prepared image was
+  built before the agent changed; scenes run the old AGENT.EXE". Scenes still run on the old
+  agent. To get the new one, run `art98 setup --from vm`, which is a full reinstall.
+- A `test_qemu.py` run leaves one `art98-*` socket folder in `$XDG_RUNTIME_DIR`.
+- The `ready` step writes `UserPreferencesMask`, but Windows 98 reads `UserPreferencemask`, so
+  the setting has no effect. Fixing it changes the image.
+- Setup was run on one OEM disc only, and `--from setup` and `--from init_api` still fail after
+  a finished build (use `--from vm`).
+- Agent bugs on hold: frames over 16384 bytes are truncated, an oversize `#` line is dropped, an
+  `ERR` after an `ACALL`'s `OK` is dropped, and a failed `CreateThread` is not handled.
+- Host bugs on hold: pending async calls are not failed when the agent sends `! CRASH`,
+  `_read_loop` only catches `OSError`, and a failed `load_snapshot` leaves QEMU in `restore-vm`.
+- A guest reboot ends the VM. Video only; audio is deferred. `--section` is not built, and Paint,
+  Minesweeper and `Dialog` cannot be opened from a state file.
+- Timings in the docs are for a quiet host. A busy host can be several times slower, with the
+  same frames.
 
 ## [0.1.0] - 2026-11-11
 
@@ -119,4 +186,5 @@ runs from a checkout with `uv run`.
 
 See [status](docs/status.md) for the open work.
 
+[0.2.0]: https://github.com/StanLukuvka/98artware/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/StanLukuvka/98artware/releases/tag/v0.1.0
