@@ -117,6 +117,7 @@ def _pixel(session, tmp_path, x, y):
 
 def test_backdrop_colour_reads_back(booted, tmp_path):
     from art98 import desktop
+    from art98.guest import win32
 
     rgb = (200, 10, 30)
     session = booted
@@ -124,7 +125,7 @@ def test_backdrop_colour_reads_back(booted, tmp_path):
     desktop.blank(guest)
     desktop.set_colour(guest, rgb)
     guest.sync()
-    assert guest.user32.GetSysColor(1).value & 0xFFFFFF == desktop.colourref(rgb)
+    assert guest.user32.GetSysColor(1).value & 0xFFFFFF == win32.colourref(rgb)
     assert not guest.user32.IsWindowVisible(
         desktop.shell_windows(guest)[2]
     ).value  # P0: icons stay hidden

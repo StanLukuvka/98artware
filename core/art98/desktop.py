@@ -46,6 +46,7 @@ from .guest.win32 import (
     SPIF_SENDWININICHANGE,
     SPIF_UPDATEINIFILE,
     SW_HIDE,
+    colourref,
     repaint_all,
     screen_size,
     work_area,
@@ -130,16 +131,6 @@ def resolve_colour(colour) -> tuple[int, int, int]:
     if len(rgb) != 3 or not all(type(c) is int and 0 <= c <= 255 for c in rgb):
         raise UsageError(f"colour must be three ints from 0 to 255, not {colour!r}")
     return rgb
-
-
-def colourref(rgb) -> int:
-    """The Win32 COLORREF: red in the low byte."""
-    return rgb[0] | rgb[1] << 8 | rgb[2] << 16
-
-
-def rgb(colourref: int) -> tuple[int, int, int]:
-    """The (r, g, b) in a Win32 COLORREF: the reverse of `colourref`."""
-    return colourref & 255, colourref >> 8 & 255, colourref >> 16 & 255
 
 
 def set_colour(guest, rgb) -> None:

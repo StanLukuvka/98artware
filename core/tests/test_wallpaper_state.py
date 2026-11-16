@@ -6,10 +6,10 @@ import struct
 from types import SimpleNamespace
 
 import pytest
-from art98 import desktop
 from art98.anim import setstate
 from art98.base.space import STOCK
 from art98.errors import GuestError
+from art98.guest import win32
 from art98.guest.bridge import CallResult
 from art98.state import DesktopState, State, StateError, WindowState, load_state
 from test_backdrop import DiskGuest
@@ -128,7 +128,7 @@ class Guest(DiskGuest):
         return CallResult({0: 800, 1: 600}.get(index, 0), 0, [])
 
     def do_GetSysColor(self, index):
-        return CallResult(desktop.colourref(self.colour), 0, [])
+        return CallResult(win32.colourref(self.colour), 0, [])
 
     def do_GetDeviceCaps(self, dc, index):
         return CallResult(self.depth, 0, [])
@@ -138,7 +138,7 @@ class Guest(DiskGuest):
 
     def do_GetPixel(self, dc, x, y):
         self.log.append(("GetPixel", x, y))
-        return CallResult(desktop.colourref(self.pixel), 0, [])
+        return CallResult(win32.colourref(self.pixel), 0, [])
 
 
 def stub_scene(guest, log, monkeypatch):
@@ -220,7 +220,9 @@ def checked(tmp_path, guest, desk, windows=()):
 def test_check_state_fails_on_a_wrong_colour(tmp_path):
     with pytest.raises(setstate.StateMismatch) as caught:
         checked(tmp_path, Guest(colour=(1, 2, 3)), {"fill_colour": [4, 5, 6]})
-    assert caught.value.problems[0].startswith("desktop.fill_colour:")
+    assert caught.value.problems == [
+        "desktop.fill_colour: [4, 5, 6] wanted, the guest has [1, 2, 3]"
+    ]
     checked(tmp_path, Guest(colour=(4, 5, 6)), {"fill_colour": [4, 5, 6]})
 
 

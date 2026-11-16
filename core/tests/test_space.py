@@ -227,3 +227,13 @@ def test_wallpaper_sample_stays_above_the_given_bottom():
     state = State(None, None, (), None)
     assert setstate.wallpaper_sample(state, 640, 480, 452) == (320, 240)
     assert setstate.wallpaper_sample(state, 640, 100, 60)[1] == 48
+
+
+def test_wallpaper_sample_keeps_clear_of_the_pointer():
+    from art98.state import State
+
+    state = State(None, None, (), (320, 240))
+    assert setstate.wallpaper_sample(state, 640, 480, 452) == (160, 120)
+    # the box ends at the cursor size: a pointer just left of the point is clear
+    clear = State(None, None, (), (320 - setstate.CURSOR_SIZE, 240))
+    assert setstate.wallpaper_sample(clear, 640, 480, 452) == (320, 240)

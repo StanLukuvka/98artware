@@ -6,6 +6,7 @@ Raw `guest.user32.X(...)` stays fine anywhere; these only name the repeated ones
 from __future__ import annotations
 
 import struct
+from contextlib import contextmanager
 
 from ..base.space import DesktopSpace, Metrics
 from .bridge import BridgeError
@@ -69,6 +70,32 @@ ENUM_SETTINGS_END_OF_LIST = 0
 CDS_UPDATEREGISTRY = 1
 DEVMODE_SIZE = 156
 DM_BITSPERPEL, DM_PELSWIDTH, DM_PELSHEIGHT = 0x00040000, 0x00080000, 0x00100000
+
+
+def colourref(rgb) -> int:
+    """The Win32 COLORREF: red in the low byte."""
+    return rgb[0] | rgb[1] << 8 | rgb[2] << 16
+
+
+def rgb(colourref: int) -> tuple[int, int, int]:
+    """The (r, g, b) in a Win32 COLORREF: the reverse of `colourref`."""
+    return colourref & 255, colourref >> 8 & 255, colourref >> 16 & 255
+
+
+@contextmanager
+def screen_dc(guest):
+    """The screen's device context, released on exit. Keep one open across a loop of reads."""
+    dc = guest.user32.GetDC(0).value
+    try:
+        yield dc
+    finally:
+        guest.user32.ReleaseDC(0, dc)
+
+
+def screen_pixel(guest, x: int, y: int) -> tuple[int, int, int]:
+    """The (r, g, b) on screen at (x, y). One DC per call: use `screen_dc` for many reads."""
+    with screen_dc(guest) as dc:
+        return rgb(guest.gdi32.GetPixel(dc, x, y).value & 0xFFFFFF)
 
 
 def window_rect(guest, hwnd: int) -> tuple[int, int, int, int] | None:
@@ -178,6 +205,15 @@ def close_window(guest, hwnd: int) -> None:
 
 def show_window(guest, hwnd: int, command: int) -> None:
     guest.user32.ShowWindow(hwnd, command)
+
+
+def show_state(guest, hwnd: int) -> str:
+    """ "minimized", "maximized" or "normal"."""
+    if guest.user32.IsIconic(hwnd).value:
+        return "minimized"
+    if guest.user32.IsZoomed(hwnd).value:
+        return "maximized"
+    return "normal"
 
 
 def mouse_button(guest, button: str, down: bool) -> None:
