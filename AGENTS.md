@@ -105,11 +105,13 @@ image. Which tests a change needs:
 | `core/art98/guest/win32.py` | Win32 constants and small named guest reads. Put a new constant or a repeated guest read here, not inline |
 | `core/art98/guest/bridge.py`, `protocol.py` | The host side of the agent protocol. Transport only |
 | `core/art98/session.py` | `Session`: a VM and a bridge, with `revert`. `boot_local`/`stage` are host QEMU for experiments only |
-| `core/art98/container/service.py`, `container/` | The VM service: `start`, `stop`, `status`, and `attach()` for Python callers; `serve.py` runs inside the container, `host.py` and `compose.py` on the host |
+| `core/art98/container/` | The VM service: `service.py` has `start`, `stop`, `status`, and `attach()` for Python callers; `serve.py` runs inside the container (`entry.py` is its entry point), `host.py` and `compose.py` are on the host, `freshness.py` warns about an old image |
 | `compose.yaml`, `compose.tcp.yaml` | How the containers run (`vm`, and `setup` behind a profile). A new mount, port or container variable goes here, not in Python; every published port stays on `127.0.0.1` |
 | `compose.override.example.yaml` | The start for a user's own `compose.override.yaml` (gitignored): key file, disc, VNC |
-| `core/art98/output/recorder.py` | `Recorder`: frames to clips, `cut()`, the join |
+| `core/art98/output/` | `recorder.py` is `Recorder` (frames to clips, `cut()`, the join); `gif.py` is `write_gif` and `GifOptions` |
 | `core/art98/state.py` | Reading and checking state JSON files |
+| `core/art98/errors.py` | `Art98Error` and its base classes (`UsageError`, `NotFound`, `GuestError`, `MissingFile`) |
+| `core/art98/legacy.py` | Old names kept only for the Hermes agent plugin; nothing else imports it |
 | `core/art98/desktop.py` | The blank start |
 | `core/art98/settings.py` | `art98.toml` |
 | `core/art98/cli.py` | The `art98` command |
@@ -118,7 +120,7 @@ image. Which tests a change needs:
 | `core/tests/`, `setup/tests/` | Tests. `pythonpath` in `pyproject.toml` puts `core` and `setup` on the path |
 | `recipes/scenes/` | Maintained scenes the docs embed. Keep them rendering |
 | `recipes/helpers/` | Action modules that scenes import (`from helpers.<module> import ...`) |
-| `tools/` | `render_all.py` (gallery GIFs), `check_docs.py` (renders doc samples on the real VM) |
+| `tools/` | `render_all.py` (gallery GIFs), `check_docs.py` (renders doc samples on the real VM), `vendor_to_hermes.py` (the copy of art98 for the Hermes plugin) |
 | `experiments/` | Throwaway probes. No tests, not imported by art98. On `dev` only |
 | `docs/` | Every page; index in `docs/README.md`. `docs/status.md` is the pick-up point |
 | `work/` | The prepared image. **Never copy, commit or upload anything from it** |

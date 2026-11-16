@@ -69,11 +69,9 @@ long-lived container from the image, and each render attaches to it with `art98.
 1. **Build.** `fedora:44` with `mingw32-gcc`, `make` and `syslinux-nonlinux` runs `make -C guest`
    and produces `agent.exe`, `view.exe` and `mbr.bin` (syslinux's boot code, copied). The host no longer needs a cross-compiler.
 2. **Run.** `fedora-minimal:44` with `qemu-system-x86-core-10.2.2-1.fc44` and `qemu-img` of the
-   same version, plus `mtools`, `7zip` and `python3`, then the two art98 packages and the guest
+   same version, plus `mtools`, `7zip` and `python3`, then `core/art98`, `setup/art98_setup` and the guest
    programs from stage 1.
 
-Fedora 44's release repository is frozen, so pinning the exact package version keeps the same
-build available. It's the build that saved the current `ready` snapshot, so that snapshot should
 Fedora 44's release repository is frozen, so pinning the exact package version keeps the same
 build available. It's the build that saved the current `ready` snapshot, so that snapshot loads in
 the container with no new setup run.
@@ -100,7 +98,7 @@ loopback and the frame bytes follow the reply. See [Timing](#timing).
 
 The container is the bridge between the host and the VM. It owns QEMU and the run copy of the
 disk, and it relays the agent's protocol out to the host. The host keeps the client half:
-`bridge.py`, which tracks request ids, events and timeouts, stays as it is; only the socket it
+`guest/bridge.py`, which tracks request ids, events and timeouts, stays as it is; only the socket it
 connects to changes. Why a relay: [decision 5](decisions.md#5-qemu-in-a-container-python-the-recorder-and-ffmpeg-on-the-host).
 
 ### `art98 serve`, in the container
@@ -156,7 +154,7 @@ is taken down. Only a SIGKILL of the container leaves its run copy in
   project and the files in front of each command. `RemoteVM` has the methods the scene layer uses on
   `VM`: `screenshot`, `send_keys`, `load_snapshot`, `insert_disc`, `eject_disc`, `pause`, `resume`,
   `close`. `close` releases the VM; it does not stop it.
-- `art98/service.py`: `start`, `stop` and `status` for the container, and `attach`, which a render
+- `art98/container/service.py`: `start`, `stop` and `status` for the container, and `attach`, which a render
   uses to take the VM for one run. See [the VM service](#the-vm-service).
 - `image.json` records an absolute disk path (`/work/golden.qcow2` when prepared in the container).
   The VM service and `boot_local()` fall back to the file of that name beside `image.json`
@@ -269,7 +267,7 @@ so capture stays outside the guest.
 ## The CD drive
 
 A scene's wallpaper goes to the guest on a disc, not through `put_file`. The host builds a small
-ISO 9660 level 1 disc (`disc.py`, 8.3 capital names) and sends it on the serve channel: a JSON header line with the size (`insert_disc`, at most 64 MiB), then the raw bytes. Serve puts it in the guest's CD drive, `D:`, with QMP. There is no AutoPlay and no Explorer window. After the insert the scene polls every 50 ms and gives up after 2 s; the first read succeeded at once in every run. `eject_disc` takes no
+ISO 9660 level 1 disc (`guest/disc.py`, 8.3 capital names) and sends it on the serve channel: a JSON header line with the size (`insert_disc`, at most 64 MiB), then the raw bytes. Serve puts it in the guest's CD drive, `D:`, with QMP. There is no AutoPlay and no Explorer window. After the insert the scene polls every 50 ms and gives up after 2 s; the first read succeeded at once in every run. `eject_disc` takes no
 bytes. A revert sends `eject_disc` first, because `loadvm` doesn't remove QEMU's medium; a
 session that never inserted a disc never sends it, so an older container image still works. On
 Podman, real Docker and host QEMU, at CPU pressure avg10 1.3 to 2.0, an insert took 5 to 8 ms, the guest saw it in 60 to

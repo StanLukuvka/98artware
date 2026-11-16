@@ -120,8 +120,8 @@ Checks the agent, unpacks Setup, and makes a boot floppy that starts it.
 | `the media stage needs --iso` | No `--iso` |
 | `the media stage needs --key` | No `--key` and no `ART98_PRODUCT_KEY` |
 | `.../agent.exe missing; run make in guest/` | The guest was not built |
-| `... needs Windows x.y` | `PEError`: the agent's subsystem version is too new. Shows as a traceback |
-| `... imports unreviewed functions from ...` | `PEError`: the agent imports something not in `ALLOWED_IMPORTS`. Shows as a traceback |
+| `... needs Windows x.y` | `PEError`: the agent's subsystem version is too new |
+| `... imports unreviewed functions from ...` | `PEError`: the agent imports something not in `ALLOWED_IMPORTS` |
 | `... is not a bootable disc` | No El Torito boot record |
 | `... does not boot from an emulated floppy` | A no-emulation boot image, or an entry that is not bootable |
 | `... has no WIN98 folder; is it a Windows 98 disc?` | Wrong disc, or a different layout |
@@ -234,7 +234,7 @@ the `Run` key in `HKLM`, and it sends `HELLO` every 3 seconds until the host
 speaks.
 
 **Finished when:** `HELLO` arrives, `bridge.wait_ready()` gets a `PING` reply with
-the right protocol version, and Windows shuts down. `_reboot` calls
+the right protocol version, and Windows shuts down. `Setup.reboot` calls
 `ExitWindowsEx(EWX_REBOOT | EWX_FORCE)` with `acall`, because that call never
 replies, and then waits up to `SHUTDOWN_TIMEOUT`, 5 minutes, for QEMU to exit.
 
@@ -297,7 +297,7 @@ Boots `golden.qcow2` once, as `ready` will, and checks the agent comes up on its
 
 **Inside:** `require_agent` waits for `HELLO` from `AGENT.EXE`, up to 15 minutes,
 still answering prompts, then `bridge.wait_ready()` gets a `PING` reply with the
-right protocol version. `_reboot` then shuts Windows down with `ExitWindowsEx`.
+right protocol version. `Setup.reboot` then shuts Windows down with `ExitWindowsEx`.
 
 **Finished when:** the agent has answered and QEMU has exited.
 
@@ -327,7 +327,7 @@ First VM:
    empties the `RUN_KEYS` except for the names in `KEPT_RUN_VALUES`.
 3. `set_display_mode(bridge, *DISPLAY_MODE)` from `art98.guest.win32` sets 800x600x16 and saves it to the
    registry. It uses a mode the video driver itself reports.
-4. `_reboot` shuts Windows down, so the settings apply on the next boot.
+4. `Setup.reboot` shuts Windows down, so the settings apply on the next boot.
 
 Second VM:
 
@@ -355,7 +355,7 @@ exists.
 | `guest has no 800x600x16 display mode` | `BridgeError`: the driver lists no such mode. Shows as an `error:` line |
 | `guest speaks protocol N, host M` | `BridgeError`: `agent.exe` and the Python code are from different versions. Shows as an `error:` line |
 
-**`_wait_for_quiet_screen` has no time limit.** If something on screen keeps moving,
+**`wait_for_quiet_screen` has no time limit.** If something on screen keeps moving,
 such as a blinking caret, `ready` waits forever. A taskbar clock is not a problem,
 since it changes once a minute. Run with `--watch` to see what is moving.
 

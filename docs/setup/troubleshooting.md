@@ -7,7 +7,7 @@ step. When the VM is involved, these show what happened:
 |-------|---------------|
 | `work/shots/` | The newest `install*`, `init_api*`, `harden*` or `reboot*` PNG is the last screen, at most 30 seconds old |
 | `work/qemu.log` | Why QEMU would not start. Appended across runs, so read the end |
-| `--watch` | The live screen |
+| `art98 setup --watch` | The live screen of a setup run. In the container, set `ART98_VNC` for the `setup` service in `compose.override.yaml` instead. `art98 up` has no `--watch`, and neither has `art98 vm start` |
 | `C:\SETUPLOG.TXT`, `DETLOG.TXT` | Setup's own logs. On a failed install, read them from `work/install.img` with `mtype -i "work/install.img@@32256" ::SETUPLOG.TXT`. Set `MTOOLS_SKIP_CHECK=1` first |
 
 The logs are fine to paste into an issue, but don't share the disk itself: it is an installed
@@ -28,7 +28,7 @@ the code and in `docs/archive/MANIM_MAPPING_PLAN.md` section 2.7.
 | Workgroup page | Setup asks for a workgroup unless the answer file gives one, and Windows refuses one with the computer's name | `Workgroup="WORKGROUP"`, computer `art98`, `Display=0` | `render_msbatch` |
 | `NoPrompt2Boot` | Microsoft's table and sample disagree on what `1` means | Follows the sample | `render_msbatch` |
 | Warm reboot freeze | Windows hangs on its logo after a reset in the same QEMU process | `-no-reboot`, and a new VM per boot | `VMConfig`, `setup.py` |
-| `ExitWindowsEx` never replies | A plain call would block the bridge until it timed out | Uses `acall`, then waits for QEMU to exit | `_reboot` |
+| `ExitWindowsEx` never replies | A plain call would block the bridge until it timed out | Uses `acall`, then waits for QEMU to exit | `Setup.reboot` |
 | Blinking caret | A dialog waiting forever still changes the screen | The stall rule watches the disk instead | `wait_for_agent` |
 | Modern toolchains | They build files that fail on 98 with a vague error | Links without the mingw CRT, and checks the result on the host | `guest/Makefile`, `pecheck` |
 

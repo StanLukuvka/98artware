@@ -1,6 +1,6 @@
 # Status
 
-Last updated 2026-11-13, for release 0.1.0. This page says what works, what is open and which
+Last updated 2026-11-16, after the review pass (pull requests #27 to #34 and #4), with release 0.2.0 next. This page says what works, what is open and which
 bugs are on hold. The dated build diary is in [build history](archive/build-history.md); release
 notes are in the [changelog](../CHANGELOG.md).
 
@@ -11,14 +11,17 @@ notes are in the [changelog](../CHANGELOG.md).
 | VM preparation | Built. `art98 setup` turns a Windows 98 SE disc into `work/golden.qcow2` with a `ready` snapshot, with no input. Four steps: vm, setup, init_api, ready | [Part 1](setup/README.md) |
 | Bridge and agent | Built. `AGENT.EXE` proxies any Win32 call over COM1 using a framed protocol | [Bridge](scenes/bridge.md), [Instruction set](scenes/instruction-set.md) |
 | Scene API and renderer | Built. `Scene`, props, animations, `art98 render`, and `Backdrop` for the desktop colour | [Part 2](scenes/README.md) |
-| Examples | `recipes/scenes/blank_start` (the proof scene: a Picture and a Notepad, three sections), `recipes/scenes/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
+| Recipes | `recipes/scenes/blank_start` (the proof scene: a Picture and a Notepad, three sections), `recipes/scenes/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
 | Diagrams | Nine diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
 | States and sections | The MVP is built: state files, `set_state`, picture windows and `Teleport`. `Scene.next_section(name)` is built, on top of `cut()`. The `--section` option is not | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
 | Recorder | Built: `Recorder`, with `cut()` to start a new clip during a run, `clips` to list them, and a join into the output. Clips are kept beside the output as MP4 | [Recorder](design/state-and-action.md#recorder), [Clips](scenes/scene-api.md#clips) |
-| Programs | Notepad, Dialog, Paint, Minesweeper and Screensaver, one file each in `actions/programs/`. Only Picture and Notepad can be opened from a state. Notepad (`notepad.py`) opens a text file or an empty window and checks its title; Windows 98 drops a trailing `.txt` from the title. `Dialog` (`dialog.py`) is a real message box with icons, a size, greyed buttons and changeable text | [Programs](design/programs.md), [Dialog](scenes/scene-api.md#dialog) |
+| Programs | Notepad, Dialog, Paint, Minesweeper and Screensaver, one file each in `actions/programs/`, and `Picture` (`picture.py`) beside them. Only Picture and Notepad can be opened from a state (`APPS` in `actions/apps.py`). Every `Win` can be built from a state window (`from_state`) and can `maximize`, `minimize` and `restore`. `Dialog.remove` answers No or Abort on boxes that have no Cancel Notepad (`notepad.py`) opens a text file or an empty window and checks its title; Windows 98 drops a trailing `.txt` from the title. `Dialog` (`dialog.py`) is a real message box with icons, a size, greyed buttons and changeable text | [Programs](design/programs.md), [Dialog](scenes/scene-api.md#dialog) |
 | Desktop colour and wallpaper | Built. `Backdrop` and a state's `desktop` (colour, wallpaper, style). A wallpaper reaches the guest on a CD in drive D: | [Colour and wallpaper](design/state-and-action.md#desktop-colour-and-wallpaper) |
-| CLI and checks | Errors from `art98` print one clean line, not a traceback. Warnings say when the image or guest programs are older than the code (`freshness.py`). `art98 doctor` works on a host that has only a container engine and ffmpeg. CI runs `ruff check`, `ruff format --check` and the unit tests on Python 3.11 and 3.13 on each push and pull request (`.github/workflows/tests.yml`) | [CLI](setup/cli.md) |
+| CLI and checks | Errors from `art98` print one clean line, not a traceback. Every error art98 raises on purpose inherits `Art98Error` (`errors.py`). Warnings say when the image or guest programs are older than the code (`container/freshness.py`). `art98 doctor` works on a host that has only a container engine and ffmpeg. CI runs `ruff check`, `ruff format --check` and the unit tests on Python 3.11 and 3.13 on each push and pull request (`.github/workflows/tests.yml`) | [CLI](setup/cli.md) |
 | Container | Built: the VM service in `core/art98/container/`, `art98 up` and the Dockerfile in `setup/`. `art98 up` builds the image and runs setup, then stops; `art98 vm start` runs one long-lived VM container that `render` and `ping` attach to. Tested on rootful Docker 29.9 and rootless Podman. Tested from scratch: about 23 minutes, and its image renders the same frames as the host-built one | [Container](design/container.md) |
+
+| Review pass | Done (#21, #27 to #34, #4). `core/art98` is regrouped into `guest/`, `container/` and `output/`; the state, window and programs groups were reviewed; `Scene.fps` is `output_fps`; the drift check skips minimized windows; the add-on and wide-display probes are in `experiments/` | [Repo tour](tour.md), [decisions](design/decisions.md) |
+| Hermes plugin | The plugin's `dev` branch works with the current art98 (old names are kept in `core/art98/legacy.py`, `tools/vendor_to_hermes.py` makes its copy). Its listed version stays on the old one until a feature release | [AGENTS.md](../AGENTS.md#where-things-live) |
 
 Audio is deferred. art98 is video only.
 
@@ -26,7 +29,11 @@ Audio is deferred. art98 is video only.
 
 ### Next
 
-In order, from the layer review of 2026-11-11. See also
+1. **Release 0.2.0.** The review pass is done and the docs match `dev`. What is left is the
+   [release checklist](release-checklist.md). It needs `RETIRED` in `anim/scene.py` empty
+   (it still holds `clock`) and a rewording of the changelog line that mentions it.
+
+After that, in order. See also
 [Not built, on purpose or not yet](design/decisions.md#not-built-on-purpose-or-not-yet).
 
 1. **Other programs.** New programs (Calculator and the rest) go in `actions/programs/`, one

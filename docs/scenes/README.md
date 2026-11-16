@@ -24,8 +24,8 @@ The words you will meet:
 The [glossary](../glossary.md) has the rest.
 
 Programs are action classes in `core/art98/actions/programs/`, one file each, and
-`from art98.anim import *` gives them all: [`Notepad`](scene-api.md#notepad),
-[`Dialog`](scene-api.md#dialog), [`Paint`](scene-api.md#paint),
+`from art98.anim import *` gives them all: [`Picture`](scene-api.md#picture),
+[`Notepad`](scene-api.md#notepad), [`Dialog`](scene-api.md#dialog), [`Paint`](scene-api.md#paint),
 [`Minesweeper`](scene-api.md#minesweeper) and [`Screensaver`](scene-api.md#screensaver).
 
 ## A first scene
