@@ -11,12 +11,12 @@ in the [glossary](../glossary.md).
 
 ![art98 architecture](../diagrams/architecture.png)
 
-A render goes top to bottom. `art98 render` loads the scene file, `art98.attach()` takes the
+A render goes top to bottom. `art98 render` loads the scene file, `art98.attach()` (`container/service.py`) takes the
 running VM that `art98 vm start` made and reverts it to `ready`, `render` opens the recorder, and
 `Scene.run` plays the scene. Animations change props, props
 make Win32 calls through the bridge, and the agent runs them on the guest. Each frame is `SYNC`,
 then a QMP `screendump`, then ffmpeg. A state file takes a shortcut: revert to `ready`, open the
-state's picture windows, check the guest matches.
+state's windows, check the guest matches.
 
 ## Next to Manim
 
@@ -24,7 +24,7 @@ state's picture windows, check the guest matches.
 
 **What matches.** The script a user writes looks like Manim's: a `Scene` with `construct`,
 `play`, `add` and `remove`, animations that `interpolate(alpha)` under a `rate_func`, `.animate`,
-the group animations, and frames counted as `run_time × fps` instead of read from a clock.
+the group animations, and frames counted as `run_time × output_fps` instead of read from a clock.
 
 **The one big difference: art98 doesn't own its world.** In Manim the mobjects are the truth and
 the renderer draws them, so every frame follows from Python state. In art98 the truth is the
@@ -45,14 +45,15 @@ camera (turning state into pixels), and `SceneFileWriter` (partial movies, secti
 art98 has the same jobs in other places:
 
 - The frame loop sits in `Scene.play`, which calls the recorder directly.
-- `Recorder` in `recorder.py` writes the clips and joins them, the job of Manim's partial movies.
+- `Recorder` in `output/recorder.py` writes the clips and joins them, the job of Manim's partial movies.
 - `render` in `anim/renderer.py` takes a session from `art98.attach()`, so it neither boots nor copies the disk.
-- `anim/` holds the scene, the renderer and the state code as well as animations. `state.py` sits
-  at the top level, and `setstate.py` in `anim/`.
+- `anim/` holds the scene, the renderer and the code that applies and checks a state
+  (`setstate.py`); animations live in `base/` and the action families in `actions/`. `state.py`,
+  which reads and checks the state file, sits at the top level.
 
 ## Desktop space
 
-Window actions place against one calibrated space, `scene.space`. `win32.calibrate` fills it in 9
+Window actions place against one calibrated space, `scene.space`. `win32.calibrate` (`guest/win32.py`) fills it in 9
 guest calls, from `prepare_desktop` after each revert (after the blank start, so it sees the whole
 screen). Rules and when to re-read: [Desktop space](../scenes/scene-api.md#desktop-space); why:
 [decision 13](decisions.md#13-one-desktop-space-for-every-window-action).

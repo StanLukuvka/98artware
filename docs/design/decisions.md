@@ -39,7 +39,7 @@ speed, even though setup takes 20 to 40 minutes. Software emulation behaves the 
 and needs no `/dev/kvm` or extra privileges in a container. It also avoids two Windows 98
 problems: under KVM on a recent CPU, Windows 9x hits a TLB bug that needs a patched VMM, and on a
 fast processor it hits timing bugs that an emulated Pentium III keeps it away from. The machine
-is fixed too (`VMConfig` in `qemu.py`): a Pentium III with 128 MB, a Cirrus card, a guest clock
+is fixed too (`VMConfig` in `guest/qemu.py`): a Pentium III with 128 MB, a Cirrus card, a guest clock
 that starts at the same moment in 1998 and runs on VM time, and no network card, so nothing can
 reach the guest from outside. The sync makes each
 frame show a finished repaint instead of whatever the screen held at that instant. Measured: the
@@ -154,7 +154,7 @@ own `compose.override.yaml` for their key, disc and VNC.
   secret is the token.)
 
 **For new work.** Keep the host's view of the VM to the methods `RemoteVM` has. A new control op
-goes in `serve.py` and `RemoteVM` together, with a test in `test_container.py`, and must keep
+goes in `container/serve.py` and `RemoteVM` (`container/host.py`) together, with a test in `test_container.py`, and must keep
 working for an older image (as `eject_disc` is only sent when a disc was inserted). A new mount,
 port or variable goes in `compose.yaml`, not in Python. Never publish the control port beyond
 loopback in a committed file: the agent runs any Win32 call it is given. Anything that runs
@@ -229,7 +229,7 @@ result. See [State and action design](state-and-action.md) and [States](../scene
 
 **Decision.** Scenes look like Manim scenes: a `Scene` with `construct`, `play`, `add`, `remove`
 and `wait`, animations that `interpolate(alpha)` under a `rate_func`, `.animate`, the group
-animations, and frames counted as `run_time × fps`. Names match Manim's wherever the meaning
+animations, and frames counted as `run_time × output_fps`. Names match Manim's wherever the meaning
 matches. Units are screen pixels with y running down, so `UP` is `(0, -1)`.
 
 **Why.** Manim is the best-known way to script animations in Python, and people who know it
@@ -250,12 +250,13 @@ Every public name in `art98.anim` must be documented in [Scene API](../scenes/sc
 
 | Layer | Folder | Holds |
 | --- | --- | --- |
-| Entry point | `anim/` | What scripts import: `Scene`, `render`, and the state helpers `Scene` calls |
-| Actions | `actions/` | One family per folder or file: `pointer.py`, `keyboard.py`, `backdrop.py`, `window/` (`Win`, its commands, `Menu`), and `programs/` under it, `Picture` included |
-| Building blocks | `base/` | `Animation` and groups, rate functions, vectors, `Box`, `Prop`, `Spot`, `DesktopSpace` |
-| Guest helpers | `win32.py` | Win32 constants and small named guest reads |
-| Transport | `bridge.py`, `protocol.py` | The agent protocol, and nothing else |
-| Machine | `session.py`, `service.py`, `container/`, `qemu.py`, `recorder.py` | The VM, revert, capture, the recorder |
+| Entry point | `anim/` | What scripts import: `Scene`, `render`, and the state code `Scene` calls (`setstate.py`) |
+| Actions | `actions/` | One family per folder or file: `pointer.py`, `keyboard.py`, `backdrop.py`, `apps.py` (`APPS`), `window/` (`Win`, its commands, `Menu`), and `programs/` under it, `Picture` included |
+| Building blocks | `base/` | `Animation` and groups, rate functions, vectors, units, `Box`, `Prop`, `Spot`, `DesktopSpace` |
+| Guest | `guest/` | `bridge.py` and `protocol.py` (the agent protocol, and nothing else), `win32.py` (Win32 constants and small named guest reads), `qemu.py`, `guestfiles.py`, `disc.py` |
+| Output | `output/` | `recorder.py` and `gif.py`: frames to clips, clips to files |
+| Container | `container/` | `service.py`, `host.py`, `serve.py`, `compose.py`, `entry.py`, `freshness.py`: the VM service and its link to the container |
+| Top level | `art98/` | `session.py` (a VM and a bridge, revert), `state.py`, `desktop.py`, `settings.py`, `errors.py`, `cli.py` |
 
 Programs are action classes: one file per program in `actions/programs/`, each a subclass of
 `Win`. Docs, render output and experiments are kept apart (`docs/`, `out/`, and
@@ -266,8 +267,9 @@ clear which code talks to the guest.
 
 **For new work.** A new program is `actions/programs/<name>.py`, subclassing `Win`; a new kind of
 action that is not a window gets its own file or folder in `actions/`. A constant or a guest
-read used twice goes in `win32.py`. Nothing goes in a shared grab-bag module, and when something
-moves, the old import path goes too: no compatibility shims. See [Programs](programs.md).
+read used twice goes in `guest/win32.py`. Nothing goes in a shared grab-bag module, and when something
+moves, the old import path goes too: no compatibility shims. The one exception is
+`art98/legacy.py`, which keeps old names alive for the Hermes agent plugin only; scene code and docs use the current names. See [Programs](programs.md).
 
 ## 10. Only base Windows 98 SE, video only
 
@@ -370,7 +372,7 @@ and far slower on a busy one (about 12 KB/s was measured), so a full-screen BMP 
 takes under a second for 1.4 MB and leaves the image unchanged. Putting the images on the image
 itself would change prep and `ready`.
 
-**For new work.** Small files (programs, text, small BMPs) go through `guestfiles.ensure`, named by
+**For new work.** Small files (programs, text, small BMPs) go through `guestfiles.ensure` (`guest/guestfiles.py`), named by
 content hash so a file already there isn't copied again. Anything large goes on the CD. See
 [Desktop colour and wallpaper](state-and-action.md#desktop-colour-and-wallpaper).
 
@@ -381,7 +383,7 @@ The `art98` package has no runtime Python dependencies; pytest, pycdlib and ruff
 The licence is MIT.
 
 **Why.** The audience is people who clone the repository and follow the README. A checkout keeps
-the examples, docs and guest sources next to the code, and no dependencies means nothing to break
+the recipes, docs and guest sources next to the code, and no dependencies means nothing to break
 or audit. The container image installs the same packages from the same checkout. MIT is short,
 well known, and what Manim uses; QEMU's GPL doesn't reach art98, which only runs QEMU as a
 separate program.
@@ -402,7 +404,7 @@ that matters. The scene line points at the user's own code. Stale builds caused 
 failures, so they are flagged before a render.
 
 **For new work.** Give a user-facing failure its own exception class with a message that says
-what to do next (for example "run `art98 vm start`"), and make it inherit `Art98Error` (`art98/errors.py`), which `cli.py` catches. `test_errors.py` fails on an error that doesn't.
+what to do next (for example "run `art98 vm start`"), and make it inherit `Art98Error` (`art98/errors.py`), which `cli.py` catches. A scene author's mistake is a `UsageError` (a `ValueError`; `NotFound` is also a `KeyError`), a guest that did something unexpected is a `GuestError` (a `RuntimeError`), and a missing file is a `MissingFile` (a `FileNotFoundError`). `test_errors.py` fails on an error that doesn't.
 `test_cli.py` checks the exact stderr.
 
 ## 18. Measure on the real image, keep the probes

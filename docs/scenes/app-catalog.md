@@ -5,7 +5,8 @@ probed on the real guest: paths, classes, control ids and quirks. Code blocks us
 [Win32 recipes](win32-recipes.md#setup), and each one ran from the `ready` snapshot.
 
 For the props that wrap some of these programs, see the [Scene API](scene-api.md). Of these, only
-Notepad can be opened by a state. `Dialog` is under [Message box](#message-box).
+Notepad can be opened by a state. The other program a state can open is `Picture`, art98's own
+picture window, which is not on this list. `Dialog` is under [Message box](#message-box).
 
 Sound Recorder is not covered, because audio is deferred.
 
@@ -264,7 +265,7 @@ Quirks:
 - It opens small. Resize it before working. The Colors box moves with the window.
 - `WM_CLOSE` with changes opens a `#32770` box titled `Paint`, with Yes 6, No 7, Cancel 2.
 - Hidden OLE windows appear with it, such as `OleMainThreadWndClass`.
-- The canvas size isn't reported anywhere. `art98.anim` measures it with `GetPixel`.
+- The canvas size isn't reported anywhere. The scene's `Paint.canvas_size` measures it with `GetPixel`.
 
 ## WordPad
 
@@ -344,7 +345,9 @@ g.sync(game.hwnd)
 
 Quirks:
 
-- Read the mines with the [`XYZZY` cheat](win32-recipes.md#read-minesweepers-mines).
+- Read the mines with the [`XYZZY` cheat](win32-recipes.md#read-minesweepers-mines). The scene's
+  `Minesweeper.find_mines()` does it and returns a `frozenset` of `(column, row)`. Typing the cheat
+  again turns it off, so read once per game.
 - Each level change moves the window up 2 pixels.
 - The game saves to `C:\WINDOWS\WINMINE.INI` when it exits: `Difficulty`, `Height`, `Width`,
   `Mines`, `Mark`, `Color`, `Xpos`, `Ypos`, `Time1` to `Time3`, `Name1` to `Name3`.
@@ -520,7 +523,7 @@ have the same title.
 | Text | A `Static` with id `0xffff`. Stock size 111 x 15 at client x 62. It clips to its rectangle, so `MoveWindow` it before `SetWindowTextA` with more lines. |
 | Buttons | `Button`. Stock size 75 x 23, 6 apart, 11 above the bottom edge. `EnableWindow(button, 0)` greys one at once. |
 | Resize | `SetWindowPos(box, 0, 0, 0, w, h, 0x2 \| 0x4)` changes the frame only. The children stay where they were, and the box grows right and down. |
-| Close | Yes/No boxes ignore `WM_CLOSE`. Post `WM_COMMAND` (`0x111`) with 7 (`IDNO`) to close one. |
+| Close | Yes/No boxes ignore `WM_CLOSE`. Post `WM_COMMAND` (`0x111`) with 7 (`IDNO`) to close one. `Dialog.remove` does this for a box with no Cancel button, by pressing its No or Abort button. |
 
 The icons seen in a real box are in the [Scene API](scene-api.md#dialog). The CD drive is `D:`: see
 [Desktop colour and wallpaper](scene-api.md#desktop-colour-and-wallpaper).
