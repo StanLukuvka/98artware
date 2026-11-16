@@ -28,7 +28,7 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
 {
   "version": 1,
   "desktop": {
-    "colour": [128, 0, 0],
+    "fill_colour": [128, 0, 0],
     "wallpaper": {"file": "assets/clouds.bmp", "sha256": "..."},
     "style": "tile",
     "icons": {"My Computer": [8, 8], "Recycle Bin": [8, 80]},
@@ -60,7 +60,7 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
 - States are always written with fixed key order, so diffs stay clean and hashes are stable.
 
 The schema starts small, with display, windows and pointer. Other fields join once they pass
-their tests. `desktop` has `colour`, `wallpaper` and `style` (below). `icons`,
+their tests. `desktop` has `fill_colour`, `wallpaper` and `style` (below). `icons`,
 `tray` and `focus` are rejected as "not supported yet" until they pass theirs. A window has
 `at` and the outer `size` instead of a rect, the same way `Win(at=..., size=...)` takes them.
 
@@ -68,7 +68,9 @@ their tests. `desktop` has `colour`, `wallpaper` and `style` (below). `icons`,
 
 The schema is the one above, and each part is optional:
 
-- `colour` is `[r, g, b]`, 0 to 255. The guest is 16-bit, so it shows the 5-6-5 rounding (128
+- `fill_colour` is `[r, g, b]`, 0 to 255: the plain desktop colour behind the icons and around a
+  centred wallpaper (Windows calls it "Desktop" in Display Properties, Appearance), not the
+  taskbar or selection colour. An old `colour` key fails with a message naming `fill_colour`. The guest is 16-bit, so it shows the 5-6-5 rounding (128
   becomes 120, 255 becomes 248). Checks compare with that rounding, never the exact RGB.
 - `wallpaper` is a BMP by `file` and `sha256`, 24-bit or 8-bit. `style` is `center` (the default),
   `tile` or `stretch`, and needs a wallpaper.
@@ -171,7 +173,7 @@ result is joined with the clips already on disk.
 
 ## Recorder
 
-Built in `core/art98/recorder.py`. Why it works this way:
+Built in `core/art98/output/recorder.py`. Why it works this way:
 [decision 14](decisions.md#14-the-recorder-is-a-class-you-can-steer). The API:
 [Clips](../scenes/scene-api.md#clips) and [bridge.md](../scenes/bridge.md#recorder). The spec, the
 four decisions and the as-built notes are in

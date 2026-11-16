@@ -16,8 +16,7 @@ Subclass it and write `construct`. One scene is one recording.
 
 | Attribute | Meaning |
 | --- | --- |
-| `fps` | Frames per second of the video. Default 30. |
-| `clock` | `"free"`, the only one so far. Anything else raises `NotImplementedError`. |
+| `output_fps` | Frames per second of the finished video: set it to match your edit timeline (24, 30, 60). It is not a capture or run rate. Default 30. |
 | `desktop` | `"blank"`, the default: a black screen with no icons, taskbar or Start menu, and the work area the whole screen. `"stock"`: the Windows 98 desktop as the `ready` snapshot has it. Either is set again after every revert. See [Blank start](../design/blank-start.md). |
 | `pointer_visible` | On a blank desktop, whether the pointer is drawn. Default `False`. It still moves and clicks either way. Paint's tools still draw their own pointer over the canvas. It can't change partway through a scene. The stock desktop always draws it. |
 | `state` | A [state file](#states) to set the desktop to before `setup`. Default `None`, the plain desktop. |
@@ -30,7 +29,7 @@ Subclass it and write `construct`. One scene is one recording.
 | `space` | The [desktop space](#desktop-space): screen, work area, taskbar and metrics, as read from the guest. |
 | `strict_placement` | `False` by default. `True` makes a clamped size or a lost window raise `PlacementError` instead of warning. |
 | `recorder` | The [`Recorder`](bridge.md#recorder) the frames go to. `video` is another name for it. |
-| `time` | Video time in seconds: frames written over `fps`, across every [clip](#clips). It never reads a clock. |
+| `time` | Video time in seconds: frames written over `output_fps`, across every [clip](#clips). It never reads a clock. |
 
 | Hook | Runs |
 | --- | --- |
@@ -56,7 +55,7 @@ revert and again when a state switches the display mode. Props read it through t
 `center()`, `to_corner()` and `title_bar` all use the same numbers.
 
 A scene that changes the desktop with a raw guest call, such as `SPI_SETWORKAREA`,
-`set_display_mode` or a moved taskbar, must call `scene.calibrate()` afterwards. art98 doesn't
+`win32.set_display_mode` or a moved taskbar, must call `scene.calibrate()` afterwards. art98 doesn't
 notice those changes by itself.
 
 #### Placement check
@@ -117,7 +116,7 @@ Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256
 | --- | --- |
 | `version` | `1`. The only field that must be there. |
 | `display` | `[width, height, depth]`, a mode the guest's driver offers. Depth is 8, 16, 24 or 32. |
-| `desktop` | `colour` as `[r, g, b]`, and `wallpaper` as a BMP (`file` and `sha256`) with a `style` of `"center"` (the default), `"tile"` or `"stretch"`. Each part is optional, and `style` needs a `wallpaper`. |
+| `desktop` | `fill_colour` as `[r, g, b]` (the plain desktop colour behind the icons and around a centred wallpaper, not the taskbar or selection colour), and `wallpaper` as a BMP (`file` and `sha256`) with a `style` of `"center"` (the default), `"tile"` or `"stretch"`. Each part is optional, and `style` needs a `wallpaper`. |
 | `windows` | Listed back to front, so the last one is on top. |
 | `id` | The name for `prop(id)`. Each one is used once. |
 | `app` | `"picture"`, a [`Picture`](#picture), or `"notepad"`, a [`Notepad`](#notepad). |
@@ -128,9 +127,19 @@ Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256
 | `pointer` | `[x, y]`, placed last. |
 
 Every mistake in the file is listed at once, as a `StateError`, before the desktop is touched. If
-the guest doesn't match the state afterwards, `StateMismatch` lists each difference. For example,
+the guest doesn't match the state afterwards, `StateMismatch` (a `GuestError`, not a `StateError` or `ValueError`) lists each difference. For example,
 Windows won't make a window smaller than 112 x 27, so `"size": [40, 20]` stops with
 `size [40, 20] wanted, the guest has [112, 27]`.
+
+#### Catching art98's errors
+
+Every error art98 raises on purpose (`StateError`, `PlacementError`, `RecorderError`, `BridgeError`
+and the rest) inherits `art98.Art98Error`, so `except art98.Art98Error` catches them all. Each
+also keeps its built-in base, so `except ValueError`, `RuntimeError` and `FileNotFoundError` still
+work. The `art98` command prints any of them as one `error:` line. A mistake in what your scene
+passes to art98, such as an empty `play()` or an unknown icon name, raises `art98.UsageError`
+(a `ValueError`), and a name that isn't there raises `art98.NotFound` (a `KeyError`). A plain
+exception from your own code, or a plain one from art98, keeps its traceback.
 
 The wallpaper reaches the guest on a CD in drive D:, not through `put_file`, so a 1.4 MB BMP
 costs under a second (see [Desktop colour and wallpaper](#desktop-colour-and-wallpaper)).
@@ -164,8 +173,8 @@ These paths are from the repository's root. The whole sample is
 | Parameter | Meaning |
 | --- | --- |
 | `animations` | One or more. They run together, and shorter ones finish early and hold. |
-| `run_time` | Seconds, overriding each animation's own. |
-| `rate_func` | Overrides each animation's own. |
+| `run_time` | Seconds, overriding each animation's own for this `play` only. |
+| `rate_func` | Overrides each animation's own for this `play` only. |
 | `live` | Follow the host clock, so timers in the guest run at video speed. |
 
 Each frame goes like this: work out every animation's state, apply it to the guest, wait for the
@@ -197,12 +206,11 @@ class Together(Scene):
 | Method | What the guest does | Frames |
 | --- | --- | --- |
 | `pause(duration=1.0)` | Keeps running, unseen | One capture, repeated |
-| `wait(duration=1.0, stop_condition=None, frozen_frame=False)` | Keeps running, seen | Captured at host speed, with no repaint wait |
-| `live(seconds, stop_condition=None)` | Keeps running, seen | Captured at host speed, with no repaint wait |
+| `wait(duration=1.0, stop_condition=None)` | Keeps running, seen | Captured at host speed, with no repaint wait |
 | `wait_until(stop_condition, max_time=60.0)` | Keeps running, seen | Until the condition is true |
 
-Use `pause` for a beat, `wait` to let a caret blink, and `live` for something that moves by
-itself. `wait` is `live` with a default length, and `wait(frozen_frame=True)` is `pause`.
+Use `pause` for a beat, and `wait` to let a caret blink or for something that moves by itself,
+such as a screensaver.
 
 `stop_condition` is a function, tried before each capture. `wait_until` warns if it gives up.
 
@@ -470,7 +478,7 @@ first.
 
 The image is checked when the prop is made, so a file that isn't a BMP, or one cut short, raises
 `ValueError` straight away. Windows 98 crashes on a cut-short BMP instead of failing.
-`image_size` is the picture's `(width, height)`.
+`image_size` is the picture's `(width, height)`, or `None` for a window with no image.
 
 Move one with `.animate`, jump it with [`Teleport`](animations.md#teleport), close it with
 `Close`, and open another with `add`.
@@ -538,7 +546,8 @@ every target stays right after the window moves or resizes.
 `periwinkle`, `rose`, `orange`.
 
 Paint doesn't report its canvas size. `canvas_size` finds the edge with `GetPixel`, and that needs
-a blank canvas, so read it before you draw or use `resize_canvas` first.
+a blank canvas, so read it before you draw or use `resize_canvas` first. A canvas bigger than the
+window raises `GuestError`: make the window bigger.
 
 Keep the canvas smaller than the grey area around it. A larger canvas gets scroll bars, and
 `canvas(x, y)` doesn't follow the scroll position. Closing a changed Paint brings up its save
@@ -558,8 +567,8 @@ Starts `WINMINE.EXE`. The cell positions come from the client area.
 | --- | --- |
 | `board_size` | `(columns, rows)`. |
 | `cell(column, row)` | `Spot` on a cell. |
-| `find_mines()` | Read the board. Returns the set of mine cells. |
-| `mines` | The result of `find_mines`. |
+| `find_mines()` | Read the board. Returns the set of mine cells (a `frozenset`). |
+| `mines` | The result of `find_mines`, or `None` before it has run. |
 | `neighbours(cell)` | The cells around a cell. |
 | `opened_by(cell)` | The cells a click on this cell opens, by flood fill. |
 | `clear()` | Win the game, with real clicks. Plays its own animations. |
@@ -569,6 +578,10 @@ Starts `WINMINE.EXE`. The cell positions come from the client area.
 every cell with Progman hidden and reads pixel (0, 0). This happens between two frames, so it
 takes no video time. No window may cover the top left corner of the screen.
 
+Read the mines once per game. Typing the cheat again turns it off, so a second `find_mines` finds
+none. Windows 98 moves a mine away from a first click that lands on one, so a set read before the
+first click is out by at most one mine. `clear()` never clicks a mine first, so it is not affected.
+
 ![Minesweeper win](../assets/gifs/minesweeper-win.gif)
 
 Source: [minesweeper_win.py](../../recipes/scenes/gallery/minesweeper_win.py).
@@ -577,9 +590,11 @@ Source: [minesweeper_win.py](../../recipes/scenes/gallery/minesweeper_win.py).
 
 `Screensaver(name="3D Pipes")`
 
-Starts `<name>.scr /s`. Follow it with `self.live(seconds)`, because a screensaver runs by itself.
+Starts `<name>.scr /s`. Follow it with `self.wait(seconds)`, because a screensaver runs by itself.
 `stop(timeout=5.0)` nudges the pointer, which is how a real one is dismissed, and waits for it to
-exit.
+exit, then puts the pointer back where it was. It raises `BridgeTimeout` if the screensaver is
+still running after the timeout. It fills the screen, so `at`, `size` and the other layout calls
+do nothing to it.
 
 `NAMES` lists what works: 3D Flower Box, 3D Flying Objects, 3D Maze, 3D Pipes, 3D Text, Blank
 Screen, Curves and Colors, Flying Through Space, Flying Windows, Mystify Your Mind, Scrolling
@@ -675,8 +690,12 @@ pixels each. It raises `ValueError` if the new text would reach the buttons: giv
 bigger `size`. `button(label)` gives a button as a `Win`. `answer` is the lower-case name of the
 button pressed, and it waits for the box to close.
 
-A Yes/No box ignores the close that its title bar sends, so `close()` doesn't shut it. Click one of its
-buttons.
+The text and the title must fit Windows 1252. Other characters raise `ValueError` rather than
+showing as `?`.
+
+A Yes/No or Abort/Retry/Ignore box has no Cancel button, and it ignores the close that its title
+bar sends. So `close()` doesn't shut it. `remove()` presses its No or Abort button, and then
+destroys the custom icon. It raises `GuestError` if the box is still open after 5 seconds.
 
 ![Hover and dialog](../assets/gifs/hover-dialog.gif)
 
@@ -728,8 +747,11 @@ art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
 
 ### Python
 
-`render(scene, output=None, *, session, gif=None, gif_fps=15, gif_colors=128, gif_scale=1.0,
-gif_dither="none", keep_clips=True)`
+`render(scene, output=None, *, session, gif=None, gif_options=None, keep_clips=True)`.
+`output` must end in `.mp4` or `.gif`, and `gif` in `.gif`; anything else raises `UsageError` before
+anything is recorded. `gif_options` is a `GifOptions(fps=15, colors=128, scale=1.0, dither="none")`
+(`from art98.anim import GifOptions`); `None` means its defaults. It replaces the old `gif_fps`,
+`gif_colors`, `gif_scale` and `gif_dither` arguments, which are gone.
 
 `scene` is a class or an instance. `session` is required: take one with `art98.attach()`. Render
 never boots or closes it. Returns the path written. `keep_clips` is for scenes that [cut](#clips). A scene that records no frames raises
@@ -738,7 +760,7 @@ never boots or closes it. Returns the path written. `keep_clips` is for scenes t
 A render does not copy the image. It plays on the VM that `art98 vm start` runs, from its copy
 under `work/runs/vm-*`. One render runs at a time. See [`ready` snapshot](../glossary.md).
 
-`write_gif(source, output, fps=15, colors=128, scale=1.0, dither="none")` converts a video to a
+`art98.output.gif.write_gif(source, output, options=GifOptions())` converts a video to a
 GIF with `palettegen` and `paletteuse`.
 
 A video goes through 4:2:0 H.264, which smears 1-pixel coloured text. A GIF comes from a lossless

@@ -1,0 +1,63 @@
+name: art98probe
+x-base: &base
+  image: ${ART98_IMAGE:-localhost/art98:latest}
+  init: true
+  security_opt: [label=disable]
+  labels:
+    art98.work: ${ART98_WORK:-./work}
+  environment:
+    ART98_HOST_UID: ${ART98_HOST_UID:-}
+    ART98_HOST_GID: ${ART98_HOST_GID:-}
+  volumes:
+    - ${ART98_WORK:-./work}:/work
+    - ${ART98_SOCKET_DIR:-./sock}:/run/art98
+  entrypoint: ["python3", "-c"]
+services:
+  vm:
+    <<: *base
+    container_name: ${ART98_CONTAINER:-art98probe-vm}
+    secrets: [art98_token]
+    stop_grace_period: 20s
+    command:
+      - |
+        import os, time, socket
+        from art98.container.entry import become_host_user
+        become_host_user()
+        print("uid", os.getuid(), "gid", os.getgid(), flush=True)
+        print("token", open("/run/secrets/art98_token").read().strip(), flush=True)
+        open("/work/vm-wrote", "w").write("x")
+        time.sleep(3)
+        if os.path.isdir("/run/art98"):
+            s = socket.socket(socket.AF_UNIX); s.bind("/run/art98/serve.sock")
+        else:
+            s = socket.socket(); s.bind(("0.0.0.0", 7598))
+        s.listen()
+        print("listening", flush=True)
+        time.sleep(3600)
+    healthcheck:
+      test: ["CMD", "test", "-S", "/run/art98/serve.sock"]
+      interval: 5s
+      start_period: 120s
+      start_interval: 1s
+  setup:
+    <<: *base
+    profiles: [setup]
+    secrets: [art98_key]
+    volumes:
+      - ${ART98_WORK:-./work}:/work
+      - ${ART98_ISO:-./win98.iso}:/media/win98.iso:ro
+    command:
+      - |
+        import os
+        from art98.container.entry import become_host_user
+        become_host_user()
+        print("uid", os.getuid(), "gid", os.getgid())
+        p = "/run/secrets/art98_key"
+        print("key exists", os.path.exists(p), repr(open(p).read()) if os.path.exists(p) else "")
+        print("disc", os.path.exists("/media/win98.iso"))
+        open("/work/setup-wrote", "w").write("x")
+secrets:
+  art98_token:
+    file: ${ART98_TOKEN_FILE:-./token}
+  art98_key:
+    environment: ART98_PRODUCT_KEY

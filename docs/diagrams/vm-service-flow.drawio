@@ -9,7 +9,7 @@
             <mxGeometry height="641" width="448" x="185" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="build image&#xa;localhost/art98:latest" mermaidId="n:U1" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="build image&#xa;localhost/art98:latest" id="3">
+        <UserObject label="compose build vm&#xa;localhost/art98:latest" mermaidId="n:U1" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="compose build vm&#xa;localhost/art98:latest" id="3">
           <mxCell parent="2" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="73" width="207" x="202" y="45" as="geometry" />
           </mxCell>
@@ -87,7 +87,7 @@
             <mxGeometry height="73" width="265" x="57" y="45" as="geometry" />
           </mxCell>
         </UserObject>
-        <UserObject label="docker/podman run -d&#xa;--cidfile work/vm.cid&#xa;--label art98.work=..." mermaidId="n:V2" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="docker/podman run -d&#xa;--cidfile work/vm.cid&#xa;--label art98.work=..." id="10">
+        <UserObject label="docker compose up&#xa;-d --wait vm, one project&#xa;per work folder" mermaidId="n:V2" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="docker compose up&#xa;-d --wait vm, one project&#xa;per work folder" id="10">
           <mxCell parent="8" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="93" width="217" x="81" y="168" as="geometry" />
           </mxCell>
@@ -358,7 +358,7 @@
             </mxGeometry>
           </mxCell>
         </UserObject>
-        <UserObject label="art98 vm stop:&#xa;stop -t 20, rm, by cid + label" mermaidId="n:STOP" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="art98 vm stop:&#xa;stop -t 20, rm, by cid + label" id="33">
+        <UserObject label="art98 vm stop:&#xa;compose down, 20 s grace" mermaidId="n:STOP" mermaidBaseStyle="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" mermaidBaseValue="art98 vm stop:&#xa;compose down, 20 s grace" id="33">
           <mxCell parent="1" style="html=1;whiteSpace=wrap;strokeWidth=1;fillColor=light-dark(#ECECFF,#1f2020);strokeColor=light-dark(#9370DB,#cccccc);fontColor=light-dark(#333333,#cccccc);fontFamily=Trebuchet MS,Verdana,Arial,sans-serif;fontSize=16;" vertex="1">
             <mxGeometry height="73" width="257" x="43" y="3203" as="geometry" />
           </mxCell>

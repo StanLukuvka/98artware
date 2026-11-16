@@ -8,8 +8,8 @@ AGENT.EXE says HELLO, with a clean shutdown.
 
 from __future__ import annotations
 
-from art98.bridge import Bridge
-from art98.qemu import VM
+from art98.guest.bridge import Bridge
+from art98.guest.qemu import VM
 
 from .builder import Setup, SetupError
 
@@ -18,23 +18,17 @@ SETUP_BOOTS = 8  # Setup restarts the machine a few times on its own
 
 
 def install(setup: Setup) -> None:
-    config = setup._config(floppy=setup.floppy, boot_once="a")
+    config = setup.config(floppy=setup.floppy, boot_once="a")
     config.disk, config.disk_format = setup.raw, "raw"
     setup.log(f"  running Setup, this takes a while; progress shots in {setup.shots}")
     for boot in range(1, SETUP_BOOTS + 1):
         with (
-            VM(config, log=setup._vm_log()) as vm,
+            VM(config, log=setup.vm_log()) as vm,
             Bridge.connect(vm.serial_path) as bridge,
         ):
-            if setup._wait_for_agent(
-                vm,
-                bridge,
-                f"install{boot}",
-                INSTALL_TIMEOUT,
-                setup._answer_setup_prompts,
-            ):
+            if setup.wait_for_agent(vm, bridge, f"install{boot}", INSTALL_TIMEOUT):
                 bridge.wait_ready()
-                setup._reboot(vm, bridge)
+                setup.reboot(vm, bridge)
                 return
         setup.log(f"  Setup restarted the machine (boot {boot})")
         config.floppy, config.boot_once = None, None  # only the first boot uses it
@@ -42,4 +36,5 @@ def install(setup: Setup) -> None:
 
 
 def run(setup: Setup) -> None:
+    """The step entry point: Setup imports this module and calls run(setup) by name."""
     install(setup)

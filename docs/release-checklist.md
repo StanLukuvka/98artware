@@ -45,6 +45,7 @@ A hand-run list for checking a release. A release is a git tag `vX.Y.Z` and a Gi
 - [ ] `LICENSE` is present.
 - [ ] `git log --format=%B | grep -ci "co-authored-by\|generated with"` prints `0`.
 - [ ] The version in `pyproject.toml` matches the tag.
+- [ ] `RETIRED` in `core/art98/anim/scene.py` is empty, and so are its entries in the tests (`test_anim.py`).
 - [ ] `git status` is clean, and `git status --ignored` and `git ls-files --others` show nothing untracked that is fit to leak.
 - [ ] `art98.toml` equals the defaults in `docs/setup/config.md` (no `transport`, `token_file` or `connect`).
 - [ ] `CHANGELOG.md` has an entry for this version, with its known limits.

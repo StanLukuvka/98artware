@@ -1,8 +1,9 @@
 """The host-side drift fixes (experiments/drift/README.md, dev branch), against stand-in guests."""
 
-from art98 import desktop, win32
+from art98 import desktop
 from art98.anim import DR, Drag, Maximize, Minimize, RestoreWindow
-from art98.bridge import CallResult, Window
+from art98.guest import win32
+from art98.guest.bridge import CallResult, Window
 from test_anim import FakeGuest, guest, notepad, scene  # noqa: F401  (fixtures)
 from test_desktop import ICONS, DesktopGuest
 

@@ -74,7 +74,7 @@ class Showcase(Scene):
 
         pipes = Screensaver("3D Pipes")
         self.add(pipes)
-        self.live(12)
+        self.wait(12)
 
         pipes.stop()
         self.pause(2)

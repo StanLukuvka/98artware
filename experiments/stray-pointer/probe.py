@@ -19,8 +19,8 @@ import time
 from pathlib import Path
 
 from art98.anim import Scene
+from art98.guest.win32 import cursor_pos
 from art98.session import stage
-from art98.win32 import cursor_pos
 
 WORK = Path(sys.argv[1])
 OUT = Path(sys.argv[2])
@@ -212,7 +212,7 @@ def crop(path, index, box, name):
 def run(session, scene, name):
     path = OUT / f"{name}.mkv"
     t = time.perf_counter()
-    video = session.record(path, fps=30, lossless=True)
+    video = session.record(path, output_fps=30, lossless=True)
     with video:
         scene.run(session, video)
     secs = time.perf_counter() - t

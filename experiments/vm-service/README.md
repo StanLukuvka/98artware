@@ -1,6 +1,6 @@
 # VM service probes (plan V8)
 
-Three probes of the long-lived VM service (`art98 vm start`, `art98.service.attach`): disk growth
+Three probes of the long-lived VM service (`art98 vm start`, `art98.container.service.attach`): disk growth
 (R4), kill -9 mid-render (R3), a VNC viewer (R11). All on **real Docker**, 2026-11-11, quiet host
 (20 CPUs). `/proc/pressure/cpu` `some avg10` is logged next to every timing; it read 0.00 every time
 (avg10 is a 10 s window, so it would miss a burst shorter than a few seconds; every render here is about 0.6 s (plain) or 3.9 to 4.7 s (stress)). Outputs went outside the repo; nothing from `work/` is copied here.

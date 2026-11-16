@@ -47,7 +47,8 @@ with the rule new work should follow. If you need to break one, say why in your 
 
 That is enough for the unit tests, lint and docs. To render on the real guest you also need:
 
-- Docker, or Podman with the `podman-docker` package. art98 only ever runs the `docker` command.
+- Docker with its compose plugin, or Podman with the `podman-docker` and `docker-compose`
+  packages. art98 only ever runs `docker compose`, on the committed `compose.yaml`.
 - ffmpeg.
 - Your own Windows 98 SE disc image (an `.iso`) and its product key. art98 does not include
   Windows, and can't. The [README](README.md#what-you-need) says what the disc must be like.
@@ -202,7 +203,7 @@ control in `ready()`, and adds `text`, `set_text` and a `close()` that skips the
    known already, and [Win32 recipes](docs/scenes/win32-recipes.md) shows the calls.
 3. Write the class in `core/art98/actions/programs/<name>.py`, subclassing `Win`. Set
    `command` and `window_class`, add `ready()` if it needs a child window, and put the verbs
-   on top. Win32 constants and repeated guest reads go in `core/art98/win32.py`.
+   on top. Win32 constants and repeated guest reads go in `core/art98/guest/win32.py`.
 4. Export it from `core/art98/actions/programs/__init__.py`, and import it and list it in
    `__all__` in `core/art98/anim/__init__.py`.
 5. Document it in [Scene API](docs/scenes/scene-api.md) (the docs test fails if a public name
@@ -213,8 +214,9 @@ control in `ready()`, and adds `text`, `set_text` and a `close()` that skips the
    [gallery](docs/scenes/gallery.md) if it shows something new.
 
 That makes a program a scene can add in `construct`. To let a state file open it as well, add
-`from_state(cls, window)`, add the class to `APPS` in `core/art98/anim/setstate.py`, and give
-it a default title rule and a file check for `open` in `core/art98/state.py`. Then document
+`from_state(cls, window)`, add the class to `APPS` in `core/art98/actions/apps.py`, give it a `check_file` for
+its `open` file, a `default_title`, and `open_keyword` (the constructor keyword the file is passed as). `from_state` is inherited from `Win`, and `show` is applied by `setstate`. Give it a default title
+rule in `core/art98/state.py`. Then document
 its `app` name under [States](docs/scenes/scene-api.md#states). Only `picture` and `notepad`
 are state apps so far.
 
@@ -317,7 +319,8 @@ uv run ruff check .
 uv run ruff format --check core setup tools
 ```
 
-and the unit tests. CI has no VM and no QEMU, so the VM tests skip there. A green CI run does
+and the unit tests, after building `guest/` with mingw so the checks on the guest programs run. CI
+has no VM and no QEMU, so the VM tests skip there. A green CI run does
 not show that a change works on Windows 98.
 
 ### If you could not run the VM tests
@@ -355,14 +358,14 @@ Beyond that:
 - **Python 3.11+, standard library only.** Don't add a runtime dependency. If something truly
   needs one, raise it in an issue first.
 - **One home per thing.** A Win32 constant or a guest read used twice goes in
-  `core/art98/win32.py`. A program goes in its own file under `actions/programs/`.
+  `core/art98/guest/win32.py`. A program goes in its own file under `actions/programs/`.
 - **Delete what you replace.** No compatibility shims, old import paths or commented-out code.
 - **Lean first.** Build the smallest thing that works, and add more when a measurement or a
   real use asks for it
   ([decision 19](docs/design/decisions.md#19-lean-first-then-measure)).
 - **`lazy:` comments.** When you take a shortcut on purpose, mark it with a comment that
   starts `lazy:` and says what the limit is, so the next reader knows it was a choice and
-  where it stops working. For example, in `core/art98/disc.py`:
+  where it stops working. For example, in `core/art98/guest/disc.py`:
 
   ```python
   # lazy: one directory sector holds about 40 files; a bigger set needs multi-sector directories
@@ -370,8 +373,8 @@ Beyond that:
 
   Keep these true, and remove one only when you fix what it describes.
 - **Errors say what to do.** A failure a user can cause gets its own exception class, a message
-  that says what to do next, and a place in `RUN_ERRORS` in `core/art98/cli.py`, so it prints
-  as one `error:` line.
+  that says what to do next, and `Art98Error` (from `core/art98/errors.py`) as its first base, so
+  the CLI prints it as one `error:` line.
 - **Windows 98 facts are measured.** A comment or docstring that states how Windows 98 behaves
   says it was checked on the real image, or doesn't state it
   ([decision 18](docs/design/decisions.md#18-measure-on-the-real-image-keep-the-probes)).

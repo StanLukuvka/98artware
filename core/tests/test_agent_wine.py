@@ -17,9 +17,9 @@ import tty
 from pathlib import Path
 
 import pytest
-from art98.bridge import Bridge, BridgeError, GuestCrashed
-from art98.guestfiles import guest_build
-from art98.protocol import Out
+from art98.guest.bridge import Bridge, BridgeError, GuestCrashed
+from art98.guest.guestfiles import guest_build
+from art98.guest.protocol import Out
 
 AGENT = guest_build() / "agent.exe"
 pytestmark = [
@@ -232,7 +232,7 @@ def test_corrupt_frame_is_reported_and_harmless(agent):
 
 
 def test_malformed_argument_is_an_error(agent):
-    from art98.protocol import frame
+    from art98.guest.protocol import frame
 
     agent._sock.sendall(frame(b'77 CALL "unterminated'))
     agent._sock.sendall(frame(b"78 CALL &999999"))

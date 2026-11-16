@@ -1,0 +1,8 @@
+services:
+  vm:
+    volumes: !override
+      - ${ART98_WORK:-./work}:/work
+    ports:
+      - 127.0.0.1:${ART98_CONTROL_PORT:-7598}:7598
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 7598), 2)"]

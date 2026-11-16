@@ -13,15 +13,17 @@ import os
 import shutil
 import subprocess
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
 
-from art98.bridge import Bridge, BridgeError, BridgeTimeout
-from art98.guestfiles import GUEST_DIR
-from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
+from art98.errors import Art98Error
+from art98.guest.bridge import Bridge, BridgeError, BridgeTimeout
+from art98.guest.guestfiles import GUEST_DIR
+from art98.guest.qemu import QEMU_BINARY, VM, QemuError, VMConfig
+from art98.guest.win32 import EWX_FORCE, EWX_REBOOT
 
+DISK_MB = 2047  # the virtual disk size, in MB; compose.yaml repeats it
 SECTOR = 512
 SECTORS_PER_TRACK = 63
 PARTITION_START = SECTORS_PER_TRACK  # the traditional first partition slot
@@ -33,7 +35,6 @@ AGENT_RUN_VALUE = "Art98Agent"
 STALL_LIMIT = 20 * 60
 WIZARD_PAGE_TIMEOUT = 2 * 60
 SHUTDOWN_TIMEOUT = 5 * 60
-EWX_REBOOT, EWX_FORCE = 2, 4
 SHOT_INTERVAL = 30
 
 HOST_TOOLS = {
@@ -43,12 +44,11 @@ HOST_TOOLS = {
     "7z": "7zip",
     "ffmpeg": "ffmpeg",
     "make": "make",
-    "as": "binutils",
     "i686-w64-mingw32-gcc": "mingw32-gcc",
 }
 
 
-class SetupError(RuntimeError):
+class SetupError(Art98Error, RuntimeError):
     pass
 
 
@@ -60,7 +60,6 @@ DEBIAN_PACKAGES = {
     "7z": "7zip",
     "ffmpeg": "ffmpeg",
     "make": "make",
-    "as": "binutils",
     "i686-w64-mingw32-gcc": "gcc-mingw-w64-i686",
 }
 
@@ -82,7 +81,7 @@ def install_hints(tools: list[str]) -> list[tuple[str, str, list[str]]]:
     ]
 
 
-def _run(*args, **kwargs) -> subprocess.CompletedProcess:
+def run_command(*args, **kwargs) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(args, check=True, capture_output=True, **kwargs)
     except subprocess.CalledProcessError as error:
@@ -95,8 +94,8 @@ def _mtools_env() -> dict:
     return {**os.environ, "MTOOLS_SKIP_CHECK": "1"}
 
 
-def _mtool(*args, **kwargs) -> subprocess.CompletedProcess:
-    return _run(*args, env=_mtools_env(), **kwargs)
+def mtool(*args, **kwargs) -> subprocess.CompletedProcess:
+    return run_command(*args, env=_mtools_env(), **kwargs)
 
 
 def disk_spec(path: Path) -> str:
@@ -180,7 +179,7 @@ class Setup:
     guest_build: Path
     iso: Path | None = None
     product_key: str | None = None
-    disk_mb: int = 2047
+    disk_mb: int = DISK_MB
     watch: bool = False
     log: object = print
     wizard_passes: int = field(default=0, init=False)
@@ -237,8 +236,8 @@ class Setup:
 
     # helpers
 
-    def _config(self, **overrides) -> VMConfig:
-        # In the container there is no window to open: `art98 up --watch` sets VNC.
+    def config(self, **overrides) -> VMConfig:
+        # In the container there is no window to open: compose.yaml sets VNC.
         display = os.environ.get("ART98_WATCH_DISPLAY", "gtk") if self.watch else "none"
         return VMConfig(
             disk=self.golden, machine=self._machine(), display=display, **overrides
@@ -246,23 +245,22 @@ class Setup:
 
     def _machine(self) -> str:
         """Pin the machine version: snapshots only load on the one they came from."""
-        output = _run(QEMU_BINARY, "-machine", "help", text=True).stdout
+        output = run_command(QEMU_BINARY, "-machine", "help", text=True).stdout
         for line in output.splitlines():
             name, *_rest = line.split()
             if name == "pc" and "alias" in line:
                 return line.split("alias of")[1].split(")")[0].strip()
         raise SetupError("could not determine the default QEMU machine type")
 
-    def _vm_log(self) -> Path:
+    def vm_log(self) -> Path:
         return self.work / "qemu.log"
 
-    def _wait_for_agent(
+    def wait_for_agent(
         self,
         vm: VM,
         bridge: Bridge,
         label: str,
         timeout: float,
-        on_poll: Callable[[VM], None] | None = None,
     ) -> bool:
         """Wait for HELLO while keeping screenshots to show where things stand.
 
@@ -286,8 +284,7 @@ class Setup:
             count += 1
             try:
                 shot = vm.screenshot(self.shots / f"{label}-{count:04d}.png")
-                if on_poll:
-                    on_poll(vm)
+                self._answer_setup_prompts(vm)
             except (OSError, QemuError):
                 if vm.wait_exit(10):
                     return False
@@ -304,16 +301,14 @@ class Setup:
             if now > deadline:
                 raise SetupError(f"{label} did not finish; last screen: {shot}")
 
-    def _require_agent(self, vm: VM, bridge: Bridge, label: str) -> None:
-        if not self._wait_for_agent(
-            vm, bridge, label, 15 * 60, self._answer_setup_prompts
-        ):
+    def require_agent(self, vm: VM, bridge: Bridge, label: str) -> None:
+        if not self.wait_for_agent(vm, bridge, label, 15 * 60):
             raise SetupError(
                 f"the guest rebooted during {label} before the agent started"
             )
         bridge.wait_ready()
 
-    def _reboot(self, vm: VM, bridge: Bridge) -> None:
+    def reboot(self, vm: VM, bridge: Bridge) -> None:
         """Shut Windows down. The call never returns, so it runs on its own thread."""
         bridge.acall("user32", "ExitWindowsEx", EWX_REBOOT | EWX_FORCE, 0)
         if not vm.wait_exit(SHUTDOWN_TIMEOUT):

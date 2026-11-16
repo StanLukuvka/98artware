@@ -181,7 +181,7 @@ heading says where its text came from. Where a design page kept a short stub, it
 
 From `state-and-action.md`, section "Recorder" (Before, Change, Recorder decisions, As built).
 
-Status: spec decided 2026-11-10, built 2026-11-11 in `core/art98/recorder.py`. See
+Status: spec decided 2026-11-10, built 2026-11-11 in `core/art98/output/recorder.py`. See
 [As built](#as-built) for what the build added to the spec. The API is in
 [bridge.md](../scenes/bridge.md#recorder) and [scene-api.md](../scenes/scene-api.md#clips).
 

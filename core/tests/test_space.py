@@ -2,15 +2,19 @@
 
 import struct
 import warnings
+from dataclasses import replace
 
 import pytest
-from art98 import win32
 from art98.actions import keyboard as keys_module
 from art98.actions.programs import Notepad
+from art98.actions.window import Win
+from art98.actions.window import win as win_module
 from art98.actions.window.commands import Teleport
 from art98.anim import RIGHT, linear, setstate
-from art98.base.space import PlacementError, PlacementWarning
-from art98.bridge import CallResult
+from art98.base.space import STOCK, PlacementError, PlacementWarning
+from art98.errors import NotFound, UsageError
+from art98.guest import win32
+from art98.guest.bridge import CallResult
 from test_anim import FakeGuest, FakeSession, FakeVideo, Stage
 
 THICK = win32.WS_THICKFRAME
@@ -89,7 +93,7 @@ def test_calibrate_reads_the_space_in_9_calls(guest):
     assert len(guest.calls) == 9
     assert len(guest.named("GetSystemMetrics")) == 8
     assert space.screen == (800, 600) and space.work_area == (0, 0, 800, 572)
-    assert space.metrics.min_track == (112, 27) and space.taskbar == (0, 572, 800, 600)
+    assert space.metrics.min_track == (112, 27)
     assert space.title_bar_offset == 3 + 9
 
 
@@ -156,7 +160,8 @@ def test_a_window_off_the_screen_warns_but_a_partly_off_one_does_not(guest, scen
 
 def test_a_maximised_window_is_not_checked(guest, scene):
     prop = pad(guest, scene)
-    prop._maximized = True
+    guest.zoomed.add(prop.hwnd)
+    prop.refresh()  # the guest says it is maximised
     prop.set_rect(-4, -4, 5, 5)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
@@ -215,7 +220,7 @@ def test_a_display_switch_calibrates_a_new_space(guest, scene):
     old = scene.space
     guest.metrics.update({0: 640, 1: 480})
     guest.area = (0, 0, 640, 452)
-    setstate.prepare_desktop(scene)
+    scene.prepare_desktop()
     assert scene.space is not old
     assert scene.space.screen == (640, 480) and scene.work_area == (0, 0, 640, 452)
     assert scene.screen.rect == (0, 0, 640, 452)
@@ -227,3 +232,93 @@ def test_wallpaper_sample_stays_above_the_given_bottom():
     state = State(None, None, (), None)
     assert setstate.wallpaper_sample(state, 640, 480, 452) == (320, 240)
     assert setstate.wallpaper_sample(state, 640, 100, 60)[1] == 48
+
+
+def test_wallpaper_sample_keeps_clear_of_the_pointer():
+    from art98.state import State
+
+    state = State(None, None, (), (320, 240))
+    assert setstate.wallpaper_sample(state, 640, 480, 452) == (160, 120)
+    # the box ends at the cursor size: a pointer just left of the point is clear
+    clear = State(None, None, (), (320 - setstate.CURSOR_SIZE, 240))
+    assert setstate.wallpaper_sample(clear, 640, 480, 452) == (320, 240)
+
+
+def test_placement_warning_names_the_callers_file():
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        STOCK.check_rect("Box", (900, 0, 1000, 100), (100, 100))
+    assert [w.filename for w in caught] == [__file__]
+
+
+def test_placement_error_is_a_usage_error():
+    strict = replace(STOCK, strict=True)
+    with pytest.raises(UsageError, match="off the 800x600 screen"):
+        strict.check_rect("Box", (900, 0, 1000, 100), (100, 100))
+    assert issubclass(PlacementError, UsageError)
+
+
+def test_refresh_reads_the_show_state_and_a_minimized_window_keeps_its_place(
+    guest, scene
+):
+    prop = pad(guest, scene)
+    place = prop.rect
+    guest.iconic.add(prop.hwnd)
+    guest.rects[prop.hwnd] = (-32000, -32000, -31000, -31000)  # where Windows parks it
+    prop.refresh()
+    assert prop.show == "minimized"
+    assert prop.rect == place
+
+
+def test_a_move_made_while_minimized_is_sent_once_the_window_is_restored(guest, scene):
+    prop = pad(guest, scene)
+    guest.iconic.add(prop.hwnd)
+    prop.refresh()
+    prop.set_rect(200, 150, 300, 200)
+    prop.apply()
+    assert not guest.named("SetWindowPos")
+    guest.iconic.clear()
+    guest.calls.clear()
+    prop.refresh()
+    assert guest.named("SetWindowPos")
+    assert prop.rect == (200, 150, 500, 350)  # left, top, right, bottom
+
+
+def test_maximize_sends_the_command_and_reads_the_window_back(guest, scene):
+    prop = pad(guest, scene)
+    guest.zoomed.add(prop.hwnd)  # what Windows does with the command
+    prop.maximize()
+    assert prop.show == "maximized"
+    assert guest.named("PostMessageA") == [
+        ("PostMessageA", (prop.hwnd, win32.WM_SYSCOMMAND, win32.SC_MAXIMIZE, 0))
+    ]
+
+
+def test_a_window_given_by_handle_must_exist(guest, scene):
+    with pytest.raises(NotFound, match="0x99"):
+        scene.add(Win(hwnd=0x99))
+
+
+def test_a_window_given_by_handle_is_not_found_again_after_a_revert(guest, scene):
+    guest.add_window(0x10, "Notepad", (92, 88, 692, 499))
+    win = Win(hwnd=0x10)
+    scene.add(win)
+    win.forget()
+    with pytest.raises(NotFound, match="was made from a window handle"):
+        win.attach(scene)
+
+
+def test_a_win_needs_something_to_find_or_start(guest, scene):
+    with pytest.raises(UsageError, match="needs a command"):
+        Win()
+
+
+def test_a_window_that_never_shows_up_is_not_found(guest, scene, monkeypatch):
+    monkeypatch.setattr(win_module, "FIND_WINDOW_TIMEOUT", 0.0)
+    with pytest.raises(NotFound, match="no window for Win"):
+        scene.add(Win("Nowhere"))
+
+
+def test_a_title_bar_spot_names_its_window(guest, scene):
+    prop = pad(guest, scene)
+    assert prop.title_bar.window is prop

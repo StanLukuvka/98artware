@@ -95,14 +95,14 @@ class Lower(Scene):
 
 ## Time
 
-Scenes run under the `free` clock, the only one so far. The guest runs all the time.
+The guest runs all the time.
 
 - What the script drives lands on exact frames. A window at 30% of its move is captured at 30%.
 - What the guest times for itself follows the host clock. That covers caret blinks, tooltips,
   the taskbar clock and screensavers.
 
 So a `play` is repeatable to the frame, but the guest's own animations depend on how fast the
-host renders. `self.wait` and `self.live` record at host speed for that reason, and `self.pause`
+host renders. `self.wait` records at host speed for that reason, and `self.pause`
 holds a single capture. See [`Scene`](scene-api.md#time).
 
 ## How it differs from Manim
@@ -125,8 +125,6 @@ The names otherwise match where the meaning matches: `play`, `run_time`, `rate_f
 These are planned and left out because the current agent cannot do them honestly, or because
 nothing needs them yet.
 
-- `frozen`, `stepped` and `locked` clocks. A scene with any other `clock` raises
-  `NotImplementedError`.
 - `FadeIn` and `FadeOut`. Windows 98 has no window opacity, so a real fade needs a dither in the
   agent. `Close` is the honest exit for now.
 - Batched calls. Each frame sends its Win32 calls one by one, except that a move and a resize of

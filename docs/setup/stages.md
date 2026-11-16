@@ -155,10 +155,9 @@ Builds a blank hard disk and copies in what Setup needs.
    signature. The boot code must fit in 440 bytes.
 
    A blank MBR will not boot, and Setup writes only the partition's boot sector, so
-   setup has to supply this. `guest/boot_record/mbr.S` moves itself to `0x600`, finds the active
-   partition, reads its first sector to `0x7C00` with INT 13h extensions, checks the
-   `AA55` signature and jumps to it. If anything fails it prints
-   `art98: no bootable partition` and halts.
+   setup has to supply this. mtools writes no boot code and setup skips FDISK, so `mbr.bin`
+   is syslinux's (`syslinux-nonlinux`, copied by `guest/Makefile`). It finds the active
+   partition, reads its first sector to `0x7C00` and jumps to it.
 3. **Formats the partition.** `mformat -F -c 8`: FAT32 with 8 sectors per cluster.
    `_mtools_env` sets `MTOOLS_SKIP_CHECK=1`, because mtools rejects images whose
    geometry is not a textbook floppy or disk.
@@ -212,7 +211,7 @@ Both full runs logged took three boots:
 `SETUP_BOOTS`, 8, caps the loop. The comment on it says Setup restarts the machine
 a few times on its own.
 
-During each boot, `_wait_for_agent` loops until one of three things happens: the
+During each boot, `wait_for_agent` loops until one of three things happens: the
 agent says `HELLO`, the guest reboots, or a limit is hit. Every `SHOT_INTERVAL`, 30
 seconds, it:
 
@@ -296,7 +295,7 @@ Boots `golden.qcow2` once, as `ready` will, and checks the agent comes up on its
 
 **Outputs:** `golden.qcow2` with Windows shut down cleanly. Shots are `init_api-*`.
 
-**Inside:** `_require_agent` waits for `HELLO` from `AGENT.EXE`, up to 15 minutes,
+**Inside:** `require_agent` waits for `HELLO` from `AGENT.EXE`, up to 15 minutes,
 still answering prompts, then `bridge.wait_ready()` gets a `PING` reply with the
 right protocol version. `_reboot` then shuts Windows down with `ExitWindowsEx`.
 
@@ -322,17 +321,17 @@ this is where any future blank-start settings go.
 
 First VM:
 
-1. `_require_agent` waits for `HELLO`, up to 15 minutes, still answering prompts.
+1. `require_agent` waits for `HELLO`, up to 15 minutes, still answering prompts.
    Shots are `harden-*`.
 2. `apply_settings` writes every entry in `HARDEN_SETTINGS` over the bridge, then
    empties the `RUN_KEYS` except for the names in `KEPT_RUN_VALUES`.
-3. `bridge.set_display_mode(*DISPLAY_MODE)` sets 800x600x16 and saves it to the
+3. `set_display_mode(bridge, *DISPLAY_MODE)` from `art98.guest.win32` sets 800x600x16 and saves it to the
    registry. It uses a mode the video driver itself reports.
 4. `_reboot` shuts Windows down, so the settings apply on the next boot.
 
 Second VM:
 
-5. `_require_agent` again. Shots are `reboot-*`.
+5. `require_agent` again. Shots are `reboot-*`.
 6. `wait_for_quiet_screen` waits until `shots/ready.png` has not changed for
    `SETTLE_SECONDS`, 30 seconds, so startup has finished. It compares a hash of
    the screenshot.

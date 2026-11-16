@@ -17,3 +17,6 @@ dist/
 .ruff_cache/
 recipes/scenes/inspiration/
 recipes/helpers/storm.py
+# Your own compose settings and product key: never in the repo.
+compose.override.yaml
+product-key.txt

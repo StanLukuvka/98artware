@@ -11,8 +11,8 @@ import sys
 import time
 from pathlib import Path
 
-from art98 import service
 from art98.anim import render
+from art98.container import service
 from common import SETTINGS, Longer, cpu
 
 DELAYS = [0.05, 0.3, 0.6, 0.9, 1.2, 0.15, 0.45, 0.75]

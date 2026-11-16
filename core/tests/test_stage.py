@@ -11,7 +11,7 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 import pytest
-from art98 import service
+from art98.container import service
 from art98.settings import load
 
 HERE = Path(__file__).resolve().parents[2]
@@ -58,7 +58,7 @@ def test_the_desktop_answers_shows_and_reverts(booted, tmp_path):
 
 
 def test_frames_record_to_a_video(booted, tmp_path):
-    with booted.record(tmp_path / "clip.mp4") as video:
+    with booted.record(tmp_path / "clip.mp4", 10) as video:
         for _ in range(5):
             video.frame()
     assert video.count == 5 and (tmp_path / "clip.mp4").stat().st_size > 0
@@ -88,22 +88,22 @@ def test_the_proof_scene_renders(booted, tmp_path):
 
 
 def test_disc_insert_revert_insert(booted):
-    from art98 import desktop
+    from art98.guest import disc, win32
 
     data = bytes(range(256)) * 100
 
     def attrs(session):
-        drive = desktop.cd_drive(session.bridge)
+        drive = disc.cd_drive(session.bridge)
         return session.bridge.kernel32.GetFileAttributesA(drive + "WALL0001.BMP").value
 
     session = booted
     session.attach_disc({"WALL0001.BMP": data})
-    path = desktop.wait_for_disc(session.bridge, "WALL0001.BMP")
+    path = disc.wait_for_disc(session.bridge, "WALL0001.BMP")
     assert session.bridge.get_file(path) == data
     session.revert()
-    assert attrs(session) == desktop.INVALID_FILE_ATTRIBUTES
+    assert attrs(session) == win32.INVALID_FILE_ATTRIBUTES
     session.attach_disc({"WALL0001.BMP": data})
-    path = desktop.wait_for_disc(session.bridge, "WALL0001.BMP")
+    path = disc.wait_for_disc(session.bridge, "WALL0001.BMP")
     assert session.bridge.get_file(path) == data
 
 
@@ -116,6 +116,7 @@ def _pixel(session, tmp_path, x, y):
 
 def test_backdrop_colour_reads_back(booted, tmp_path):
     from art98 import desktop
+    from art98.guest import win32
 
     rgb = (200, 10, 30)
     session = booted
@@ -123,7 +124,7 @@ def test_backdrop_colour_reads_back(booted, tmp_path):
     desktop.blank(guest)
     desktop.set_colour(guest, rgb)
     guest.sync()
-    assert guest.user32.GetSysColor(1).value & 0xFFFFFF == desktop.colourref(rgb)
+    assert guest.user32.GetSysColor(1).value & 0xFFFFFF == win32.colourref(rgb)
     assert not guest.user32.IsWindowVisible(
         desktop.shell_windows(guest)[2]
     ).value  # P0: icons stay hidden
@@ -163,7 +164,7 @@ def test_state_with_wallpaper(booted, tmp_path):
             {
                 "version": 1,
                 "desktop": {
-                    "colour": [0, 128, 128],
+                    "fill_colour": [0, 128, 128],
                     "wallpaper": {
                         "file": "wall.bmp",
                         "sha256": hashlib.sha256(data).hexdigest(),
@@ -190,8 +191,8 @@ def test_state_with_wallpaper(booted, tmp_path):
 
 
 def test_same_title_dialogs(booted):
-    from art98 import win32
     from art98.anim import Dialog, Scene
+    from art98.guest import win32
 
     session = booted
     scene = Scene()
@@ -221,12 +222,12 @@ def test_attach_twice_is_busy(booted):
 
 
 def test_revert_between_attaches():
-    from art98 import desktop
+    from art98.guest import disc, win32
 
     def disc_attrs(guest):
-        drive = desktop.cd_drive(guest)
+        drive = disc.cd_drive(guest)
         if drive is None:
-            return desktop.INVALID_FILE_ATTRIBUTES
+            return win32.INVALID_FILE_ATTRIBUTES
         return guest.kernel32.GetFileAttributesA(drive + "WALL0001.BMP").value
 
     with attached() as first:
@@ -234,11 +235,11 @@ def test_revert_between_attaches():
         guest.spawn("notepad.exe")
         guest.find_window(class_name="Notepad")
         first.attach_disc({"WALL0001.BMP": b"x" * 512})
-        desktop.wait_for_disc(guest, "WALL0001.BMP")
+        disc.wait_for_disc(guest, "WALL0001.BMP")
         assert any(w.class_name == "Notepad" for w in guest.windows())
     with attached() as second:  # revert=True is the default: back to the snapshot
         assert not any(w.class_name == "Notepad" for w in second.bridge.windows())
-        assert disc_attrs(second.bridge) == desktop.INVALID_FILE_ATTRIBUTES
+        assert disc_attrs(second.bridge) == win32.INVALID_FILE_ATTRIBUTES
 
 
 def test_render_leaves_the_vm_running_and_paused(tmp_path):
@@ -332,7 +333,7 @@ def test_no_drift(booted, tmp_path, name):
     else:
         scene = {c.__name__: c for c in _drift_short_scenes()}[cls]()
     if name != "storm":  # the storm keeps its own 24 fps
-        scene.fps = 10
+        scene.output_fps = 10
     rec = audit(
         booted, scene, name, pixels=pixels, keep=tmp_path, taskbar=name != "storm"
     )

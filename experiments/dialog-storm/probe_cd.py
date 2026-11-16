@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pycdlib
 from art98 import Out
-from art98.desktop import blank, check_blank, shell_windows
+from art98.desktop import blank, check_blank, rgb, shell_windows
 from art98.session import stage
 
 OUT = Path(sys.argv[1]).resolve()
@@ -129,7 +129,7 @@ def guest_px(g, x, y):
     dc = g.user32.GetDC(0).value
     v = g.gdi32.GetPixel(dc, x, y).value
     g.user32.ReleaseDC(0, dc)
-    return (v & 255, v >> 8 & 255, v >> 16 & 255) if v != 0xFFFFFFFF else None
+    return rgb(v) if v != 0xFFFFFFFF else None
 
 
 def block(s):

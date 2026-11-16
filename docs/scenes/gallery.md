@@ -392,7 +392,7 @@ BOX = (300, 130)  # outer size, a bit more than the stock box
 
 
 class DialogStorm(Scene):
-    fps = 24
+    output_fps = 24
     desktop = "blank"
 
     def construct(self):
@@ -453,7 +453,7 @@ class DialogStorm(Scene):
 class DialogStormStock(Scene):
     """The same boxes on the stock desktop: taskbar and icons, on a dark red colour."""
 
-    fps = 24
+    output_fps = 24
     desktop = "stock"
 
     def construct(self):
@@ -575,7 +575,7 @@ class ScreensaverRun(Scene):
         self.pause(0.4)
         saver = Screensaver("Mystify Your Mind")
         self.add(saver)
-        self.live(5)
+        self.wait(5)
         saver.stop()
         self.pause(0.6)
 ```

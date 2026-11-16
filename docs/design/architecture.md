@@ -37,7 +37,7 @@ different follows from this:
 | The renderer and camera draw each frame | Windows draws; art98 waits for the repaint and captures | Windows owns the pixels |
 | Caching skips a `play` whose hash is unchanged | No cache. A state is the way to start partway | Re-running a play can't be skipped when its effect lives in the guest |
 | World state is Python objects | World state is the guest, with JSON states and the `ready` snapshot as the fixed points | A revert throws away handles, props and copied files |
-| Updaters run Python each frame | Not built. `live()` and `wait_until` watch the guest instead | |
+| Updaters run Python each frame | Not built. `wait` and `wait_until` watch the guest instead | |
 | A camera moves over the scene | The screen is 800 × 600 by default, and a state's `display` can switch to another Cirrus mode ([Display](../setup/image.md#display)) | Zoom or pan would be a post-process on the capture |
 
 **Where the layers differ.** Manim splits a render into `Scene` (what happens), a renderer and
