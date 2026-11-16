@@ -18,10 +18,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "core"))
 sys.path.insert(0, str(REPO / "experiments" / "wide-display"))
-import safe_boot  # noqa: E402
-from art98.bridge import Bridge, BridgeError  # noqa: E402
-from art98.qemu import VM, VMConfig  # noqa: E402
-from art98.session import stage  # noqa: E402
+import safe_boot
+from art98.guest.bridge import Bridge, BridgeError
+from art98.guest.qemu import VM, VMConfig
+from art98.session import stage
 
 
 def psi() -> str:

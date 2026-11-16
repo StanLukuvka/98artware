@@ -13,8 +13,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[2] / "core"))
 sys.path.insert(0, str(HERE.parents[1] / "wide-display"))
-import safe_boot  # noqa: E402
-from art98.qemu import VMConfig  # noqa: E402
+import safe_boot
+from art98.guest.qemu import VMConfig
 
 IMG = "localhost/art98:latest"  # already local; no pull
 CLONE = Path("/home/admin/art98-release-check/98artware/work")
@@ -49,7 +49,7 @@ def docker(name, args, cmd, bg=False):
     print("+", shlex.join(argv)[:200], flush=True)
     if bg:
         return subprocess.Popen(line, shell=True, text=True, stdout=open(probe / f"{name}.out", "w"), stderr=subprocess.STDOUT)
-    r = subprocess.run(line, shell=True, text=True, capture_output=True)
+    r = subprocess.run(line, shell=True, text=True, capture_output=True, check=False)
     print(r.stdout + r.stderr, f"rc={r.returncode}", flush=True)
 
 
@@ -63,7 +63,7 @@ def guard_vm(loadvm):
 
 def main():
     safe_boot.check_settings({"work_dir": work}, probe)
-    guard_vm("ready"); guard_vm(None)  # noqa: E702
+    guard_vm("ready"); guard_vm(None)
     mounts = ["-v", f"{work}:/work:ro", "-v", f"{addons}:/work/addons", "-v", f"{src}:/addons:ro"]
     sh = ["--entrypoint", "sh"]
     for user in ([], ["--user", "1000:1000"]):  # root, then the owner uid

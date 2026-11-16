@@ -1,5 +1,7 @@
 """Zip-slip-checked extract of the driver zip. usage: python3 -I unpack.py ZIP EMPTY_DIR"""
-import stat, sys, zipfile
+import stat
+import sys
+import zipfile
 from pathlib import Path, PurePosixPath
 
 zpath, out = Path(sys.argv[1]), Path(sys.argv[2]).resolve()

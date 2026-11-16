@@ -20,11 +20,11 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "r3"))
 sys.path.insert(0, str(HERE.parent / "r3b"))
-import r3  # noqa: E402
-import safe_boot  # noqa: E402
-from art98.bridge import Bridge, BridgeError  # noqa: E402
-from art98.qemu import VM, VMConfig  # noqa: E402
-from r3 import HKLM, dump_modes, psi, reg_get, reg_open, reg_subkeys, say  # noqa: E402
+import r3
+import safe_boot
+from art98.guest.bridge import Bridge, BridgeError
+from art98.guest.qemu import VM, VMConfig
+from r3 import HKLM, dump_modes, psi, say
 
 EXT = Path("/home/admin/art98-release-check/probes/r3c-20261113-2311/ext")  # untrusted, already zip-slip checked, read only
 DRV = "C:\\DRIVERS\\VMDISP"
@@ -125,7 +125,7 @@ class Ctx:
     def reg(self, root: int, key: str, name: str, data, create: bool = True) -> None:
         """Set a value; str -> REG_SZ, int -> REG_DWORD, bytes -> REG_BINARY. Creates the key."""
         b = self.bridge
-        from art98.protocol import Out
+        from art98.guest.protocol import Out
 
         h = b.advapi32.RegCreateKeyExA(root, key, 0, 0, 0, 0xF003F, 0, Out(4), Out(4))
         if h.value:
@@ -314,7 +314,6 @@ def snapshot_ready(ctx: Ctx) -> None:
 # ---------------------------------------------------------------- diagnostics
 def dump(probe: Path, disk: Path, vga: str, out: Path) -> None:
     """Boot a copy of `disk`, export HKLM and file lists with regedit/command.com, fetch them. No changes made."""
-    pass
     c = Ctx(probe, vga=vga)
     c.start()
     try:

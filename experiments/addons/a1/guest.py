@@ -5,15 +5,14 @@
 
 import dataclasses
 import faulthandler
-import signal
 import json
-import os
+import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-from art98.qemu import VM, VMConfig
+from art98.guest.qemu import VM, VMConfig
 
 OUT = Path("/work/addons/a1")
 faulthandler.register(signal.SIGUSR1)  # debug: docker kill -s USR1 dumps the stack
@@ -56,13 +55,13 @@ def settle(vm, tag, limit=420):
 
 
 def tags(disk):
-    return subprocess.run(["qemu-img", "snapshot", "-l", str(disk)], capture_output=True, text=True).stdout
+    return subprocess.run(["qemu-img", "snapshot", "-l", str(disk)], capture_output=True, text=True, check=False).stdout
 
 
 def copy(name):
     dst = OUT / name
     t = time.monotonic()
-    r = subprocess.run(["cp", "--reflink=auto", "/work/golden.qcow2", str(dst)])
+    r = subprocess.run(["cp", "--reflink=auto", "/work/golden.qcow2", str(dst)], check=False)
     say("cp --reflink=auto rc", r.returncode, f"{time.monotonic() - t:.2f}s")
     return dst
 
@@ -91,7 +90,7 @@ def main(mode):
         try:
             vm.save_snapshot("ready")
             say("savevm ready over inherited tag: ok")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             say("savevm ready over inherited tag: ERROR", repr(e))
         say("after savevm:", vm.snapshots())
     say("qemu-img snapshot -l after:\n" + tags(disk))

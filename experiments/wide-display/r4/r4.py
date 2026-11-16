@@ -15,17 +15,18 @@ import struct
 import sys
 import time
 from pathlib import Path
+from typing import ClassVar
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "r3"))
 sys.path.insert(0, str(HERE.parent / "r3b"))
 sys.path.insert(0, str(HERE.parent / "r3c"))
-import r3c  # noqa: E402
-import safe_boot  # noqa: E402
-from art98.bridge import Bridge, BridgeError  # noqa: E402
-from art98.protocol import Out  # noqa: E402
-from art98.qemu import VM, VMConfig  # noqa: E402
-from r3 import HKLM, dump_modes, psi, reg_get, reg_subkeys, say  # noqa: E402
+import r3c
+import safe_boot
+from art98.guest.bridge import Bridge, BridgeError
+from art98.guest.protocol import Out
+from art98.guest.qemu import VM, VMConfig
+from r3 import HKLM, dump_modes, psi, reg_get, reg_subkeys, say
 
 CLS = r"System\CurrentControlSet\Services\Class\Display"
 
@@ -33,7 +34,7 @@ CLS = r"System\CurrentControlSet\Services\Class\Display"
 class Ctx(r3c.Ctx):
     """r3c's Ctx plus extra QEMU args and a vga that stays std."""
 
-    extra: list[str] = []
+    extra: ClassVar[list[str]] = []
 
     def start(self, wait: bool = True) -> None:
         data = json.loads((self.probe / "vm" / "image.json").read_text())
@@ -207,7 +208,7 @@ def persist(probe: Path) -> None:
     ctx.start()
     try:
         res["set_persist"] = switch(ctx, 1280, 720, 16, persist=True)
-        r = ctx.bridge.advapi32  # registry view of what CDS_UPDATEREGISTRY wrote
+        _ = ctx.bridge.advapi32  # registry view of what CDS_UPDATEREGISTRY wrote
         res["reg_after_set"] = {k: reg_get(ctx.bridge, r"Config\0001\Display\Settings", k) for k in ("Resolution", "BitsPerPixel")}
         ctx.step("command", "clean reboot (ExitWindowsEx), cold boot, no loadvm")
         t0 = time.monotonic()
@@ -310,7 +311,7 @@ def vga32(probe: Path) -> None:
         res["reboot_agent_up_s"] = ctx.wait_agent()
         time.sleep(3)
         m = dump_modes(ctx.bridge)
-        res["n_modes_32mb"], res["modes_32mb_max"] = len(m["modes"]), sorted(set((w, h, d) for w, h, d in m["modes"]))[-6:]
+        res["n_modes_32mb"], res["modes_32mb_max"] = len(m["modes"]), sorted({(w, h, d) for w, h, d in m["modes"]})[-6:]
         res["rows"] = [switch(ctx, 1920, 1080, 32), switch(ctx, 1920, 1080, 16)]
         res["frames"] = [frame_cost(ctx, "1920x1080x32 vgamem32", n=50)]
     finally:

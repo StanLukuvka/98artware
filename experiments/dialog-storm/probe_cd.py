@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pycdlib
 from art98 import Out
-from art98.desktop import blank, check_blank, rgb, shell_windows
+from art98.desktop import blank, check_blank, shell_windows
+from art98.guest.win32 import rgb
 from art98.session import stage
 
 OUT = Path(sys.argv[1]).resolve()

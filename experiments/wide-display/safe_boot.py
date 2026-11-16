@@ -2,7 +2,7 @@
 
 A probe calls one of these before it starts QEMU or copies a disk:
   config_argv(config, qmp, serial, probe_dir)  build the argv and check it
-  check_vm(vm, probe_dir)                      before art98.qemu.VM.start()
+  check_vm(vm, probe_dir)                      before art98.guest.qemu.VM.start()
   check_stage(work_copy, probe_dir)            before art98.session.stage()
   check(argv, probe_dir, socket_dirs=())       the argv check itself
   check_docker(argv, probe_dir)                before every `docker run` (allow-list)
@@ -237,10 +237,10 @@ def config_argv(config, qmp: Path, serial: Path, probe_dir: Path) -> list[str]:
 
     The socket dirs (qmp.parent, serial.parent) are allowed beside probe_dir.
     """
-    from art98.qemu import VMConfig
+    from art98.guest.qemu import VMConfig
 
     if not isinstance(config, VMConfig):
-        raise TypeError("config must be an art98.qemu.VMConfig")
+        raise TypeError("config must be an art98.guest.qemu.VMConfig")
     qmp, serial = Path(qmp), Path(serial)
     argv = config.argv(qmp, serial)
     check(argv, probe_dir, (qmp.parent, serial.parent))
@@ -281,7 +281,7 @@ def _import_art98() -> None:
 
 def _self_test() -> None:
     _import_art98()
-    from art98.qemu import VMConfig
+    from art98.guest.qemu import VMConfig
 
     real = REAL_WORK_DIRS[0]
     repo = real.parent
@@ -520,22 +520,22 @@ def _self_test() -> None:
         (probe / "wlink").symlink_to(real)
         for wk in REAL_WORK_DIRS:
             w = str(wk)
-            rejects(f"docker --volume {w}", lambda: dk("--volume", f"{w}:/m"))
-            rejects(f"docker -v=SRC:DST {w}", lambda: dk(f"-v={w}:/m"))
-            rejects(f"docker --volume= {w}", lambda: dk(f"--volume={w}:/m"))
-            rejects(f"docker --mount src= {w}", lambda: dk("--mount", f"type=bind,src={w},dst=/m"))
-            rejects(f"docker --mount source= {w}", lambda: dk(f"--mount=type=bind,source={w},dst=/m"))
-            rejects(f"docker --mount src=probe,source= {w}", lambda: dk("--mount", f"type=bind,src={pd}/d,source={w},dst=/x"))
-            rejects(f"docker --mount source=,src= {w}", lambda: dk("--mount", f"type=bind,source={pd}/d,src={w},dst=/x"))
-            rejects(f"docker --mount src=dup {w}", lambda: dk("--mount", f"type=bind,src={pd}/d,src={w},dst=/x"))
-            rejects(f"settings.work_dir relative {w}", lambda: _in_cwd(repo.parent, lambda: check_settings({"work_dir": os.path.relpath(w, repo.parent)}, probe)))
-            rejects(f"docker .. path {w}", lambda: dk("-v", f"{pd}/../../../..{w}:/m"))
-            rejects(f"docker -v inside {w}", lambda: dk("-v", f"{w}/runs:/m"))
-            rejects(f"docker -v parent of {w}", lambda: dk("-v", f"{wk.parent}:/m"))
-            rejects(f"docker cidfile {w}", lambda: dk("--cidfile", f"{w}/cid"))
-            rejects(f"docker -e P={w}", lambda: dk("-e", f"P={w}"))
-            rejects(f"docker -v symlink {w}", lambda: dk("-v", f"{pd}/wlink:/m" if wk == real else f"{w}:/m"))
-            rejects(f"settings.work_dir {w}", lambda: check_settings({"work_dir": w}, probe))
+            rejects(f"docker --volume {w}", lambda w=w, wk=wk: dk("--volume", f"{w}:/m"))
+            rejects(f"docker -v=SRC:DST {w}", lambda w=w, wk=wk: dk(f"-v={w}:/m"))
+            rejects(f"docker --volume= {w}", lambda w=w, wk=wk: dk(f"--volume={w}:/m"))
+            rejects(f"docker --mount src= {w}", lambda w=w, wk=wk: dk("--mount", f"type=bind,src={w},dst=/m"))
+            rejects(f"docker --mount source= {w}", lambda w=w, wk=wk: dk(f"--mount=type=bind,source={w},dst=/m"))
+            rejects(f"docker --mount src=probe,source= {w}", lambda w=w, wk=wk: dk("--mount", f"type=bind,src={pd}/d,source={w},dst=/x"))
+            rejects(f"docker --mount source=,src= {w}", lambda w=w, wk=wk: dk("--mount", f"type=bind,source={pd}/d,src={w},dst=/x"))
+            rejects(f"docker --mount src=dup {w}", lambda w=w, wk=wk: dk("--mount", f"type=bind,src={pd}/d,src={w},dst=/x"))
+            rejects(f"settings.work_dir relative {w}", lambda w=w, wk=wk: _in_cwd(repo.parent, lambda: check_settings({"work_dir": os.path.relpath(w, repo.parent)}, probe)))
+            rejects(f"docker .. path {w}", lambda w=w, wk=wk: dk("-v", f"{pd}/../../../..{w}:/m"))
+            rejects(f"docker -v inside {w}", lambda w=w, wk=wk: dk("-v", f"{w}/runs:/m"))
+            rejects(f"docker -v parent of {w}", lambda w=w, wk=wk: dk("-v", f"{wk.parent}:/m"))
+            rejects(f"docker cidfile {w}", lambda w=w, wk=wk: dk("--cidfile", f"{w}/cid"))
+            rejects(f"docker -e P={w}", lambda w=w, wk=wk: dk("-e", f"P={w}"))
+            rejects(f"docker -v symlink {w}", lambda w=w, wk=wk: dk("-v", f"{pd}/wlink:/m" if wk == real else f"{w}:/m"))
+            rejects(f"settings.work_dir {w}", lambda w=w, wk=wk: check_settings({"work_dir": w}, probe))
         accepts("settings in probe", lambda: check_settings(types.SimpleNamespace(work_dir=probe / "d"), probe))
         rejects("settings outside probe", lambda: check_settings({"work_dir": "/tmp/x"}, probe))
         rejects("settings relative", lambda: check_settings({"work_dir": "d"}, probe))

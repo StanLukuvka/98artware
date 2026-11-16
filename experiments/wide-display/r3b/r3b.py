@@ -19,10 +19,20 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "r3"))
-import r3  # noqa: E402
-from art98.bridge import Bridge, BridgeError  # noqa: E402
-from art98.protocol import Out  # noqa: E402
-from r3 import HKLM, dump_modes, make_vm, reboot, reg_get, reg_open, reg_subkeys, say, wait_agent  # noqa: E402
+import r3
+from art98.guest.bridge import Bridge, BridgeError
+from art98.guest.protocol import Out
+from r3 import (
+    HKLM,
+    dump_modes,
+    make_vm,
+    reboot,
+    reg_get,
+    reg_open,
+    reg_subkeys,
+    say,
+    wait_agent,
+)
 
 REG_NAMES = {1: "SZ", 3: "BIN", 4: "DWORD"}
 
@@ -108,7 +118,7 @@ def type_text(v, text: str) -> None:
 
 def click(v, x: int, y: int, w: int = 640, h: int = 480) -> None:
     ax, ay = x * 32767 // (w - 1), y * 32767 // (h - 1)
-    ev = lambda down: [  # noqa: E731
+    ev = lambda down: [
         {"type": "abs", "data": {"axis": "x", "value": ax}},
         {"type": "abs", "data": {"axis": "y", "value": ay}},
         {"type": "btn", "data": {"button": "left", "down": down}},
