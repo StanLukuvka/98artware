@@ -2,17 +2,20 @@
 
 import contextlib
 import os
+import sys
 from pathlib import Path
 
 import pytest
-from art98 import cli, freshness
-from art98.bridge import BridgeTimeout
+from art98 import cli
+from art98.container import freshness
 from art98.container.host import ContainerError
+from art98.container.service import NotRunning, ServiceError
 from art98.desktop import DesktopError
-from art98.guestfiles import GuestBuildMissing
-from art98.qemu import QemuError
-from art98.recorder import RecorderError
-from art98.service import NotRunning, ServiceError
+from art98.guest.bridge import BridgeTimeout
+from art98.guest.guestfiles import GuestBuildMissing
+from art98.guest.qemu import QemuError
+from art98.output.gif import GifOptions
+from art98.output.recorder import RecorderError
 from art98.session import ImageMissing
 from art98.state import StateError
 
@@ -70,7 +73,7 @@ def test_known_failures_are_one_error_line(monkeypatch, capsys, scene, error):
 
 RAISING_SCENE = (
     "from art98.anim import Scene\n"
-    "from art98.bridge import BridgeTimeout\n\n\n"
+    "from art98.guest.bridge import BridgeTimeout\n\n\n"
     "def helper():\n"
     '    raise BridgeTimeout("no window for Notepad")\n\n\n'
     "class Demo(Scene):\n"
@@ -91,6 +94,30 @@ def test_error_names_the_scene_line(monkeypatch, capsys, tmp_path):
     # innermost scene frame is the raise in helper(), not the construct call
     assert capsys.readouterr().err == (
         "error: no window for Notepad (scene.py:6, in helper)\n"
+    )
+
+
+EMPTY_PLAY_SCENE = (
+    "from art98.anim import Scene\n\n\n"
+    "class Demo(Scene):\n"
+    "    def construct(self):\n"
+    "        self.play()\n"
+)
+
+
+def test_a_scene_authors_mistake_is_one_line_at_the_scene_line(
+    monkeypatch, capsys, tmp_path
+):
+    path = tmp_path / "scene.py"
+    path.write_text(EMPTY_PLAY_SCENE)
+
+    def render(scene, *args, **kwargs):
+        scene().construct()
+
+    monkeypatch.setattr("art98.anim.render", render)
+    assert cli.main(["render", str(path)]) == 1
+    assert capsys.readouterr().err == (
+        "error: play needs at least one animation (scene.py:6, in construct)\n"
     )
 
 
@@ -162,6 +189,21 @@ def test_render_hands_the_attached_session_to_the_renderer(
     assert "revert" not in attach_kwargs[0]
 
 
+def test_render_builds_gif_options_from_the_flags_given(monkeypatch, tmp_path, scene):
+    got = []
+
+    def render(scene_class, output, **kwargs):
+        got.append(kwargs["gif_options"])
+        return tmp_path / "x.mp4"
+
+    monkeypatch.setattr("art98.anim.render", render)
+    base = ["render", str(scene), "--work", str(tmp_path)]
+    assert cli.main(base) == 0
+    assert cli.main([*base, "--gif-fps", "7", "--gif-dither", "bayer"]) == 0
+    assert got[0] == GifOptions()
+    assert got[1] == GifOptions(fps=7, dither="bayer")
+
+
 def test_a_bad_art98_toml_is_one_error_line(monkeypatch, capsys, tmp_path):
     (tmp_path / "art98.toml").write_text("[vm]\nbogus = 1\n")
     monkeypatch.chdir(tmp_path)
@@ -176,7 +218,8 @@ def test_vm_and_wait_parse_and_help(capsys):
             cli.main(argv)
         assert stop.value.code == 0
     out = capsys.readouterr().out
-    assert "--vnc" in out and "--wait S" in out and "status" in out
+    assert "--wait S" in out and "status" in out
+    assert "--vnc" not in out  # VNC is set in compose.override.yaml
     with pytest.raises(SystemExit) as stop:
         cli.main(["vm"])
     assert stop.value.code == 2
@@ -195,15 +238,38 @@ def test_vm_status_exit_codes(monkeypatch, capsys, tmp_path):
     assert "art98 vm start" in capsys.readouterr().out
 
 
+def test_non_setup_commands_run_without_art98_setup_importable(
+    monkeypatch, capsys, tmp_path
+):
+    monkeypatch.setitem(sys.modules, "art98_setup", None)
+    info = {"running": True, "busy": False, "paused": True, "snapshots": ["ready"],
+            "started_at": "t", "vnc": None, "image_stale": False}  # fmt: skip
+    monkeypatch.setattr(cli.service, "status", lambda settings: info)
+    assert cli.main(["vm", "status", "--work", str(tmp_path)]) == 0
+    assert "paused" in capsys.readouterr().out
+
+
 def test_vm_start_and_stop_call_the_service(monkeypatch, tmp_path):
     calls = []
-    monkeypatch.setattr(
-        cli.service, "start", lambda s, vnc: calls.append(("start", vnc))
-    )
-    monkeypatch.setattr(cli.service, "stop", lambda s: calls.append(("stop",)))
-    assert cli.main(["vm", "start", "--vnc", "--work", str(tmp_path)]) == 0
+    monkeypatch.setattr(cli.service, "start", lambda s: calls.append("start"))
+    monkeypatch.setattr(cli.service, "stop", lambda s: calls.append("stop"))
+    assert cli.main(["vm", "start", "--work", str(tmp_path)]) == 0
     assert cli.main(["vm", "stop", "--work", str(tmp_path)]) == 0
-    assert calls == [("start", True), ("stop",)]
+    assert calls == ["start", "stop"]
+
+
+def test_ART98_VNC_turns_on_vnc_for_serve_and_watch_for_setup(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(
+        "art98.container.serve.run", lambda work, **kw: seen.update(serve=kw["vnc"])
+    )
+    monkeypatch.setenv("ART98_VNC", "1")
+    cli.main(["serve"])
+    monkeypatch.delenv("ART98_VNC")
+    cli.main(["serve"])
+    assert seen == {"serve": False}
+    cli.main(["serve", "--vnc"])
+    assert seen == {"serve": True}
 
 
 def test_a_missing_scene_file(tmp_path):
@@ -235,7 +301,6 @@ LOCAL = [
     "mcopy",
     "7z",
     "make",
-    "as",
     "i686-w64-mingw32-gcc",
 ]
 
@@ -346,3 +411,13 @@ def test_up_leaves_work_to_art98_toml_unless_the_flag_is_given(monkeypatch):
     assert cli.main(["up"]) == 0
     assert cli.main(["up", "--work", "flag"]) == 0
     assert seen == [None, Path("flag")]
+
+
+def test_a_scene_outside_its_folder_can_import_helpers(tmp_path):
+    scene = tmp_path / "uses_helpers.py"
+    scene.write_text("import helpers\n\n" + SCENE)
+    assert cli._load_scene(scene, None).__name__ == "Demo"
+    import helpers
+
+    root = Path(__file__).resolve().parents[2]
+    assert Path(helpers.__file__) == root / "recipes" / "helpers" / "__init__.py"

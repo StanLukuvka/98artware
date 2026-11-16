@@ -1,28 +1,46 @@
-"""Dialog as a program (icon, size, disabled, set_message) against a stand-in guest: no VM."""
+"""Dialog as a program (icon, size, disabled, set_message, remove) against a stand-in guest: no VM."""
 
 import struct
 
 import pytest
+from art98.actions.programs import dialog as dialog_module
 from art98.actions.programs.dialog import Dialog
-from art98.bridge import CallResult
+from art98.errors import GuestError, UsageError
+from art98.guest import win32
+from art98.guest.bridge import CallResult
 from test_anim import FakeDll, FakeGuest, FakeSession, FakeVideo, Stage
 
-BOX, ICON, TEXT, YES, NO = 0x70, 0x71, 0x72, 0x73, 0x74
+BOX, ICON, TEXT, YES, NO, ABORT = 0x70, 0x71, 0x72, 0x73, 0x74, 0x75
+WM_CLOSE, BM_CLICK = win32.WM_CLOSE, win32.BM_CLICK
 
 
 class Call:
+    """What MessageBoxA's thread returns once the box has been answered."""
+
+    def __init__(self, code):
+        self.code = code
+
     def wait(self):
-        return CallResult(6, 0, [])
+        return CallResult(self.code, 0, [])
 
 
 class DialogGuest(FakeGuest):
-    """acall opens a stock box: an icon static, a text static and two buttons."""
+    """acall opens a stock box: an icon static, a text static and two buttons.
+
+    A box stays in `alive` until WM_CLOSE (unless `ignores_close`) or a
+    BM_CLICK on one of its buttons closes it, as on Windows.
+    """
 
     def __init__(self):
         super().__init__()
         self.shell32 = FakeDll(self, "shell32")
         self.icons = {}
         self.styles = {ICON: 0x50000003, TEXT: 0x50022080}
+        self.alive = set()
+        self.button_ids = {6: YES, 7: NO}  # IDYES, IDNO
+        self.ignores_close = False  # a box with no Cancel button
+        self.answer_code = 6
+        self.posted, self.clicks = [], []
 
     def acall(self, dll, function, *args):
         self.calls.append(("acall", (dll, function, args)))
@@ -31,7 +49,8 @@ class DialogGuest(FakeGuest):
         self.add_window(TEXT, "Static", (72, 51, 183, 66), "Really?", parent=BOX)
         self.add_window(YES, "Button", (40, 90, 115, 113), "&Yes", parent=BOX)
         self.add_window(NO, "Button", (121, 90, 196, 113), "&No", parent=BOX)
-        return Call()
+        self.alive.add(BOX)
+        return Call(self.answer_code)
 
     def do_ExtractIconA(self, hinst, dll, index):
         return CallResult(self.icons.get((dll, index), 0), 0, [])
@@ -41,6 +60,25 @@ class DialogGuest(FakeGuest):
 
     def do_ScreenToClient(self, hwnd, point):
         return CallResult(1, 0, [struct.pack("<ii", -3, -41)])
+
+    def do_IsWindow(self, hwnd):
+        return CallResult(int(hwnd in self.alive), 0, [])
+
+    def do_PostMessageA(self, hwnd, message, wparam, lparam):
+        self.posted.append((hwnd, message))
+        if message == WM_CLOSE and not self.ignores_close:
+            self.alive.discard(hwnd)
+        return CallResult(1, 0, [])
+
+    def do_GetDlgItem(self, parent, control_id):
+        return CallResult(self.button_ids.get(control_id, 0), 0, [])
+
+    def do_SendMessageA(self, hwnd, message, wparam, lparam):
+        if message == BM_CLICK:
+            self.clicks.append(hwnd)
+            if hwnd in self.button_ids.values():
+                self.alive.discard(BOX)
+        return CallResult(1, 0, [])
 
 
 @pytest.fixture
@@ -103,10 +141,13 @@ def test_custom_icon_is_extracted_set_then_repainted(guest, scene):
 
 
 @pytest.mark.parametrize("handle", [0, 1])
-def test_custom_icon_rejects_a_bad_file_or_index(guest, scene, handle):
+def test_custom_icon_rejects_a_bad_file_or_index_and_closes_the_box(
+    guest, scene, handle
+):
     guest.icons[(r"C:\X.DLL", 3)] = handle
     with pytest.raises(ValueError, match="no icon 3"):
         scene.add(Dialog("Hi", "Quit?", icon=(r"C:\X.DLL", 3)))
+    assert BOX not in guest.alive
 
 
 def test_disabled_greys_every_button(guest, scene):
@@ -130,7 +171,7 @@ def test_size_goes_to_win_and_the_box_is_laid_out_again(guest, scene):
     guest.rows[
         0
     ].clear()  # the stand-in reuses one hwnd for every box: forget the first
-    with pytest.raises(ValueError, match="smaller than the stock box"):
+    with pytest.raises(UsageError, match="smaller than the least"):
         scene.add(Dialog("Hi", "Quit?", size=(100, 50)))
 
 
@@ -147,6 +188,109 @@ def test_set_message_changes_the_text_not_the_title(guest, scene):
     assert box.title_text == "Quit?"
     with pytest.raises(ValueError, match="too tall"):
         box.set_message("1\n2\n3\n4\n5")
+
+
+def test_yes_no_box_is_closed_by_its_no_button(guest, scene):
+    box = Dialog("Hi", "Quit?", buttons="yesno")
+    scene.add(box)
+    guest.calls.clear()
+    box.remove()
+    assert guest.clicks == [NO]  # WM_CLOSE does nothing to a box with no Cancel
+    assert "PostMessageA" not in names(guest)
+    assert BOX not in guest.alive
+
+
+def test_abort_retry_ignore_box_is_closed_by_its_abort_button(guest, scene):
+    guest.button_ids[3] = ABORT
+    box = Dialog("Hi", "Quit?", buttons="abortretryignore")
+    scene.add(box)
+    guest.calls.clear()
+    box.remove()
+    assert guest.clicks == [ABORT]
+    assert BOX not in guest.alive
+
+
+def test_box_with_a_cancel_button_is_closed_by_wm_close(guest, scene):
+    box = Dialog("Hi", "Quit?")
+    scene.add(box)
+    guest.calls.clear()
+    box.remove()
+    assert guest.named("PostMessageA") == [("PostMessageA", (BOX, WM_CLOSE, 0, 0))]
+    assert guest.clicks == [] and BOX not in guest.alive
+
+
+def test_icon_is_destroyed_only_after_the_box_has_gone(guest, scene):
+    path, index = Dialog.CUSTOM_ICONS["computer"]
+    guest.icons[(path, index)] = 0x55
+    box = Dialog("Hi", "Quit?", icon="computer", buttons="yesno")
+    scene.add(box)
+    guest.calls.clear()
+    box.remove()
+    order = names(guest)
+    last_look = max(i for i, name in enumerate(order) if name == "IsWindow")
+    assert order.index("SendMessageA") < last_look < order.index("DestroyIcon")
+    assert guest.named("DestroyIcon") == [("DestroyIcon", (0x55,))]
+
+
+def test_a_box_that_stays_open_is_an_error_and_keeps_its_icon(
+    guest, scene, monkeypatch
+):
+    monkeypatch.setattr(dialog_module, "CLOSE_TIMEOUT", 0.01)
+    path, index = Dialog.CUSTOM_ICONS["computer"]
+    guest.icons[(path, index)] = 0x55
+    box = Dialog("Hi", "Quit?", icon="computer")
+    scene.add(box)
+    guest.ignores_close = True
+    guest.calls.clear()
+    with pytest.raises(GuestError, match="did not close"):
+        box.remove()
+    assert "DestroyIcon" not in names(guest)
+
+
+def test_a_bad_button_set_is_a_usage_error_naming_the_choices():
+    with pytest.raises(UsageError, match="no button set 'yes_no'"):
+        Dialog("x", buttons="yes_no")
+
+
+@pytest.mark.parametrize("icon", [("shell32.dll",), ["a.dll", 1, 2], ("a.dll", "3")])
+def test_a_custom_icon_must_be_a_dll_and_an_index(icon):
+    with pytest.raises(UsageError, match="dll, index"):
+        Dialog("x", icon=icon)
+
+
+def test_text_and_title_must_fit_in_windows_1252(guest, scene):
+    with pytest.raises(UsageError, match="1252"):
+        Dialog("日本")
+    with pytest.raises(UsageError, match="1252"):
+        Dialog("x", "ł")
+    box = Dialog("x", "Quit?")
+    scene.add(box)
+    with pytest.raises(UsageError, match="1252"):
+        box.set_message("日")
+
+
+def test_answer_and_set_message_say_when_the_box_is_not_on_stage():
+    box = Dialog("x")
+    with pytest.raises(UsageError, match="not on stage"):
+        _ = box.answer
+    with pytest.raises(UsageError, match="not on stage"):
+        box.set_message("y")
+
+
+def test_set_message_on_a_closed_box_is_a_guest_error(guest, scene):
+    box = Dialog("Hi", "Quit?")
+    scene.add(box)
+    del guest.rects[TEXT]  # the box has gone: its text has no place any more
+    with pytest.raises(GuestError, match="has closed"):
+        box.set_message("again")
+
+
+def test_an_answer_that_is_not_a_button_is_a_guest_error(guest, scene):
+    guest.answer_code = 99  # the code the box's thread returns when it closes
+    box = Dialog("Hi", "Quit?")
+    scene.add(box)
+    with pytest.raises(GuestError, match="99"):
+        _ = box.answer
 
 
 def test_dialog_is_an_exported_program():

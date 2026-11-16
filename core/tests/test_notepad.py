@@ -4,10 +4,10 @@ import hashlib
 import json
 
 import pytest
-from art98 import guestfiles
 from art98.actions.programs.notepad import notepad_title
 from art98.anim import Notepad, Scene
-from art98.bridge import Window
+from art98.guest import guestfiles
+from art98.guest.bridge import Window
 from art98.state import StateError, load_state
 from test_picture import (  # noqa: F401  (fake_viewer is an autouse fixture)
     GuestWithFiles,
@@ -237,3 +237,22 @@ def test_a_file_name_the_guest_cannot_take_fails_before_the_guest_is_asked(folde
     Notepad(open=folder / "my caf\u00e9.txt")  # accepted: inner space, cp1252 accent
     with pytest.raises(ValueError, match="control"):
         guestfiles.guest_path(b"x", "a\x01")
+
+
+def test_a_missing_text_file_is_a_missing_file(tmp_path):
+    from art98.errors import MissingFile
+
+    with pytest.raises(MissingFile):
+        Notepad(open=tmp_path / "nope.txt")
+
+
+def test_a_notepad_not_on_stage_says_so():
+    from art98.errors import UsageError
+
+    pad = Notepad()
+    with pytest.raises(UsageError, match="not on stage"):
+        _ = pad.edit_hwnd
+    with pytest.raises(UsageError, match="not on stage"):
+        _ = pad.text
+    with pytest.raises(UsageError, match="not on stage"):
+        pad.close()

@@ -15,3 +15,5 @@ work-*/
 .ruff_cache/
 guest/build/
 out/
+compose.override.yaml
+product-key.txt

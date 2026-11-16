@@ -44,7 +44,7 @@ visible in nearly all desktop shots. No mouse pointer is ever shown: everything 
 | B8 | **Address Book with typed big text** | The window, and a huge thin line of text in its list area | (b): the program is on the image but there is no class. Nothing in the docs says it was ever opened | A `programs/` class for `wab.exe`. The big text is most likely added in editing: see B13 |
 | B9 | **Static desktop icons and taskbar** | My Computer, My Briefcase, Recycle Bin, Internet Explorer, Notepad, two folders, a Start button, quick launch, tray | Built for stock icons and taskbar: `desktop = "stock"` plus `Backdrop` keeps the taskbar and icons on the new colour (`DialogStormStock`) | The custom icons ("My Briefcase", the two folders with their labels) need icons in states (c). Animating or recolouring icons is out of scope |
 | B10 | **Hard cut and black** | Cuts on the beat, black frames | (a): `cut()` and `next_section()`, and the blank desktop is black | Nothing |
-| B11 | **Fixed frame rate** | 24 fps | (a): `fps = 24` on the scene (the class default is 30) | Nothing |
+| B11 | **Fixed frame rate** | 24 fps | (a): `output_fps = 24` on the scene (the class default is 30) | Nothing |
 | B12 | **Scene layout of the screen** | 16:9 | (d) | art98's guest only offers 4:3 modes, and other modes are out of scope. See "Aspect ratio (B12)" below |
 | B13 | **Kinetic lyric type** | Big bold words, one phrase at a time, over the desktop | (d) | Not a Windows program. Do it in the editor over the footage, or with ffmpeg `drawtext`. A real window with a big font would be a new feature and gains little |
 | B14 | **CRT cartoon interludes** | A flat monitor illustration with pixel-font lyrics | (d) | 2D animated artwork, not a desktop. Make it elsewhere and cut it in |
@@ -73,7 +73,7 @@ than a copy.
 ## What is left
 
 Built: `Dialog` with its options (B3 to B7), `Backdrop` (B1), the stock desktop at a new colour
-(B9) and a tiled wallpaper (B2). [examples/dialog_storm](../../examples/dialog_storm/dialog_storm.py)
+(B9) and a tiled wallpaper (B2). [recipes/scenes/dialog_storm](../../recipes/scenes/dialog_storm/dialog_storm.py)
 uses all of them.
 
 Not built, most useful first:

@@ -16,8 +16,7 @@ Subclass it and write `construct`. One scene is one recording.
 
 | Attribute | Meaning |
 | --- | --- |
-| `fps` | Frames per second of the video. Default 30. |
-| `clock` | `"free"`, the only one so far. Anything else raises `NotImplementedError`. |
+| `output_fps` | Frames per second of the finished video: set it to match your edit timeline (24, 30, 60). It is not a capture or run rate. Default 30. |
 | `desktop` | `"blank"`, the default: a black screen with no icons, taskbar or Start menu, and the work area the whole screen. `"stock"`: the Windows 98 desktop as the `ready` snapshot has it. Either is set again after every revert. See [Blank start](../design/blank-start.md). |
 | `pointer_visible` | On a blank desktop, whether the pointer is drawn. Default `False`. It still moves and clicks either way. Paint's tools still draw their own pointer over the canvas. It can't change partway through a scene. The stock desktop always draws it. |
 | `state` | A [state file](#states) to set the desktop to before `setup`. Default `None`, the plain desktop. |
@@ -29,8 +28,9 @@ Subclass it and write `construct`. One scene is one recording.
 | `screen` | The same area as a `Box`, to measure against. |
 | `space` | The [desktop space](#desktop-space): screen, work area, taskbar and metrics, as read from the guest. |
 | `strict_placement` | `False` by default. `True` makes a clamped size or a lost window raise `PlacementError` instead of warning. |
-| `recorder` | The [`Recorder`](bridge.md#recorder) the frames go to. `video` is another name for it. |
-| `time` | Video time in seconds: frames written over `fps`, across every [clip](#clips). It never reads a clock. |
+| `recorder` | The [`Recorder`](bridge.md#recorder) the frames go to. |
+| `sections` | `(name, time)` for each [`next_section`](#clips) so far. |
+| `time` | Video time in seconds: frames written over `output_fps`, across every [clip](#clips). It never reads a clock. |
 
 | Hook | Runs |
 | --- | --- |
@@ -40,6 +40,9 @@ Subclass it and write `construct`. One scene is one recording.
 
 `Scene.render(output=None, *, session, **options)` plays the scene on a session from
 `art98.attach()` and renders from Python. The options are those of [`render`](#rendering).
+
+A scene class that still sets the retired `clock` attribute is refused when the class is
+defined, with a `UsageError` saying why.
 
 ### Stage
 
@@ -56,7 +59,7 @@ revert and again when a state switches the display mode. Props read it through t
 `center()`, `to_corner()` and `title_bar` all use the same numbers.
 
 A scene that changes the desktop with a raw guest call, such as `SPI_SETWORKAREA`,
-`set_display_mode` or a moved taskbar, must call `scene.calibrate()` afterwards. art98 doesn't
+`art98.guest.win32.set_display_mode` or a moved taskbar, must call `scene.calibrate()` afterwards. art98 doesn't
 notice those changes by itself.
 
 #### Placement check
@@ -95,8 +98,9 @@ likes. It reverts the guest to the snapshot it booted from, opens the state's wi
 checks that the guest matches. Props from before are gone, and adding one again opens a new
 window. `prop(id)` is the prop for a window the last state opened.
 
-A relative path is looked for beside the scene's file first, then in the current folder. A file
-path inside a state is relative to the state file.
+A relative path is looked for beside the scene's file first, then in the current folder. If it
+is in neither, `MissingFile` names both places. A file path inside a state is relative to the
+state file.
 
 ```json
 {
@@ -111,13 +115,13 @@ path inside a state is relative to the state file.
 }
 ```
 
-Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256sum examples/mvp/assets/flower.bmp`.
+Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256sum recipes/scenes/mvp/assets/flower.bmp`.
 
 | Field | Meaning |
 | --- | --- |
 | `version` | `1`. The only field that must be there. |
 | `display` | `[width, height, depth]`, a mode the guest's driver offers. Depth is 8, 16, 24 or 32. |
-| `desktop` | `colour` as `[r, g, b]`, and `wallpaper` as a BMP (`file` and `sha256`) with a `style` of `"center"` (the default), `"tile"` or `"stretch"`. Each part is optional, and `style` needs a `wallpaper`. |
+| `desktop` | `fill_colour` as `[r, g, b]` (the plain desktop colour behind the icons and around a centred wallpaper, not the taskbar or selection colour), and `wallpaper` as a BMP (`file` and `sha256`) with a `style` of `"center"` (the default), `"tile"` or `"stretch"`. Each part is optional, and `style` needs a `wallpaper`. The old name `colour` for `fill_colour` is refused. |
 | `windows` | Listed back to front, so the last one is on top. |
 | `id` | The name for `prop(id)`. Each one is used once. |
 | `app` | `"picture"`, a [`Picture`](#picture), or `"notepad"`, a [`Notepad`](#notepad). |
@@ -128,9 +132,27 @@ Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256
 | `pointer` | `[x, y]`, placed last. |
 
 Every mistake in the file is listed at once, as a `StateError`, before the desktop is touched. If
-the guest doesn't match the state afterwards, `StateMismatch` lists each difference. For example,
+the guest doesn't match the state afterwards, `StateMismatch` (a `GuestError`, so a `RuntimeError`, not a `StateError` or `ValueError`) lists each difference. For example,
 Windows won't make a window smaller than 112 x 27, so `"size": [40, 20]` stops with
 `size [40, 20] wanted, the guest has [112, 27]`.
+
+#### Catching art98's errors
+
+Every error art98 raises on purpose (`StateError`, `PlacementError`, `RecorderError`, `BridgeError`
+and the rest) inherits `art98.Art98Error`, so `except art98.Art98Error` catches them all. Each
+also keeps its built-in base, so `except ValueError`, `RuntimeError` and `FileNotFoundError` still
+work. The `art98` command prints any of them as one `error:` line.
+
+- A mistake in what your scene passes to art98, such as an empty `play()` or an unknown icon
+  name, raises `art98.UsageError` (a `ValueError`). A name that isn't there raises
+  `art98.NotFound` (a `UsageError` and a `KeyError`). `StateError` and `PlacementError` are
+  `UsageError`s too.
+- The guest doing something other than expected raises `GuestError` (a `RuntimeError`).
+  `StateMismatch` and `DesktopError` are `GuestError`s. `BridgeError` and `RecorderError` are
+  `Art98Error`s and `RuntimeError`s.
+- A missing file raises `MissingFile` (a `FileNotFoundError`).
+
+A plain exception from your own code, or a plain one from art98, keeps its traceback.
 
 The wallpaper reaches the guest on a CD in drive D:, not through `put_file`, so a 1.4 MB BMP
 costs under a second (see [Desktop colour and wallpaper](#desktop-colour-and-wallpaper)).
@@ -144,18 +166,18 @@ from art98.anim import *
 
 
 class TwoStates(Scene):
-    state = "examples/mvp/states/two_windows.json"
+    state = "recipes/scenes/mvp/states/two_windows.json"
 
     def construct(self):
         flower = self.prop("flower")
         self.play(flower.animate.shift(200 * RIGHT), run_time=2)
-        self.set_state("examples/mvp/states/gallery.json")
+        self.set_state("recipes/scenes/mvp/states/gallery.json")
         self.pause(1)
         self.play(self.prop("picture").animate.shift(100 * DOWN), run_time=2)
 ```
 
 These paths are from the repository's root. The whole sample is
-[examples/mvp](../../examples/mvp/mvp.py), with its states beside it.
+[recipes/scenes/mvp](../../recipes/scenes/mvp/mvp.py), with its states beside it.
 
 ### Playing
 
@@ -164,8 +186,8 @@ These paths are from the repository's root. The whole sample is
 | Parameter | Meaning |
 | --- | --- |
 | `animations` | One or more. They run together, and shorter ones finish early and hold. |
-| `run_time` | Seconds, overriding each animation's own. |
-| `rate_func` | Overrides each animation's own. |
+| `run_time` | Seconds, overriding each animation's own for this `play` only. |
+| `rate_func` | Overrides each animation's own for this `play` only. |
 | `live` | Follow the host clock, so timers in the guest run at video speed. |
 
 Each frame goes like this: work out every animation's state, apply it to the guest, wait for the
@@ -174,7 +196,7 @@ guest to finish painting, capture.
 ![Frame loop](../diagrams/frame-loop.png)
 
 Two animations can't drive the same thing at once. Two pointer actions in one `play`, or two
-`Keys`, raise `ValueError`. Two `.animate` calls on one window are fine.
+`Keys`, raise `UsageError`. Two `.animate` calls on one window are fine.
 
 ```python
 from art98.anim import *
@@ -197,12 +219,11 @@ class Together(Scene):
 | Method | What the guest does | Frames |
 | --- | --- | --- |
 | `pause(duration=1.0)` | Keeps running, unseen | One capture, repeated |
-| `wait(duration=1.0, stop_condition=None, frozen_frame=False)` | Keeps running, seen | Captured at host speed, with no repaint wait |
-| `live(seconds, stop_condition=None)` | Keeps running, seen | Captured at host speed, with no repaint wait |
+| `wait(duration=1.0, stop_condition=None)` | Keeps running, seen | Captured at host speed, with no repaint wait |
 | `wait_until(stop_condition, max_time=60.0)` | Keeps running, seen | Until the condition is true |
 
-Use `pause` for a beat, `wait` to let a caret blink, and `live` for something that moves by
-itself. `wait` is `live` with a default length, and `wait(frozen_frame=True)` is `pause`.
+Use `pause` for a beat, and `wait` to let a caret blink or for something that moves by itself,
+such as a screensaver.
 
 `stop_condition` is a function, tried before each capture. `wait_until` warns if it gives up.
 
@@ -236,7 +257,7 @@ closed.
   `path` given then names the clip to come.
 - `next_section(name)` is `cut()` with a label. It adds `(name, time)` to `sections`, a list of
   the sections so far, and returns what `cut()` returns. The name is only a label: clips stay
-  numbered. An empty name raises `ValueError`.
+  numbered. An empty name raises `UsageError`.
 - `set_state` doesn't cut. For one clip per state, call `cut()` after it.
 - The screen size can't change inside a clip. If a frame has another size from the one before,
   the recorder raises `RecorderError`. Call `cut()` before the `set_state` that switches the
@@ -334,13 +355,19 @@ class Layout(Scene):
 | Member | Meaning |
 | --- | --- |
 | `animate` | Starts an [`Animate`](animations.md#propanimate). |
-| `guest` | The bridge. Raises `RuntimeError` until the prop is on stage. |
+| `guest` | The bridge. Raises `UsageError` until the prop is on stage. |
 | `apply()` | Send changed values to the guest now. |
 | `refresh()` | Read the real position back. |
 | `remove()` | Leave the stage. |
+| `forget()` | Leave the stage without touching the guest. A revert does this to every prop. |
 
 To add a kind of prop, subclass `Win` for a window, or `Prop` for anything else, and override
 `apply`.
+
+A program a [state](#states) can open is a `Win` subclass listed in `APPS`
+(`core/art98/actions/apps.py`), which holds `picture` and `notepad`. It sets `open_keyword` (the
+constructor keyword that takes the state's `open` file), `check_file(data, source)` and
+`default_title(file)`, and inherits `from_state(window)`.
 
 ## Spot
 
@@ -397,10 +424,13 @@ the redraw Windows 98 leaves stale pixels on the frame.
 | `edit_hwnd` | Where typing goes. |
 | `activate()` | Make it the foreground window. |
 | `bring_to_front()` | Raise it without activating. |
+| `maximize()`, `minimize()`, `restore()` | Post `WM_SYSCOMMAND`, as its title bar buttons do, and read the new place back. [`Maximize`, `Minimize` and `RestoreWindow`](animations.md#window-state) call these. |
+| `show` | `"normal"`, `"minimized"` or `"maximized"`, as last read. |
+| `min_size()` | The least outer size the window takes, or `None`. A `size` below it raises `UsageError`. Only `Dialog` gives one. |
 | `close()` | Post `WM_CLOSE`, which is what its X button does. |
 
 `activate` clicks the title bar between two frames, because `SetForegroundWindow` returns 0 when
-the agent calls it. It then puts the pointer back. It raises `RuntimeError` if another window
+the agent calls it. It then puts the pointer back. It raises `GuestError` if another window
 covers the title bar.
 
 Calculator's buttons draw their own faces and have no window text, so this finds them by control
@@ -469,8 +499,8 @@ when it's needed. `image` is a BMP on the host, or `None` for an empty window. T
 first.
 
 The image is checked when the prop is made, so a file that isn't a BMP, or one cut short, raises
-`ValueError` straight away. Windows 98 crashes on a cut-short BMP instead of failing.
-`image_size` is the picture's `(width, height)`.
+`UsageError` straight away. Windows 98 crashes on a cut-short BMP instead of failing.
+`image_size` is the picture's `(width, height)`, or `None` for a window with no image.
 
 Move one with `.animate`, jump it with [`Teleport`](animations.md#teleport), close it with
 `Close`, and open another with `add`.
@@ -509,11 +539,11 @@ The file must be plain text. `title` is optional there too.
 
 ![Typing](../assets/gifs/typing.gif)
 
-Source: [typing.py](../../examples/gallery/typing.py).
+Source: [typing.py](../../recipes/scenes/gallery/typing.py).
 
 ## Paint
 
-`Paint(at=None, size=None)`
+`Paint(*, at=None, size=None)`
 
 Starts `MSPAINT.EXE`. Buttons and the canvas are read from the live window. The tool buttons are
 `ToolChild` windows, found by control id. The palette is the `AfxWnd42` child called `Colors`. So
@@ -538,7 +568,8 @@ every target stays right after the window moves or resizes.
 `periwinkle`, `rose`, `orange`.
 
 Paint doesn't report its canvas size. `canvas_size` finds the edge with `GetPixel`, and that needs
-a blank canvas, so read it before you draw or use `resize_canvas` first.
+a blank canvas, so read it before you draw or use `resize_canvas` first. A canvas bigger than the
+window raises `GuestError`: make the window bigger.
 
 Keep the canvas smaller than the grey area around it. A larger canvas gets scroll bars, and
 `canvas(x, y)` doesn't follow the scroll position. Closing a changed Paint brings up its save
@@ -546,11 +577,11 @@ prompt, which isn't handled.
 
 ![Paint drawing](../assets/gifs/paint-drawing.gif)
 
-Source: [paint_drawing.py](../../examples/gallery/paint_drawing.py).
+Source: [paint_drawing.py](../../recipes/scenes/gallery/paint_drawing.py).
 
 ## Minesweeper
 
-`Minesweeper(at=None, size=None)`
+`Minesweeper(*, at=None, size=None)`
 
 Starts `WINMINE.EXE`. The cell positions come from the client area.
 
@@ -558,8 +589,8 @@ Starts `WINMINE.EXE`. The cell positions come from the client area.
 | --- | --- |
 | `board_size` | `(columns, rows)`. |
 | `cell(column, row)` | `Spot` on a cell. |
-| `find_mines()` | Read the board. Returns the set of mine cells. |
-| `mines` | The result of `find_mines`. |
+| `find_mines()` | Read the board. Returns the set of mine cells (a `frozenset`). |
+| `mines` | The result of `find_mines`, or `None` before it has run. |
 | `neighbours(cell)` | The cells around a cell. |
 | `opened_by(cell)` | The cells a click on this cell opens, by flood fill. |
 | `clear()` | Win the game, with real clicks. Plays its own animations. |
@@ -569,17 +600,23 @@ Starts `WINMINE.EXE`. The cell positions come from the client area.
 every cell with Progman hidden and reads pixel (0, 0). This happens between two frames, so it
 takes no video time. No window may cover the top left corner of the screen.
 
+Read the mines once per game. Typing the cheat again turns it off, so a second `find_mines` finds
+none. Windows 98 moves a mine away from a first click that lands on one, so a set read before the
+first click is out by at most one mine. `clear()` never clicks a mine first, so it is not affected.
+
 ![Minesweeper win](../assets/gifs/minesweeper-win.gif)
 
-Source: [minesweeper_win.py](../../examples/gallery/minesweeper_win.py).
+Source: [minesweeper_win.py](../../recipes/scenes/gallery/minesweeper_win.py).
 
 ## Screensaver
 
 `Screensaver(name="3D Pipes")`
 
-Starts `<name>.scr /s`. Follow it with `self.live(seconds)`, because a screensaver runs by itself.
+Starts `<name>.scr /s`. Follow it with `self.wait(seconds)`, because a screensaver runs by itself.
 `stop(timeout=5.0)` nudges the pointer, which is how a real one is dismissed, and waits for it to
-exit.
+exit, then puts the pointer back where it was. It raises `BridgeTimeout` if the screensaver is
+still running after the timeout. It fills the screen, so `at`, `size` and the other layout calls
+do nothing to it.
 
 `NAMES` lists what works: 3D Flower Box, 3D Flying Objects, 3D Maze, 3D Pipes, 3D Text, Blank
 Screen, Curves and Colors, Flying Through Space, Flying Windows, Mystify Your Mind, Scrolling
@@ -589,13 +626,13 @@ Channel Screen Saver is on the image but left out, because moving the pointer do
 
 ![Screensaver](../assets/gifs/screensaver.gif)
 
-Source: [screensaver.py](../../examples/gallery/screensaver.py).
+Source: [screensaver.py](../../recipes/scenes/gallery/screensaver.py).
 
 ## Backdrop
 
 `Backdrop(colour)` sets the desktop colour in one frame. `colour` is an `(r, g, b)` tuple of ints
 from 0 to 255, or one of `teal`, `red`, `dark_red`, `white`, `black`. Anything else raises
-`ValueError` when you build it. It claims nothing, so it can run beside other animations.
+`UsageError` when you build it. It claims nothing, so it can run beside other animations.
 
 The screen is 16-bit, so Windows rounds the colour to the nearest 5-6-5 value: 128 becomes 120
 and 255 becomes 248. `dark_red` is the flat colour (120, 0, 0), with no dither. On the stock
@@ -646,11 +683,11 @@ same title are fine, such as a storm of `???`.
 | `icon` | `None`, a stock key, a custom key, or a `(dll, index)` pair. See below. |
 | `buttons` | `"ok"`, `"okcancel"`, `"abortretryignore"`, `"yesnocancel"`, `"yesno"`, `"retrycancel"` |
 | `at` | The top left corner. Default: where Windows puts it. |
-| `size` | The outer `(width, height)`. Must not be smaller than the stock box, or `ValueError`. |
+| `size` | The outer `(width, height)`. Must not be smaller than the stock box, or `UsageError`. |
 | `disabled` | `True` greys every button. |
 
 The stock icon keys are `"error"`, `"question"`, `"warning"` and `"info"`. An unknown key
-raises `ValueError`. The custom keys are icons from the guest's own files, each seen in a real
+raises `UsageError`. The custom keys are icons from the guest's own files, each seen in a real
 box:
 
 | Key | File | Index |
@@ -664,23 +701,27 @@ box:
 | `"flag"` | `C:\WINDOWS\SYSTEM\user.exe` | 0 |
 
 `icon=(r"C:\WINDOWS\SYSTEM\shell32.dll", 15)` names any other icon the same way. A file or index
-with no icon raises `ValueError`. The icon is drawn 32 x 32 in the box's icon slot.
+with no icon raises `UsageError`. The icon is drawn 32 x 32 in the box's icon slot.
 
 `size` resizes the box from its top left corner, then lays the buttons out again (75 x 23, in a
 row, centred at the bottom) and widens the text. With `at`, the box grows right and down from
 `at`.
 
 `set_message(text)` changes the text at once, with no residue. Newlines make lines of about 15
-pixels each. It raises `ValueError` if the new text would reach the buttons: give the Dialog a
+pixels each. It raises `UsageError` if the new text would reach the buttons: give the Dialog a
 bigger `size`. `button(label)` gives a button as a `Win`. `answer` is the lower-case name of the
 button pressed, and it waits for the box to close.
 
-A Yes/No box ignores the close that its title bar sends, so `close()` doesn't shut it. Click one of its
-buttons.
+The text and the title must fit Windows 1252. Other characters raise `UsageError` rather than
+showing as `?`.
+
+A Yes/No or Abort/Retry/Ignore box has no Cancel button, and it ignores the close that its title
+bar sends. So `close()` doesn't shut it. `remove()` presses its No or Abort button, and then
+destroys the custom icon. It raises `GuestError` if the box is still open after 5 seconds.
 
 ![Hover and dialog](../assets/gifs/hover-dialog.gif)
 
-Source: [hover_dialog.py](../../examples/gallery/hover_dialog.py).
+Source: [hover_dialog.py](../../recipes/scenes/gallery/hover_dialog.py).
 
 ```python
 from art98.anim import *
@@ -728,8 +769,11 @@ art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
 
 ### Python
 
-`render(scene, output=None, *, session, gif=None, gif_fps=15, gif_colors=128, gif_scale=1.0,
-gif_dither="none", keep_clips=True)`
+`render(scene, output=None, *, session, gif=None, gif_options=None, keep_clips=True)`.
+`output` must end in `.mp4` or `.gif`, and `gif` in `.gif`; anything else raises `UsageError` before
+anything is recorded. `gif_options` is a `GifOptions(fps=15, colors=128, scale=1.0, dither="none")`
+(`from art98.anim import GifOptions`); `None` means its defaults. It replaces the old `gif_fps`,
+`gif_colors`, `gif_scale` and `gif_dither` arguments, which are gone.
 
 `scene` is a class or an instance. `session` is required: take one with `art98.attach()`. Render
 never boots or closes it. Returns the path written. `keep_clips` is for scenes that [cut](#clips). A scene that records no frames raises
@@ -738,7 +782,7 @@ never boots or closes it. Returns the path written. `keep_clips` is for scenes t
 A render does not copy the image. It plays on the VM that `art98 vm start` runs, from its copy
 under `work/runs/vm-*`. One render runs at a time. See [`ready` snapshot](../glossary.md).
 
-`write_gif(source, output, fps=15, colors=128, scale=1.0, dither="none")` converts a video to a
+`art98.output.gif.write_gif(source, output, options=GifOptions())` converts a video to a
 GIF with `palettegen` and `paletteuse`.
 
 A video goes through 4:2:0 H.264, which smears 1-pixel coloured text. A GIF comes from a lossless

@@ -1,5 +1,9 @@
+import re
+from pathlib import Path
+
 import pytest
-from art98.protocol import (
+from art98.guest.protocol import (
+    PROTOCOL_VERSION,
     FrameError,
     Out,
     crc16,
@@ -8,6 +12,12 @@ from art98.protocol import (
     parse_values,
     unframe,
 )
+
+
+def test_host_and_agent_speak_the_same_protocol_version():
+    agent = Path(__file__).resolve().parents[2] / "guest/call_proxy/agent.c"
+    version = re.search(r"#define PROTOCOL_VERSION (\d+)", agent.read_text())
+    assert version and int(version[1]) == PROTOCOL_VERSION
 
 
 def test_crc_matches_ccitt_false_check_value():
@@ -27,6 +37,12 @@ def test_bad_frames_are_rejected(line):
 def test_encode_request_covers_every_argument_kind():
     line = encode_request(3, "CALL", ("user32", -1, None, True, b"\xab\x01", Out(16)))
     assert unframe(line[:-1]) == b'3 CALL "user32" 4294967295 0 1 #ab01 &16'
+
+
+@pytest.mark.parametrize("value", [2**32, -(2**31) - 1])
+def test_numbers_outside_32_bits_are_refused(value):
+    with pytest.raises(ValueError, match="32 bits"):
+        encode_request(1, "CALL", ("user32", value))
 
 
 def test_strings_escape_quotes_backslashes_and_controls():

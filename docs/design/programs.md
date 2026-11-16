@@ -9,7 +9,9 @@ the [state and action design](state-and-action.md).
 ## What a program class is
 
 One Python class per program. It starts the program on the guest, finds its window, and holds the
-verbs that drive it (`text`, `set_text`, `close`). A scene adds it as a prop, and a state file names
+verbs that drive it. `Win` already has the common ones (`maximize`, `minimize`, `restore`, `close`,
+`text` and `set_text` on `edit_hwnd`, `title_bar`, `corner`, `client`). A program adds what is
+its own, such as `Notepad`'s `edit_hwnd` and a `close` with no save prompt. A scene adds it as a prop, and a state file names
 it with `app`.
 
 ## Where it lives
@@ -21,7 +23,7 @@ The layers are Action, then Window, then programs.
 | Action | `core/art98/actions/` | The base: anything the scene can do on screen. |
 | Window | `core/art98/actions/window/win.py` | `Win`: start a command, find the window, move, size, close. |
 | Programs | `core/art98/actions/programs/` | One file per stock Windows program, `notepad.py`, `paint.py`, `minesweeper.py`, `screensaver.py` and `dialog.py`. |
-| art98's own | `core/art98/actions/window/picture.py` | `Picture`, the window for VIEW.EXE. |
+| art98's own | `core/art98/actions/programs/picture.py` | `Picture`, the window for VIEW.EXE. |
 
 A program is one file, or one folder once it needs more than one. Docs, outputs and experiments stay
 out of these folders.
@@ -32,11 +34,11 @@ These matter only for a program that can appear in a state file (today `picture`
 
 | Hook | Where | What it does |
 | --- | --- | --- |
-| `from_state(window)` | the class | Builds the prop from one parsed window of a state file. |
-| `APPS` | `core/art98/anim/setstate.py` | The one list: `{"picture": Picture, "notepad": Notepad}`. A state's `app` must be a key. |
+| `from_state(window)` | `Win`, inherited | Builds the prop from one parsed window of a state file: the file's `open` goes to the constructor keyword `open_keyword` names. `show` is applied by `setstate` after the prop is added. |
+| `APPS` | `core/art98/actions/apps.py` | The one list: `{"picture": Picture, "notepad": Notepad}`. A state's `app` must be a key. |
 | title rule | `core/art98/state.py` | The exact title-bar text, used as the default `title` and checked after Set. |
 
-`state.programs()` reads `APPS`, so adding a key there makes the name valid in a state file.
+`state.py` reads `APPS`, so adding a key there makes the name valid in a state file. Each class also has a `check_file` that checks a state's `open` file, a `default_title`, and an `open_keyword`. `Win` declares `check_file` and `default_title`, which raise `NotImplementedError` until a program sets them, and `open_keyword`, which is `None`.
 
 **The title rule.** After Set, the guest's window title must equal the state's `title` exactly.
 When the state gives none, `state.py` fills in a default.
@@ -55,9 +57,10 @@ The Notepad rule is the function `notepad_title(file)` in `notepad.py`. Confirme
 
 `Dialog` (`actions/programs/dialog.py`) is a program of a different kind: Windows draws the box
 itself, from a `MessageBoxA` call on a guest thread of the agent. It has no command line and no
-file, so it has no `from_state`. A scene adds it in `construct`. It takes an `icon` (stock, one of
+file, so it has no `open_keyword` and can't be built from a state. A scene adds it in `construct`. It takes an `icon` (stock, one of
 seven custom icons, or a `(dll, index)` pair), `buttons`, `size`, `disabled` and `set_message`.
-The options are in the [Scene API](../scenes/scene-api.md#dialog), and the probes behind them are
+`remove` closes the box whatever its buttons: one with no Cancel (`yesno`, `abortretryignore`) ignores
+`WM_CLOSE`, so `remove` presses its No or Abort button instead. The options are in the [Scene API](../scenes/scene-api.md#dialog), and the probes behind them are
 in [experiments/dialog-storm](https://github.com/StanLukuvka/98artware/blob/dev/experiments/dialog-storm/README-p1.md).
 
 Two things are worth knowing if you build a program like it. Every box is a window of the same
@@ -75,6 +78,19 @@ cropped. If the viewer crashes anyway, `Picture` sees Windows' crash dialog and 
 instead of waiting 15 s. Why art98 has its own viewer:
 [decision 11](decisions.md#11-a-picture-viewer-of-art98s-own). The options are in the
 [Scene API](../scenes/scene-api.md#picture).
+
+## What `Win` gives a program
+
+A few hooks are worth knowing when you write one:
+
+- `ready()` runs once the window exists and is placed. Find child controls here, as `Notepad` and
+  `Paint` do.
+- `min_size()` returns the least outer size the window takes, or `None`. A `size` below it raises
+  `UsageError` before anything moves (`Dialog` uses it).
+- `forget()` runs after a revert, when the window is gone. Clear any handle the class kept.
+- `from_state(window)` builds the prop for a state's window; see above.
+- The constructors of `Paint` and `Minesweeper` are `(*, at=None, size=None)`: no title, since
+  neither is found by it.
 
 ## What `app` and `open` mean
 

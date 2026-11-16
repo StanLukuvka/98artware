@@ -16,6 +16,7 @@ import struct
 import time
 
 from art98 import Out, attach
+from art98.guest import win32
 
 WM_CLOSE, WM_SETTEXT, WM_GETTEXT, WM_COMMAND, WM_CHAR = 0x10, 0x0C, 0x0D, 0x111, 0x102
 WM_SYSCOMMAND, WM_LBUTTONDOWN, WM_LBUTTONUP = 0x112, 0x201, 0x202
@@ -93,14 +94,30 @@ while u.IsWindow(pad.hwnd):
     time.sleep(0.05)
 ```
 
+### Wait for any condition
+
+`wait_for(look, timeout, poll)` calls `look` until it returns something other than `None`, and
+returns that, or `None` after `timeout` seconds. It does not raise.
+
+```python
+from art98.guest.bridge import wait_for
+
+g.spawn("notepad.exe")
+pad = g.find_window(class_name="Notepad")
+u.PostMessageA(pad.hwnd, WM_CLOSE, 0, 0)
+closed = wait_for(lambda: True if not u.IsWindow(pad.hwnd) else None, 3.0, 0.05)
+assert closed
+```
+
 ### Move and resize
 
-Use `move_window` for moves.
+Use `win32.place_window` for moves. It calls `SetWindowPos`, then repaints the window, because a
+plain move leaves stale pixels on the frame on Windows 98.
 
 ```python
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
-g.move_window(pad.hwnd, 100, 80)
+win32.place_window(g, pad.hwnd, 100, 80, 0, 0, win32.SWP_NOSIZE | win32.SWP_NOZORDER)
 u.SetWindowPos(pad.hwnd, 0, 0, 0, 400, 300, 0x0006)  # SWP_NOMOVE | SWP_NOZORDER
 assert g.find_window(class_name="Notepad").rect == (100, 80, 500, 380)
 u.MoveWindow(pad.hwnd, 50, 50, 300, 200, 1)
@@ -274,7 +291,7 @@ any capture.
 ```python
 g.spawn("notepad.exe")
 pad = g.find_window(class_name="Notepad")
-g.move_window(pad.hwnd, 150, 100)
+win32.place_window(g, pad.hwnd, 150, 100, 0, 0, win32.SWP_NOSIZE | win32.SWP_NOZORDER)
 g.sync(pad.hwnd)
 vm.screenshot("moved.png")
 ```
@@ -1116,7 +1133,8 @@ assert u.CallWindowProcA(address, 0, 0, 0, 0).value > 0
 
 ## Display modes
 
-`set_display_mode` takes a mode the Cirrus driver offers. The change needs no reboot. The modes are:
+`win32.set_display_mode` takes a mode the Cirrus driver offers. The change needs no reboot. It
+raises `BridgeError` if the driver has no such mode. The modes are:
 
 | Width x height | Depths |
 | --- | --- |
@@ -1126,13 +1144,13 @@ assert u.CallWindowProcA(address, 0, 0, 0, 0).value > 0
 | 1280 x 1024 | 8 |
 
 ```python
-g.set_display_mode(1024, 768, 16, persist=False)
+win32.set_display_mode(g, 1024, 768, 16, persist=False)
 assert u.GetSystemMetrics(0).value == 1024
-g.set_display_mode(800, 600, 8, persist=False)
+win32.set_display_mode(g, 800, 600, 8, persist=False)
 screen = u.GetDC(0).value
 assert gdi.GetDeviceCaps(screen, 12).value == 8  # BITSPIXEL
 u.ReleaseDC(0, screen)
-g.set_display_mode(800, 600, 16, persist=False)
+win32.set_display_mode(g, 800, 600, 16, persist=False)
 ```
 
 `persist=True`, the default, writes the mode to the registry. Program exits that restore "the
@@ -1155,8 +1173,8 @@ while True:
 assert len(modes) == 9 and (1280, 1024, 8) in modes
 ```
 
-Screen captures follow the mode. A video keeps the size of its first frame, so ffmpeg scales later
-frames to fit.
+Screen captures follow the mode. Every frame of a clip must have the same size, so a recorder
+raises `RecorderError` when the screen changes size inside a clip. Call `cut()` before the change.
 
 ## Screensavers
 

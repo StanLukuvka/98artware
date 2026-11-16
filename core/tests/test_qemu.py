@@ -7,10 +7,10 @@ import time
 from pathlib import Path
 
 import pytest
-from art98 import disc
-from art98.guestfiles import guest_build
-from art98.qemu import QEMU_BINARY, VM, QemuError, VMConfig
-from art98.recorder import ppm_size
+from art98.guest import disc
+from art98.guest.guestfiles import guest_build
+from art98.guest.qemu import QEMU_BINARY, VM, QemuError, VMConfig
+from art98.output.recorder import ppm_size
 from art98.session import Session
 from art98_setup import builder
 from art98_setup import vm as vm_step
@@ -70,11 +70,11 @@ def test_blank_partition_gets_a_message_rather_than_a_hang(tmp_path):
     with VM(VMConfig(disk=path, disk_format="raw")) as vm:
         deadline = time.monotonic() + 15
         text = b""
-        while time.monotonic() < deadline and b"no bootable partition" not in text:
+        while time.monotonic() < deadline and b"Missing operating system" not in text:
             time.sleep(0.25)
             vm.qmp.execute("pmemsave", val=0xB8000, size=4000, filename=str(dump))
             text = dump.read_bytes()[::2]
-    assert b"art98: no bootable partition" in text
+    assert b"Missing operating system" in text
 
 
 def test_guest_reboot_ends_the_vm(disk):
@@ -114,12 +114,6 @@ def test_snapshot_failures_are_raised(disk):
             vm.load_snapshot("missing")
 
 
-def test_software_emulation_with_virtual_clock(disk):
-    config = VMConfig(disk=disk, disk_format="raw", icount_shift=3)
-    with VM(config) as vm:
-        assert MESSAGE in serial_output(vm.serial_path, MESSAGE)
-
-
 def settled(vm, tmp_path, quiet=1.0, timeout=30.0) -> None:
     """Wait until the screen size has not changed for `quiet` seconds (BIOS 640x480 -> 720x400)."""
     shot, last, since = tmp_path / "probe.ppm", None, time.monotonic()
@@ -150,7 +144,7 @@ def test_recorder_writes_exactly_the_requested_frames(disk, tmp_path):
     with VM(VMConfig(disk=disk, disk_format="raw")) as vm:
         settled(vm, tmp_path)
         session = Session(vm, bridge)
-        with session.record(video, fps=10) as recorder:
+        with session.record(video, output_fps=10) as recorder:
             recorder.frame()
             recorder.frame(hold=4)
             recorder.live(0.3)
@@ -190,9 +184,7 @@ def test_broken_config_reports_the_failure(tmp_path):
 
 
 def test_config_survives_json(tmp_path):
-    config = VMConfig(
-        disk=tmp_path / "d.qcow2", machine="pc-i440fx-10.2", icount_shift=2
-    )
+    config = VMConfig(disk=tmp_path / "d.qcow2", machine="pc-i440fx-10.2")
     assert VMConfig.from_json(config.to_json()) == config
 
 

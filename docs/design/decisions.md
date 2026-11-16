@@ -39,7 +39,7 @@ speed, even though setup takes 20 to 40 minutes. Software emulation behaves the 
 and needs no `/dev/kvm` or extra privileges in a container. It also avoids two Windows 98
 problems: under KVM on a recent CPU, Windows 9x hits a TLB bug that needs a patched VMM, and on a
 fast processor it hits timing bugs that an emulated Pentium III keeps it away from. The machine
-is fixed too (`VMConfig` in `qemu.py`): a Pentium III with 128 MB, a Cirrus card, a guest clock
+is fixed too (`VMConfig` in `guest/qemu.py`): a Pentium III with 128 MB, a Cirrus card, a guest clock
 that starts at the same moment in 1998 and runs on VM time, and no network card, so nothing can
 reach the guest from outside. The sync makes each
 frame show a finished repaint instead of whatever the screen held at that instant. Measured: the
@@ -49,8 +49,8 @@ slower, with the same frames.
 
 **What follows.** What the script drives lands on exact frames. What the guest times for itself
 (caret blinks, tooltips, screensavers) follows the host clock, so those can differ between runs.
-Only the `free` clock exists; the stricter clocks would need more from the agent than it does
-today. See
+The guest is never paused between frames, and a stricter model would need more from the agent
+than it does today. See
 [Time](../scenes/README.md#time).
 
 **For new work.** Anything that changes the screen goes through a frame that syncs. Don't add a
@@ -124,7 +124,9 @@ work folder. Never save a snapshot over `ready`; the VM service refuses `save_sn
 **Decision.** QEMU, the setup tools and the guest programs live in one container image built from
 `setup/Dockerfile`. The host keeps the scene, the bridge, the recorder and ffmpeg. The container
 relays the agent's serial protocol to the host byte for byte, and answers a small JSON control
-channel for screenshots, keys, revert, pause and the CD. art98 calls only the `docker` command.
+channel for screenshots, keys, revert, pause and the CD. How the containers run is a committed
+`compose.yaml`; art98 calls only `docker compose` (or `ART98_ENGINE compose`), with the user's
+own `compose.override.yaml` for their key, disc and VNC.
 
 **Why.**
 
@@ -137,18 +139,25 @@ channel for screenshots, keys, revert, pause and the CD. art98 calls only the `d
   and QEMU writes each screenshot into it. That brought a frame to 6.8 to 7.0 ms against 5.6 to
   6.3 ms on host QEMU. Loopback TCP stays for hosts where a Unix socket can't cross into the
   container, such as Docker Desktop. See [Timing](container.md#timing).
-- **One engine path.** Podman works through `podman-docker`, so there is one code path. The
-  container itself decides who owns the files it writes, by reading its uid map, so rootful
+- **One engine path, written down once.** Podman works through `podman-docker` and the same
+  docker-compose plugin (`podman compose` hands over to it), so there is one code path. The
+  mounts, secrets, ports and healthcheck are in `compose.yaml`, which a user can read and run
+  without art98, instead of in argv built by hand. art98 keeps what compose can't do: making the
+  token, choosing the transport and the socket folder, prompting for the key, and checking the
+  `ready` snapshot and the agent ([the probe](https://github.com/StanLukuvka/98artware/blob/dev/experiments/compose/README.md)).
+  The container itself decides who owns the files it writes, by reading its uid map, so rootful
   Docker and rootless Podman both leave `work/` owned by you.
-- **Nothing personal in an image.** The disc and `work/` are bind-mounted, and the product key
-  and VM token are files mounted read-only. So an image holds only programs and can be shared,
+- **Nothing personal in an image or the repo.** The disc and `work/` are bind-mounted, and the
+  product key and VM token are compose secrets, files mounted read-only. The key, the disc path
+  and VNC live in the gitignored `compose.override.yaml`. So an image holds only programs and can be shared,
   and the token never shows in `docker inspect`. (Windows 98 product keys are public; the real
   secret is the token.)
 
 **For new work.** Keep the host's view of the VM to the methods `RemoteVM` has. A new control op
-goes in `serve.py` and `RemoteVM` together, with a test in `test_container.py`, and must keep
-working for an older image (as `eject_disc` is only sent when a disc was inserted). Never publish
-the control port beyond loopback: the agent runs any Win32 call it is given. Anything that runs
+goes in `container/serve.py` and `RemoteVM` (`container/host.py`) together, with a test in `test_container.py`, and must keep
+working for an older image (as `eject_disc` is only sent when a disc was inserted). A new mount,
+port or variable goes in `compose.yaml`, not in Python. Never publish the control port beyond
+loopback in a committed file: the agent runs any Win32 call it is given. Anything that runs
 in the container is in the image, so a change to `core/art98` that `serve` uses needs
 `art98 up --rebuild`. See [Container](container.md).
 
@@ -167,8 +176,8 @@ clean up: a render killed with `kill -9` left the next attach working in about 0
 release the server drops the relay, ejects the disc, pauses the VM and frees the lock last, so
 the next client never races the cleanup. Pausing matters because an idle Windows 98 under software
 emulation keeps a whole CPU core busy. Fixed ports make a clash an error you can see instead of
-a silent fallback. On disk it needs only `work/vm.token` and
-`work/vm.cid`. The token can live outside `work/` (`[vm] token_file`), so
+a silent fallback. On disk it needs only `work/vm.token`; compose finds the container by its
+project, one per work folder. The token can live outside `work/` (`[vm] token_file`), so
 a client in another container needs only that file and a small `art98.toml`, never `work/`
 ([how](../setup/config.md#attach-from-another-container)).
 
@@ -180,8 +189,9 @@ a minute; the Unix socket, the default on Linux, frees it at once.
 **For new work.** Anything that drives the guest takes a session from `art98.attach()` and
 releases it with `with`. Don't add a path that boots its own VM for renders or tests. A test that
 needs the VM uses the `attached`/`booted` helpers in `test_stage.py` so a failure never holds the
-lock. New settings go in `art98.toml` with a default in `settings.py`, documented in
-[Configuration](../setup/config.md). See [The VM service](container.md#the-vm-service).
+lock. New settings that clients need go in `art98.toml` with a default in `settings.py`; how a
+container runs goes in `compose.yaml`. Each has one home, listed in
+[Configuration](../setup/config.md#where-each-setting-lives). See [The VM service](container.md#the-vm-service).
 
 ## 7. States are static and hand-written; actions are free Python
 
@@ -208,7 +218,7 @@ after that is **actions**: free Python in `construct`, with no limits and no JSO
 
 **What follows.** A script is ordinary Python, so how many states or videos it uses is up to it;
 art98 has no "video" or "project" concept. The programs a state can open are one list, `APPS` in
-`anim/setstate.py` (today `picture` and `notepad`).
+`actions/apps.py` (today `picture` and `notepad`).
 
 **For new work.** A new state field is read and fully checked in `state.py`, applied in
 `apply_state`, and verified in `check_state`, in that order (see
@@ -219,7 +229,7 @@ result. See [State and action design](state-and-action.md) and [States](../scene
 
 **Decision.** Scenes look like Manim scenes: a `Scene` with `construct`, `play`, `add`, `remove`
 and `wait`, animations that `interpolate(alpha)` under a `rate_func`, `.animate`, the group
-animations, and frames counted as `run_time × fps`. Names match Manim's wherever the meaning
+animations, and frames counted as `run_time × output_fps`. Names match Manim's wherever the meaning
 matches. Units are screen pixels with y running down, so `UP` is `(0, -1)`.
 
 **Why.** Manim is the best-known way to script animations in Python, and people who know it
@@ -240,12 +250,13 @@ Every public name in `art98.anim` must be documented in [Scene API](../scenes/sc
 
 | Layer | Folder | Holds |
 | --- | --- | --- |
-| Entry point | `anim/` | What scripts import: `Scene`, `render`, and the state and timeline helpers `Scene` calls |
-| Actions | `actions/` | One family per folder or file: `pointer.py`, `keyboard.py`, `backdrop.py`, `window/` (`Win`, its commands, `Menu`, `Picture`), and `programs/` under it |
-| Building blocks | `base/` | `Animation` and groups, rate functions, vectors, `Box`, `Prop`, `Spot`, `DesktopSpace` |
-| Guest helpers | `win32.py` | Win32 constants and small named guest reads |
-| Transport | `bridge.py`, `protocol.py` | The agent protocol, and nothing else |
-| Machine | `session.py`, `service.py`, `container/`, `qemu.py`, `recorder.py` | The VM, revert, capture, the recorder |
+| Entry point | `anim/` | What scripts import: `Scene`, `render`, and the state code `Scene` calls (`setstate.py`) |
+| Actions | `actions/` | One family per folder or file: `pointer.py`, `keyboard.py`, `backdrop.py`, `apps.py` (`APPS`), `window/` (`Win`, its commands, `Menu`), and `programs/` under it, `Picture` included |
+| Building blocks | `base/` | `Animation` and groups, rate functions, vectors, units, `Box`, `Prop`, `Spot`, `DesktopSpace` |
+| Guest | `guest/` | `bridge.py` and `protocol.py` (the agent protocol, and nothing else), `win32.py` (Win32 constants and small named guest reads), `qemu.py`, `guestfiles.py`, `disc.py` |
+| Output | `output/` | `recorder.py` and `gif.py`: frames to clips, clips to files |
+| Container | `container/` | `service.py`, `host.py`, `serve.py`, `compose.py`, `entry.py`, `freshness.py`: the VM service and its link to the container |
+| Top level | `art98/` | `session.py` (a VM and a bridge, revert), `state.py`, `desktop.py`, `settings.py`, `errors.py`, `cli.py` |
 
 Programs are action classes: one file per program in `actions/programs/`, each a subclass of
 `Win`. Docs, render output and experiments are kept apart (`docs/`, `out/`, and
@@ -256,8 +267,9 @@ clear which code talks to the guest.
 
 **For new work.** A new program is `actions/programs/<name>.py`, subclassing `Win`; a new kind of
 action that is not a window gets its own file or folder in `actions/`. A constant or a guest
-read used twice goes in `win32.py`. Nothing goes in a shared grab-bag module, and when something
-moves, the old import path goes too: no compatibility shims. See [Programs](programs.md).
+read used twice goes in `guest/win32.py`. Nothing goes in a shared grab-bag module, and when something
+moves, the old import path goes too: no compatibility shims. The one exception is
+`art98/legacy.py`, which keeps old names alive for the Hermes agent plugin only; scene code and docs use the current names. See [Programs](programs.md).
 
 ## 10. Only base Windows 98 SE, video only
 
@@ -360,7 +372,7 @@ and far slower on a busy one (about 12 KB/s was measured), so a full-screen BMP 
 takes under a second for 1.4 MB and leaves the image unchanged. Putting the images on the image
 itself would change prep and `ready`.
 
-**For new work.** Small files (programs, text, small BMPs) go through `guestfiles.ensure`, named by
+**For new work.** Small files (programs, text, small BMPs) go through `guestfiles.ensure` (`guest/guestfiles.py`), named by
 content hash so a file already there isn't copied again. Anything large goes on the CD. See
 [Desktop colour and wallpaper](state-and-action.md#desktop-colour-and-wallpaper).
 
@@ -371,7 +383,7 @@ The `art98` package has no runtime Python dependencies; pytest, pycdlib and ruff
 The licence is MIT.
 
 **Why.** The audience is people who clone the repository and follow the README. A checkout keeps
-the examples, docs and guest sources next to the code, and no dependencies means nothing to break
+the recipes, docs and guest sources next to the code, and no dependencies means nothing to break
 or audit. The container image installs the same packages from the same checkout. MIT is short,
 well known, and what Manim uses; QEMU's GPL doesn't reach art98, which only runs QEMU as a
 separate program.
@@ -392,7 +404,7 @@ that matters. The scene line points at the user's own code. Stale builds caused 
 failures, so they are flagged before a render.
 
 **For new work.** Give a user-facing failure its own exception class with a message that says
-what to do next (for example "run `art98 vm start`"), and add it to `RUN_ERRORS` in `cli.py`.
+what to do next (for example "run `art98 vm start`"), and make it inherit `Art98Error` (`art98/errors.py`), which `cli.py` catches. A scene author's mistake is a `UsageError` (a `ValueError`; `NotFound` is also a `KeyError`), a guest that did something unexpected is a `GuestError` (a `RuntimeError`), and a missing file is a `MissingFile` (a `FileNotFoundError`). `test_errors.py` fails on an error that doesn't.
 `test_cli.py` checks the exact stderr.
 
 ## 18. Measure on the real image, keep the probes
@@ -429,9 +441,8 @@ and move its callers. Write a `lazy:` comment for a known shortcut, with its lim
 
 | Idea | Status |
 | --- | --- |
-| Updaters (`add_updater`), Manim's render cache, a camera | Not built. `live()` and `wait_until` watch the guest instead; zoom or pan would be a post-process |
+| Updaters (`add_updater`), Manim's render cache, a camera | Not built. `wait` and `wait_until` watch the guest instead; zoom or pan would be a post-process |
 | `FadeIn`, `FadeOut` | Not possible honestly: Windows 98 has no window opacity |
-| The `frozen`, `stepped` and `locked` clocks | Not built; they need agent support |
 | Holding the desktop after a render so more actions can run without a restore | Designed in [state and action](state-and-action.md#holding), not built. The VM is paused at the last frame, and the next attach reverts |
 | `--section` | Not built; sits on top of `next_section` |
 | Desktop icons and the tray in a state, `Dialog` in a state | Not built |

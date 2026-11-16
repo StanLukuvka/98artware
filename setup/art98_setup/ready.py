@@ -2,8 +2,8 @@
 
 Applies HARDEN_SETTINGS (quiet, fast, deterministic), clears everything that
 starts on its own, sets the display mode, reboots, waits for a still screen,
-checks the desktop is clean and saves the `ready` snapshot. Future "blank start"
-settings belong here.
+checks the desktop is clean and saves the `ready` snapshot. The blank start is
+not part of it: it is applied at run time (core/art98/desktop.py).
 """
 
 from __future__ import annotations
@@ -13,9 +13,10 @@ import json
 import struct
 import time
 
-from art98.bridge import Bridge, BridgeError
-from art98.protocol import Out
-from art98.qemu import VM
+from art98.guest.bridge import Bridge, BridgeError
+from art98.guest.protocol import Out
+from art98.guest.qemu import VM
+from art98.guest.win32 import HKCU, HKLM, REG_BINARY, REG_SZ, set_display_mode
 from art98.session import IMAGE_FILE, SNAPSHOT
 
 from .builder import AGENT_RUN_VALUE, Setup, SetupError
@@ -24,10 +25,6 @@ DISPLAY_MODE = (800, 600, 16)
 KEPT_RUN_VALUES = {AGENT_RUN_VALUE.lower(), "systemtray"}
 SETTLE_SECONDS = 30
 
-HKCU = 0x80000001
-HKLM = 0x80000002
-REG_SZ = 1
-REG_BINARY = 3
 
 RUN_KEYS = [
     (HKLM, r"Software\Microsoft\Windows\CurrentVersion\Run"),
@@ -100,20 +97,20 @@ def wait_for_quiet_screen(setup: Setup, vm: VM, label: str) -> None:
 
 
 def harden(setup: Setup) -> None:
-    config = setup._config()
+    config = setup.config()
     with (
-        VM(config, log=setup._vm_log()) as vm,
+        VM(config, log=setup.vm_log()) as vm,
         Bridge.connect(vm.serial_path) as bridge,
     ):
-        setup._require_agent(vm, bridge, "harden")
+        setup.require_agent(vm, bridge, "harden")
         apply_settings(bridge)
-        bridge.set_display_mode(*DISPLAY_MODE)
-        setup._reboot(vm, bridge)
+        set_display_mode(bridge, *DISPLAY_MODE)
+        setup.reboot(vm, bridge)
     with (
-        VM(config, log=setup._vm_log()) as vm,
+        VM(config, log=setup.vm_log()) as vm,
         Bridge.connect(vm.serial_path) as bridge,
     ):
-        setup._require_agent(vm, bridge, "reboot")
+        setup.require_agent(vm, bridge, "reboot")
         wait_for_quiet_screen(setup, vm, "ready")
         verify_desktop(bridge)
         vm.pause()
@@ -124,6 +121,7 @@ def harden(setup: Setup) -> None:
 
 
 def run(setup: Setup) -> None:
+    """The step entry point: Setup imports this module and calls run(setup) by name."""
     harden(setup)
 
 

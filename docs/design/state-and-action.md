@@ -27,12 +27,11 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
 ```json
 {
   "version": 1,
+  "display": [800, 600, 16],
   "desktop": {
-    "colour": [128, 0, 0],
+    "fill_colour": [128, 0, 0],
     "wallpaper": {"file": "assets/clouds.bmp", "sha256": "..."},
-    "style": "tile",
-    "icons": {"My Computer": [8, 8], "Recycle Bin": [8, 80]},
-    "tray": ["volume"]
+    "style": "tile"
   },
   "windows": [
     {
@@ -42,7 +41,6 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
       "at": [10, 10],
       "size": [640, 480],
       "show": "normal",
-      "focus": true,
       "open": {"file": "assets/flower.bmp", "sha256": "..."}
     }
   ],
@@ -56,19 +54,22 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
   default state: blank Paint, an untitled Notepad, a new Minesweeper game.
 - Files sit beside the state and are referenced by path and hash, never embedded in the JSON.
 - One Python schema defines the fields, and a state is validated on load. Unknown fields fail.
-- `app` maps to a prop class through `APPS`. See [Programs](programs.md).
+- `app` maps to a prop class through `APPS` in `actions/apps.py`. See [Programs](programs.md).
 - States are always written with fixed key order, so diffs stay clean and hashes are stable.
 
 The schema starts small, with display, windows and pointer. Other fields join once they pass
-their tests. `desktop` has `colour`, `wallpaper` and `style` (below). `icons`,
-`tray` and `focus` are rejected as "not supported yet" until they pass theirs. A window has
+their tests. `show` is `normal`, `minimized` or `maximized`. `desktop` has `fill_colour`, `wallpaper` and `style` (below). Desktop `icons` and
+`tray`, and a window's `focus`, are rejected as "not supported yet" (the last window is the active
+one) until they pass theirs. A window has
 `at` and the outer `size` instead of a rect, the same way `Win(at=..., size=...)` takes them.
 
 ### Desktop colour and wallpaper
 
 The schema is the one above, and each part is optional:
 
-- `colour` is `[r, g, b]`, 0 to 255. The guest is 16-bit, so it shows the 5-6-5 rounding (128
+- `fill_colour` is `[r, g, b]`, 0 to 255: the plain desktop colour behind the icons and around a
+  centred wallpaper (Windows calls it "Desktop" in Display Properties, Appearance), not the
+  taskbar or selection colour. An old `colour` key fails with a message naming `fill_colour`. The guest is 16-bit, so it shows the 5-6-5 rounding (128
   becomes 120, 255 becomes 248). Checks compare with that rounding, never the exact RGB.
 - `wallpaper` is a BMP by `file` and `sha256`, 24-bit or 8-bit. `style` is `center` (the default),
   `tile` or `stretch`, and needs a wallpaper.
@@ -171,7 +172,7 @@ result is joined with the clips already on disk.
 
 ## Recorder
 
-Built in `core/art98/recorder.py`. Why it works this way:
+Built in `core/art98/output/recorder.py`. Why it works this way:
 [decision 14](decisions.md#14-the-recorder-is-a-class-you-can-steer). The API:
 [Clips](../scenes/scene-api.md#clips) and [bridge.md](../scenes/bridge.md#recorder). The spec, the
 four decisions and the as-built notes are in
@@ -182,7 +183,7 @@ about 10 to 14 KB a second, lossless FFV1 about 1.5 to 2.2 MB a second. One GIF 
 joined lossless clips. A GIF per clip would get its own palette, so colours would shift from clip
 to clip.
 
-Checked: a copy of `examples/mvp/mvp.py` with `self.cut()` right after
+Checked: a copy of `recipes/scenes/mvp/mvp.py` with `self.cut()` right after
 `set_state("states/gallery.json")` gave `mvpcut-01.mp4` 152 frames, `-02` 105, and a joined 257,
 the same as the uncut scene. The GIF had 128 frames at 15 fps. CPU pressure some avg10 0.00.
 
@@ -204,7 +205,7 @@ Each of these needs a test on the real image before the schema is final.
 | Icon positions | Another program owns them, and Windows 98 has refused some calls that reach into other programs' windows |
 | Tray | Adding icons is likely. Removing another program's icon is unproven |
 | Window order and focus | Taskbar order follows the order windows opened, so it may not match the JSON |
-| Opening files in programs | Not built yet. Titles change, and Paint may not show the image at the expected zoom or size |
+| Opening files in more programs | Built for `picture` and `notepad` only. Elsewhere titles change, and Paint may not show the image at the expected zoom or size |
 | Paint with an opened file | Not built yet. `canvas_size` assumes a blank canvas, so canvas positions and `resize_canvas` would be wrong. `ready()` must also run on an adopted window |
 | Capture off | Some actions depend on real time, so a run with capture off may differ from a recorded one |
 | Clock and randomness | A new Minesweeper board differs each run unless these are fixed |

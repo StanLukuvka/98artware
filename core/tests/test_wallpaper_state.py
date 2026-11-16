@@ -6,10 +6,11 @@ import struct
 from types import SimpleNamespace
 
 import pytest
-from art98 import desktop
 from art98.anim import setstate
 from art98.base.space import STOCK
-from art98.bridge import CallResult
+from art98.errors import GuestError
+from art98.guest import win32
+from art98.guest.bridge import CallResult
 from art98.state import DesktopState, State, StateError, WindowState, load_state
 from test_backdrop import DiskGuest
 
@@ -47,12 +48,13 @@ def problems(folder, desk):
 
 def test_a_full_desktop_block_loads(tmp_path):
     state = load(
-        tmp_path, {"colour": [0, 128, 128], "wallpaper": ref(tmp_path), "style": "tile"}
+        tmp_path,
+        {"fill_colour": [0, 128, 128], "wallpaper": ref(tmp_path), "style": "tile"},
     )
-    assert state.desktop.colour == (0, 128, 128)
+    assert state.desktop.fill_colour == (0, 128, 128)
     assert state.desktop.style == "tile"
     assert state.desktop.wallpaper.data == bmp()
-    assert load(tmp_path, {"colour": [1, 2, 3]}).desktop == DesktopState(
+    assert load(tmp_path, {"fill_colour": [1, 2, 3]}).desktop == DesktopState(
         (1, 2, 3), None, "center"
     )
     assert load(tmp_path, {"wallpaper": ref(tmp_path)}).desktop.style == "center"
@@ -66,17 +68,20 @@ def test_a_state_without_desktop_has_none(tmp_path):
 def test_every_desktop_error_message(tmp_path):
     ok = ref(tmp_path)
     junk = ref(tmp_path, "text.bmp", b"hello world, not a bitmap at all")
-    assert problems(tmp_path, {"colour": [1, 2]}) == [
-        "desktop.colour: needs 3 whole numbers"
+    assert problems(tmp_path, {"fill_colour": [1, 2]}) == [
+        "desktop.fill_colour: needs 3 whole numbers"
     ]
-    assert problems(tmp_path, {"colour": [1, 2, True]}) == [
-        "desktop.colour: needs 3 whole numbers"
+    assert problems(tmp_path, {"fill_colour": [1, 2, True]}) == [
+        "desktop.fill_colour: needs 3 whole numbers"
     ]
-    assert problems(tmp_path, {"colour": [1, 2, 256]}) == [
-        "desktop.colour: needs numbers from 0 to 255"
+    assert problems(tmp_path, {"fill_colour": [1, 2, 256]}) == [
+        "desktop.fill_colour: colour must be three ints from 0 to 255, not (1, 2, 256)"
     ]
-    assert problems(tmp_path, {"colour": [-1, 2, 3]}) == [
-        "desktop.colour: needs numbers from 0 to 255"
+    assert problems(tmp_path, {"fill_colour": [-1, 2, 3]}) == [
+        "desktop.fill_colour: colour must be three ints from 0 to 255, not (-1, 2, 3)"
+    ]
+    assert problems(tmp_path, {"wallpaper": ok, "style": []}) == [
+        "desktop.style: should be one of center, tile, stretch, not []"
     ]
     [p] = problems(tmp_path, {"wallpaper": {"file": "nope.bmp", "sha256": "0"}})
     assert p.startswith("desktop.wallpaper.file:") and "doesn't exist" in p
@@ -107,11 +112,12 @@ class Session:
 class Guest(DiskGuest):
     """A CD that holds WALL0001.BMP, an 800x600 screen and one readable pixel colour."""
 
-    def __init__(self, pixel=(10, 200, 30), colour=(0, 128, 128), log=None):
+    def __init__(self, pixel=(10, 200, 30), colour=(0, 128, 128), log=None, depth=16):
         super().__init__(files={"D:\\WALL0001.BMP"})
-        self.pixel, self.colour, self.log = (
+        self.pixel, self.colour, self.depth, self.log = (
             pixel,
             colour,
+            depth,
             log if log is not None else [],
         )
         self.gdi32 = self.user32
@@ -125,14 +131,17 @@ class Guest(DiskGuest):
         return CallResult({0: 800, 1: 600}.get(index, 0), 0, [])
 
     def do_GetSysColor(self, index):
-        return CallResult(desktop.colourref(self.colour), 0, [])
+        return CallResult(win32.colourref(self.colour), 0, [])
+
+    def do_GetDeviceCaps(self, dc, index):
+        return CallResult(self.depth, 0, [])
 
     def do_GetDC(self, hwnd):
         return CallResult(5, 0, [])
 
     def do_GetPixel(self, dc, x, y):
         self.log.append(("GetPixel", x, y))
-        return CallResult(desktop.colourref(self.pixel), 0, [])
+        return CallResult(win32.colourref(self.pixel), 0, [])
 
 
 def stub_scene(guest, log, monkeypatch):
@@ -168,7 +177,8 @@ def test_apply_attaches_the_disc_before_windows_and_sets_colour_then_wallpaper(
     guest = Guest(log=log)
     scene = stub_scene(guest, log, monkeypatch)
     state = load(
-        tmp_path, {"colour": [1, 2, 3], "wallpaper": ref(tmp_path), "style": "stretch"}
+        tmp_path,
+        {"fill_colour": [1, 2, 3], "wallpaper": ref(tmp_path), "style": "stretch"},
     )
     state = State(state.path, None, (window(),), None, state.desktop)
     setstate.apply_state(scene, state)
@@ -202,7 +212,7 @@ def checked(tmp_path, guest, desk, windows=()):
     props = {w.id: SimpleNamespace(hwnd=1) for w in windows}
     guest.windows = list
     try:
-        setstate.check_state(SimpleNamespace(guest=guest, space=STOCK), state, props)
+        setstate.check_state(guest, STOCK, state, props)
     except setstate.StateMismatch as error:
         # the stand-in has no windows, so only the desktop lines matter here
         error.problems = [p for p in error.problems if p.startswith("desktop.")]
@@ -212,9 +222,11 @@ def checked(tmp_path, guest, desk, windows=()):
 
 def test_check_state_fails_on_a_wrong_colour(tmp_path):
     with pytest.raises(setstate.StateMismatch) as caught:
-        checked(tmp_path, Guest(colour=(1, 2, 3)), {"colour": [4, 5, 6]})
-    assert caught.value.problems[0].startswith("desktop.colour:")
-    checked(tmp_path, Guest(colour=(4, 5, 6)), {"colour": [4, 5, 6]})
+        checked(tmp_path, Guest(colour=(1, 2, 3)), {"fill_colour": [4, 5, 6]})
+    assert caught.value.problems == [
+        "desktop.fill_colour: [4, 5, 6] wanted, the guest has [1, 2, 3]"
+    ]
+    checked(tmp_path, Guest(colour=(4, 5, 6)), {"fill_colour": [4, 5, 6]})
 
 
 def test_check_state_compares_one_wallpaper_pixel_within_tolerance(tmp_path):
@@ -225,6 +237,29 @@ def test_check_state_compares_one_wallpaper_pixel_within_tolerance(tmp_path):
     with pytest.raises(setstate.StateMismatch) as caught:
         checked(tmp_path, Guest(pixel=(200, 0, 0)), wall)
     assert caught.value.problems[0].startswith("desktop.wallpaper: pixel [")
+
+
+def test_the_pixel_tolerance_follows_the_screen_depth(tmp_path):
+    wall = {"wallpaper": ref(tmp_path, data=bmp(800, 600, (10, 200, 30)))}
+    off_by_six = (16, 194, 24)
+    checked(tmp_path, Guest(pixel=off_by_six, depth=16), wall)  # inside 12
+    for depth in (24, 32):
+        checked(tmp_path, Guest(pixel=(12, 198, 28), depth=depth), wall)  # inside 2
+        with pytest.raises(setstate.StateMismatch):
+            checked(tmp_path, Guest(pixel=off_by_six, depth=depth), wall)
+
+
+def test_the_pixel_check_is_skipped_on_a_depth_without_a_tolerance(tmp_path):
+    wall = {"wallpaper": ref(tmp_path, data=bmp(800, 600, (10, 200, 30)))}
+    guest = Guest(pixel=(200, 0, 0), depth=8)
+    checked(tmp_path, guest, wall)
+    assert not guest.named("GetPixel") and ("GetPixel", 400, 300) not in guest.log
+
+
+def test_a_state_mismatch_is_a_guest_failure_not_a_bad_file():
+    mismatch = setstate.StateMismatch("s.json", ["display: wanted"])
+    assert isinstance(mismatch, GuestError) and not isinstance(mismatch, ValueError)
+    assert str(mismatch) == str(StateError("s.json", ["display: wanted"]))
 
 
 def test_the_wallpaper_pixel_is_taken_where_no_window_is_and_above_the_taskbar(
@@ -239,18 +274,83 @@ def test_the_wallpaper_pixel_is_taken_where_no_window_is_and_above_the_taskbar(
     assert y < 572
 
 
-def test_expected_pixel_for_each_style():
+def test_expected_pixels_for_each_style():
     data = bmp(2, 2, (9, 8, 7))
     desk = lambda style: DesktopState(None, SimpleNamespace(data=data), style)
     bg = (1, 1, 1)
-    assert setstate.expected_pixel(desk("center"), (800, 600), bg, 400, 300) == (
-        9,
-        8,
-        7,
+    pixels = setstate.expected_pixels
+    assert pixels(desk("center"), (800, 600), bg, 400, 300) == [
+        (9, 8, 7),
+        bg,
+    ]  # edge of a 2x2
+    assert pixels(desk("center"), (800, 600), bg, 10, 10) == [bg]
+    assert pixels(desk("tile"), (800, 600), bg, 10, 10) == [(9, 8, 7)]
+    assert pixels(desk("stretch"), (800, 600), bg, 10, 10) == [(9, 8, 7)]
+
+
+def gradient(width, height):
+    """A 24 bpp BMP whose pixel (x, y) is (x * 2, y * 2, 0)."""
+    stride = (width * 3 + 3) // 4 * 4
+    rows = [
+        b"".join(bytes((0, y * 2, x * 2)) for x in range(width)).ljust(stride, b"\0")
+        for y in range(height)
+    ]
+    pixels = b"".join(reversed(rows))
+    return (
+        b"BM"
+        + struct.pack("<IHHI", 54 + len(pixels), 0, 0, 54)
+        + struct.pack(
+            "<IiiHHIIiiII", 40, width, height, 1, 24, 0, len(pixels), 0, 0, 0, 0
+        )
+        + pixels
     )
-    assert setstate.expected_pixel(desk("center"), (800, 600), bg, 10, 10) == bg
-    assert setstate.expected_pixel(desk("tile"), (800, 600), bg, 10, 10) == (9, 8, 7)
-    assert setstate.expected_pixel(desk("stretch"), (800, 600), bg, 10, 10) == (9, 8, 7)
+
+
+def test_stretch_accepts_the_bmp_pixels_around_the_guess_clamped_to_the_image():
+    data = gradient(100, 100)
+    desk = DesktopState(None, SimpleNamespace(data=data), "stretch")
+    bg = (1, 1, 1)
+    # Screen (400, 300) on 800x600 lands on BMP (50, 50) ...
+    wanted = setstate.expected_pixels(desk, (800, 600), bg, 400, 300)
+    assert wanted[0] == (50 * 2, 50 * 2, 0)
+    assert len(wanted) == 9
+    # ... and the pixel one over is accepted, two over is not.
+    assert (51 * 2, 50 * 2, 0) in wanted
+    assert (52 * 2, 50 * 2, 0) not in wanted
+    # At a corner the 3x3 is clamped to the image, so there are fewer candidates.
+    assert len(setstate.expected_pixels(desk, (800, 600), bg, 0, 0)) == 4
+
+
+def test_center_accepts_a_pixel_over_and_the_fill_next_to_the_image_edge():
+    data = gradient(100, 100)
+    desk = DesktopState(None, SimpleNamespace(data=data), "center")
+    bg = (1, 1, 1)
+    pixels = setstate.expected_pixels
+    # The image spans x 350..449, y 250..349 on 800x600.
+    inside = pixels(desk, (800, 600), bg, 400, 300)
+    assert len(inside) == 9 and bg not in inside
+    assert inside[0] == (50 * 2, 50 * 2, 0)
+    assert (51 * 2, 50 * 2, 0) in inside
+    edge = pixels(desk, (800, 600), bg, 350, 300)  # first column
+    assert bg in edge and edge[0] == (0, 50 * 2, 0)
+    assert pixels(desk, (800, 600), bg, 349, 300)[0] == bg  # just outside
+    assert (0, 50 * 2, 0) in pixels(desk, (800, 600), bg, 349, 300)
+    assert pixels(desk, (800, 600), bg, 347, 300) == [bg]  # well outside
+
+
+def test_a_detailed_wallpaper_passes_when_windows_rounds_to_the_next_pixel(tmp_path):
+    wall = {"wallpaper": ref(tmp_path, data=gradient(100, 100)), "style": "stretch"}
+    # Screen (400, 300) is BMP (50, 50); the guest shows (51, 50) instead.
+    checked(tmp_path, Guest(pixel=(51 * 2, 50 * 2, 0)), wall)
+    with pytest.raises(setstate.StateMismatch, match="should be about"):
+        checked(tmp_path, Guest(pixel=(60 * 2, 50 * 2, 0)), wall)
+
+
+def test_bmp_pixel_is_none_outside_the_image():
+    data = gradient(4, 3)
+    assert setstate.bmp_pixel(data, 3, 2) == (6, 4, 0)
+    for x, y in ((4, 0), (-1, 0), (0, 3), (0, -1)):
+        assert setstate.bmp_pixel(data, x, y) is None
 
 
 def odd_bmps():
@@ -275,7 +375,7 @@ def test_rle_and_os2_bmps_skip_the_pixel_check_without_raising(tmp_path):
         assert setstate.bmp_pixel(data, 1, 0) is None
         for style in ("tile", "stretch"):
             assert (
-                setstate.expected_pixel(
+                setstate.expected_pixels(
                     DesktopState(None, SimpleNamespace(data=data), style),
                     (800, 600),
                     (1, 1, 1),
@@ -289,3 +389,20 @@ def test_rle_and_os2_bmps_skip_the_pixel_check_without_raising(tmp_path):
             Guest(pixel=(200, 0, 0)),
             {"wallpaper": ref(tmp_path, data=data), "style": "tile"},
         )
+
+
+def test_each_app_checks_its_own_file_and_builds_its_prop_from_its_window(tmp_path):
+    from art98.actions.apps import APPS
+    from art98.errors import UsageError
+
+    with pytest.raises(UsageError):
+        APPS["picture"].check_file(b"not a bmp", "x")
+    APPS["notepad"].check_file(b"hello", "x")
+    with pytest.raises(UsageError):
+        APPS["notepad"].check_file(b"a\0b", "x")
+    for app, cls in APPS.items():
+        for hook in ("check_file", "default_title", "from_state"):
+            assert callable(getattr(cls, hook))
+        window = WindowState("w", app, "T", (1, 2), (300, 200), "normal")
+        prop = cls.from_state(window)
+        assert (prop.title_text, prop._at, prop._size) == ("T", (1, 2), (300, 200))

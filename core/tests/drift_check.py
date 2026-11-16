@@ -11,8 +11,8 @@ from pathlib import Path
 
 from art98.actions.window.win import Win
 from art98.anim import Maximize, Minimize, Notepad, RestoreWindow, Scene, Teleport
-from art98.recorder import Recorder
-from art98.win32 import RDW_REPAINT_ALL, cursor_pos, window_rect
+from art98.guest.win32 import RDW_REPAINT_ALL, cursor_pos, show_state, window_rect
+from art98.output.recorder import Recorder
 
 
 class Commands(Scene):
@@ -52,8 +52,8 @@ def a_bad(scene, guest) -> list[dict]:
     for prop in scene.props:
         if isinstance(prop, Win) and prop.hwnd is not None:
             real = window_rect(guest, prop.hwnd)
-            if real is None:
-                continue
+            if real is None or show_state(guest, prop.hwnd) == "minimized":
+                continue  # refresh() keeps a minimized window's last place, not the parked one
             model = (*prop.rect[:2], *prop.size)
             got = (real[0], real[1], real[2] - real[0], real[3] - real[1])
             if model != got:
@@ -98,8 +98,10 @@ class AuditRecorder(Recorder):
     """Audits at every frame. `failures` collects a line per drift; with `pixels` it also runs B,
     and a frame that fails B is saved as `<name>-<frame>-a.ppm` / `-b.ppm` in `keep`."""
 
-    def __init__(self, session, name, *, pixels=False, keep=None, taskbar=True):
-        super().__init__(session, "unused.mp4")
+    def __init__(
+        self, session, name, output_fps, *, pixels=False, keep=None, taskbar=True
+    ):
+        super().__init__(session, "unused.mp4", output_fps)
         self.name, self.pixels, self.keep, self.taskbar = name, pixels, keep, taskbar
         self.scene = None
         self.cuts = 0
@@ -116,11 +118,11 @@ class AuditRecorder(Recorder):
         self._sync_ms = (time.perf_counter() - t) * 1000
         self._capture(hold, "play")
 
-    def live(self, seconds, stop_condition=None):
-        for _ in range(round(seconds * self._fps)):
+    def live(self, seconds, stop_condition=None, stacklevel=1):
+        for _ in range(round(seconds * self._output_fps)):
             if stop_condition is not None and stop_condition():
                 return
-            time.sleep(1 / self._fps)
+            time.sleep(1 / self._output_fps)
             self._sync_ms = None
             self._capture(1, "live")
 
@@ -161,8 +163,7 @@ class AuditRecorder(Recorder):
 
 def audit(session, scene, name, **options) -> AuditRecorder:
     """Run `scene` on `session` under an AuditRecorder and return it (see `failures`, `index`)."""
-    rec = AuditRecorder(session, name, **options)
-    rec._fps = scene.fps
+    rec = AuditRecorder(session, name, scene.output_fps, **options)
     rec.scene = scene
     try:
         scene.run(session, rec)

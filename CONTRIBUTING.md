@@ -47,7 +47,8 @@ with the rule new work should follow. If you need to break one, say why in your 
 
 That is enough for the unit tests, lint and docs. To render on the real guest you also need:
 
-- Docker, or Podman with the `podman-docker` package. art98 only ever runs the `docker` command.
+- Docker with its compose plugin, or Podman with the `podman-docker` and `docker-compose`
+  packages. art98 only ever runs `docker compose`, on the committed `compose.yaml`.
 - ffmpeg.
 - Your own Windows 98 SE disc image (an `.iso`) and its product key. art98 does not include
   Windows, and can't. The [README](README.md#what-you-need) says what the disc must be like.
@@ -105,29 +106,49 @@ commit, attach or upload anything from it.
 ## Branches
 
 - `dev` is the trunk. Branch off `dev` and keep branches short-lived: a day or two. Open the
-  pull request against `dev`. CI must pass before it merges.
-- `main` only moves at a release, cut from `dev`.
+  pull request against `dev`. CI must pass. PRs into `dev` are squash-merged, so `dev`'s
+  history is linear.
+- `main` only moves at a release, through a pull request from a `release/*` branch. Nobody
+  pushes to `dev` or `main` directly, maintainers included.
 - `experiments/` lives on `dev` only.
 
 A release goes like this:
 
 ```bash
-git switch main
-git merge --no-ff --no-commit dev
+VERSION=0.1.2
+git fetch origin
+git switch -c release/$VERSION origin/main
+git merge --no-ff --no-commit origin/dev
 git rm -r -q -f --ignore-unmatch experiments
 git status --short | grep experiments
-git commit
+git commit -m "Release $VERSION"
+git push -u origin release/$VERSION
+gh pr create --base main --title "Release $VERSION"
 ```
 
-The merge stages the `experiments/` changes from `dev`. Remove the folder before you commit.
-`-f` is needed because the merge has staged those files. Without it, `git rm` refuses and the
-commit keeps them.
+The merge stages the `experiments/` changes from `origin/dev`. Remove the folder before you
+commit. `-f` is needed because the merge has staged those files. Without it, `git rm` refuses
+and the commit keeps them.
 
-If `dev` changed a file in `experiments/`, the merge stops with a modify/delete conflict and
-exits with an error. That is expected. Carry on with `git rm`.
+If `origin/dev` changed a file in `experiments/`, the merge stops with a modify/delete conflict
+and exits with an error. That is expected. Carry on with `git rm`.
 
 The `grep` line must print nothing before you commit. CI fails on `main` if `experiments/` is
 there.
+
+Set `VERSION` to the release's number before you run the block. Merge the release pull request
+with a merge commit, not a squash, so `main` keeps `dev` as a parent and the next release
+merges cleanly.
+
+The rules on GitHub:
+
+- `dev` and `main` take changes only by pull request. `unit (3.11)` and `unit (3.13)` must pass.
+- No force-push or deletion on either branch.
+- Nobody bypasses the rules, maintainers included.
+- `dev` allows squash merges only, so its history is linear.
+- `main` allows merge commits only. It also requires `no-experiments-on-main` and
+  `release-source`, which fails a pull request whose branch is not `release/*`.
+- Merged branches are deleted on GitHub.
 
 ## Ways to contribute
 
@@ -171,8 +192,8 @@ agreed before you write it. Check [Scope](#scope) and the
 A program is an action class: one Python class that starts a program on the guest, finds its
 window, and holds the verbs that drive it. `Notepad`
 ([core/art98/actions/programs/notepad.py](core/art98/actions/programs/notepad.py)) is the
-model to copy. It is about 90 lines: it sets `command` and `window_class`, finds its Edit
-control in `ready()`, and adds `text`, `set_text` and a `close()` that skips the save prompt.
+model to copy. It is about 95 lines: it sets `command` and `window_class`, finds its Edit
+control in `ready()`, exposes it as `edit_hwnd`, and adds a `close()` that skips the save prompt.
 [Programs](docs/design/programs.md) explains the design. The steps:
 
 1. Check it ships with Windows 98 SE. See [Scope](#scope).
@@ -182,20 +203,22 @@ control in `ready()`, and adds `text`, `set_text` and a `close()` that skips the
    known already, and [Win32 recipes](docs/scenes/win32-recipes.md) shows the calls.
 3. Write the class in `core/art98/actions/programs/<name>.py`, subclassing `Win`. Set
    `command` and `window_class`, add `ready()` if it needs a child window, and put the verbs
-   on top. Win32 constants and repeated guest reads go in `core/art98/win32.py`.
+   on top. Win32 constants and repeated guest reads go in `core/art98/guest/win32.py`.
 4. Export it from `core/art98/actions/programs/__init__.py`, and import it and list it in
    `__all__` in `core/art98/anim/__init__.py`.
 5. Document it in [Scene API](docs/scenes/scene-api.md) (the docs test fails if a public name
    is missing), and add a line to the [app catalog](docs/scenes/app-catalog.md).
 6. Add unit tests on a stand-in guest, beside `core/tests/test_notepad.py`, and a VM test that
    opens it on the real image, beside the ones in `core/tests/test_stage.py`.
-7. Add a short scene to `examples/gallery/` and its GIF to the
+7. Add a short scene to `recipes/scenes/gallery/` and its GIF to the
    [gallery](docs/scenes/gallery.md) if it shows something new.
 
 That makes a program a scene can add in `construct`. To let a state file open it as well, add
-`from_state(cls, window)`, add the class to `APPS` in `core/art98/anim/setstate.py`, and give
-it a default title rule and a file check for `open` in `core/art98/state.py`. Then document
-its `app` name under [States](docs/scenes/scene-api.md#states). Only `picture` and `notepad`
+the class to `APPS` in `core/art98/actions/apps.py` and give it three things: `check_file` for
+its `open` file, a `default_title(file)` (the title a state gives a window that names none),
+and `open_keyword` (the constructor keyword the file is passed as). `from_state` is inherited
+from `Win`, and `show` is applied by `setstate`; `state.py` reads `APPS`. Then document its
+`app` name under [States](docs/scenes/scene-api.md#states). Only `picture` and `notepad`
 are state apps so far.
 
 A stock program needs no guest change. A program of art98's own, like `VIEW.EXE`, is C in
@@ -207,7 +230,7 @@ catalog records. Say in the pull request which Windows behaviour you could not c
 ### Adding to states
 
 A **state file** is JSON you write by hand; see [States](docs/scenes/scene-api.md#states). To
-add one for an example, put it in the example's `states/` folder and any file it opens beside
+add one for a scene, put it in the scene's `states/` folder and any file it opens beside
 it, referenced by path and `sha256`.
 
 A **new state field** (say, desktop icons) touches three places, in this order:
@@ -272,7 +295,7 @@ no Windows (boot chain, QMP, snapshots) and needs `qemu-system-i386`, mtools and
 | You changed | Run |
 | --- | --- |
 | Docs only | Unit tests (`test_anim_docs.py` checks the scene docs) |
-| The scene layer, animations, props, vectors, state parsing | Unit tests, plus a real render of an affected example |
+| The scene layer, animations, props, vectors, state parsing | Unit tests, plus a real render of an affected scene from `recipes/scenes/` |
 | A program class, `setstate.py`, the blank start, anything that makes Win32 calls | Unit tests and VM tests |
 | The bridge, the protocol, the recorder | Unit tests and VM tests |
 | The VM service, `container/`, `settings.py`, the CLI's attach path | Unit tests and VM tests, on Docker and, if you can, on Podman |
@@ -297,7 +320,8 @@ uv run ruff check .
 uv run ruff format --check core setup tools
 ```
 
-and the unit tests. CI has no VM and no QEMU, so the VM tests skip there. A green CI run does
+and the unit tests, after building `guest/` with mingw so the checks on the guest programs run. CI
+has no VM and no QEMU, so the VM tests skip there. A green CI run does
 not show that a change works on Windows 98.
 
 ### If you could not run the VM tests
@@ -335,14 +359,14 @@ Beyond that:
 - **Python 3.11+, standard library only.** Don't add a runtime dependency. If something truly
   needs one, raise it in an issue first.
 - **One home per thing.** A Win32 constant or a guest read used twice goes in
-  `core/art98/win32.py`. A program goes in its own file under `actions/programs/`.
+  `core/art98/guest/win32.py`. A program goes in its own file under `actions/programs/`.
 - **Delete what you replace.** No compatibility shims, old import paths or commented-out code.
 - **Lean first.** Build the smallest thing that works, and add more when a measurement or a
   real use asks for it
   ([decision 19](docs/design/decisions.md#19-lean-first-then-measure)).
 - **`lazy:` comments.** When you take a shortcut on purpose, mark it with a comment that
   starts `lazy:` and says what the limit is, so the next reader knows it was a choice and
-  where it stops working. For example, in `core/art98/disc.py`:
+  where it stops working. For example, in `core/art98/guest/disc.py`:
 
   ```python
   # lazy: one directory sector holds about 40 files; a bigger set needs multi-sector directories
@@ -350,8 +374,8 @@ Beyond that:
 
   Keep these true, and remove one only when you fix what it describes.
 - **Errors say what to do.** A failure a user can cause gets its own exception class, a message
-  that says what to do next, and a place in `RUN_ERRORS` in `core/art98/cli.py`, so it prints
-  as one `error:` line.
+  that says what to do next, and `Art98Error` (from `core/art98/errors.py`) as its first base, so
+  the CLI prints it as one `error:` line.
 - **Windows 98 facts are measured.** A comment or docstring that states how Windows 98 behaves
   says it was checked on the real image, or doesn't state it
   ([decision 18](docs/design/decisions.md#18-measure-on-the-real-image-keep-the-probes)).
