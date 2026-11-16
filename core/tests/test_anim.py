@@ -13,6 +13,7 @@ from art98.actions import keyboard as keys_module
 from art98.actions import programs
 from art98.actions.keyboard import char_chord, key_chord
 from art98.anim import *
+from art98.anim import scene as scene_module
 from art98.base.animation import path_function
 from art98.base.props import Spot
 from art98.errors import MissingFile, NotFound
@@ -339,10 +340,10 @@ def test_there_and_back_returns():
 # ---- retired settings ----
 
 
-@pytest.mark.parametrize("name", ["clock"])
-def test_a_scene_defining_a_retired_setting_fails_at_class_definition(name):
-    with pytest.raises(UsageError, match=f"Old.{name}"):
-        type("Old", (Scene,), {name: 30})
+def test_a_scene_defining_a_retired_setting_fails_at_class_definition(monkeypatch):
+    monkeypatch.setattr(scene_module, "RETIRED", {"old": "removed"})
+    with pytest.raises(UsageError, match="Old.old"):
+        type("Old", (Scene,), {"old": 30})
 
 
 def test_a_scene_defining_output_fps_is_fine():
