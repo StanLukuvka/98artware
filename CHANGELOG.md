@@ -7,6 +7,10 @@ All notable changes to art98 are listed here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- `art98` parses every command without importing `art98_setup`; `setup` and `up` read the default disk size when they run, so the Hermes plugin's vendored copy no longer needs a stand-in `art98_setup`.
+
 ### Removed
 
 - `art98 vm start --vnc`, `art98 up --watch` and `art98 up --vnc-port`, and the `[ports] bind`,

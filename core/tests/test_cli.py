@@ -2,6 +2,7 @@
 
 import contextlib
 import os
+import sys
 from pathlib import Path
 
 import pytest
@@ -235,6 +236,17 @@ def test_vm_status_exit_codes(monkeypatch, capsys, tmp_path):
     info["running"] = False
     assert cli.main(["vm", "status", "--work", str(tmp_path)]) == 1
     assert "art98 vm start" in capsys.readouterr().out
+
+
+def test_non_setup_commands_run_without_art98_setup_importable(
+    monkeypatch, capsys, tmp_path
+):
+    monkeypatch.setitem(sys.modules, "art98_setup", None)
+    info = {"running": True, "busy": False, "paused": True, "snapshots": ["ready"],
+            "started_at": "t", "vnc": None, "image_stale": False}  # fmt: skip
+    monkeypatch.setattr(cli.service, "status", lambda settings: info)
+    assert cli.main(["vm", "status", "--work", str(tmp_path)]) == 0
+    assert "paused" in capsys.readouterr().out
 
 
 def test_vm_start_and_stop_call_the_service(monkeypatch, tmp_path):
