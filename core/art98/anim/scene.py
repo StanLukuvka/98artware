@@ -26,9 +26,7 @@ DESKTOPS = ("blank", "stock")
 
 # Only Scene class attributes a scene author sets, whose rename or removal would
 # otherwise be silently ignored, go here. It is emptied at each release.
-RETIRED = {
-    "clock": "removed: the guest always runs on its own clock",
-}
+RETIRED: dict[str, str] = {}
 
 
 def pin_legacy(cls) -> None:

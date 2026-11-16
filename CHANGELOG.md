@@ -37,8 +37,8 @@ into packages, and a review pass hardened the window and program actions. A scen
 - `core/art98/legacy.py` keeps the old module paths (`art98.service`, `art98.win32`), `Scene.fps`
   as `output_fps` and `Settings(source=)` working for the Hermes plugin pinned at 94f0fd3. It is
   the one allowed shim, and `test_legacy.py` pins the VM server's wire exchange.
-- `Scene.fps` is now `output_fps`, the frame rate of the finished video. A scene that still sets
-  `fps` or `clock` is refused at import instead of ignored.
+- `Scene.fps` is now `output_fps`, the frame rate of the finished video. The `clock` setting is gone, because
+  the guest always runs on its own clock: delete it from a scene that sets it.
 - The state file's desktop `colour` is now `fill_colour`. An old `colour` key fails with a
   message that names the new one.
 - The bridge only moves bytes: a garbled frame (`BADFRAME`) fails every open request at once, and
