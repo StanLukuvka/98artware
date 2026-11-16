@@ -2,13 +2,15 @@
 
 import struct
 import warnings
+from dataclasses import replace
 
 import pytest
 from art98.actions import keyboard as keys_module
 from art98.actions.programs import Notepad
 from art98.actions.window.commands import Teleport
 from art98.anim import RIGHT, linear, setstate
-from art98.base.space import PlacementError, PlacementWarning
+from art98.base.space import STOCK, PlacementError, PlacementWarning
+from art98.errors import UsageError
 from art98.guest import win32
 from art98.guest.bridge import CallResult
 from test_anim import FakeGuest, FakeSession, FakeVideo, Stage
@@ -89,7 +91,7 @@ def test_calibrate_reads_the_space_in_9_calls(guest):
     assert len(guest.calls) == 9
     assert len(guest.named("GetSystemMetrics")) == 8
     assert space.screen == (800, 600) and space.work_area == (0, 0, 800, 572)
-    assert space.metrics.min_track == (112, 27) and space.taskbar == (0, 572, 800, 600)
+    assert space.metrics.min_track == (112, 27)
     assert space.title_bar_offset == 3 + 9
 
 
@@ -237,3 +239,17 @@ def test_wallpaper_sample_keeps_clear_of_the_pointer():
     # the box ends at the cursor size: a pointer just left of the point is clear
     clear = State(None, None, (), (320 - setstate.CURSOR_SIZE, 240))
     assert setstate.wallpaper_sample(clear, 640, 480, 452) == (320, 240)
+
+
+def test_placement_warning_names_the_callers_file():
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        STOCK.check_rect("Box", (900, 0, 1000, 100), (100, 100))
+    assert [w.filename for w in caught] == [__file__]
+
+
+def test_placement_error_is_a_usage_error():
+    strict = replace(STOCK, strict=True)
+    with pytest.raises(UsageError, match="off the 800x600 screen"):
+        strict.check_rect("Box", (900, 0, 1000, 100), (100, 100))
+    assert issubclass(PlacementError, UsageError)

@@ -36,10 +36,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .actions.apps import APPS
-from .actions.programs.notepad import notepad_title
-from .desktop import STYLES
-from .errors import Art98Error, NotFound
+from .desktop import STYLES, resolve_colour
+from .errors import Art98Error, NotFound, UsageError
 from .guest.guestfiles import check_bmp, name_problem, title_problem
+from .guest.win32 import DISPLAY_SIZES
 
 VERSION = 1
 SHOWS = ("normal", "minimized", "maximized")
@@ -48,11 +48,12 @@ TOP_FIELDS = {"version", "display", "desktop", "windows", "pointer"}
 DESKTOP_FIELDS = {"fill_colour", "wallpaper", "style"}
 WINDOW_FIELDS = {"id", "app", "title", "at", "size", "show", "open"}
 FILE_FIELDS = {"file", "sha256"}
-LATER = {"focus": "the last window is the active one"}
+LATER = {"focus": "order the windows instead: the last one is active"}
 LATER_DESKTOP = {
     "icons": "desktop icons come after this milestone",
     "tray": "the tray comes after this milestone",
 }
+# Emptied at each release, like `RETIRED` in scene.py.
 RENAMED_DESKTOP = {"colour": "fill_colour"}
 RENAMED_NONE: dict = {}
 
@@ -167,8 +168,14 @@ class _Reader:
         if not path.is_file():
             self.fail(f"{where}.file", f"{path} doesn't exist")
             return None
-        data = path.read_bytes()
+        try:
+            data = path.read_bytes()
+        except OSError as error:
+            self.fail(f"{where}.file", f"can't read {path}: {error.strerror}")
+            return None
         actual = hashlib.sha256(data).hexdigest()
+        if isinstance(digest, str):
+            digest = digest.lower()
         if digest != actual:
             self.fail(
                 f"{where}.sha256",
@@ -187,19 +194,22 @@ class _Reader:
         fill_colour = wallpaper = None
         if "fill_colour" in value:
             fill_colour = self.numbers(value["fill_colour"], 3, f"{where}.fill_colour")
-            if fill_colour and not all(0 <= c <= 255 for c in fill_colour):
-                self.fail(f"{where}.fill_colour", "needs numbers from 0 to 255")
+            if fill_colour:
+                try:
+                    resolve_colour(fill_colour)
+                except UsageError as error:
+                    self.fail(f"{where}.fill_colour", str(error))
         if "wallpaper" in value:
             wallpaper = self.file(value["wallpaper"], f"{where}.wallpaper")
             if wallpaper is not None:
                 try:
                     check_bmp(wallpaper.data, str(wallpaper.path))
-                except ValueError as error:
+                except UsageError as error:
                     self.fail(f"{where}.wallpaper", str(error))
         style = value.get("style", "center")
         if "style" in value and "wallpaper" not in value:
             self.fail(f"{where}.style", "needs a wallpaper")
-        elif style not in STYLES:
+        elif not isinstance(style, str) or style not in STYLES:
             self.fail(
                 f"{where}.style", f"should be one of {', '.join(STYLES)}, not {style!r}"
             )
@@ -215,7 +225,8 @@ class _Reader:
         if not isinstance(id_, str) or not id_:
             self.fail(f"{where}.id", "needs a name")
         app = value.get("app")
-        if app not in APPS:
+        known = isinstance(app, str) and app in APPS
+        if not known:
             self.fail(
                 f"{where}.app", f"should be one of {', '.join(APPS)}, not {app!r}"
             )
@@ -240,19 +251,15 @@ class _Reader:
                     f"{opened.path.name!r} can't be a file name on the"
                     f" guest: it {name_problem(opened.path.name)}",
                 )
-            elif opened is not None and app in APPS:
+            elif opened is not None and known:
                 try:
                     APPS[app].check_file(opened.data, str(opened.path))
-                except ValueError as error:
+                except UsageError as error:
                     self.fail(f"{where}.open", str(error))
         if len(self.problems) > problems:
             return None
         if title is None:
-            title = (
-                "Picture"
-                if app == "picture"
-                else notepad_title(opened.path if opened else None)
-            )
+            title = APPS[app].default_title(opened.path if opened else None)
         return WindowState(id_, app, title, at, size, show, opened)
 
     def state(self, value) -> State | None:
@@ -263,6 +270,9 @@ class _Reader:
         display = None
         if "display" in value:
             display = self.numbers(value["display"], 3, "display", positive=True)
+            if display and display[:2] not in DISPLAY_SIZES:
+                sizes = ", ".join(f"{w}x{h}" for w, h in DISPLAY_SIZES)
+                self.fail("display", f"size should be one of {sizes}")
             if display and display[2] not in DEPTHS:
                 self.fail("display", f"colour depth should be one of {DEPTHS}")
         desktop = (
@@ -285,7 +295,15 @@ class _Reader:
         if "pointer" in value:
             pointer = self.numbers(value["pointer"], 2, "pointer")
             if pointer and min(pointer) < 0:
-                self.fail("pointer", "should be on the screen")
+                self.fail("pointer", "can't be negative")
+            elif (
+                pointer
+                and display
+                and not (pointer[0] < display[0] and pointer[1] < display[1])
+            ):
+                self.fail(
+                    "pointer", f"should be on the {display[0]}x{display[1]} screen"
+                )
         if self.problems:
             return None
         return State(self.path, display, tuple(windows), pointer, desktop)
@@ -295,9 +313,11 @@ def load_state(path: Path | str) -> State:
     """Read and check a state file, or raise StateError listing every problem."""
     path = Path(path).resolve()
     try:
-        value = json.loads(path.read_text())
+        value = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         raise StateError(path, ["the file doesn't exist"]) from None
+    except OSError as error:
+        raise StateError(path, [f"can't read the file: {error.strerror}"]) from None
     except (json.JSONDecodeError, UnicodeDecodeError) as error:
         raise StateError(path, [f"not valid JSON: {error}"]) from None
     reader = _Reader(path)

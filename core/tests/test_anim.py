@@ -204,6 +204,57 @@ def test_revert_ejects_the_disc_before_loadvm_only_when_one_was_inserted():
     assert vm.calls[4:] == ["load_snapshot"]
 
 
+def test_a_failed_insert_still_gets_ejected_by_revert():
+    class Refusing(FakeVM):
+        def insert_disc(self, iso):
+            raise OSError("reply lost")
+
+    vm = Refusing()
+    session = session_module.Session(vm, QuietBridge())
+    with pytest.raises(OSError):
+        session.attach_disc({"WALL0001.BMP": b"x" * 10})
+    session.revert()
+    assert vm.calls == ["eject_disc", "load_snapshot"]
+
+
+def test_a_failed_revert_leaves_the_guest_not_fresh():
+    class Broken(FakeVM):
+        def load_snapshot(self, name):
+            raise OSError("no such snapshot")
+
+    session = session_module.Session(Broken(), QuietBridge())
+    session.fresh = True
+    with pytest.raises(OSError):
+        session.revert()
+    assert session.fresh is False
+
+
+def test_close_closes_the_vm_even_if_the_bridge_will_not():
+    class BadBridge(QuietBridge):
+        def close(self):
+            raise OSError("broken pipe")
+
+    class ClosingVM(FakeVM):
+        def close(self):
+            self.calls.append("close")
+
+    vm = ClosingVM()
+    with pytest.raises(OSError):
+        session_module.Session(vm, BadBridge()).close()
+    assert vm.calls == ["close"]
+
+
+def test_stage_without_an_image_says_to_run_setup(tmp_path):
+    with (
+        pytest.raises(session_module.ImageMissing, match="art98 setup"),
+        session_module.stage(tmp_path),
+    ):
+        pass
+    with pytest.raises(session_module.ImageMissing, match="art98 setup"):
+        session_module.boot_local(tmp_path)
+    assert issubclass(session_module.ImageMissing, MissingFile)
+
+
 class Stage(Scene):
     pass
 

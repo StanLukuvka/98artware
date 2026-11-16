@@ -5,6 +5,7 @@ import struct
 import pytest
 from art98 import desktop
 from art98.anim import Scene
+from art98.errors import GuestError
 from art98.guest import win32
 from art98.guest.bridge import CallResult
 from test_anim import FakeGuest, FakeSession, FakeVideo
@@ -112,6 +113,36 @@ def test_blank_can_keep_the_pointer():
     guest = DesktopGuest()
     desktop.blank(guest, pointer=True)
     assert guest.named("SetSystemCursor") == []
+
+
+def test_blank_says_so_when_there_is_no_empty_pointer():
+    guest = DesktopGuest()
+    guest.do_CreateCursor = lambda *args: CallResult(0, 0, [])
+    with pytest.raises(desktop.DesktopError, match="CreateCursor returned no cursor"):
+        desktop.blank(guest)
+    assert guest.named("SetSystemCursor") == []
+
+
+def test_blank_says_so_when_a_pointer_shape_will_not_swap():
+    guest = DesktopGuest()
+    guest.do_SetSystemCursor = lambda handle, shape: CallResult(0, 0, [])
+    with pytest.raises(desktop.DesktopError, match="SetSystemCursor failed for"):
+        desktop.blank(guest)
+    assert guest.named("DestroyCursor") == [("DestroyCursor", (EMPTY,))]
+
+
+def test_desktop_error_is_a_guest_error():
+    assert issubclass(desktop.DesktopError, GuestError)
+
+
+def test_the_effect_and_pointer_tables_use_the_named_constants():
+    assert desktop.POINTER_SHAPES[0] == win32.OCR_NORMAL == 32512
+    assert desktop.POINTER_SHAPES[-1] == win32.OCR_APPSTARTING == 32650
+    assert desktop.UI_EFFECTS[0] == (
+        "menu animation",
+        win32.SPI_GETMENUANIMATION,
+        win32.SPI_SETMENUANIMATION,
+    )
 
 
 @pytest.mark.parametrize(

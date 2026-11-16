@@ -6,10 +6,16 @@ sectors 0-15 zero, 16 PVD, 17 terminator, 18/19 path tables (L/M), 20 root direc
 
 import re
 import struct
+import time
 from datetime import UTC, datetime
+
+from ..errors import GuestError
+from .win32 import DRIVE_CDROM, INVALID_FILE_ATTRIBUTES
 
 SECTOR = 2048
 VOLUME = "ART98"  # the volume id of every disc
+DISC_POLL = 0.05  # seconds between looks for a new disc
+DISC_TIMEOUT = 2.0  # seconds to wait for one
 _NAME = re.compile(r"^[A-Z0-9_]{1,8}\.[A-Z0-9_]{1,3}$")
 
 
@@ -102,3 +108,32 @@ def build_iso(files: dict[str, bytes]) -> bytes:
     for n in names:
         out += files[n].ljust(-(-len(files[n]) // SECTOR) * SECTOR, b"\0")
     return bytes(out)
+
+
+def cd_drive(guest) -> str | None:
+    """The CD drive as "D:\\", or None if the guest has none."""
+    mask = guest.kernel32.GetLogicalDrives().value
+    for i in range(26):
+        letter = f"{chr(65 + i)}:\\"
+        if mask >> i & 1 and guest.kernel32.GetDriveTypeA(letter).value == DRIVE_CDROM:
+            return letter
+    return None
+
+
+def wait_for_disc(guest, name: str, timeout: float = DISC_TIMEOUT) -> str:
+    """Poll every DISC_POLL seconds until `name` can be read on the CD; return its full path.
+
+    Raises GuestError if it doesn't show up within `timeout` seconds.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        letter = cd_drive(guest)
+        if (
+            letter
+            and guest.kernel32.GetFileAttributesA(letter + name).value
+            != INVALID_FILE_ATTRIBUTES
+        ):
+            return letter + name
+        if time.monotonic() >= deadline:
+            raise GuestError(f"the CD with {name} did not show up in {timeout:g} s")
+        time.sleep(DISC_POLL)
