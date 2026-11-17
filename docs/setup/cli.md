@@ -189,6 +189,7 @@ Plays a scene on the running VM and writes the video. It attaches to the VM, rev
 
 | Flag | Default | Effect |
 |------|---------|--------|
+| `--section NAME` | | Play only that section of the scene, from the state a full render captured at its boundary. The output defaults to `<Scene>-<NAME>.mp4`. See [Sections](../scenes/scene-api.md#sections) |
 | `--work PATH` | `[vm] work` | The work folder |
 | `--wait S` | 0 | If the VM is busy, retry for up to `S` seconds, then fail with `busy`. Only "busy" is retried |
 
@@ -196,6 +197,11 @@ Errors:
 
 | Message | Cause |
 |---------|-------|
+| `no capture for section 'NAME' in <folder>: render the whole scene once first` | `--section` before any full render, or the capture was deleted |
+| `section 'NAME' starts from a capture made before <step>() changed: render the whole scene again` | `setup`, the state file or an earlier section changed since the capture |
+| `<Scene> has no section 'NAME' (it has ...)` | The scene has no such section |
+| `a window is on screen that the scene doesn't track: ...` | A window no prop owns. Add it as a prop, claim it or close it |
+| `<prop>'s window closed, but nothing asked it to: ...` | A window ended without `Close` |
 | `the VM is not running (nothing answers on <socket>); run art98 vm start` | No VM is running for this work folder |
 | `the VM is busy: another render holds it` | A render holds the VM. Use `--wait S` |
 | `the guest agent did not answer after the revert; run art98 vm stop then art98 vm start` | The guest hangs. Restart the VM |

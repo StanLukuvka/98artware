@@ -76,5 +76,5 @@ class Showcase(Scene):
         self.add(pipes)
         self.wait(12)
 
-        pipes.stop()
+        self.play(Close(pipes))
         self.pause(2)

@@ -158,7 +158,7 @@ def stub_scene(guest, log, monkeypatch):
         guest=guest,
         session=Session(log),
         pointer=None,
-        add=lambda prop: log.append("add"),
+        add=lambda prop, id=None: log.append("add"),
     )
 
 

@@ -36,7 +36,7 @@ class DialogStorm(Scene):
             )
             self.pause(2 * FRAME)
         self.pause(0.5)
-        self.next_section("pair")
+        self.cut()
 
         rng = random.Random(98)
         for _ in range(2):
@@ -54,7 +54,7 @@ class DialogStorm(Scene):
             self.pause(2 * FRAME)
         self.pause(0.5)
 
-        self.next_section("typing")
+        self.cut()
         typed = Dialog("", "???", at=(120, 60), size=BOX)
         self.add(typed)
         self.pause(FRAME)
@@ -63,7 +63,7 @@ class DialogStorm(Scene):
             self.pause(FRAME)
         self.pause(0.5)
 
-        self.next_section("colour")
+        self.cut()
         self.play(Backdrop("dark_red"))
         self.pause(0.5)
         self.cut()

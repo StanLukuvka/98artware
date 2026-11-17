@@ -208,7 +208,9 @@ Moves the pointer with no buttons held.
 
 Moves to a target and stays for `hold` seconds. Tooltips are timed by the guest, so these frames
 follow the host clock to give the tooltip real time to appear. The run time is the travel plus
-the hold.
+the hold. The tooltip is the guest's window, not a prop, so move the pointer away and let it go
+before the scene ends or a section starts; the [tracking check](scene-api.md#tracking) refuses one
+that is still up.
 
 ```python
 from art98.anim import *
@@ -219,7 +221,8 @@ class Tooltip(Scene):
 
     def construct(self):
         self.play(Hover((768, 587), hold=1.5))
-        self.pause(0.5)
+        self.play(Glide((400, 300)))
+        self.pause(1)
 ```
 
 ### Click
@@ -232,9 +235,12 @@ at 84%, so the button shows pressed for a few frames. `button` is `"left"`, `"ri
 
 ### RightClick
 
-`RightClick(target, *, run_time=0.65, rate_func=smooth)`
+`RightClick(target, *, menu=True, run_time=0.65, rate_func=smooth)`
 
-`Click` with the right button. A context menu opens on the release.
+`Click` with the right button. A context menu opens on the release, and it stays up until
+something dismisses it, such as `Keys("esc")`. Until then the scene's
+[tracking check](scene-api.md#tracking) lets it be. Pass `menu=False` for a right click that
+opens no menu, such as a flag in Minesweeper.
 
 ### DoubleClick
 
@@ -252,11 +258,16 @@ class OpenMyComputer(Scene):
     desktop = "stock"  # it uses the desktop icons or the taskbar
 
     def construct(self):
-        self.play(DoubleClick((38, 22)))
+        # My Computer opens on the double click, before the scene has a prop for it.
+        with self.claim("the icon's window", lambda w: w.title == "My Computer"):
+            self.play(DoubleClick((38, 22)))
+            my_computer = Win("My Computer")
+            self.add(my_computer)
         self.wait(1)
         self.play(RightClick((640, 300)))
         self.wait(0.5)
         self.play(Keys("esc"))
+        self.play(Close(my_computer))
         self.pause(0.5)
 ```
 
@@ -450,7 +461,37 @@ class States(Scene):
 
 ### Close
 
-`Close(window)` closes the window and takes it off stage. For Notepad that skips the save prompt.
+`Close(window, via=None, *, run_time=None, rate_func=None)`
+
+`Close` is the only way a window ends. It ends the program through the prop's own ending (a
+`WM_CLOSE`, a box's decline or chosen button, a screensaver stopping), waits for the window to
+go, and takes the prop off stage. For Notepad that skips the save prompt. A window that goes any
+other way (the X button, a menu's Exit, Alt+F4, a click on a dialog's button) raises
+`ImplicitClose` at the next [tracking check](scene-api.md#tracking).
+
+Without `via` it takes one frame and leaves the pointer alone. With `via`, a spot or a control,
+the pointer glides there (run time 0.65 s) and shows the press, and the program ends on the
+release. No mouse
+button event reaches the guest. A control is drawn pressed with `BM_SETSTATE`. For a dialog
+button, `Close(box, via=box.button("Yes"))` sends it `BM_CLICK`, so the box returns the real
+answer and `box.answer` reads it. A `Screensaver` is ended by moving the pointer and putting it
+back, so it claims the pointer; so does any `Close` with `via`.
+
+If the window doesn't go (a save prompt came up), `GuestError` says so and names the window that
+appeared.
+
+```python
+from art98.anim import *
+
+
+class Goodbye(Scene):
+    def construct(self):
+        box = Dialog("Quit?", icon="question", buttons="yesno", at=(280, 200))
+        self.add(box)
+        self.pause(0.5)
+        self.play(Close(box, via=box.button("Yes")))
+        self.pause(0.5)
+```
 
 ## Writing your own
 

@@ -7,6 +7,50 @@ All notable changes to art98 are listed here. The format follows
 
 ## [Unreleased]
 
+A scene's sections can be rendered alone, and every window a scene sees is now a prop. A scene
+written for 0.2.0 needs edits; see "Changed" and "Removed".
+
+### Added
+
+- `art98 render FILE --section NAME` renders one section from the state a full render captured at
+  its boundary, into `<Scene>-<NAME>.mp4`. The captures are in
+  `<scene file stem>.<Scene>.sections/` beside the scene's file, and a stale one is refused. See
+  [Sections](docs/scenes/scene-api.md#sections).
+- `Scene.section(name, method)` plays one named section, and `render(..., section=)` takes the
+  same name.
+- `Scene.get_state(path)` writes the desktop as a state file, from the props. It captures
+  `Picture` and `Notepad` windows, and refuses the other programs for now.
+- A Notepad state can have a `text` file, put in the Edit control once the window is up.
+- A state's `stack` lists windows back to front (z-order) and a Notepad's `selection` restores the
+  caret or selected text; `get_state` writes both.
+- `Scene.add(prop, id=...)` names a prop, and `Scene.prop(id)` finds any prop on stage by id, not
+  only one a state opened. An id is ASCII letters, digits, `_` and `-`.
+- `Scene.check_tracking()`, which runs after every `play`, `wait` and `wait_until` and at the end
+  of a run, and `Scene.claim(owner, matches)` for windows a program is handling that the scene
+  has no prop for. See [Tracking](docs/scenes/scene-api.md#tracking).
+- `Close(window, via=...)` shows the click on the X button or a dialog's button, and ends the
+  program on the release without a mouse button event.
+- `RightClick(target, menu=False)` for a right click that opens no menu, such as a flag in
+  Minesweeper.
+- `UntrackedWindow`, `ImplicitClose` and `SectionNotFound` errors.
+
+### Changed
+
+- A window now ends only through `Close`. A window that goes any other way (the X button, a menu's
+  Exit, Alt+F4, a click on a dialog's button) raises `ImplicitClose` at the next check. Use
+  `Close(window)`, or `Close(box, via=box.button("Yes"))` in place of `Click(box.button("Yes"))`.
+- A screensaver is ended with `Close(saver)`, not `saver.stop()`.
+- A visible window that is not the desktop's or a prop's now raises `UntrackedWindow` instead of
+  going unnoticed. A menu from `RightClick`, a tooltip from `Hover` and the best-time prompt after
+  `Minesweeper.clear` are claimed for you. A window you open another way needs `self.add(...)`,
+  or a `with self.claim(...)` block.
+- `Scene.remove` on a window does what `Close` does.
+
+### Removed
+
+- `Scene.next_section(name)`. Use `self.section(name, method)`, or `self.cut()` for a clip with no
+  state to start from.
+
 ## [0.2.0] - 2026-11-16
 
 A clean-up release: the containers run from a committed `compose.yaml`, the library is regrouped

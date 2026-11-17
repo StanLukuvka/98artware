@@ -204,6 +204,31 @@ def test_render_builds_gif_options_from_the_flags_given(monkeypatch, tmp_path, s
     assert got[1] == GifOptions(fps=7, dither="bayer")
 
 
+def test_render_hands_section_to_the_renderer_and_none_without_it(
+    monkeypatch, tmp_path, scene
+):
+    got = []
+
+    def render(scene_class, output, **kwargs):
+        got.append((output, kwargs["section"]))
+        return tmp_path / "x.mp4"
+
+    monkeypatch.setattr("art98.anim.render", render)
+    base = ["render", str(scene), "--work", str(tmp_path)]
+    assert cli.main(base) == 0
+    assert cli.main([*base, "--section", "move"]) == 0
+    assert got == [(None, None), (None, "move")]
+
+
+def test_a_section_the_scene_lacks_is_one_error_line(monkeypatch, capsys, scene):
+    from art98.anim.scene import SectionNotFound
+
+    fail_with(monkeypatch, SectionNotFound("Demo has no section 'x' (it has a, b)"))
+    assert cli.main(["render", str(scene), "--section", "x"]) == 1
+    err = capsys.readouterr().err
+    assert err.startswith("error: Demo has no section 'x'") and "Traceback" not in err
+
+
 def test_a_bad_art98_toml_is_one_error_line(monkeypatch, capsys, tmp_path):
     (tmp_path / "art98.toml").write_text("[vm]\nbogus = 1\n")
     monkeypatch.chdir(tmp_path)

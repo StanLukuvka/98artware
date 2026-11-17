@@ -65,7 +65,7 @@ def a_bad(scene, guest) -> list[dict]:
                         "guest": got,
                     }
                 )
-    if scene.pointer is not None:
+    if scene._pointer is not None:
         want = tuple(scene.pointer.get_center().rounded())
         got = cursor_pos(guest)
         if want != tuple(got):

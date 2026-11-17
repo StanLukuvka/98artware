@@ -5,6 +5,7 @@ import struct
 import pytest
 from art98.actions.programs import dialog as dialog_module
 from art98.actions.programs.dialog import Dialog
+from art98.actions.window import Close
 from art98.errors import GuestError, UsageError
 from art98.guest import win32
 from art98.guest.bridge import CallResult
@@ -68,6 +69,7 @@ class DialogGuest(FakeGuest):
         self.posted.append((hwnd, message))
         if message == WM_CLOSE and not self.ignores_close:
             self.alive.discard(hwnd)
+            self.close_window(hwnd)
         return CallResult(1, 0, [])
 
     def do_GetDlgItem(self, parent, control_id):
@@ -78,6 +80,8 @@ class DialogGuest(FakeGuest):
             self.clicks.append(hwnd)
             if hwnd in self.button_ids.values():
                 self.alive.discard(BOX)
+                self.close_window(BOX)
+                self.answer_code = {YES: 6, NO: 7}.get(hwnd, self.answer_code)
         return CallResult(1, 0, [])
 
 
@@ -171,6 +175,7 @@ def test_size_goes_to_win_and_the_box_is_laid_out_again(guest, scene):
     guest.rows[
         0
     ].clear()  # the stand-in reuses one hwnd for every box: forget the first
+    scene.props.remove(box)
     with pytest.raises(UsageError, match="smaller than the least"):
         scene.add(Dialog("Hi", "Quit?", size=(100, 50)))
 
@@ -298,3 +303,35 @@ def test_dialog_is_an_exported_program():
 
     assert anim.Dialog is Dialog
     assert "Dialog" in anim.__all__
+
+
+@pytest.mark.parametrize("ignores_close", [False, True])
+def test_close_via_a_button_presses_it_and_the_box_answers_for_real(
+    guest, scene, ignores_close
+):
+    guest.ignores_close = ignores_close
+    box = Dialog("Really?", "Quit?", icon="question", buttons="yesno")
+    scene.add(box)
+    scene.wait(0.1)
+    guest.calls.clear()
+    scene.play(Close(box, via=box.button("Yes")))
+    scene.wait(0.1)
+    assert guest.clicks == [YES] and guest.named("mouse_event") == []
+    pressed = [a[2] for f, a in guest.named("SendMessageA") if a[1] == 0x00F3]
+    assert pressed == [1, 0] and box not in scene.props
+    assert box.answer == "yes"
+
+
+def test_a_box_that_stays_after_close_via_a_button_resets_the_button(
+    guest, scene, monkeypatch
+):
+    monkeypatch.setattr(dialog_module, "CLOSE_TIMEOUT", 0.01)
+    box = Dialog("Really?", "Quit?", buttons="yesno")
+    scene.add(box)
+    yes = box.button("Yes")
+    guest.do_SendMessageA = lambda *args: CallResult(1, 0, [])  # the click does nothing
+    guest.calls.clear()
+    with pytest.raises(GuestError, match="did not close"):
+        scene.play(Close(box, via=yes))
+    pressed = [a[2] for f, a in guest.named("SendMessageA") if a[1] == 0x00F3]
+    assert pressed == [1, 0] and box.closing is False

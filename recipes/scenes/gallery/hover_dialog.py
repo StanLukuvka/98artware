@@ -15,5 +15,5 @@ class HoverDialog(Scene):
         self.pause(0.8)
         self.play(box.animate.shift(90 * LEFT + 100 * UP), run_time=0.8)
         self.pause(0.3)
-        self.play(Click(box.button("Yes")))
+        self.play(Close(box, via=box.button("Yes")))
         self.pause(0.7)

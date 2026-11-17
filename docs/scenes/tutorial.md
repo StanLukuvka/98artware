@@ -261,8 +261,9 @@ class Counting(Scene):
 ## Cuts and sections
 
 `self.cut()` ends the current video clip and starts the next one, between two frames. Nothing
-is lost or repeated. `self.next_section("name")` does the same and also records a label in
-`self.sections`. The name is only a label: clips stay numbered.
+is lost or repeated. `self.section("name", method)` does the same and also records a label in
+`self.sections`. Call it from `construct`, once per section, each with a method that holds that
+section's code. The name is only a label: clips stay numbered.
 
 ```python
 from art98.anim import *
@@ -270,8 +271,13 @@ from art98.anim import *
 
 class TwoParts(Scene):
     def construct(self):
+        self.section("first", self.first)
+        self.section("second", self.second)
+
+    def first(self):
         self.pause(0.5)
-        self.next_section("second part")
+
+    def second(self):
         self.pause(0.5)
         self.cut()
         self.pause(0.5)
@@ -279,7 +285,8 @@ class TwoParts(Scene):
 
 `art98 render two.py -o two.mp4` (a file with one scene needs no scene name) writes `two-01.mp4`, `two-02.mp4` and `two-03.mp4`, and joins
 them into `two.mp4`. Old clips from an earlier render are not deleted; see
-[Clips](scene-api.md#clips).
+[Clips](scene-api.md#clips). Once a full render has run, `art98 render two.py --section second`
+plays just that section into `TwoParts-second.mp4`.
 
 ## Make a GIF
 

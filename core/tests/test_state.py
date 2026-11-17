@@ -5,7 +5,7 @@ import json
 import struct
 
 import pytest
-from art98.state import StateError, load_state
+from art98.state import StateError, dump_state, load_state
 
 
 def bmp(width=4, height=3):
@@ -195,6 +195,59 @@ def test_a_missing_or_broken_image_is_caught(folder):
     assert len(found) == 1 and "is cut short" in found[0]
 
 
+def note(folder, data=b"hello\n", **changes):
+    (folder / "assets" / "note.txt").write_bytes(data)
+    window = {
+        "id": "note",
+        "app": "notepad",
+        "title": "Note",
+        "at": [10, 10],
+        "size": [300, 200],
+        "text": {
+            "file": "assets/note.txt",
+            "sha256": hashlib.sha256(data).hexdigest(),
+        },
+    }
+    window.update(changes)
+    return window
+
+
+def test_a_notepad_text_file_loads(folder):
+    state = load_state(write(folder, {"version": 1, "windows": [note(folder)]}))
+    assert state.windows[0].text.data == b"hello\n"
+
+
+def test_a_picture_window_with_text_fails(folder):
+    window = flower(folder, text=note(folder)["text"])
+    found = problems(folder, {"version": 1, "windows": [window]})
+    assert found == ["windows[0].text: picture windows can't have text"]
+
+
+def test_a_text_file_check_text_rejects_fails_at_text(folder):
+    window = note(folder, data=b"a\0b")
+    found = problems(folder, {"version": 1, "windows": [window]})
+    assert len(found) == 1 and found[0].startswith("windows[0].text: ")
+    assert "NUL" in found[0]
+
+
+def test_dump_state_writes_the_same_bytes_twice_and_loads(folder):
+    shuffled = {
+        "pointer": [5, 5],
+        "windows": [dict(reversed(note(folder).items()))],
+        "desktop": {"style": "tile", "wallpaper": flower(folder)["open"]},
+        "version": 1,
+    }
+    (folder / "assets" / "flower.bmp").write_bytes(bmp())
+    path = folder / "out.json"
+    state = dump_state(shuffled, path)
+    first = path.read_bytes()
+    dump_state(shuffled, path)
+    assert path.read_bytes() == first and first.endswith(b"}\n")
+    assert state.windows[0].text.data == b"hello\n"
+    assert list(json.loads(first)) == ["version", "desktop", "windows", "pointer"]
+    assert list(json.loads(first)["windows"][0])[:3] == ["id", "app", "title"]
+
+
 def test_files_that_are_not_states(folder):
     with pytest.raises(StateError, match="doesn't exist"):
         load_state(folder / "nothing.json")
@@ -327,3 +380,18 @@ def test_a_state_file_is_read_as_utf8(folder):
         )
     )
     assert load_state(path).windows[0].title == "Café"
+
+
+def test_a_window_id_must_be_letters_digits_underscore_or_dash(folder):
+    from art98.state import id_problem
+
+    assert id_problem("note_1-b") is None
+    for bad in ("", None, 3, "../x", "a/b", "a b", "é"):
+        assert id_problem(bad)
+    path = folder / "s.json"
+    path.write_text(
+        json.dumps({"version": 1, "windows": [{"id": "../x", "app": "notepad"}]})
+    )
+    with pytest.raises(StateError) as caught:
+        load_state(path)
+    assert any(p.startswith("windows[0].id:") for p in caught.value.problems)

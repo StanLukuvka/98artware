@@ -1,8 +1,8 @@
 # State and action design
 
 How states, Set and sections work. Built: states, Set and its check, desktop colour and wallpaper,
-the recorder and `next_section`. Proposed, not built: [Holding](#holding) and
-[`--section`](#recording-part-of-a-scene). Why states are static and actions are free:
+the recorder, `section` and [`--section`](#recording-part-of-a-scene). Proposed, not built:
+[Holding](#holding). Why states are static and actions are free:
 [decision 7](decisions.md#7-states-are-static-and-hand-written-actions-are-free-python). Terms are
 in the [glossary](../glossary.md). A state here is a desktop, not Manim's `save_state`. Where Manim
 already has the idea, this follows Manim.
@@ -11,15 +11,17 @@ already has the idea, this follows Manim.
 
 ## Goal
 
-**Any scene starts from a hand-written static state, and its script can do anything from
-there.**
+**Any scene starts from a static state, written by hand or captured from an earlier render, and
+its script can do anything from there.**
 
 1. Set gives the same starting desktop every time.
-2. Part of a scene can be recorded again without recording the rest.
-3. Scripts have no limits and produce no JSON.
-4. Only the VM layer knows about QEMU.
+2. Part of a scene can be recorded again without recording the rest: a section starts from the
+   state a full render captured at its boundary.
+3. Scripts have no limits and write no JSON. The captured states are written by `get_state`.
+4. Every visible window is a prop, so a capture can't miss one.
+5. Only the VM layer knows about QEMU.
 
-Not in scope: capturing a section's result as a state, saving a snapshot per section, matching
+Not in scope: saving a VM snapshot per section, replaying earlier sections muted, matching
 memory byte for byte, audio, running on real hardware, and moving frame capture into the guest.
 
 ## A state file
@@ -49,13 +51,20 @@ memory byte for byte, audio, running on real hardware, and moving frame capture 
 ```
 
 - Anything a state leaves out stays as it is on the baseline.
-- `windows` are listed back to front, so the last one is on top.
+- `windows` are in creation order: Windows 98 orders taskbar buttons by creation.
+- `stack` is optional: the window `id`s back to front (z-order), the last on top and active.
+  Without it, list order is the z-order too. A capture always writes it.
 - `open` is optional. Without it, a window starts empty. For later programs it means their
   default state: blank Paint, an untitled Notepad, a new Minesweeper game.
 - Files sit beside the state and are referenced by path and hash, never embedded in the JSON.
 - One Python schema defines the fields, and a state is validated on load. Unknown fields fail.
 - `app` maps to a prop class through `APPS` in `actions/apps.py`. See [Programs](programs.md).
 - States are always written with fixed key order, so diffs stay clean and hashes are stable.
+- `text` is a Notepad's contents, a file like `open`, set after the window opens. A capture needs
+  it, because typing isn't in `open`. Other programs reject it.
+- `selection` is a Notepad's `[start, end]` character offsets of the selected text or caret,
+  restored after the text (default `[0, 0]`). Other programs reject it.
+- A window `id` is ASCII letters, digits, `_` and `-`, because a capture uses it as a folder name.
 
 The schema starts small, with display, windows and pointer. Other fields join once they pass
 their tests. `show` is `normal`, `minimized` or `maximized`. `desktop` has `fill_colour`, `wallpaper` and `style` (below). Desktop `icons` and
@@ -98,12 +107,15 @@ class Flower(Scene):
     state = "states/state_1.json"
 
     def construct(self):
-        flower = self.prop("flower")
+        self.section("slide", self.slide)
+        self.section("close", self.close)
 
-        self.next_section("slide")
+    def slide(self):
+        flower = self.prop("flower")
         self.play(...)
 
-        self.next_section("close")
+    def close(self):
+        flower = self.prop("flower")
         self.play(...)
 ```
 
@@ -111,8 +123,10 @@ class Flower(Scene):
 uv run art98 render flower.py Flower --section close
 ```
 
-`self.prop("flower")` returns the prop for that window `id`. Adopting a window the scene
-did not start isn't built; `Win(hwnd=...)` can take hold of one.
+`self.prop("flower")` returns the prop on stage with that `id`: one a state opened, or one added
+with `self.add(prop, id="flower")`. A section finds its windows this way, because a solo run
+doesn't run the sections before it. Adopting a window the scene did not start isn't built;
+`Win(hwnd=...)` can take hold of one.
 
 `state` is optional. Without one, a scene starts on the baseline, so scenes written today keep
 working. Sections keep the animations and raw `self.guest` access scenes have now.
@@ -159,16 +173,38 @@ Three rules for run control, not built yet:
 
 ### Recording part of a scene
 
-With `--section part_3`, sections 1 and 2 run first with capture off, section 3 records, and the
-result is joined with the clips already on disk.
+A section starts from a state, not from a replay of the sections before it. `construct` calls
+`self.section(name, method)` once per section, and each method is the code of one section.
 
-- **Capture off is not free.** Manim can skip an animation in one step. Here, earlier sections must
-  still make their real mouse moves and clicks, and `Hover`, other live animations and keypresses
-  still take real time. Only the screenshots are saved. A later `fast_forward()` hook on
-  animations could jump window moves to their end, but pointer actions would still replay.
-- **Reuse is your call.** art98 can't tell whether an edit to `construct()` changed an earlier
-  section. A full render ignores old clips, and only `--section` reuses them.
-- **Later clips can go stale.** If section 3 ends differently, clip 4 starts with a visible jump.
+**A full render** cuts the clip before each section after the first, then calls `get_state` and
+saves the desktop as a capture. Nothing is reverted or set, so the render isn't disturbed. A
+capture is `NN-name.state.json` with its files in `NN-name.files/` and a `NN-name.meta.json`,
+in `<scene file stem>.<Scene>.sections/` beside the scene's file. The folder is written aside
+and swapped in only when the render succeeds.
+
+**`--section NAME`** skips `setup` and every section before NAME without calling them. At NAME
+it checks the capture is fresh, sets the desktop to it (a Set, so the guest is checked against
+it), starts `time` at the captured time, calls the method, and writes one clip. It never writes
+captures.
+
+- **`get_state` reads the props, not the desktop.** Each window prop writes its own entry, from
+  the live window: the title as it is, and the normal rectangle whatever its `show`. So every
+  window needs an `id`, and `Dialog`, `Paint` and `Minesweeper` can't be captured yet. A window
+  that is not a prop is an error, not something missed (below).
+- **Every window is tracked.** `check_tracking` runs after every `play`, `wait` and
+  `wait_until`, and at the end of a run. A visible window that is not the desktop's or a prop's
+  raises `UntrackedWindow`. A prop's window that went without `Close` raises `ImplicitClose`:
+  windows end only through `Close`, so the scene always knows. A menu, tooltip or prompt a
+  scene is dealing with is a claim, which the check lets be until it is gone.
+- **A capture can go stale.** Its meta file has a hash of the source of `setup`, the scene's
+  state file and each earlier section. A solo run whose hashes don't match refuses with the name
+  of what changed. Editing the section being rendered is fine.
+- **A solo run can differ from the full one.** The guest clock restarts at the Set, so things
+  Windows times itself (a caret blink, the taskbar clock) can differ. A Notepad's horizontal
+  scroll bar can too: the Edit keeps the widest line it ever had, and a capture can't restore it.
+  A prop kept in `self.<attr>` by an earlier section doesn't exist in a solo run.
+- **No code between sections.** It would run in a full render and be skipped in a solo one, so
+  `section()` raises `UsageError` if frames were recorded or props added between two sections.
 
 ## Recorder
 
@@ -207,5 +243,4 @@ Each of these needs a test on the real image before the schema is final.
 | Window order and focus | Taskbar order follows the order windows opened, so it may not match the JSON |
 | Opening files in more programs | Built for `picture` and `notepad` only. Elsewhere titles change, and Paint may not show the image at the expected zoom or size |
 | Paint with an opened file | Not built yet. `canvas_size` assumes a blank canvas, so canvas positions and `resize_canvas` would be wrong. `ready()` must also run on an adopted window |
-| Capture off | Some actions depend on real time, so a run with capture off may differ from a recorded one |
 | Clock and randomness | A new Minesweeper board differs each run unless these are fixed |

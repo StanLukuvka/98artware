@@ -29,7 +29,7 @@ Subclass it and write `construct`. One scene is one recording.
 | `space` | The [desktop space](#desktop-space): screen, work area, taskbar and metrics, as read from the guest. |
 | `strict_placement` | `False` by default. `True` makes a clamped size or a lost window raise `PlacementError` instead of warning. |
 | `recorder` | The [`Recorder`](bridge.md#recorder) the frames go to. |
-| `sections` | `(name, time)` for each [`next_section`](#clips) so far. |
+| `sections` | `(name, time)` for each [`section`](#clips) so far. |
 | `time` | Video time in seconds: frames written over `output_fps`, across every [clip](#clips). It never reads a clock. |
 
 | Hook | Runs |
@@ -46,9 +46,44 @@ defined, with a `UsageError` saying why.
 
 ### Stage
 
-`add(*props)` brings props on stage. For a window this starts the program, finds its window, and
-places it. `remove(*props)` takes them off, which closes a window. `refresh_props()` reads
-positions back, for when something other than the script moved a window.
+`add(*props, id=None)` brings props on stage. For a window this starts the program, finds its
+window, and places it. `id` names one prop, for `prop(id)` and for [`get_state`](#states); it
+can't be given with several props. An id is ASCII letters, digits, `_` and `-` only, because a
+capture uses it as a folder name, and a bad one raises `UsageError`. `prop(id)` returns the prop
+on stage with that id, whether `add(id=)` or a state gave it, or raises `NotFound` listing the
+ids it has. `remove(*props)` takes them off, which for a window does what [`Close`](animations.md#close)
+does. `refresh_props()` reads positions back, for when something other than the script moved a
+window.
+
+#### Tracking
+
+Every visible top-level window must be the desktop's or a prop's, and a prop's window ends only
+through [`Close`](animations.md#close). That way the scene always knows what is on screen, and a
+[captured state](#states) can't miss a window.
+
+`check_tracking()` raises when that doesn't hold. It reads the window list once. `play`, `wait`
+and `wait_until` run it when they return, `get_state` runs it first, and `run` runs it at the
+end. `pause` doesn't, since it doesn't touch the guest. Windows that were on screen when the
+desktop was set up (the baseline) don't count.
+
+- A window nothing added raises `UntrackedWindow`, naming each with its title, class and handle.
+  Add it as a prop (`self.add(Win(hwnd=...))`), or close it.
+- A prop's window that went without `Close` (the X button, a menu's Exit, Alt+F4, a click on a
+  dialog's button) raises `ImplicitClose`, naming the prop. Use `Close(window)`, or
+  `Close(window, via=...)` to show the click.
+- A control from `control()` isn't a prop and isn't checked. A hidden window still exists, and a
+  minimized one is still a window.
+
+`claim(owner, matches, *, hint="")` is for windows a program or action is handling that the scene
+has no prop for: a menu, a tooltip, a prompt. `matches(row)` takes one row of `guest.windows()`
+and says whether it is covered. The checks let a claimed window be until `release()`. Use it as a
+`with` block, which releases at its end, or keep the handle and call `release()` later. Windows
+that are still up at release raise `UntrackedWindow` naming `owner`. A claim still open at the
+end of a run is dropped, and its windows are then errors, with `hint` said.
+
+`RightClick` and `Hover` claim the menu and tooltip they bring up themselves, and
+`Minesweeper.clear` claims the best-time prompt until `sign_scoreboard`. You need `claim` for what
+you open yourself, such as the window a desktop icon opens before you have a prop for it.
 
 ### Desktop space
 
@@ -98,6 +133,20 @@ likes. It reverts the guest to the snapshot it booted from, opens the state's wi
 checks that the guest matches. Props from before are gone, and adding one again opens a new
 window. `prop(id)` is the prop for a window the last state opened.
 
+`get_state(path)` goes the other way: it writes the desktop as a state file and returns it as
+`load_state` reads it. It reads the props, not the desktop, and runs
+[`check_tracking`](#tracking) first, so an untracked window or an implicit close fails before
+anything is written. Each window prop gives one entry, from the live window: its title as it is
+now, and its normal position and size whatever `show` says. The files it needs (a picture, a
+Notepad's text, the wallpaper) are copied to `<path stem>.files/` beside the file, so the capture
+doesn't depend on where your assets are. It is built aside and moved in only once it loads, so a
+failed capture leaves the earlier one alone. Every window prop needs an id
+(`self.add(prop, id="note")`), and only the programs a state can open can be captured: `Paint`,
+`Minesweeper`, `Dialog` and `Screensaver` raise `UsageError`, "can't be captured yet". A capture
+is refused while a claimed window (a menu, a tooltip, a prompt) is up. The wallpaper can't be
+read from the guest, so a capture holds the last one a state of this scene applied. One set by a
+raw guest call is missed. [Sections](#sections) call `get_state` for you.
+
 A relative path is looked for beside the scene's file first, then in the current folder. If it
 is in neither, `MissingFile` names both places. A file path inside a state is relative to the
 state file.
@@ -122,13 +171,16 @@ Fill in `sha256` with the output of `sha256sum` on the file, for example `sha256
 | `version` | `1`. The only field that must be there. |
 | `display` | `[width, height, depth]`, a mode the guest's driver offers. Depth is 8, 16, 24 or 32. |
 | `desktop` | `fill_colour` as `[r, g, b]` (the plain desktop colour behind the icons and around a centred wallpaper, not the taskbar or selection colour), and `wallpaper` as a BMP (`file` and `sha256`) with a `style` of `"center"` (the default), `"tile"` or `"stretch"`. Each part is optional, and `style` needs a `wallpaper`. The old name `colour` for `fill_colour` is refused. |
-| `windows` | Listed back to front, so the last one is on top. |
-| `id` | The name for `prop(id)`. Each one is used once. |
+| `windows` | In creation order: Windows 98 orders taskbar buttons by creation. |
+| `stack` | Optional: the window `id`s back to front (z-order), the last on top and active. Without it, list order is the z-order too; a capture always writes it. |
+| `id` | The name for `prop(id)`. Each one is used once. ASCII letters, digits, `_` and `-` only. |
 | `app` | `"picture"`, a [`Picture`](#picture), or `"notepad"`, a [`Notepad`](#notepad). |
 | `title` | Default `"Picture"` for a picture. A Notepad takes the Windows 98 title for its file. No double quotes. |
 | `at`, `size` | The top left corner, and the outer size. |
 | `show` | `"normal"` (the default), `"minimized"` or `"maximized"`. |
 | `open` | A BMP to show (or a text file for Notepad): its `file`, and its `sha256` so a changed file is caught. |
+| `text` | Notepad only: a text file, as `open`, whose contents are put in the Edit control once the window is up. A capture uses it for what was typed. |
+| `selection` | Notepad only: `[start, end]`, the character offsets of the selected text or caret, restored after the text. Default `[0, 0]`. |
 | `pointer` | `[x, y]`, placed last. |
 
 Every mistake in the file is listed at once, as a `StateError`, before the desktop is touched. If
@@ -150,6 +202,10 @@ work. The `art98` command prints any of them as one `error:` line.
 - The guest doing something other than expected raises `GuestError` (a `RuntimeError`).
   `StateMismatch` and `DesktopError` are `GuestError`s. `BridgeError` and `RecorderError` are
   `Art98Error`s and `RuntimeError`s.
+- `UntrackedWindow` (a window on screen that no prop owns) and `ImplicitClose` (a prop's window
+  went without `Close`) are `GuestError`s. See [Tracking](#tracking).
+- `SectionNotFound` is a `UsageError`: `--section` named a section the scene doesn't have (it
+  lists the ones it has), or the scene did something before its first `section()` in a solo run.
 - A missing file raises `MissingFile` (a `FileNotFoundError`).
 
 A plain exception from your own code, or a plain one from art98, keeps its traceback.
@@ -227,16 +283,21 @@ such as a screensaver.
 
 `stop_condition` is a function, tried before each capture. `wait_until` warns if it gives up.
 
+A window the scene starts itself needs a [claim](#tracking) until it becomes a prop with `self.add(Win(hwnd=...))`.
+
 ```python
 from art98.anim import *
 
 
 class WaitForCalculator(Scene):
     def construct(self):
-        self.guest.spawn("calc.exe")
-        self.wait_until(
-            lambda: any(w.class_name == "SciCalc" for w in self.guest.windows())
-        )
+        def is_calc(w):
+            return w.class_name == "SciCalc"
+
+        with self.claim("calc.exe", is_calc):
+            self.guest.spawn("calc.exe")
+            self.wait_until(lambda: any(is_calc(w) for w in self.guest.windows()))
+            self.add(Win(hwnd=self.guest.find_window(class_name="SciCalc").hwnd))
         self.pause(0.5)
 ```
 
@@ -255,9 +316,7 @@ closed.
   `self.cut("intro.mp4")`, the clips are `<stem>-01.mp4`, `intro.mp4`, then `<stem>-03.mp4`.
 - A cut with nothing recorded since the last one makes no empty clip. It returns `None`, and a
   `path` given then names the clip to come.
-- `next_section(name)` is `cut()` with a label. It adds `(name, time)` to `sections`, a list of
-  the sections so far, and returns what `cut()` returns. The name is only a label: clips stay
-  numbered. An empty name raises `UsageError`.
+- `section(name, method)` plays `method` as a named section. See [Sections](#sections).
 - `set_state` doesn't cut. For one clip per state, call `cut()` after it.
 - The screen size can't change inside a clip. If a frame has another size from the one before,
   the recorder raises `RecorderError`. Call `cut()` before the `set_state` that switches the
@@ -287,6 +346,67 @@ class TwoClips(Scene):
 
 `art98 render scene.py -o out.mp4` writes `out-01.mp4` and `out-02.mp4`, 15 frames each, and
 `out.mp4` with all 30.
+
+### Sections
+
+`section(name, method)` is called from `construct`, once per section, each with a method that
+holds that section's code. `name` is a label: ASCII letters, digits, `_` and `-`, and each is used
+once. It cuts before every section after the first, adds `(name, time)` to `sections`, then calls
+`method()`. There is no other code between the calls: `section()` raises `UsageError` if frames
+were recorded or props added since the last section ended.
+
+A full render also captures the desktop at each of those boundaries, with [`get_state`](#states),
+into `<scene file stem>.<Scene>.sections/` beside the scene's file: `NN-name.state.json`, its
+`NN-name.files/` and a `NN-name.meta.json`. A render that fails leaves the earlier captures alone.
+A scene with sections has to live in a file.
+
+`art98 render FILE --section NAME` then plays that one section alone, from its capture, into one
+clip, `<Scene>-<name>.mp4` unless `-o` says otherwise. It skips `setup` and every section before
+`NAME` without calling them, sets the desktop to the capture, and starts `time` at the captured
+time. The first section runs as a full render does. It never writes captures: render the whole
+scene once first, or it raises `MissingFile`. An unknown name raises `SectionNotFound`.
+
+What a later section needs from before is in the capture, so it finds a window by id:
+
+```python
+from art98.anim import *
+
+
+class Notes(Scene):
+    def construct(self):
+        self.section("write", self.write)
+        self.section("tidy", self.tidy)
+
+    def write(self):
+        pad = Notepad(at=(60, 60), size=(360, 220))
+        self.add(pad, id="pad")
+        self.play(TypeWithCursor(pad, "first draft"))
+
+    def tidy(self):
+        pad = self.prop("pad")
+        self.play(pad.animate.shift(200 * RIGHT))
+        self.play(Close(pad))
+```
+
+Every window made in `setup` or a section needs an id, and only windows a state can open (see
+[States](#states)) can be captured. A capture also stores a hash of the source of `setup`, the
+scene's `state` file and each earlier section method. If one has changed since, a solo run
+refuses with its name: "render the whole scene again". Editing the section being rendered is
+fine.
+
+Known limits:
+
+- A prop kept in `self.<attr>` by an earlier section is missing in a solo run, because that code
+  didn't run. Find it with `prop(id)`.
+- A capture is refused while a claimed window (a menu, a tooltip, a prompt) is up, so finish or
+  dismiss it before the section ends.
+- A solo section that starts after typing into Notepad can differ from the full run in the Edit's
+  horizontal scroll bar. The control keeps the widest line it ever had, which a capture can't
+  restore.
+- Things the guest times for itself (a caret blink) can differ, because the Set winds the guest's
+  clock back.
+- A `--section` solo run starts from a fresh revert, so the taskbar clock can show a different
+  minute from the full run at that point.
 
 ## Box
 
@@ -427,7 +547,7 @@ the redraw Windows 98 leaves stale pixels on the frame.
 | `maximize()`, `minimize()`, `restore()` | Post `WM_SYSCOMMAND`, as its title bar buttons do, and read the new place back. [`Maximize`, `Minimize` and `RestoreWindow`](animations.md#window-state) call these. |
 | `show` | `"normal"`, `"minimized"` or `"maximized"`, as last read. |
 | `min_size()` | The least outer size the window takes, or `None`. A `size` below it raises `UsageError`. Only `Dialog` gives one. |
-| `close()` | Post `WM_CLOSE`, which is what its X button does. |
+| `close()` | Post `WM_CLOSE`, which is what its X button does. A scene ends a window with [`Close`](animations.md#close) instead, which waits for it to go and takes the prop off stage. A window ended by calling `close()` yourself raises `ImplicitClose`. |
 
 `activate` clicks the title bar between two frames, because `SetForegroundWindow` returns 0 when
 the agent calls it. It then puts the pointer back. It raises `GuestError` if another window
@@ -535,7 +655,14 @@ In a state, it is `"app": "notepad"`:
  "open": {"file": "../assets/note.txt", "sha256": "<sha256 of the file>"}}
 ```
 
-The file must be plain text. `title` is optional there too.
+The file must be plain text. `title` is optional there too. A Notepad state can also have a
+`text` file, which is put in the Edit control after the window opens. It is how a captured state
+keeps what was typed:
+
+```json
+{"id": "note", "app": "notepad", "at": [320, 180], "size": [320, 200],
+ "text": {"file": "../assets/draft.txt", "sha256": "<sha256 of the file>"}}
+```
 
 ![Typing](../assets/gifs/typing.gif)
 
@@ -613,9 +740,10 @@ Source: [minesweeper_win.py](../../recipes/scenes/gallery/minesweeper_win.py).
 `Screensaver(name="3D Pipes")`
 
 Starts `<name>.scr /s`. Follow it with `self.wait(seconds)`, because a screensaver runs by itself.
-`stop(timeout=5.0)` nudges the pointer, which is how a real one is dismissed, and waits for it to
-exit, then puts the pointer back where it was. It raises `BridgeTimeout` if the screensaver is
-still running after the timeout. It fills the screen, so `at`, `size` and the other layout calls
+End it with `self.play(Close(saver))`. That calls `stop(timeout=5.0)`, which nudges the pointer,
+the way a real one is dismissed, waits for it to exit, then puts the pointer back where it was.
+It raises `BridgeTimeout` if the screensaver is still running after the timeout. A scene doesn't
+call `stop` itself: a screensaver that ends without `Close` raises `ImplicitClose`. It fills the screen, so `at`, `size` and the other layout calls
 do nothing to it.
 
 `NAMES` lists what works: 3D Flower Box, 3D Flying Objects, 3D Maze, 3D Pipes, 3D Text, Blank
@@ -734,7 +862,7 @@ class Question(Scene):
         box = Dialog("Keep this?", icon="question", buttons="yesno", at=(280, 200))
         self.add(box)
         self.pause(0.5)
-        self.play(Click(box.button("No")))
+        self.play(Close(box, via=box.button("No")))
         pad = Notepad(at=(200, 120), size=(320, 160))
         self.add(pad)
         self.play(TypeWithCursor(pad, f"You pressed {box.answer}."))
@@ -750,7 +878,7 @@ a state `app`, and icons in a state.
 ### Command line
 
 ```text
-art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
+art98 render FILE [SCENE] [-o OUTPUT] [--section NAME] [--gif GIF] [--work DIR]
              [--gif-fps N] [--gif-colors N] [--gif-scale X] [--gif-dither NAME] [--wait S]
 ```
 
@@ -759,6 +887,7 @@ art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
 | `FILE` | | The Python file. |
 | `SCENE` | | The scene class. Needed if the file has several. |
 | `-o`, `--output` | `<Scene>.mp4` | `.mp4`, or `.gif` for a GIF alone. |
+| `--section` | | Play only this [section](#sections), from the capture an earlier full render made. The output defaults to `<Scene>-<name>.mp4`. |
 | `--gif` | | Write a GIF as well as the video. |
 | `--work` | `[vm] work` | The work folder. See [configuration](../setup/config.md). |
 | `--gif-fps` | 15 | GIF frame rate. |
@@ -769,7 +898,7 @@ art98 render FILE [SCENE] [-o OUTPUT] [--gif GIF] [--work DIR]
 
 ### Python
 
-`render(scene, output=None, *, session, gif=None, gif_options=None, keep_clips=True)`.
+`render(scene, output=None, *, session, gif=None, gif_options=None, keep_clips=True, section=None)`.
 `output` must end in `.mp4` or `.gif`, and `gif` in `.gif`; anything else raises `UsageError` before
 anything is recorded. `gif_options` is a `GifOptions(fps=15, colors=128, scale=1.0, dither="none")`
 (`from art98.anim import GifOptions`); `None` means its defaults. It replaces the old `gif_fps`,
@@ -777,7 +906,7 @@ anything is recorded. `gif_options` is a `GifOptions(fps=15, colors=128, scale=1
 
 `scene` is a class or an instance. `session` is required: take one with `art98.attach()`. Render
 never boots or closes it. Returns the path written. `keep_clips` is for scenes that [cut](#clips). A scene that records no frames raises
-`RecorderError`.
+`RecorderError`. `section="name"` plays only that [section](#sections) into one clip.
 
 A render does not copy the image. It plays on the VM that `art98 vm start` runs, from its copy
 under `work/runs/vm-*`. One render runs at a time. See [`ready` snapshot](../glossary.md).

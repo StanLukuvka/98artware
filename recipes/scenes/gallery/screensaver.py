@@ -11,5 +11,5 @@ class ScreensaverRun(Scene):
         saver = Screensaver("Mystify Your Mind")
         self.add(saver)
         self.wait(5)
-        saver.stop()
+        self.play(Close(saver))
         self.pause(0.6)

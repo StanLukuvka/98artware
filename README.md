@@ -210,8 +210,9 @@ viewer for a BMP; [`Notepad`](docs/scenes/scene-api.md#notepad);
 and [`Screensaver`](docs/scenes/scene-api.md#screensaver). A state can open `picture` and
 `notepad` windows; the others are added in `construct`. [`Backdrop`](docs/scenes/scene-api.md#backdrop)
 sets the desktop colour, and a state can set a colour and a wallpaper. `self.cut()` ends one
-video clip and starts the next, and `self.next_section(name)` does the same with a label; the
-clips are kept as `<stem>-01.mp4` and on, and joined into the output.
+video clip and starts the next, and `self.section(name, method)` does the same with a label and
+lets `art98 render --section NAME` play that part alone; the clips are kept as `<stem>-01.mp4`
+and on, and joined into the output.
 
 ## Where to go next
 
