@@ -13,7 +13,7 @@ notes are in the [changelog](../CHANGELOG.md).
 | Scene API and renderer | Built. `Scene`, props, animations, `art98 render`, and `Backdrop` for the desktop colour | [Part 2](scenes/README.md) |
 | Recipes | `recipes/scenes/blank_start` (the proof scene: a Picture and a Notepad, three sections), `recipes/scenes/mvp`, `hello.py`, `showcase.py` and the gallery scenes | [Gallery](scenes/gallery.md) |
 | Diagrams | Nine diagrams and the Manim comparison, with editable `.drawio` files | [Diagrams](diagrams/README.md) |
-| States and sections | The MVP is built: state files, `set_state`, picture windows and `Teleport`. `Scene.next_section(name)` is built, on top of `cut()`. The `--section` option is not | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
+| States and sections | The MVP is built: state files, `set_state`, picture windows and `Teleport`. Sections are built: `self.section(name, method)` captures a state at each section start, `get_state()` writes one, and `art98 render --section NAME` renders one section alone from its captured state | [Design](design/state-and-action.md), [States](scenes/scene-api.md#states) |
 | Recorder | Built: `Recorder`, with `cut()` to start a new clip during a run, `clips` to list them, and a join into the output. Clips are kept beside the output as MP4 | [Recorder](design/state-and-action.md#recorder), [Clips](scenes/scene-api.md#clips) |
 | Programs | Notepad, Dialog, Paint, Minesweeper and Screensaver, one file each in `actions/programs/`, and `Picture` (`picture.py`) beside them. Only Picture and Notepad can be opened from a state (`APPS` in `actions/apps.py`). Every `Win` can be built from a state window (`from_state`) and can `maximize`, `minimize` and `restore`. `Dialog.remove` answers No or Abort on boxes that have no Cancel. Notepad (`notepad.py`) opens a text file or an empty window and checks its title; Windows 98 drops a trailing `.txt` from the title. `Dialog` (`dialog.py`) is a real message box with icons, a size, greyed buttons and changeable text | [Programs](design/programs.md), [Dialog](scenes/scene-api.md#dialog) |
 | Desktop colour and wallpaper | Built. `Backdrop` and a state's `desktop` (colour, wallpaper, style). A wallpaper reaches the guest on a CD in drive D: | [Colour and wallpaper](design/state-and-action.md#desktop-colour-and-wallpaper) |
@@ -37,7 +37,6 @@ After that, in order. See also
 
 1. **Other programs.** New programs (Calculator and the rest) go in `actions/programs/`, one
    file each, subclassing `Win`. Paint, Minesweeper and `Dialog` are not state apps yet.
-2. **`--section`.** Render one section of a scene, on top of `next_section`.
 
 ### Leftovers from the dialog storm
 

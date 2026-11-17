@@ -198,7 +198,10 @@ container runs goes in `compose.yaml`. Each has one home, listed in
 **Decision.** A scene starts from a **state**: a JSON file that describes a still desktop (the
 display mode, colour and wallpaper, windows back to front, the pointer). Applying it is a Set:
 revert, open the windows off camera, read the desktop back and check it matches. Everything
-after that is **actions**: free Python in `construct`, with no limits and no JSON output.
+after that is **actions**: free Python in `construct`, with no limits. A state can be written by
+hand, or captured: `get_state` writes the desktop as the scene's props have it, in the same
+format and read by the same reader. A full render captures one at each section boundary, so
+`--section` can start from it.
 
 **Why.**
 
@@ -210,15 +213,23 @@ after that is **actions**: free Python in `construct`, with no limits and no JSO
 - **Checked whole, before the guest is touched,** so every mistake in a file is listed at once
   and a bad file never leaves a half-made desktop. Unknown fields fail.
 - **Files by path and `sha256`,** so a state can open a finished drawing or a text file and a
-  changed file is caught, without ever saving a scene's result.
+  changed file is caught. A capture copies the files it needs beside it.
 - **Checked after Set,** because Windows decides where a window really lands; a mismatch raises
   `StateMismatch` with each difference.
-- **Rejected:** saving a scene's result as a state, a snapshot per section, and replaying a log
+- **A captured state comes from the props, not from scraping the desktop.** A render is a set of
+  objects and their current states, so `get_state` reads each prop. It can't capture what no
+  prop owns, so that is an error instead: every visible window must be the desktop's or a
+  prop's, and a prop's window ends only through `Close`. Otherwise state is easy to lose without
+  noticing. `check_tracking` checks it after every `play` and `wait`, and at the end of a run.
+- **Rejected:** a snapshot per section, replaying the earlier sections muted, and replaying a log
   of steps. Each would tie the design to the VM and limit what a script can try.
+- **A capture can go stale.** It stores a hash of the source of `setup`, the scene's state file
+  and each earlier section method, and a solo run refuses one that no longer matches.
 
 **What follows.** A script is ordinary Python, so how many states or videos it uses is up to it;
 art98 has no "video" or "project" concept. The programs a state can open are one list, `APPS` in
-`actions/apps.py` (today `picture` and `notepad`).
+`actions/apps.py` (today `picture` and `notepad`). A captured state is limited to those too:
+`get_state` refuses a window it can't write, such as a `Dialog`, `Paint` or `Minesweeper`.
 
 **For new work.** A new state field is read and fully checked in `state.py`, applied in
 `apply_state`, and verified in `check_state`, in that order (see
@@ -238,7 +249,7 @@ honest unit, and Windows' own y-down axis avoids a conversion on every call.
 
 **What follows.** Where the meaning differs, the name differs or the doc says so: `add` starts a
 real program, `wait` records the live guest at host speed, and `pause` holds one still frame. A
-named part of a scene is a **section**, Manim's word, marked with `next_section`.
+named part of a scene is a **section**, Manim's word, played with `section(name, method)`.
 
 **For new work.** Take Manim's name when the behaviour matches, and a new name when it doesn't.
 Every public name in `art98.anim` must be documented in [Scene API](../scenes/scene-api.md) or
@@ -339,8 +350,8 @@ action. A scene that changes the work area or display mode with raw calls must c
 
 **Decision.** `Recorder` writes frames to video with ffmpeg on the host. A scene reaches it as
 `self.recorder`. `self.cut()` ends one clip and starts the next between two frames, and
-`self.next_section(name)` does the same with a label. The clips are kept beside the output as
-`<stem>-01.mp4` and on, and joined into it.
+`self.section(name, method)` does the same before each section after the first, with a label. The
+clips are kept beside the output as `<stem>-01.mp4` and on, and joined into it.
 
 **Why.** A scene should control its own capture as it runs. Four rules follow:
 
@@ -355,10 +366,11 @@ action. A scene that changes the work area or display mode with raw calls must c
 Every file is written as `.part` and renamed only when the whole render worked, so a failed
 render never leaves a half-written output or clobbers an earlier one.
 
-**What follows.** Re-recording one section on its own (`--section`) is not built; it would sit on
-top of `next_section`.
+**What follows.** Re-recording one section on its own is `--section`: it starts from the state a
+full render captured at that boundary ([decision 7](#7-states-are-static-and-hand-written-actions-are-free-python)),
+and writes one clip.
 
-**For new work.** Build capture features on `cut()` and `next_section`. Keep the recorder on the
+**For new work.** Build capture features on `cut()` and `section`. Keep the recorder on the
 host. See [Recorder](state-and-action.md#recorder) and [Clips](../scenes/scene-api.md#clips).
 
 ## 15. Big files go on a CD, not down the serial line
@@ -444,8 +456,8 @@ and move its callers. Write a `lazy:` comment for a known shortcut, with its lim
 | Updaters (`add_updater`), Manim's render cache, a camera | Not built. `wait` and `wait_until` watch the guest instead; zoom or pan would be a post-process |
 | `FadeIn`, `FadeOut` | Not possible honestly: Windows 98 has no window opacity |
 | Holding the desktop after a render so more actions can run without a restore | Designed in [state and action](state-and-action.md#holding), not built. The VM is paused at the last frame, and the next attach reverts |
-| `--section` | Not built; sits on top of `next_section` |
-| Desktop icons and the tray in a state, `Dialog` in a state | Not built |
+| `--section` | Built: see [decision 7](#7-states-are-static-and-hand-written-actions-are-free-python) |
+| Desktop icons and the tray in a state, `Dialog`, `Paint` and `Minesweeper` in a state or a capture | Not built |
 | Audio | Deferred |
 | Programs outside base Windows 98 SE, a plugin system | Out of scope |
 | Animated desktop icons, widescreen output | Out of scope for now |

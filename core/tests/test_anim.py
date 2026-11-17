@@ -1,7 +1,10 @@
 """The scene layer against a stand-in guest: nothing here needs a VM."""
 
+import hashlib
 import importlib.util
 import inspect
+import json
+import re
 import shutil
 import struct
 from pathlib import Path
@@ -14,12 +17,15 @@ from art98.actions import programs
 from art98.actions.keyboard import char_chord, key_chord
 from art98.anim import *
 from art98.anim import scene as scene_module
+from art98.anim.setstate import window_problems
 from art98.base.animation import path_function
 from art98.base.props import Spot
-from art98.errors import MissingFile, NotFound
+from art98.errors import GuestError, MissingFile, NotFound
+from art98.guest import guestfiles, win32
 from art98.guest.bridge import CallResult, Window
 from art98.guest.win32 import MOUSE_BUTTONS
 from art98.output import recorder as recorder_module
+from art98.state import load_state
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="needs ffmpeg")
 
@@ -46,11 +52,14 @@ class FakeGuest:
     def __init__(self):
         self.calls = []
         self.rects = {}
+        self.edit_text = {}
+        self.edit_sel = {}  # hwnd -> (start, end) the Edit control reports
         self.rows = {0: []}
         self.iconic, self.zoomed = (
             set(),
             set(),
         )  # hwnds the guest shows minimized / maximized
+        self.normal = {}  # hwnd -> the rect Windows keeps for a maximized window
         self.cursor = (400, 300)
         self.foreground = 0
         self.spawned = []
@@ -58,6 +67,8 @@ class FakeGuest:
         self.next_pid = 7000
         self.user32 = FakeDll(self, "user32")
         self.gdi32 = FakeDll(self, "gdi32")
+        # GetFileAttributesA gives 1: a file is there
+        self.kernel32 = FakeDll(self, "kernel32")
 
     def add_window(self, hwnd, class_name, rect, title="", parent=0, pid=0):
         self.rects[hwnd] = rect
@@ -111,14 +122,64 @@ class FakeGuest:
     def do_IsZoomed(self, hwnd):
         return CallResult(int(hwnd in self.zoomed), 0, [])
 
+    def do_GetWindowPlacement(self, hwnd, buffer):
+        # WINDOWPLACEMENT: 44 bytes; rcNormalPosition is the last four ints.
+        assert struct.unpack("<I", buffer[:4]) == (44,)
+        placement = (44, 0, 1, 0, 0, 0, 0, *self.normal.get(hwnd, self.rects[hwnd]))
+        return CallResult(1, 0, [struct.pack("<11i", *placement)])
+
+    def do_GetDeviceCaps(self, dc, index):
+        return CallResult(16, 0, [])
+
+    def do_GetSysColor(self, index):
+        return CallResult(0x808000, 0, [])  # teal, as a COLORREF
+
+    def do_SendMessageA(self, hwnd, message, wparam, lparam):
+        # Edit controls keep the text WM_SETTEXT gave them.
+        text = self.edit_text.get(hwnd, b"")
+        if message == 0x000C:  # WM_SETTEXT
+            self.edit_text[hwnd] = lparam.encode("cp1252")
+        elif message == 0x000E:  # WM_GETTEXTLENGTH
+            return CallResult(len(text), 0, [])
+        elif message == 0x000D:  # WM_GETTEXT
+            return CallResult(len(text), 0, [text])
+        elif message == win32.EM_GETSEL:
+            start, end = self.edit_sel.get(hwnd, (0, 0))
+            return CallResult(start | end << 16, 0, [])
+        elif message == win32.EM_SETSEL:
+            self.edit_sel[hwnd] = (wparam, lparam)
+        return CallResult(1, 0, [])
+
     def do_GetClientRect(self, hwnd, out):
         return CallResult(1, 0, [struct.pack("<iiii", 0, 0, 148, 191)])
+
+    def do_PostMessageA(self, hwnd, message, wparam, lparam):
+        if message == WM_CLOSE:  # Windows: the window and its children go
+            self.close_window(hwnd)
+        return CallResult(1, 0, [])
+
+    def close_window(self, hwnd):
+        self.rects.pop(hwnd, None)
+        for rows in self.rows.values():
+            rows[:] = [w for w in rows if w.hwnd != hwnd]
+        self.rows.pop(hwnd, None)
 
     def do_GetDlgCtrlID(self, hwnd):
         return CallResult(hwnd, 0, [])
 
     def do_GetForegroundWindow(self):
         return CallResult(self.foreground, 0, [])
+
+    def do_mouse_event(self, flags, *_):
+        # A real press on a window gives it the foreground. Captures written with
+        # a `stack` activate the front window through a title-bar click on set.
+        if flags == LDOWN:
+            for w in self.windows():
+                left, top, right, bottom = self.rects.get(w.hwnd, (0, 0, 0, 0))
+                if left <= self.cursor[0] <= right and top <= self.cursor[1] <= bottom:
+                    self.foreground = w.hwnd
+                    break
+        return CallResult(1, 0, [])
 
     def windows(self, parent=0):
         return list(self.rows.get(parent, []))
@@ -164,6 +225,13 @@ class FakeVideo:
         self.frames = []
         self.cuts = []
         self.live_calls = []
+        self.clips = self.parts = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        pass
 
     @property
     def total(self):
@@ -190,10 +258,20 @@ class FakeSession:
         self.bridge, self.vm = guest, FakeVM()
         self.reverts = 0
         self.fresh = True  # as after `attach`
+        self.videos = []  # what `record` handed out
 
     def revert(self, snapshot="ready"):
         self.reverts += 1
         self.fresh = True
+
+    def record(self, path, output_fps, lossless=False, defer=False):
+        """What `render` asks for: one video that is already its own single clip."""
+        path = Path(path)
+        path.write_bytes(b"video")
+        video = FakeVideo(self.bridge)
+        video.clips = video.parts = [path]
+        self.videos.append(video)
+        return video
 
 
 class QuietBridge:
@@ -564,6 +642,59 @@ def test_a_win_starts_its_program_and_finds_its_own_window(guest, scene):
     assert guest.rects[0x10] == (10, 20, 310, 220)
 
 
+def test_normal_rect_unpacks_the_placement_the_guest_returns(guest):
+    guest.add_window(0x10, "Notepad", (10, 20, 310, 220))
+    assert win32.normal_rect(guest, 0x10) == (10, 20, 310, 220)
+    guest.calls.clear()
+    guest.do_GetWindowPlacement = lambda hwnd, buffer: CallResult(0, 0, [bytes(44)])
+    with pytest.raises(GuestError, match="GetWindowPlacement"):
+        win32.normal_rect(guest, 0x10)
+
+
+def state_with_text(tmp_path, data=b"one\ntwo\n"):
+    (tmp_path / "note.txt").write_bytes(data)
+    digest = hashlib.sha256(data).hexdigest()
+    return load_state(
+        dump_json(
+            tmp_path,
+            {
+                "version": 1,
+                "windows": [
+                    {
+                        "id": "note",
+                        "app": "notepad",
+                        "title": "Note",
+                        "at": [10, 20],
+                        "size": [300, 200],
+                        "text": {"file": "note.txt", "sha256": digest},
+                    }
+                ],
+            },
+        )
+    )
+
+
+def dump_json(tmp_path, value):
+    path = tmp_path / "state.json"
+    path.write_text(json.dumps(value))
+    return path
+
+
+def test_a_state_text_is_set_in_the_edit_box_and_checked(guest, scene, tmp_path):
+    state = state_with_text(tmp_path)
+    guest.add_window(0x10, "Notepad", (10, 20, 310, 220), "Note", pid=7000)
+    guest.add_window(0x11, "Edit", (96, 130, 688, 495), parent=0x10)
+    pad = Notepad.from_state(state.window("note"))
+    scene.add(pad)
+    assert guest.edit_text[0x11] == b"one\r\ntwo\r\n"
+    found = {0x10: Window(0x10, 7000, True, (10, 20, 310, 220), "Notepad", "Note")}
+    assert window_problems(guest, state, {"note": pad}, found) == []
+    guest.edit_text[0x11] = b"changed"
+    assert window_problems(guest, state, {"note": pad}, found) == [
+        "windows[0] 'note': text differs from note.txt"
+    ]
+
+
 def test_a_prop_not_on_stage_says_so():
     with pytest.raises(UsageError, match="add it"):
         Notepad().guest  # noqa: B018
@@ -662,6 +793,370 @@ def test_close_marks_notepad_saved_and_leaves_the_scene(guest, scene):
     assert ("SendMessageA", (0x11, 0x00B9, 0, 0)) in guest.calls
     assert ("PostMessageA", (0x10, WM_CLOSE, 0, 0)) in guest.calls
     assert pad not in scene.props
+
+
+# ---- tracking ----
+
+
+def test_a_window_the_scene_did_not_add_fails_the_next_wait_naming_it(guest, scene):
+    guest.add_window(0x99, "#32768", (0, 0, 50, 50), "Stray menu")
+    with pytest.raises(scene_module.UntrackedWindow, match="Stray menu.*0x99"):
+        scene.wait(0.1)
+    assert issubclass(scene_module.UntrackedWindow, GuestError)
+
+
+def test_a_window_the_scene_did_not_add_fails_play_and_the_end_of_run(guest, scene):
+    guest.add_window(0x99, "Foo", (0, 0, 50, 50), "Stray")
+    with pytest.raises(scene_module.UntrackedWindow):
+        scene.play(Wait(0.1))
+
+    class Leaks(Stage):
+        def construct(self):
+            self.guest.add_window(0x98, "Foo", (0, 0, 50, 50), "Leak")
+
+    with pytest.raises(scene_module.UntrackedWindow, match="Leak"):
+        Leaks().run(FakeSession(FakeGuest()), FakeVideo(guest))
+
+
+def test_pause_does_not_look_at_the_guest(guest, scene):
+    guest.add_window(0x99, "Foo", (0, 0, 50, 50), "Stray")
+    scene.pause(0.1)
+
+
+def test_windows_the_desktop_started_with_are_not_untracked(guest):
+    guest.add_window(0x5, "Progman", (0, 0, 800, 600))
+    stage = Stage()
+    stage.run(FakeSession(guest), FakeVideo(guest))
+    stage.wait(0.1)
+    guest.add_window(0x99, "Foo", (0, 0, 50, 50), "Stray")
+    with pytest.raises(scene_module.UntrackedWindow):
+        stage.wait(0.1)
+
+
+def test_a_hidden_window_is_not_untracked_and_a_hidden_prop_is_not_gone(guest, scene):
+    pad = notepad(guest, scene)
+    guest.rows[0][0] = Window(0x10, 7000, False, (92, 88, 692, 499), "Notepad", "")
+    guest.rows[0].append(Window(0x99, 1, False, (0, 0, 5, 5), "Foo", "Hidden"))
+    scene.wait(0.1)
+    assert pad in scene.props
+
+
+def test_a_control_of_a_prop_is_not_untracked(guest, scene):
+    pad = notepad(guest, scene)
+    pad.control("Edit")
+    scene.wait(0.1)
+
+
+def test_a_window_gone_without_close_raises_implicit_close_naming_the_prop(
+    guest, scene
+):
+    pad = notepad(guest, scene)
+    guest.close_window(0x10)  # the X button, a menu's Exit
+    with pytest.raises(scene_module.ImplicitClose, match=r"Notepad.*Close\(window"):
+        scene.wait(0.1)
+    assert issubclass(scene_module.ImplicitClose, GuestError) and pad in scene.props
+
+
+def test_a_reused_handle_with_another_pid_counts_as_gone(guest, scene):
+    notepad(guest, scene)
+    guest.close_window(0x10)
+    guest.add_window(0x10, "Notepad", (92, 88, 692, 499), pid=8123)
+    with pytest.raises(scene_module.ImplicitClose):
+        scene.wait(0.1)
+
+
+def test_a_reused_handle_with_another_class_counts_as_gone(guest, scene):
+    notepad(guest, scene)
+    guest.close_window(0x10)
+    guest.add_window(0x10, "OtherClass", (92, 88, 692, 499), pid=7000)
+    with pytest.raises(scene_module.ImplicitClose):
+        scene.wait(0.1)
+
+
+def prompt_of(guest, pid=7000):
+    guest.add_window(0x60, "#32770", (150, 150, 300, 250), "Congratulations", pid=pid)
+
+
+def test_a_prompt_claimed_by_minesweeper_does_not_raise_during_a_play(guest, scene):
+    board = sweeper(guest, scene)
+    prompt_of(guest)
+
+    typed = scene.vm.send_keys
+
+    def answer_prompt(*codes, hold_ms=80):
+        typed(*codes, hold_ms=hold_ms)
+        guest.close_window(0x60)  # the prompt goes when a key is pressed
+
+    scene.vm.send_keys = answer_prompt
+    board.sign_scoreboard()
+    assert scene._claims == []
+
+
+def test_a_prompt_nobody_claimed_still_raises_in_a_play(guest, scene):
+    sweeper(guest, scene)
+    prompt_of(guest)
+    with pytest.raises(scene_module.UntrackedWindow, match="Congratulations"):
+        scene.play(Wait(0.1))
+
+
+def test_a_claim_does_not_cover_another_process_and_the_error_names_the_owner(
+    guest, scene
+):
+    sweeper(guest, scene)
+    prompt_of(guest, pid=9999)
+    guest.add_window(0x61, "#32770", (0, 0, 5, 5), "Mine", pid=7000)
+    board_claim = lambda w: w.class_name == "#32770" and w.pid == 7000
+    with scene.claim("Minesweeper's prompt", board_claim):
+        with pytest.raises(scene_module.UntrackedWindow, match="0x60") as caught:
+            scene.wait(0.1)
+        guest.close_window(0x60)
+        guest.close_window(0x61)
+    assert "Claimed now: Minesweeper's prompt" in str(caught.value)
+
+
+def test_a_claim_whose_window_is_still_up_after_release_raises_naming_the_owner(
+    guest, scene, monkeypatch
+):
+    from art98.guest import win32
+
+    monkeypatch.setattr(win32, "CLOSE_TIMEOUT", 0.01)
+    guest.add_window(0x62, "#32770", (0, 0, 5, 5), "Left behind")
+    with (
+        pytest.raises(scene_module.UntrackedWindow, match="Owner X left.*Left behind"),
+        scene.claim("Owner X", lambda w: w.class_name == "#32770"),
+    ):
+        scene.wait(0.1)
+    assert scene._claims == []
+
+
+def test_a_claim_is_released_when_its_block_raises(guest, scene):
+    with pytest.raises(RuntimeError), scene.claim("Owner X", lambda w: True):
+        raise RuntimeError("boom")
+    assert scene._claims == []
+
+
+def test_the_right_click_menu_claim_lasts_across_a_wait_and_ends_when_the_menu_goes(
+    guest, scene
+):
+    guest.add_window(0x70, "#32768", (640, 300, 740, 400), "")
+    scene.play(RightClick((640, 300)))
+    scene.wait(0.1)
+    scene.wait(0.1)
+    assert len(scene._claims) == 1
+    guest.close_window(0x70)
+    scene.wait(0.1)
+    assert scene._claims == []
+    guest.add_window(0x71, "#32768", (640, 300, 740, 400), "")
+    with pytest.raises(scene_module.UntrackedWindow):
+        scene.wait(0.1)
+
+
+def test_a_right_click_that_opens_no_menu_drops_its_claim_after_the_grace_period(
+    guest, scene, monkeypatch
+):
+    now = [100.0]
+    monkeypatch.setattr(scene_module, "monotonic", lambda: now[0])
+    scene.play(RightClick((640, 300)))
+    scene.check_tracking()
+    assert len(scene._claims) == 1  # still waiting for a menu
+    now[0] += 6.0  # past win32.CLOSE_TIMEOUT
+    scene.check_tracking()
+    assert scene._claims == []
+    guest.add_window(0x72, "#32768", (640, 300, 740, 400), "")
+    with pytest.raises(scene_module.UntrackedWindow):
+        scene.wait(0.1)
+
+
+def test_a_menu_that_appears_after_the_first_check_is_still_claimed(
+    guest, scene, monkeypatch
+):
+    now = [100.0]
+    monkeypatch.setattr(scene_module, "monotonic", lambda: now[0])
+    scene.play(RightClick((640, 300)))
+    scene.check_tracking()
+    guest.add_window(0x73, "#32768", (640, 300, 740, 400), "")
+    scene.wait(0.1)
+    assert len(scene._claims) == 1
+    guest.close_window(0x73)
+    scene.wait(0.1)
+    assert scene._claims == []
+
+
+def test_a_tooltip_up_when_a_hover_returns_does_not_raise(guest, scene):
+    guest.add_window(0x80, "tooltips_class32", (700, 560, 780, 580), "")
+    scene.play(Hover((768, 587), hold=0.1, travel_time=0.1))
+    assert len(scene._claims) == 1
+    guest.close_window(0x80)
+    scene.wait(0.1)
+    assert scene._claims == []
+
+
+def test_a_tooltip_that_appears_after_its_hover_claim_ended_still_raises(
+    guest, scene, monkeypatch
+):
+    now = [100.0]
+    monkeypatch.setattr(scene_module, "monotonic", lambda: now[0])
+    scene.play(Hover((768, 587), hold=0.1, travel_time=0.1))
+    assert len(scene._claims) == 1  # still waiting for a tooltip
+    now[0] += 6.0  # past win32.CLOSE_TIMEOUT
+    scene.check_tracking()
+    assert scene._claims == []
+    guest.add_window(0x81, "tooltips_class32", (700, 560, 780, 580), "")
+    with pytest.raises(scene_module.UntrackedWindow):
+        scene.check_tracking()
+
+
+def test_a_tooltip_with_no_hover_still_raises(guest, scene):
+    guest.add_window(0x82, "tooltips_class32", (700, 560, 780, 580), "")
+    with pytest.raises(scene_module.UntrackedWindow):
+        scene.wait(0.1)
+
+
+def test_a_claim_release_waits_for_a_window_that_is_still_closing(
+    guest, scene, monkeypatch
+):
+    from art98.guest import win32
+
+    monkeypatch.setattr(win32, "CLOSE_POLL", 0)
+    guest.add_window(0x63, "#32770", (0, 0, 5, 5), "Closing")
+    real, calls = guest.windows, [0]
+
+    def windows():
+        calls[0] += 1
+        if calls[0] == 3:
+            guest.close_window(0x63)
+        return real()
+
+    monkeypatch.setattr(guest, "windows", windows)
+    with scene.claim("Owner X", lambda w: w.class_name == "#32770"):
+        pass
+    assert scene._claims == []
+
+
+def test_close_ends_the_window_with_a_clean_check_and_leaves_the_pointer(guest, scene):
+    pad = notepad(guest, scene)
+    guest.cursor = (10, 10)
+    close = Close(pad)
+    assert close.claims == () and close.run_time == 0
+    scene.play(close)
+    scene.wait(0.1)
+    assert pad not in scene.props and pad.closing is False
+    assert guest.cursor == (10, 10) and guest.named("SetCursorPos") == []
+
+
+def test_close_with_explicit_none_run_time_uses_the_default(guest, scene):
+    pad = notepad(guest, scene)
+    assert Close(pad, run_time=None).run_time == 0.0
+
+
+def test_close_via_a_spot_glides_there_and_sends_no_mouse_button_events(guest, scene):
+    pad = notepad(guest, scene)
+    close = Close(pad, via=Spot(lambda: (300, 200)))
+    assert close.claims == ("pointer",)
+    scene.play(close)
+    assert guest.cursor == (300, 200)
+    assert guest.named("mouse_event") == []
+    assert ("PostMessageA", (0x10, WM_CLOSE, 0, 0)) in guest.calls
+    assert pad not in scene.props
+    scene.wait(0.1)
+
+
+def test_close_marks_the_window_as_closing_from_the_first_frame(guest, scene):
+    pad = notepad(guest, scene)
+    marks = []
+    close = Close(pad)
+    close.begin(scene)
+    marks.append(pad.closing)
+    guest.close_window(0x10)
+    scene.check_tracking()  # a window on its way out is not gone
+    close.finish(scene)
+    assert marks == [True] and pad.closing is False
+
+
+def test_a_close_whose_window_stays_times_out_naming_what_appeared(
+    guest, scene, monkeypatch
+):
+    from art98.guest import win32
+
+    monkeypatch.setattr(win32, "CLOSE_TIMEOUT", 0.01)
+    pad = notepad(guest, scene)
+
+    def save_prompt(hwnd, message, wparam, lparam):
+        guest.add_window(0x77, "#32770", (0, 0, 90, 50), "Notepad save")
+        return CallResult(1, 0, [])
+
+    guest.do_PostMessageA = save_prompt
+    with pytest.raises(GuestError, match=r"didn't close.*untracked.*Notepad save"):
+        scene.play(Close(pad))
+    assert pad.closing is False
+
+
+def test_two_closes_via_the_pointer_in_one_play_are_refused(guest, scene):
+    first = notepad(guest, scene)
+    guest.add_window(0x20, "Notepad", (92, 88, 692, 499), pid=7001)
+    guest.add_window(0x21, "Edit", (96, 130, 688, 495), parent=0x20)
+    second = Win(hwnd=0x20)
+    scene.add(second)
+    with pytest.raises(UsageError, match="pointer"):
+        scene.play(Close(first, via=(5, 5)), Close(second, via=(9, 9)))
+
+
+def test_a_screensaver_close_claims_the_pointer():
+    assert Close(Screensaver()).claims == ("pointer",)
+
+
+def test_scene_remove_ends_a_window_as_close_does(guest, scene):
+    pad = notepad(guest, scene)
+    scene.remove(pad)
+    scene.wait(0.1)
+    assert pad not in scene.props
+    assert ("PostMessageA", (0x10, WM_CLOSE, 0, 0)) in guest.calls
+
+
+def test_a_play_that_raises_clears_closing_and_the_pressed_button(guest, scene):
+    pad = notepad(guest, scene)
+
+    class Boom(Animation):
+        run_time = 0.5
+
+        def update(self, progress):
+            raise GuestError("frame failed")
+
+    with pytest.raises(GuestError, match="frame failed"):
+        scene.play(Close(pad, via=Spot(lambda: (300, 200))), Boom())
+    assert pad.closing is False and pad in scene.props
+
+
+def test_close_of_a_prop_not_on_stage_raises_without_starting_it(guest, scene):
+    pad = Notepad()
+    for close in (Close(pad), Close(pad, via=(5, 5))):
+        with pytest.raises(UsageError, match="not on stage"):
+            scene.play(close)
+    with pytest.raises(UsageError, match="not on stage"):
+        scene.remove(pad)
+    assert pad.scene is None and guest.named("spawn") == []
+
+
+def test_close_of_a_prop_that_is_not_a_window_raises_usage_error(guest, scene):
+    with pytest.raises(UsageError, match="needs a window"):
+        scene.remove(scene.pointer)
+
+
+def test_a_second_prop_on_a_window_another_prop_owns_is_refused(guest, scene):
+    pad = notepad(guest, scene)
+    with pytest.raises(UsageError, match="one prop per window"):
+        scene.add(Win(hwnd=pad.hwnd))
+    assert pad in scene.props
+
+
+def test_add_takes_an_id_for_one_prop_and_prop_finds_it(guest, scene):
+    pad = notepad(guest, scene)
+    scene.add(pad, id="pad")
+    assert scene.prop("pad") is pad and pad.state_id == "pad"
+    with pytest.raises(UsageError, match="exactly one"):
+        scene.add(Notepad(), Notepad(), id="two")
+    with pytest.raises(NotFound, match="'nope'.*pad"):
+        scene.prop("nope")
 
 
 # ---- pointer ----
@@ -1109,6 +1604,70 @@ def test_minesweeper_clear_never_opens_a_mine(guest, scene):
     assert len(guest.named("mouse_event")) >= 2 * len(board.mines)
 
 
+def won_on_the_first_click(guest, scene):
+    """A board with one mine: the first click opens the other 63 cells, and wins."""
+    board = sweeper(guest, scene)
+    board.mines = frozenset({(0, 0)})
+
+    def press(flags, *args):
+        if flags == LDOWN:
+            prompt_of(guest)  # the best-time prompt comes up with the winning click
+        return CallResult(1, 0, [])
+
+    guest.do_mouse_event = press
+    return board
+
+
+def test_a_prompt_that_comes_up_during_clears_winning_click_is_claimed(guest, scene):
+    board = won_on_the_first_click(guest, scene)
+    board.clear()  # the flags and the check after the play run with the prompt up
+    owners = [c.owner for c in scene._claims]
+    assert owners == ["Minesweeper's best-time prompt and table"]
+
+
+def test_sign_scoreboard_after_clear_releases_the_prompt_claim(guest, scene):
+    board = won_on_the_first_click(guest, scene)
+    board.clear()
+    typed = scene.vm.send_keys
+
+    def answer_prompt(*codes, hold_ms=80):
+        typed(*codes, hold_ms=hold_ms)
+        guest.close_window(0x60)
+
+    scene.vm.send_keys = answer_prompt
+    board.sign_scoreboard()
+    assert scene._claims == [] and board._prompt is None
+
+
+def test_a_won_game_never_signed_raises_at_the_end_of_run_naming_sign_scoreboard(
+    guest, scene
+):
+    board = won_on_the_first_click(guest, scene)
+    board.clear()
+    with pytest.raises(scene_module.UntrackedWindow, match=r"call sign_scoreboard\(\)"):
+        scene._finish()
+    assert scene._claims == []
+
+
+def test_flagging_leaves_no_menu_claims(guest, scene):
+    scene.play(RightClick((640, 300), menu=False))
+    assert scene._claims == []
+    board = sweeper(guest, scene)
+    board.mines = frozenset({(0, 0), (7, 7)})
+    board.clear()
+    assert not [c for c in scene._claims if "RightClick" in c.owner]
+
+
+def test_the_untracked_window_message_lists_each_claim_owner_once(guest, scene):
+    guest.add_window(0x63, "Stray", (0, 0, 5, 5), "Stray")
+    for _ in range(3):
+        scene.claim("Owner A", lambda w: w.class_name == "Nothing")
+    scene.claim("Owner B", lambda w: w.class_name == "Nothing")
+    with pytest.raises(scene_module.UntrackedWindow) as caught:
+        scene.check_tracking()
+    assert str(caught.value).endswith("Claimed now: Owner A, Owner B.")
+
+
 def test_screensaver_needs_a_real_name():
     assert '"C:\\WINDOWS\\SYSTEM\\3D Pipes.scr" /s' == Screensaver("3D Pipes").command
     assert "Scrolling Marquee" in Screensaver("Scrolling Marquee").command
@@ -1252,18 +1811,383 @@ def test_star_import_gives_the_scene_api():
 # ---- sections and no revert after boot ----
 
 
-def test_next_section_cuts_and_labels(scene):
-    scene.recorder.count = 45
-    assert scene.next_section("intro") == Path("clip1.mp4")
-    assert scene.sections == [("intro", 1.5)]
-    assert scene.recorder.cuts == [(45, None)]
+def three_sections(guest, tmp_path, monkeypatch, calls):
+    """A scene of three sections around one Picture (id flower); `calls` says what ran."""
+    from test_state import bmp
+
+    monkeypatch.setattr(guestfiles, "viewer", lambda: b"MZ view")
+    (tmp_path / "flower.bmp").write_bytes(bmp(4, 3))
+    guest.add_window(0x30, "Art98View", (60, 60, 360, 280), "Flower", pid=7000)
+
+    class Three(Scene):
+        def setup(self):
+            calls.append("setup")
+            picture = Picture(
+                "Flower", image=tmp_path / "flower.bmp", at=(60, 60), size=(300, 220)
+            )
+            self.add(picture, id="flower")
+
+        def construct(self):
+            self.section("one", self.one)
+            self.section("two", self.two)
+            self.section("three", self.three)
+
+        def one(self):
+            calls.append("one")
+            self.pause(1)
+
+        def two(self):
+            calls.append("two")
+            self.pause(2)
+
+        def three(self):
+            calls.append(("three", self.time, self.prop("flower").state_id))
+            self.pause(1)
+
+        def tear_down(self):
+            calls.append("tear_down")
+
+    return Three
 
 
-@pytest.mark.parametrize("name", ["", "  ", None, 3])
-def test_next_section_needs_a_name(scene, name):
-    with pytest.raises(ValueError):
-        scene.next_section(name)
+def run_sections(scene_class, caps, guest, only=None):
+    scene = scene_class()
+    scene.only_section, scene.captures = only, caps
+    session, video = FakeSession(guest), FakeVideo(guest)
+    scene.run(session, video)
+    return scene, session, video
+
+
+def full_run(guest, tmp_path, monkeypatch, calls):
+    """A full run, its captures swapped in as render does."""
+    from art98.anim import renderer as render_module
+
+    caps = tmp_path / "caps"
+    scene_class = three_sections(guest, tmp_path, monkeypatch, calls)
+    scene, _, video = run_sections(scene_class, caps, guest)
+    render_module.swap_captures(caps)
+    return scene_class, scene, video, caps
+
+
+def test_a_full_run_cuts_and_captures_at_each_later_boundary(
+    guest, tmp_path, monkeypatch
+):
+    calls = []
+    _, scene, video, caps = full_run(guest, tmp_path, monkeypatch, calls)
+    assert calls == ["setup", "one", "two", ("three", 3.0, "flower"), "tear_down"]
+    assert scene.sections == [("one", 0.0), ("two", 1.0), ("three", 3.0)]
+    assert [cut for cut, _ in video.cuts] == [30, 90]
+    names = sorted(p.name for p in caps.iterdir())
+    assert names == [
+        "02-two.meta.json",
+        "02-two.state.files",
+        "02-two.state.json",
+        "03-three.meta.json",
+        "03-three.state.files",
+        "03-three.state.json",
+    ]
+    meta = json.loads((caps / "03-three.meta.json").read_text())
+    assert meta["time"] == 3.0
+    assert sorted(meta["hashes"]) == ["section one", "section two", "setup", "state"]
+    assert load_state(caps / "03-three.state.json").window("flower")
+    assert not (tmp_path / "caps.part").exists()
+
+
+def test_a_solo_run_of_a_later_section_calls_only_its_method(
+    guest, tmp_path, monkeypatch
+):
+    calls = []
+    scene_class, full, _, caps = full_run(guest, tmp_path, monkeypatch, calls)
+    calls.clear()
+    scene, _, video = run_sections(scene_class, caps, guest, only="three")
+    # no setup, no earlier method; tear_down still runs; time starts where the full run's did
+    assert calls == [("three", 3.0, "flower"), "tear_down"]
+    assert scene.sections == [("three", 3.0)] == full.sections[2:]
+    assert scene.time == 3.0 + 30 / 30
+    assert video.cuts == [] and video.count == 30
+
+
+def test_a_solo_run_of_a_middle_section_never_calls_the_others(
+    guest, tmp_path, monkeypatch
+):
+    calls = []
+    scene_class, _, _, caps = full_run(guest, tmp_path, monkeypatch, calls)
+    calls.clear()
+    scene, _, video = run_sections(scene_class, caps, guest, only="two")
+    assert calls == ["two", "tear_down"]
+    assert video.count == 60 and scene.sections == [("two", 1.0)]
+
+
+def test_a_solo_run_of_the_first_section_is_a_full_start_that_stops_after_it(
+    guest, tmp_path, monkeypatch
+):
+    calls = []
+    scene_class = three_sections(guest, tmp_path, monkeypatch, calls)
+    scene, _, video = run_sections(scene_class, tmp_path / "none", guest, only="one")
+    assert calls == ["setup", "one", "tear_down"]
+    assert video.count == 30 and not (tmp_path / "none").exists()
+    assert scene.sections == [("one", 0.0)]
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "changed"),
+    [
+        ("section one", "0" * 64, "one()"),
+        ("section two", "0" * 64, "two()"),
+        ("setup", "0" * 64, "setup()"),
+        ("state", "0" * 64, "the state file"),
+        ("section gone", "0" * 64, "section 'gone'"),
+    ],
+)
+def test_a_capture_made_before_a_method_changed_is_refused_naming_it(
+    guest, tmp_path, monkeypatch, key, value, changed
+):
+    calls = []
+    scene_class, _, _, caps = full_run(guest, tmp_path, monkeypatch, calls)
+    calls.clear()
+    meta_path = caps / "03-three.meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["hashes"][key] = value
+    meta_path.write_text(json.dumps(meta))
+    with pytest.raises(
+        UsageError, match=rf"'three'.*before {re.escape(changed)} changed"
+    ):
+        run_sections(scene_class, caps, guest, only="three")
+    assert calls == []
+
+
+def test_a_section_unknown_to_the_scene_lists_the_names_it_has(
+    guest, tmp_path, monkeypatch
+):
+    calls = []
+    scene_class, _, _, caps = full_run(guest, tmp_path, monkeypatch, calls)
+    calls.clear()
+    with pytest.raises(scene_module.SectionNotFound, match="'nope'.*one, two, three"):
+        run_sections(scene_class, caps, guest, only="nope")
+    assert calls == []
+
+
+def test_a_later_section_with_no_capture_says_to_render_the_whole_scene_first(
+    guest, tmp_path, monkeypatch
+):
+    calls = []
+    scene_class, _, _, caps = full_run(guest, tmp_path, monkeypatch, calls)
+    (caps / "03-three.state.json").unlink()
+    with pytest.raises(MissingFile, match="render the whole scene once first"):
+        run_sections(scene_class, caps, guest, only="three")
+    with pytest.raises(MissingFile, match="render the whole scene once first"):
+        run_sections(scene_class, tmp_path / "nowhere", guest, only="two")
+
+
+def test_a_solo_run_ignores_leftovers_beside_the_captures(guest, tmp_path, monkeypatch):
+    calls = []
+    scene_class, _, _, caps = full_run(guest, tmp_path, monkeypatch, calls)
+    (caps / ".03-three.state.json.part").mkdir()
+    (caps / "03-three.state.json.bak").write_text("x")
+    calls.clear()
+    run_sections(scene_class, caps, guest, only="three")
+    assert calls[0][0] == "three"
+
+
+def test_an_attribute_an_earlier_section_set_is_missing_in_a_solo_run(
+    guest, tmp_path, monkeypatch
+):
+    scene_class = three_sections(guest, tmp_path, monkeypatch, [])
+
+    class Sloppy(scene_class):
+        def one(self):
+            self.flower = self.prop("flower")
+
+        def three(self):
+            self.flower.hwnd  # noqa: B018
+
+    caps = tmp_path / "caps"
+    run_sections(Sloppy, caps, guest)
+    from art98.anim import renderer as render_module
+
+    render_module.swap_captures(caps)
+    with pytest.raises(AttributeError, match="flower"):
+        run_sections(Sloppy, caps, guest, only="three")
+
+
+@pytest.mark.parametrize(
+    "work", ["pause", "play", "add", "get_state", "set_state", "pointer"]
+)
+def test_work_before_any_section_in_a_solo_run_is_a_clean_error(guest, tmp_path, work):
+    class Early(Scene):
+        def construct(self):
+            if work == "pause":
+                self.pause(1)
+            elif work == "play":
+                self.play(Wait(0.1))
+            elif work == "add":
+                self.add(Win(hwnd=0x40))
+            elif work == "get_state":
+                self.get_state(tmp_path / "s.json")
+            elif work == "set_state":
+                self.set_state(tmp_path / "s.json")
+            elif work == "pointer":
+                self.pointer.place((10, 10))
+            self.section("x", lambda: None)
+
+    with pytest.raises(scene_module.SectionNotFound, match=r"'x'.*self\.section\("):
+        run_sections(Early, tmp_path / "caps", guest, only="x")
+
+
+def test_code_between_section_calls_is_refused_in_a_full_run(
+    guest, tmp_path, monkeypatch
+):
+    scene_class = three_sections(guest, tmp_path, monkeypatch, [])
+
+    class Between(scene_class):
+        def construct(self):
+            self.section("one", self.one)
+            self.pause(1)
+            self.section("two", self.two)
+
+    with pytest.raises(UsageError, match=r"code between section\(\) calls"):
+        run_sections(Between, tmp_path / "caps", guest)
+
+    guest.add_window(0x41, "Other", (0, 0, 300, 300), "Other", pid=7000)
+
+    class After(scene_class):  # after the last section: nothing later would catch it
+        def construct(self):
+            self.section("one", self.one)
+            self.add(Win(hwnd=0x41))
+
+    with pytest.raises(UsageError, match=r"code between section\(\) calls"):
+        run_sections(After, tmp_path / "caps", guest)
+
+
+def test_a_capture_the_state_cant_hold_stops_the_full_run_with_nothing_swapped_in(
+    guest, tmp_path, monkeypatch
+):
+    scene_class = three_sections(guest, tmp_path, monkeypatch, [])
+    guest.add_window(0x40, "Other", (0, 0, 300, 300), "Other", pid=7000)
+
+    class Holding(scene_class):
+        def one(self):
+            self.add(Win(hwnd=0x40), id="other")
+
+    with pytest.raises(UsageError, match="Win can't be captured yet"):
+        run_sections(Holding, tmp_path / "caps", guest)
+    assert not (tmp_path / "caps").exists()
+
+
+@pytest.mark.parametrize("name", ["", "  ", None, 3, "a b", "../x"])
+def test_a_section_needs_a_plain_name(scene, tmp_path, name):
+    scene.captures = tmp_path / "caps"
+    with pytest.raises(UsageError, match="section name"):
+        scene.section(name, lambda: None)
     assert scene.recorder.cuts == []
+
+
+def test_a_section_needs_a_callable_a_unique_name_and_a_scene_file(scene, tmp_path):
+    scene.captures = tmp_path / "caps"
+    with pytest.raises(UsageError, match="needs a method"):
+        scene.section("a", None)
+    scene.section("a", lambda: None)
+    with pytest.raises(UsageError, match="two sections are called 'a'"):
+        scene.section("a", lambda: None)
+    scene.captures = None
+    with pytest.raises(UsageError, match="needs to live in a file"):
+        scene.section("b", lambda: None)
+
+
+def test_a_scene_with_no_sections_is_unchanged_by_only_section_being_unset(scene):
+    assert scene.only_section is None and scene.sections == []
+    assert scene.time == 0.0
+
+
+def test_time_counts_from_the_offset_a_solo_run_starts_at(scene):
+    scene._time_offset = 2.5
+    scene.recorder.count = 45
+    assert scene.time == 4.0
+
+
+def test_a_render_with_sections_defaults_the_solo_output_and_keeps_one_clip(
+    guest, tmp_path, monkeypatch
+):
+    from art98.anim import renderer as render_module
+
+    caps = tmp_path / "caps"
+    monkeypatch.setattr(render_module, "captures_folder", lambda scene: caps)
+    monkeypatch.setattr(render_module, "require_ffmpeg", lambda: None)
+    monkeypatch.chdir(tmp_path)
+    calls = []
+    scene_class = three_sections(guest, tmp_path, monkeypatch, calls)
+    session = FakeSession(guest)
+    assert scene_class().render(session=session) == Path("Three.mp4")
+    assert len(list(caps.iterdir())) == 6
+    calls.clear()
+    written = scene_class().render(section="three", session=session)
+    assert written == Path("Three-three.mp4")
+    assert session.videos[-1].clips == [written] and session.videos[-1].cuts == []
+    assert calls[0][0] == "three"
+    assert len(list(caps.iterdir())) == 6  # a solo run writes no captures
+
+
+def test_a_render_that_fails_leaves_the_earlier_captures_alone(
+    guest, tmp_path, monkeypatch
+):
+    from art98.anim import renderer as render_module
+
+    caps = tmp_path / "caps"
+    monkeypatch.setattr(render_module, "captures_folder", lambda scene: caps)
+    monkeypatch.setattr(render_module, "require_ffmpeg", lambda: None)
+    scene_class = three_sections(guest, tmp_path, monkeypatch, [])
+    session = FakeSession(guest)
+    scene_class().render(tmp_path / "out.mp4", session=session)
+    before = snapshot(caps)
+    assert before
+
+    class Failing(scene_class):
+        def three(self):
+            raise KeyError("boom")
+
+    with pytest.raises(KeyError):
+        Failing().render(tmp_path / "out.mp4", session=session)
+    assert snapshot(caps) == before
+    assert not (tmp_path / "caps.part").exists()
+    assert not (tmp_path / "caps.old").exists()
+
+
+def test_a_successful_render_replaces_stale_captures_and_clears_a_crashed_swap(
+    guest, tmp_path, monkeypatch
+):
+    from art98.anim import renderer as render_module
+
+    caps = tmp_path / "caps"
+    monkeypatch.setattr(render_module, "captures_folder", lambda scene: caps)
+    monkeypatch.setattr(render_module, "require_ffmpeg", lambda: None)
+    caps.mkdir()
+    (caps / "09-stale.state.json").write_text("{}")
+    (tmp_path / "caps.old").mkdir()
+    (tmp_path / "caps.part").mkdir()
+    (tmp_path / "caps.part" / "junk").write_text("x")
+    scene_class = three_sections(guest, tmp_path, monkeypatch, [])
+    scene_class().render(tmp_path / "out.mp4", session=FakeSession(guest))
+    assert sorted(p.name for p in tmp_path.iterdir() if "caps" in p.name) == ["caps"]
+    assert not (caps / "09-stale.state.json").exists()
+    assert (caps / "02-two.state.json").exists()
+
+
+def test_a_render_asking_for_a_section_needs_the_scene_file(guest, monkeypatch):
+    from art98.anim import renderer as render_module
+
+    monkeypatch.setattr(render_module, "captures_folder", lambda scene: None)
+    monkeypatch.setattr(render_module, "require_ffmpeg", lambda: None)
+    with pytest.raises(UsageError, match="needs the scene to live in a file"):
+        Stage().render(section="x", session=FakeSession(guest))
+    with pytest.raises(UsageError, match="--section"):
+        Stage().render(section="../x", session=FakeSession(guest))
+
+
+def test_captures_live_beside_the_scene_file_and_not_beside_the_output():
+    from art98.anim import renderer as render_module
+
+    folder = render_module.captures_folder(Stage())
+    assert folder == Path(__file__).resolve().with_name("test_anim.Stage.sections")
 
 
 def test_a_scene_without_a_state_is_not_reverted(guest):
@@ -1287,7 +2211,7 @@ def test_a_second_scene_on_one_session_reverts_and_starts_with_no_props(guest):
 
     class Probing(Stage):
         def setup(self):
-            seen.append((session.reverts, list(self.props), self._state_props))
+            seen.append((session.reverts, list(self.props)))
 
     guest.add_window(0x10, "Notepad", (92, 88, 692, 499), pid=7000)
     guest.add_window(0x11, "Edit", (96, 130, 688, 495), parent=0x10)
@@ -1296,9 +2220,8 @@ def test_a_second_scene_on_one_session_reverts_and_starts_with_no_props(guest):
     assert session.reverts == 0 and first.props and not session.fresh
     probe = Probing()
     probe.props.append(first.props[0])  # a reused scene object's leftovers
-    probe._state_props = {"x": first.props[0]}
     probe.run(session, FakeVideo(guest))
-    assert seen == [(1, [], {})]
+    assert seen == [(1, [])]
 
 
 def test_a_desktop_start_that_raises_leaves_the_session_not_fresh(guest, monkeypatch):
@@ -1431,3 +2354,322 @@ def test_play_overrides_do_not_stick_to_the_animation(scene):
 def test_time_before_run_is_a_usage_error():
     with pytest.raises(UsageError, match="isn't running"):
         _ = Stage().time
+
+
+# ---- get_state ----
+
+
+def captured_scene(guest, scene, tmp_path, monkeypatch):
+    """A Picture (id flower) in front of a Notepad (id note), as the guest would have them."""
+    from test_state import bmp
+
+    monkeypatch.setattr(guestfiles, "viewer", lambda: b"MZ view")
+    (tmp_path / "flower.bmp").write_bytes(bmp(4, 3))
+    (tmp_path / "note.txt").write_bytes(b"one\ntwo\n")
+    guest.add_window(0x30, "Art98View", (60, 60, 360, 280), "Flower", pid=7000)
+    guest.add_window(0x10, "Notepad", (92, 88, 692, 499), "note - Notepad", pid=7000)
+    guest.add_window(0x11, "Edit", (96, 130, 688, 495), parent=0x10)
+    guest.edit_text[0x11] = b"one\r\ntwo\r\n"
+    picture = Picture(
+        "Flower", image=tmp_path / "flower.bmp", at=(60, 60), size=(300, 220)
+    )
+    pad = Notepad(open=tmp_path / "note.txt")
+    scene.add(picture, id="flower")
+    scene.add(pad, id="note")
+    return picture, pad
+
+
+def test_a_captured_scene_loads_and_sets_back_to_the_same_state(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    first = tmp_path / "a" / "state.json"
+    state = scene.get_state(first)
+    assert [w.id for w in state.windows] == ["flower", "note"]  # creation order
+    assert state.stack == ("note", "flower")  # back to front
+    assert state.display == (800, 600, 16) and state.pointer == (400, 300)
+    assert state.desktop.fill_colour == (0, 128, 128)
+    assert (first.parent / "state.files/windows/flower/flower.bmp").exists()
+    scene.set_state(first)
+    second = tmp_path / "b" / "state.json"
+    scene.get_state(second)
+    assert first.read_text() == second.read_text()
+
+
+def test_capture_writes_windows_in_creation_order_and_stack_in_z_order(
+    guest, scene, tmp_path, monkeypatch
+):
+    # Props are added flower then note; on the guest flower is in front of note,
+    # so the back-to-front stack is the reverse of the creation order.
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    path = tmp_path / "s.json"
+    state = scene.get_state(path)
+    assert [w.id for w in state.windows] == ["flower", "note"]
+    assert state.stack == ("note", "flower")
+    data = json.loads(path.read_text())
+    assert [w["id"] for w in data["windows"]] == ["flower", "note"]
+    assert data["stack"] == ["note", "flower"]
+
+
+def test_a_notepad_whose_text_changed_after_opening_writes_text(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    unchanged = scene.get_state(tmp_path / "s.json")
+    assert unchanged.window("note").text is None
+    guest.edit_text[0x11] = b"changed\r\nlines"
+    state = scene.get_state(tmp_path / "s.json")
+    assert state.window("note").open is not None
+    assert state.window("note").text.data == b"changed\r\nlines"
+    assert (
+        tmp_path / "s.files/windows/note/text.txt"
+    ).read_bytes() == b"changed\r\nlines"
+
+
+def test_a_capture_writes_the_notepad_selection(guest, scene, tmp_path, monkeypatch):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    guest.edit_sel[0x11] = (2, 5)
+    state = scene.get_state(tmp_path / "s.json")
+    assert state.window("note").selection == (2, 5)
+    windows = json.loads((tmp_path / "s.json").read_text())["windows"]
+    assert next(w for w in windows if w["id"] == "note")["selection"] == [2, 5]
+
+
+def test_a_state_selection_is_restored_after_the_notepad_text(guest, scene, tmp_path):
+    data = b"one\ntwo\n"
+    (tmp_path / "note.txt").write_bytes(data)
+    state = load_state(
+        dump_json(
+            tmp_path,
+            {
+                "version": 1,
+                "windows": [
+                    {
+                        "id": "note",
+                        "app": "notepad",
+                        "title": "Note",
+                        "at": [10, 20],
+                        "size": [300, 200],
+                        "text": {
+                            "file": "note.txt",
+                            "sha256": hashlib.sha256(data).hexdigest(),
+                        },
+                        "selection": [2, 5],
+                    }
+                ],
+            },
+        )
+    )
+    guest.add_window(0x10, "Notepad", (10, 20, 310, 220), "Note", pid=7000)
+    guest.add_window(0x11, "Edit", (96, 130, 688, 495), parent=0x10)
+    pad = Notepad.from_state(state.window("note"))
+    scene.add(pad)
+    messages = [a[1] for _, a in guest.named("SendMessageA")]
+    assert messages.index(0x000C) < messages.index(win32.EM_SETSEL)  # text, then caret
+    assert ("SendMessageA", (0x11, win32.EM_SETSEL, 2, 5)) in guest.calls
+    assert guest.edit_sel[0x11] == (2, 5)
+
+
+def test_a_notepad_state_without_selection_sends_no_em_setsel(guest, scene, tmp_path):
+    state = state_with_text(tmp_path)
+    guest.add_window(0x10, "Notepad", (10, 20, 310, 220), "Note", pid=7000)
+    guest.add_window(0x11, "Edit", (96, 130, 688, 495), parent=0x10)
+    pad = Notepad.from_state(state.window("note"))
+    assert state.window("note").selection is None
+    scene.add(pad)
+    assert not [a for _, a in guest.named("SendMessageA") if a[1] == win32.EM_SETSEL]
+
+
+def test_a_maximized_window_keeps_its_normal_place_in_a_capture(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    guest.zoomed.add(0x30)
+    guest.rects[0x30] = (-4, -4, 804, 576)
+    guest.normal[0x30] = (60, 60, 360, 280)
+    window = scene.get_state(tmp_path / "s.json").window("flower")
+    assert (window.show, window.at, window.size) == ("maximized", (60, 60), (300, 220))
+
+
+def test_a_window_the_state_cant_open_fails_the_capture(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    guest.add_window(0x40, "Other", (0, 0, 300, 300), "Other", pid=7000)
+    scene.add(Win(hwnd=0x40), id="other")
+    with pytest.raises(UsageError, match="Win can't be captured yet"):
+        scene.get_state(tmp_path / "s.json")
+    assert not (tmp_path / "s.files").exists()
+
+
+def test_a_live_claim_over_a_visible_window_fails_the_capture(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    guest.add_window(0x60, "#32770", (150, 150, 300, 250), "Menu", pid=7000)
+    with scene.claim("RightClick menu", lambda w: w.hwnd == 0x60, hint="menu is open"):
+        with pytest.raises(UsageError, match="RightClick menu.*before the section"):
+            scene.get_state(tmp_path / "s.json")
+        guest.close_window(0x60)
+        scene.get_state(tmp_path / "s.json")  # claim still live, window gone: fine
+
+
+def test_a_claim_covering_a_props_own_window_does_not_fail_the_capture(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    with scene.claim("Everything", lambda w: True):
+        scene.get_state(tmp_path / "s.json")
+
+
+def test_a_window_prop_without_an_id_fails_the_capture(
+    guest, scene, tmp_path, monkeypatch
+):
+    picture, _ = captured_scene(guest, scene, tmp_path, monkeypatch)
+    picture.state_id = None
+    with pytest.raises(UsageError, match=r"self\.add\(prop, id=\.\.\.\)"):
+        scene.get_state(tmp_path / "s.json")
+
+
+def test_an_untracked_window_fails_the_capture_before_anything_is_written(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    guest.add_window(0x50, "Stray", (0, 0, 10, 10), "Stray")
+    with pytest.raises(scene_module.UntrackedWindow):
+        scene.get_state(tmp_path / "s.json")
+    assert list(tmp_path.glob("s.*")) == []
+
+
+def test_two_captures_of_the_same_scene_are_byte_identical(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    scene.get_state(tmp_path / "s.json")
+    first = (tmp_path / "s.json").read_bytes()
+    scene.get_state(tmp_path / "s.json")
+    assert (tmp_path / "s.json").read_bytes() == first
+
+
+def snapshot(folder):
+    return {
+        p.relative_to(folder).as_posix(): p.read_bytes()
+        for p in sorted(folder.rglob("*"))
+        if p.is_file()
+    }
+
+
+def test_a_capture_the_reader_rejects_leaves_the_earlier_capture_untouched(
+    guest, scene, tmp_path, monkeypatch
+):
+    from art98 import state as state_module
+
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    out = tmp_path / "out"
+    scene.get_state(out / "s.json")
+    before = snapshot(out)
+
+    def reject(path):
+        raise state_module.StateError(path, ["no"])
+
+    monkeypatch.setattr(state_module, "load_state", reject)
+    with pytest.raises(state_module.StateError):
+        scene.get_state(out / "s.json")
+    assert snapshot(out) == before
+    assert not (out / ".s.json.part").exists()
+
+
+def test_a_leftover_temp_folder_from_a_crash_is_cleared_by_the_next_capture(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    (tmp_path / ".s.json.part" / "s.files").mkdir(parents=True)
+    (tmp_path / ".s.json.part" / "s.files" / "stale").write_bytes(b"x")
+    scene.get_state(tmp_path / "s.json")
+    assert not (tmp_path / ".s.json.part").exists()
+    assert not (tmp_path / "s.files" / "stale").exists()
+
+
+def test_a_plain_file_named_like_the_files_folder_is_replaced(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    (tmp_path / "s.files").write_bytes(b"in the way")
+    scene.get_state(tmp_path / "s.json")
+    assert (tmp_path / "s.files/windows/flower/flower.bmp").exists()
+
+
+def test_a_window_id_that_is_empty_or_leaves_the_folder_is_a_usage_error(scene):
+    for bad in ("", "../x", "a/b", "desk top"):
+        with pytest.raises(UsageError, match=r"add\(id="):
+            scene.add(Win(hwnd=0x40), id=bad)
+    assert scene.props == []
+
+
+def test_a_captured_id_the_reader_would_refuse_fails_before_anything_is_written(
+    guest, scene, tmp_path, monkeypatch
+):
+    picture, _ = captured_scene(guest, scene, tmp_path, monkeypatch)
+    picture.state_id = "../x"
+    with pytest.raises(UsageError, match="letters, digits"):
+        scene.get_state(tmp_path / "s.json")
+    assert list(tmp_path.glob("*s.*")) == []
+
+
+def test_a_minimized_window_keeps_its_order_and_normal_place_in_a_capture(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    guest.iconic.add(0x30)
+    guest.rects[0x30] = (-32000, -32000, -31840, -31972)
+    guest.normal[0x30] = (60, 60, 360, 280)
+    state = scene.get_state(tmp_path / "s.json")
+    assert [w.id for w in state.windows] == ["flower", "note"]
+    window = state.window("flower")
+    assert (window.show, window.at, window.size) == ("minimized", (60, 60), (300, 220))
+
+
+def test_a_wallpaper_set_by_a_state_is_captured_and_a_later_set_without_one_clears_it(
+    guest, scene, tmp_path, monkeypatch
+):
+    from art98.anim import setstate
+    from art98.state import dump_state
+    from test_state import bmp
+
+    monkeypatch.setattr(setstate, "wait_for_disc", lambda *a: "D:\\WALL0001.BMP")
+    monkeypatch.setattr(setstate, "set_wallpaper", lambda *a: None)
+    monkeypatch.setattr(setstate, "check_state", lambda *a: None)
+    scene.session.attach_disc = lambda files: None
+    data = bmp(4, 3)
+    (tmp_path / "wall.bmp").write_bytes(data)
+    digest = hashlib.sha256(data).hexdigest()
+    dump_state(
+        {
+            "version": 1,
+            "desktop": {
+                "fill_colour": [0, 128, 128],
+                "wallpaper": {"file": "wall.bmp", "sha256": digest},
+                "style": "tile",
+            },
+            "windows": [],
+        },
+        tmp_path / "in.json",
+    )
+    scene.set_state(tmp_path / "in.json")
+    state = scene.get_state(tmp_path / "out.json")
+    assert state.desktop.wallpaper.data == data and state.desktop.style == "tile"
+    assert (tmp_path / "out.files/desktop/wall.bmp").read_bytes() == data
+    dump_state({"version": 1, "windows": []}, tmp_path / "bare.json")
+    scene.set_state(tmp_path / "bare.json")
+    assert scene.get_state(tmp_path / "again.json").desktop.wallpaper is None
+
+
+def test_an_empty_notepad_text_after_an_opened_file_round_trips(
+    guest, scene, tmp_path, monkeypatch
+):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    guest.edit_text[0x11] = b""
+    state = scene.get_state(tmp_path / "s.json")
+    assert state.window("note").text.data == b""
+    again = scene.get_state(tmp_path / "s.json")
+    assert again.window("note").text.data == b""

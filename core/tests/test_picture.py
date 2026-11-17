@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from art98.anim import UL, Close, Picture, Scene, Teleport
@@ -389,6 +390,92 @@ def test_check_reports_order_and_a_missing_window(guest, folder):
     with pytest.raises(StateMismatch) as caught:
         check_state(scene.guest, scene.space, state, props)
     assert caught.value.problems == ["windows[0] 'back': the window isn't there"]
+
+
+def test_stacking_expects_the_state_stack_when_one_is_given(guest, folder):
+    from art98.anim.setstate import stacking_problems
+    from art98.state import load_state
+
+    path = state_file(folder, stack=["flower", "back"])
+    state = load_state(path)
+    guest.add_window(1, "Art98View", (0, 0, 10, 10), "Back")
+    guest.add_window(2, "Art98View", (0, 0, 10, 10), "Flower")
+    back, flower = guest.rows[0]
+    props = {"back": back, "flower": flower}
+    found = lambda: {w.hwnd: w for w in guest.windows()}
+    # stack is flower, back (back to front), so the guest should be back, flower.
+    assert stacking_problems(state, props, found()) == []
+    guest.rows[0].reverse()  # the list order is now the wrong z-order
+    assert stacking_problems(state, props, found()) == [
+        (
+            "windows: front to back should be ['back', 'flower'], "
+            "the guest has ['flower', 'back']"
+        )
+    ]
+
+
+def test_stacking_without_a_stack_uses_the_list_order(guest, folder):
+    from art98.anim.setstate import stacking_problems
+    from art98.state import load_state
+
+    state = load_state(state_file(folder))
+    guest.add_window(2, "Art98View", (0, 0, 10, 10), "Flower")
+    guest.add_window(1, "Art98View", (0, 0, 10, 10), "Back")
+    flower, back = guest.rows[0]
+    props = {"back": back, "flower": flower}
+    found = lambda: {w.hwnd: w for w in guest.windows()}
+    assert state.stack is None
+    assert stacking_problems(state, props, found()) == []
+    guest.rows[0].reverse()
+    assert stacking_problems(state, props, found()) == [
+        (
+            "windows: front to back should be ['flower', 'back'], "
+            "the guest has ['back', 'flower']"
+        )
+    ]
+
+
+def test_apply_state_restacks_in_z_order_and_activates_the_front(
+    guest, folder, monkeypatch
+):
+    from art98.anim import setstate
+    from art98.state import load_state
+
+    state = load_state(state_file(folder, stack=["flower", "back"], pointer=None))
+    log, hwnds = [], {"back": 1, "flower": 2}
+
+    def prop(id):
+        hwnd = hwnds[id]
+        return SimpleNamespace(
+            hwnd=hwnd,
+            bring_to_front=lambda: log.append(("front", hwnd)),
+            activate=lambda: log.append(("activate", hwnd)),
+        )
+
+    class App:
+        @staticmethod
+        def from_state(window):
+            return prop(window.id)
+
+    monkeypatch.setattr(setstate, "APPS", {"picture": App})
+    monkeypatch.setattr(
+        setstate, "repaint_window", lambda guest, hwnd: log.append(("repaint", hwnd))
+    )
+    guest.foreground = 3  # neither window, so the front one must be activated
+    props = {}
+    scene = SimpleNamespace(
+        guest=guest,
+        add=lambda prop, id=None: props.__setitem__(id, prop),
+        pointer=None,
+    )
+    setstate.apply_state(scene, state)
+    assert log == [
+        ("front", 2),  # flower then back: stack order, back to front
+        ("front", 1),
+        ("activate", 1),  # "back" is last in the stack, so it is frontmost
+        ("repaint", 2),  # repaint follows the same z-order
+        ("repaint", 1),
+    ]
 
 
 def test_a_missing_image_is_a_missing_file(tmp_path):

@@ -66,5 +66,5 @@ class Hero(Scene):
         )
         self.add(box)
         self.pause(0.7)
-        self.play(Click(box.button("Yes"), run_time=0.6))
+        self.play(Close(box, via=box.button("Yes"), run_time=0.6))
         self.pause(1.2)

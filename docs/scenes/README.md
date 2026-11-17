@@ -130,7 +130,8 @@ nothing needs them yet.
 - Batched calls. Each frame sends its Win32 calls one by one, except that a move and a resize of
   one window become a single `SetWindowPos`.
 - `add_updater`, `Write`, `Scroll` and shape drawing on Paint's canvas.
-- Rendering one section of a scene on its own (`--section`). `next_section(name)` and `cut()`
-  are built; see [Clips](scene-api.md#clips).
+- Captured states for `Dialog`, `Paint`, `Minesweeper` and `Screensaver` windows, so `--section`
+  can't start after one of them is up. `section(name, method)` and `--section` are built for the
+  rest; see [Clips](scene-api.md#clips).
 
 Audio is left out on purpose. art98 is video only for now.

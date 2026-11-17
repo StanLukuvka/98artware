@@ -159,7 +159,7 @@ Set does this:
 5. `check_state` compares the title, position and size. Any difference raises `StateMismatch`.
 
 In a scene, `note.text` reads the Edit control, `note.set_text("...")` replaces it, and
-`note.close()` closes Notepad without the save prompt. `Notepad()` with no title takes any
+`self.play(Close(note))` closes Notepad without the save prompt. `Notepad()` with no title takes any
 Notepad window on the guest.
 
 ## Limits

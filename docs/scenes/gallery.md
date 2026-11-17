@@ -88,7 +88,7 @@ class Hero(Scene):
         )
         self.add(box)
         self.pause(0.7)
-        self.play(Click(box.button("Yes"), run_time=0.6))
+        self.play(Close(box, via=box.button("Yes"), run_time=0.6))
         self.pause(1.2)
 ```
 
@@ -177,7 +177,7 @@ class Hello(Scene):
 
 ## Pointer and clicks
 
-A double click on the desktop icon opens My Computer. A right click opens the desktop's context menu, and Esc closes it. Windows decides what each click means.
+A double click on the desktop icon opens My Computer, which the scene claims while it adds the window as a prop and ends with `Close`. A right click opens the desktop's context menu, and Esc closes it. Windows decides what each click means.
 
 ![Pointer and clicks](../assets/gifs/pointer-clicks.gif)
 
@@ -195,11 +195,16 @@ class PointerClicks(Scene):
     def construct(self):
         self.pause(0.4)
         self.play(Glide((200, 120)))
-        self.play(DoubleClick((38, 22), run_time=0.9))
+        # My Computer opens on the double click, before the scene has a prop for it.
+        with self.claim("the icon's window", lambda w: w.title == "My Computer"):
+            self.play(DoubleClick((38, 22), run_time=0.9))
+            my_computer = Win("My Computer")
+            self.add(my_computer)
         self.wait(0.9)
         self.play(RightClick((640, 300)))
         self.wait(0.8)
         self.play(Keys("esc"))
+        self.play(Close(my_computer))
         self.pause(0.5)
 ```
 
@@ -358,7 +363,7 @@ class HoverDialog(Scene):
         self.pause(0.8)
         self.play(box.animate.shift(90 * LEFT + 100 * UP), run_time=0.8)
         self.pause(0.3)
-        self.play(Click(box.button("Yes")))
+        self.play(Close(box, via=box.button("Yes")))
         self.pause(0.7)
 ```
 
@@ -414,7 +419,7 @@ class DialogStorm(Scene):
             )
             self.pause(2 * FRAME)
         self.pause(0.5)
-        self.next_section("pair")
+        self.cut()
 
         rng = random.Random(98)
         for _ in range(2):
@@ -432,7 +437,7 @@ class DialogStorm(Scene):
             self.pause(2 * FRAME)
         self.pause(0.5)
 
-        self.next_section("typing")
+        self.cut()
         typed = Dialog("", "???", at=(120, 60), size=BOX)
         self.add(typed)
         self.pause(FRAME)
@@ -441,7 +446,7 @@ class DialogStorm(Scene):
             self.pause(FRAME)
         self.pause(0.5)
 
-        self.next_section("colour")
+        self.cut()
         self.play(Backdrop("dark_red"))
         self.pause(0.5)
         self.cut()
@@ -576,6 +581,6 @@ class ScreensaverRun(Scene):
         saver = Screensaver("Mystify Your Mind")
         self.add(saver)
         self.wait(5)
-        saver.stop()
+        self.play(Close(saver))
         self.pause(0.6)
 ```
