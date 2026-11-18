@@ -1,0 +1,12 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Check changed files at the end of a turn",
+      "description": "For files with uncommitted changes: ruff on Python in core, setup, tools and recipes; make -C guest for guest sources, if mingw is installed; then the unit tests that need no VM, or only the scene docs test if just docs/scenes changed. A failure goes back to the agent.",
+      "trigger": "Stop",
+      "action": { "type": "command", "command": "python3 .kiro/scripts/hooks.py stop" },
+      "timeout": 900
+    }
+  ]
+}

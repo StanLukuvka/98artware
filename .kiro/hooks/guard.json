@@ -1,0 +1,12 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Guard the AGENTS.md rules",
+      "description": "Blocks art98 up and art98 setup, pkill on qemu, writes into work/, and adding or committing work/ to git.",
+      "trigger": "PreToolUse",
+      "action": { "type": "command", "command": "python3 .kiro/scripts/hooks.py guard" },
+      "timeout": 15
+    }
+  ]
+}
