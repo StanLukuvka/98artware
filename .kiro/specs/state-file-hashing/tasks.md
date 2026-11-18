@@ -72,7 +72,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
 
 ### Wave 1
 
-- [ ] 1. Add Hypothesis to the dev group
+- [x] 1. Add Hypothesis to the dev group
   - Files: `pyproject.toml`, `uv.lock`.
   - Add `hypothesis` to `[dependency-groups] dev` only. `dependencies = []` stays empty.
   - Run `uv lock` then `uv sync` so `uv.lock` matches (needs network for the package; if there is
@@ -82,7 +82,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
   - Done when: `uv run python -c "import hypothesis"` works, `git diff pyproject.toml` shows
     one added dev entry and no change under `[project]`, and `UNIT` still passes.
 
-- [ ] 2. `State` learns its own sha256 and lists its files
+- [x] 2. `State` learns its own sha256 and lists its files
   - Files: `core/art98/state.py`, `core/tests/test_state.py`.
   - `State.sha256: str = ""` (last field). `load_state` reads bytes once, hashes, decodes `utf-8`,
     keeps the `UnicodeDecodeError` and `JSONDecodeError` handling, returns
@@ -99,7 +99,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
   - Covers: 1.2, 1.3, 1.11 (the `sha256` source), 4.3.
   - Done when: `uv run python -m pytest core/tests/test_state.py -q` passes, then `UNIT`.
 
-- [ ] 3. `Picture` keeps its source and accepts checked bytes
+- [x] 3. `Picture` keeps its source and accepts checked bytes
   - Files: `core/art98/actions/programs/picture.py`, `core/tests/test_picture.py`.
   - After `read_host_file`, set `self.source = (self.image.resolve(), data)`, the same object as
     `_image_data`. Add private keyword-only `_data: bytes | None = None`: when given it replaces
@@ -112,7 +112,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
   - Covers: 1.4, 1.5, 4a.1 (constructor half).
   - Done when: `uv run python -m pytest core/tests/test_picture.py -q` passes.
 
-- [ ] 4. `Notepad` keeps its raw source and accepts checked bytes
+- [x] 4. `Notepad` keeps its raw source and accepts checked bytes
   - Files: `core/art98/actions/programs/notepad.py`, `core/tests/test_notepad.py`.
   - Keep the raw bytes before `check_text`; set `self.source = (self.open_file.resolve(), raw)`.
     `_file_data` stays the converted bytes. Same private `_data` keyword as Task 3.
@@ -123,7 +123,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
   - Covers: 1.4, 1.5, 4a.1 (constructor half).
   - Done when: `uv run python -m pytest core/tests/test_notepad.py -q` passes.
 
-- [ ] 14. Document what makes a capture stale
+- [x] 14. Document what makes a capture stale
   - Files: `docs/scenes/scene-api.md` ("Sections" only).
   - List what makes a capture stale: the scene's `state` file, files it points at, `set_state`
     files and what they point at, `Picture(image=)`, `Notepad(open=)`, the capture's own
@@ -137,7 +137,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
   - Done when: `uv run python -m pytest core/tests/test_anim_docs.py -q` passes, and the "Sections"
     text names each item above.
 
-- [ ] 15. CHANGELOG note
+- [x] 15. CHANGELOG note
   - Files: `CHANGELOG.md`.
   - Under `## [Unreleased]`, in `### Changed` (after the existing `Scene.remove` bullet): a capture
     now goes stale when any host file it was built from changes, naming that file; a capture
@@ -151,7 +151,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
 
 ### Wave 2
 
-- [ ] 5. `Win.source` and `from_state` hand over the checked bytes
+- [x] 5. `Win.source` and `from_state` hand over the checked bytes
   - Files: `core/art98/actions/window/win.py`,
     `core/tests/test_picture.py`, `core/tests/test_notepad.py`.
   - Add class attribute `source: tuple[Path, bytes] | None = None`. `Win.from_state` passes
@@ -164,7 +164,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
   - Covers: 4a.1, 4a.2, 4a.3.
   - Done when: `uv run python -m pytest core/tests/test_picture.py core/tests/test_notepad.py core/tests/test_state.py -q` passes, then `UNIT`.
 
-- [ ] 6. Property test: `State.files()`
+- [x] 6. Property test: `State.files()`
   - Files: `core/tests/test_state.py` (appended; Task 2 finished, so no clash).
   - Hypothesis test for design property 6: for generated states, every `FileRef` the reader
     produced appears once, wallpaper first, then windows in list order with `open` before `text`.
@@ -173,7 +173,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
   - Done when: `uv run python -m pytest core/tests/test_state.py -q` passes; the test imports
     `hypothesis` only inside the test module.
 
-- [ ] 7. Scene path helpers and the recorded-files dict
+- [x] 7. Scene path helpers and the recorded-files dict
   - Files: `core/art98/anim/scene.py`, `core/tests/test_anim.py`,
     new `core/tests/test_scene_deps_properties.py`.
   - Add `Scene._deps: dict[str, str]`, reset in `run()` next to `self._earlier = []`;
@@ -197,7 +197,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
 
 ### Wave 3
 
-- [ ] 8. Record dependencies at the three points
+- [x] 8. Record dependencies at the three points
   - Files: `core/art98/anim/scene.py`, `core/tests/test_anim.py`.
   - `Scene._set_state` calls `_depend_state(state)` after `load_state` succeeds (covers the scene
     `state` from `_begin` and `set_state`). `Scene.add` records a newly added `Win` whose `source`
@@ -216,7 +216,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
 
 ### Wave 4
 
-- [ ] 9. Write `files` and `capture` into the meta file
+- [x] 9. Write `files` and `capture` into the meta file
   - Files: `core/art98/anim/scene.py`, `core/tests/test_anim.py`.
   - `_capture` uses the `State` that `get_state` returns for `capture`, and writes
     `files` as a list of `{"path", "sha256"}` in `_deps` order, with `sort_keys=True`. Frames,
@@ -235,7 +235,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
 
 ### Wave 5
 
-- [ ] 10. Solo check, part 1: read and validate the meta file; check the capture's own file
+- [x] 10. Solo check, part 1: read and validate the meta file; check the capture's own file
   - Files: `core/art98/anim/scene.py`, `core/tests/test_anim.py`.
   - Move the meta parsing of `_start_from_capture` into one private function (for example
     `_read_meta`) that returns `(time, hashes, capture, files)`, so Task 13 can test it without a
@@ -256,7 +256,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
 
 ### Wave 6
 
-- [ ] 11. Solo check, part 2: dependency files
+- [x] 11. Solo check, part 2: dependency files
   - Files: `core/art98/anim/scene.py`, `core/tests/test_anim.py`.
   - After the capture check, hash each `files` entry in recorded order with `_resolve_recorded`.
     `OSError` gives `_stale(name, path, "was moved or deleted")`; a different sha256 gives
@@ -281,7 +281,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
 
 ### Wave 7
 
-- [ ] 12. Fixed order of the checks, and the property tests on the check
+- [x] 12. Fixed order of the checks, and the property tests on the check
   - Files: `core/tests/test_anim.py`, new `core/tests/test_meta_properties.py`. No change to
     `scene.py`; if a test shows the order is wrong, fix `scene.py` in this task and say so in the
     report.
@@ -298,7 +298,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
 
 ### Wave 8
 
-- [ ] 13. Replace the `lazy:` marker on `_hashes()`
+- [x] 13. Replace the `lazy:` marker on `_hashes()`
   - Files: `core/art98/anim/scene.py`.
   - Remove "the files a state file points at aren't hashed" and its `lazy:` line from `_hashes()`'s
     docstring. Add the design's `lazy:` comment: source called from section methods (helpers,
@@ -313,7 +313,7 @@ per wave. Wave 1 and 2 are where parallel work happens.
 
 ### Wave 9
 
-- [ ] 16. Final check
+- [x] 16. Final check
   - Files: none changed (fix only what a failing check shows, and name the file in the report).
   - Run `UNIT`, `uv run ruff check . && uv run ruff format --check core setup tools`, and confirm
     with `git status` that only the files named in these tasks changed, `work/` is untouched, and

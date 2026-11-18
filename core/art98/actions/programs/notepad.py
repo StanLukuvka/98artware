@@ -49,6 +49,7 @@ class Notepad(Win):
         open: Path | str | None = None,
         at: tuple[int, int] | None = None,
         size: tuple[int, int] | None = None,
+        _data: bytes | None = None,
     ):
         self.open_file = Path(open) if open is not None else None
         self._file_data = None
@@ -57,9 +58,14 @@ class Notepad(Win):
         self._state_selection: tuple[int, int] | None = None  # a state's `selection`
         if self.open_file is not None:
             guestfiles.check_name(self.open_file.name)
-            self._file_data = guestfiles.check_text(
-                guestfiles.read_host_file(self.open_file), str(self.open_file)
+            # _data: bytes a state check already read and hashed; not re-read here
+            raw = (
+                _data
+                if _data is not None
+                else guestfiles.read_host_file(self.open_file)
             )
+            self._file_data = guestfiles.check_text(raw, str(self.open_file))
+            self.source = (self.open_file.resolve(), raw)
         if title is None:
             title = notepad_title(self.open_file) if self.open_file is not None else ""
         super().__init__(title, at=at, size=size)

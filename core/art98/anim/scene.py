@@ -11,7 +11,7 @@ import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from time import monotonic
 from typing import Self
 
@@ -184,6 +184,9 @@ class Scene:
         self.sections: list[tuple[str, float]] = []
         # The (name, method) of each section() call before the current one.
         self._earlier: list[tuple[str, Callable]] = []
+        # Recorded path -> sha256 of each host file a capture is built from, in
+        # the order first recorded.
+        self._deps: dict[str, str] = {}
         # (frames, props) when the last section ended: see `_check_between`.
         self._section_mark: tuple[int, int] = (0, 0)
         # The wallpaper the last Set applied, and its style: see `get_state`.
@@ -218,6 +221,7 @@ class Scene:
         self.session, self.recorder = session, video
         self.sections = []
         self._earlier = []
+        self._deps = {}
         self._time_offset = 0.0
         self.guest, self.vm = session.bridge, session.vm
         self.space = STOCK
@@ -289,6 +293,7 @@ class Scene:
 
     def _set_state(self, path: Path | str) -> None:
         state = load_state(self._find_state(Path(path)))
+        self._depend_state(state)
         self._reset()
         props = setstate.apply_state(self, state)
         setstate.check_state(self.guest, self.space, state, props)
@@ -522,13 +527,59 @@ class Scene:
         """(left, top, right, bottom) above the taskbar, or the whole screen when blank."""
         return self.space.work_area
 
+    def _scene_dir(self) -> Path | None:
+        """The folder of the scene's file, resolved, or None when it has no file."""
+        try:
+            return Path(inspect.getfile(type(self))).resolve().parent
+        except (TypeError, OSError):
+            return None
+
+    def _recorded_path(self, path: Path) -> str:
+        """`path` resolved; relative to `_scene_dir()` with `/` when inside it, else absolute with `/`."""
+        path = Path(path).resolve()
+        folder = self._scene_dir()
+        if folder is not None:
+            try:
+                return path.relative_to(folder).as_posix()
+            except ValueError:
+                pass
+        return path.as_posix()
+
+    def _resolve_recorded(self, recorded: str) -> Path:
+        """An absolute record as is; a relative one under `_scene_dir()`. Nothing else is searched."""
+        if (
+            PurePosixPath(recorded).is_absolute()
+            or PureWindowsPath(recorded).is_absolute()
+        ):
+            return Path(recorded)
+        folder = self._scene_dir()
+        if (
+            not recorded
+            or "\\" in recorded
+            or ".." in PurePosixPath(recorded).parts
+            or folder is None
+        ):
+            raise MissingFile(
+                f"a capture records a file path {recorded!r} that art98 can't use: "
+                "render the whole scene once first"
+            )
+        return folder / recorded
+
+    def _depend(self, path: Path, sha256: str) -> None:
+        """Record a file the capture is built from, once, under its recorded path."""
+        self._deps.setdefault(self._recorded_path(path), sha256)
+
+    def _depend_state(self, state: State) -> None:
+        """Record a state file and every file it points at."""
+        self._depend(state.path, state.sha256)
+        for ref in state.files():
+            self._depend(ref.path, ref.sha256)
+
     def _find_state(self, path: Path) -> Path:
         if path.is_absolute():
             return path
-        try:
-            beside = Path(inspect.getfile(type(self))).resolve().parent / path
-        except (TypeError, OSError):
-            beside = None
+        folder = self._scene_dir()
+        beside = folder / path if folder is not None else None
         if beside is not None and beside.exists():
             return beside
         here = Path.cwd() / path
@@ -560,6 +611,9 @@ class Scene:
             if prop not in self.props:
                 prop.attach(self)
                 self.props.append(prop)
+                if isinstance(prop, Win) and prop.source is not None:
+                    path, data = prop.source
+                    self._depend(path, hashlib.sha256(data).hexdigest())
             if id is not None:
                 prop.state_id = id
 
@@ -722,7 +776,7 @@ class Scene:
     def _hashes(self) -> dict[str, str | None]:
         """What a capture depends on: `setup`, the scene's state file and every earlier section.
 
-        lazy: the files a state file points at aren't hashed; upgrade: hash them too.
+        lazy: source that section methods call (helpers, recipes/helpers modules) and Scene class attributes (desktop, pointer_visible, strict_placement) are not tracked, nor are files a scene reads with its own open(); a change there leaves a capture fresh; upgrade: hash what the sections call, or declare extra dependencies.
         """
         hashes: dict[str, str | None] = {
             "setup": _source_hash(type(self).setup, "setup()"),
@@ -741,24 +795,24 @@ class Scene:
         state_name, meta_name = self._capture_names(number, name)
         part = self.captures.with_name(self.captures.name + ".part")
         part.mkdir(parents=True, exist_ok=True)
-        self.get_state(part / state_name)
-        meta = {"time": self.time, "hashes": self._hashes()}
+        captured = self.get_state(part / state_name)
+        meta = {
+            "time": self.time,
+            "hashes": self._hashes(),
+            "capture": captured.sha256,
+            "files": [
+                {"path": path, "sha256": sha} for path, sha in self._deps.items()
+            ],
+        }
         (part / meta_name).write_text(json.dumps(meta, indent=2, sort_keys=True) + "\n")
 
     def _start_from_capture(self, number: int, name: str) -> None:
         """A solo run, at its section: check the capture is fresh, then Set to it."""
         state_name, meta_name = self._capture_names(number, name)
         state, meta_path = self.captures / state_name, self.captures / meta_name
-        try:
-            meta = json.loads(meta_path.read_text())
-            start, recorded = float(meta["time"]), dict(meta["hashes"])
-        except (OSError, ValueError, KeyError, TypeError):
-            start = recorded = None
-        if recorded is None or not state.is_file():
-            raise MissingFile(
-                f"no capture for section {name!r} in {self.captures}: "
-                "render the whole scene once first"
-            )
+        start, recorded, capture, files = _read_meta(meta_path, name, self.captures)
+        if not state.is_file():
+            raise _no_capture(name, self.captures)
         now, methods = self._hashes(), dict(self._earlier)
         for key in dict.fromkeys([*now, *recorded]):
             if now.get(key) == recorded.get(key):
@@ -775,10 +829,20 @@ class Scene:
                     if method
                     else f"section {earlier!r}"
                 )
-            raise UsageError(
-                f"section {name!r} starts from a capture made before {changed} "
-                "changed: render the whole scene again"
-            )
+            raise _stale(name, changed)
+        try:
+            actual = hashlib.sha256(state.read_bytes()).hexdigest()
+        except OSError:
+            raise _no_capture(name, self.captures) from None
+        if actual != capture:
+            raise _stale(name, state_name)
+        for recorded_path, digest in files:
+            try:
+                data = self._resolve_recorded(recorded_path).read_bytes()
+            except OSError:
+                raise _stale(name, recorded_path, "was moved or deleted") from None
+            if hashlib.sha256(data).hexdigest() != digest:
+                raise _stale(name, recorded_path)
         self._set_state(state)
         self._time_offset = start
 
@@ -823,6 +887,67 @@ class Scene:
                         f"two animations in one play both drive the {claim}"
                     )
                 taken.add(claim)
+
+
+def _stale(name: str, what: str, how: str = "changed") -> UsageError:
+    return UsageError(
+        f"section {name!r} starts from a capture made before {what} {how}: "
+        "render the whole scene again"
+    )
+
+
+def _no_capture(name: str, captures) -> MissingFile:
+    return MissingFile(
+        f"no capture for section {name!r} in {captures}: "
+        "render the whole scene once first"
+    )
+
+
+def _is_sha256(value) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(c in "0123456789abcdef" for c in value)
+    )
+
+
+def _read_meta(meta_path: Path, name: str, captures):
+    """A capture's meta file as (time, hashes, capture, files); files is [(path, sha256)].
+
+    Unreadable or malformed gives MissingFile; one with neither `files` nor
+    `capture` is from an older art98 and gives a UsageError.
+    """
+    try:
+        meta = json.loads(meta_path.read_text())
+        start, hashes = float(meta["time"]), dict(meta["hashes"])
+        has_files, has_capture = "files" in meta, "capture" in meta
+    except (OSError, ValueError, KeyError, TypeError):
+        raise _no_capture(name, captures) from None
+    if not has_files and not has_capture:
+        raise UsageError(
+            f"section {name!r} has a capture from an older art98 that did not "
+            "record the files it was built from: render the whole scene again"
+        )
+    capture, raw = meta.get("capture"), meta.get("files")
+    if not _is_sha256(capture) or not isinstance(raw, list):
+        raise _no_capture(name, captures)
+    files, seen = [], set()
+    for entry in raw:
+        if not isinstance(entry, dict) or set(entry) != {"path", "sha256"}:
+            raise _no_capture(name, captures)
+        path, digest = entry["path"], entry["sha256"]
+        if not isinstance(path, str) or not _is_sha256(digest) or path in seen:
+            raise _no_capture(name, captures)
+        absolute = (
+            PurePosixPath(path).is_absolute() or PureWindowsPath(path).is_absolute()
+        )
+        if not absolute and (
+            not path or "\\" in path or ".." in PurePosixPath(path).parts
+        ):
+            raise _no_capture(name, captures)
+        seen.add(path)
+        files.append((path, digest))
+    return start, hashes, capture, files
 
 
 @contextmanager

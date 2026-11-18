@@ -36,6 +36,7 @@ class Picture(Win):
         image: Path | str | None = None,
         at: tuple[int, int] | None = None,
         size: tuple[int, int] | None = None,
+        _data: bytes | None = None,
     ):
         if problem := guestfiles.title_problem(title):
             raise UsageError(
@@ -47,7 +48,11 @@ class Picture(Win):
         self.image_size = None  # (width, height) of the BMP, when there is one
         if self.image is not None:
             guestfiles.check_name(self.image.name)
-            self._image_data = guestfiles.read_host_file(self.image)
+            # _data: bytes a state check already read and hashed; not re-read here
+            self._image_data = (
+                _data if _data is not None else guestfiles.read_host_file(self.image)
+            )
+            self.source = (self.image.resolve(), self._image_data)
             self.image_size = guestfiles.check_bmp(self._image_data, str(self.image))
 
     @staticmethod

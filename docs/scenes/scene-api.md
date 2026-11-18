@@ -366,6 +366,35 @@ clip, `<Scene>-<name>.mp4` unless `-o` says otherwise. It skips `setup` and ever
 time. The first section runs as a full render does. It never writes captures: render the whole
 scene once first, or it raises `MissingFile`. An unknown name raises `SectionNotFound`.
 
+#### What makes a capture stale
+
+Before it touches the guest, `--section` checks that nothing the capture was built from has
+changed since the full render. If something has, it raises a `UsageError` that names the first
+change, and tells you to render the whole scene again. These make a capture stale:
+
+- the scene's `state` file, and every file it points at (a picture, a Notepad text, the wallpaper)
+- a file passed to `set_state`, and every file that one points at
+- the file of a `Picture(image=)` or a `Notepad(open=)` prop that the scene adds
+- the capture's own `NN-name.state.json`, if someone edited it
+- the code of `setup()`
+- the source of the section methods before this one
+
+A file counts as changed when its bytes change, and as moved or deleted when art98 can't read it
+where it was. A file stays on the list for every later capture, even after its prop is gone, so a
+capture can be called stale for a file that no longer matters. That costs one more full render.
+
+These are not tracked, so changing them leaves a capture fresh:
+
+- files the scene reads with its own `open()`
+- helper code the sections call, including `recipes/helpers` modules
+- class attributes such as `desktop`, `pointer_visible` and `strict_placement`
+
+There is no way to declare extra files or code to track. If you change one of these, render the
+whole scene again yourself.
+
+A capture made by an older art98 did not record its files. `--section` refuses it with a
+`UsageError`, and the fix is the same: render the whole scene again.
+
 What a later section needs from before is in the capture, so it finds a window by id:
 
 ```python

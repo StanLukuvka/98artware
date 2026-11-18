@@ -1888,6 +1888,12 @@ def test_a_full_run_cuts_and_captures_at_each_later_boundary(
     ]
     meta = json.loads((caps / "03-three.meta.json").read_text())
     assert meta["time"] == 3.0
+    state_bytes = (caps / "03-three.state.json").read_bytes()
+    assert meta["capture"] == sha(state_bytes)
+    flower = tmp_path / "flower.bmp"
+    assert meta["files"] == [
+        {"path": posix(flower), "sha256": sha(flower.read_bytes())}
+    ]
     assert sorted(meta["hashes"]) == ["section one", "section two", "setup", "state"]
     assert load_state(caps / "03-three.state.json").window("flower")
     assert not (tmp_path / "caps.part").exists()
@@ -1952,6 +1958,77 @@ def test_a_capture_made_before_a_method_changed_is_refused_naming_it(
     with pytest.raises(
         UsageError, match=rf"'three'.*before {re.escape(changed)} changed"
     ):
+        run_sections(scene_class, caps, guest, only="three")
+    assert calls == []
+
+
+def _edit_meta(caps, change):
+    meta_path = caps / "03-three.meta.json"
+    meta = json.loads(meta_path.read_text())
+    change(meta)
+    meta_path.write_text(json.dumps(meta))
+
+
+def test_an_old_meta_file_says_to_render_again(guest, tmp_path, monkeypatch):
+    calls = []
+    scene_class, _, _, caps = full_run(guest, tmp_path, monkeypatch, calls)
+    calls.clear()
+    _edit_meta(caps, lambda m: (m.pop("files"), m.pop("capture")))
+    with pytest.raises(
+        UsageError,
+        match=r"section 'three' has a capture from an older art98 that did not "
+        r"record the files it was built from: render the whole scene again",
+    ):
+        run_sections(scene_class, caps, guest, only="three")
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda m: m.update(files="flower.bmp"),
+        lambda m: m["files"][0].pop("sha256"),
+        lambda m: m["files"][0].update(extra="x"),
+        lambda m: m["files"].append(dict(m["files"][0])),
+        lambda m: m["files"][0].update(path="../flower.bmp"),
+        lambda m: m["files"][0].update(path=""),
+        lambda m: m["files"][0].update(path="a\\b.bmp"),
+        lambda m: m.update(capture="ABC"),
+        lambda m: m.update(capture=m["capture"].upper()),
+        lambda m: m.pop("capture"),
+    ],
+    ids=[
+        "not a list",
+        "no sha256",
+        "extra key",
+        "duplicate path",
+        "dotdot path",
+        "empty path",
+        "backslash path",
+        "bad capture",
+        "uppercase capture",
+        "no capture",
+    ],
+)
+def test_a_malformed_files_record_is_no_capture(guest, tmp_path, monkeypatch, change):
+    calls = []
+    scene_class, _, _, caps = full_run(guest, tmp_path, monkeypatch, calls)
+    calls.clear()
+    _edit_meta(caps, change)
+    with pytest.raises(MissingFile, match="render the whole scene once first"):
+        run_sections(scene_class, caps, guest, only="three")
+    assert calls == []
+
+
+def test_a_hand_edited_capture_state_file_is_stale_even_with_matching_hashes(
+    guest, tmp_path, monkeypatch
+):
+    calls = []
+    scene_class, _, _, caps = full_run(guest, tmp_path, monkeypatch, calls)
+    calls.clear()
+    state_path = caps / "03-three.state.json"
+    state_path.write_bytes(state_path.read_bytes() + b"\n")
+    with pytest.raises(UsageError, match=r"before 03-three\.state\.json changed"):
         run_sections(scene_class, caps, guest, only="three")
     assert calls == []
 
@@ -2057,6 +2134,55 @@ def test_code_between_section_calls_is_refused_in_a_full_run(
 
     with pytest.raises(UsageError, match=r"code between section\(\) calls"):
         run_sections(After, tmp_path / "caps", guest)
+
+
+def test_two_full_runs_write_the_same_meta_bytes(guest, tmp_path, monkeypatch):
+    *_, caps = full_run(guest, tmp_path, monkeypatch, [])
+    first = {p.name: p.read_bytes() for p in caps.glob("*.meta.json")}
+    shutil.rmtree(caps)
+    *_, caps = full_run(FakeGuest(), tmp_path, monkeypatch, [])
+    second = {p.name: p.read_bytes() for p in caps.glob("*.meta.json")}
+    assert first and first == second
+
+
+def test_a_wrong_sha_in_a_state_writes_no_capture(guest, tmp_path, monkeypatch):
+    from art98.state import StateError
+
+    skip_applying(monkeypatch)
+    scene_class = three_sections(guest, tmp_path, monkeypatch, [])
+    path, _ = state_pointing_at(tmp_path, wrong_sha=True)
+
+    class Wrong(scene_class):
+        def one(self):
+            self.set_state(path)
+
+    with pytest.raises(StateError):
+        run_sections(Wrong, tmp_path / "caps", guest)
+    assert not (tmp_path / "caps").exists()
+
+
+def test_the_capture_state_file_is_the_bytes_get_state_wrote(
+    guest, tmp_path, monkeypatch
+):
+    from art98.state import VERSION, dump_state
+
+    *_, caps = full_run(guest, tmp_path, monkeypatch, [])
+    written = caps / "03-three.state.json"
+    value = json.loads(written.read_text())
+    assert value["version"] == VERSION == 1
+    assert set(value) == {
+        "version",
+        "desktop",
+        "windows",
+        "display",
+        "stack",
+        "pointer",
+    }
+    again = caps / "again.json"
+    dump_state(value, again)
+    assert again.read_bytes() == written.read_bytes()
+    meta = json.loads((caps / "03-three.meta.json").read_text())
+    assert set(meta) == {"time", "hashes", "capture", "files"}
 
 
 def test_a_capture_the_state_cant_hold_stops_the_full_run_with_nothing_swapped_in(
@@ -2673,3 +2799,449 @@ def test_an_empty_notepad_text_after_an_opened_file_round_trips(
     assert state.window("note").text.data == b""
     again = scene.get_state(tmp_path / "s.json")
     assert again.window("note").text.data == b""
+
+
+# ---- recorded paths of a capture's files ----
+
+
+def scene_file_in(tmp_path, name="scene_deps.py", body="pass"):
+    """Write a scene file in `tmp_path` and load its Scene class, as the CLI does."""
+    from art98.cli import _load_scene
+
+    file = tmp_path / name
+    file.write_text(f"from art98.anim import *\nclass T(Scene):\n    {body}\n")
+    return _load_scene(file, None)
+
+
+def test_a_file_outside_the_scene_folder_is_recorded_absolute(tmp_path):
+    folder = tmp_path / "scenes"
+    folder.mkdir()
+    outside = tmp_path / "shared.bmp"
+    outside.write_bytes(b"x")
+    scene = scene_file_in(folder)()
+    assert scene._recorded_path(outside) == outside.resolve().as_posix()
+    assert scene._resolve_recorded(scene._recorded_path(outside)) == outside.resolve()
+
+
+def test_a_dotdot_path_is_recorded_relative(tmp_path):
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "a.bmp").write_bytes(b"x")
+    scene = scene_file_in(tmp_path)()
+    odd = tmp_path / "assets" / ".." / "assets" / "a.bmp"
+    assert scene._recorded_path(odd) == "assets/a.bmp"
+    assert (
+        scene._resolve_recorded("assets/a.bmp") == tmp_path.resolve() / "assets/a.bmp"
+    )
+
+
+def test_a_symlink_into_the_folder_is_recorded_relative(tmp_path):
+    folder = tmp_path / "scenes"
+    folder.mkdir()
+    (folder / "real.bmp").write_bytes(b"x")
+    link = tmp_path / "link.bmp"
+    try:
+        link.symlink_to(folder / "real.bmp")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks are not allowed here")
+    assert scene_file_in(folder)()._recorded_path(link) == "real.bmp"
+
+
+def test_a_record_uses_forward_slashes(tmp_path):
+    (tmp_path / "a" / "b").mkdir(parents=True)
+    scene = scene_file_in(tmp_path)()
+    record = scene._recorded_path(tmp_path / "a" / "b" / "c.bmp")
+    assert record == "a/b/c.bmp" and "\\" not in record
+
+
+def test_a_file_used_twice_is_recorded_once(tmp_path):
+    scene = scene_file_in(tmp_path)()
+    scene._deps = {}
+    scene._depend(tmp_path / "x.bmp", "a" * 64)
+    scene._depend(tmp_path / "y.bmp", "b" * 64)
+    scene._depend(tmp_path / "x.bmp", "c" * 64)
+    assert list(scene._deps.items()) == [("x.bmp", "a" * 64), ("y.bmp", "b" * 64)]
+
+
+def test_a_scene_with_no_file_records_absolute_paths(tmp_path, monkeypatch):
+    scene = scene_file_in(tmp_path)()
+
+    def no_file(_):
+        raise TypeError("built-in class")
+
+    monkeypatch.setattr(inspect, "getfile", no_file)
+    assert scene._scene_dir() is None
+    target = tmp_path / "x.bmp"
+    assert scene._recorded_path(target) == target.resolve().as_posix()
+
+
+@pytest.mark.parametrize("bad", ["", "../x.bmp", "a/../../x.bmp", "a\\b.bmp"])
+def test_a_malformed_relative_record_is_refused(tmp_path, bad):
+    with pytest.raises(MissingFile):
+        scene_file_in(tmp_path)()._resolve_recorded(bad)
+
+
+# ---- dependencies recorded as files are read ----
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def posix(path):
+    return path.resolve().as_posix()
+
+
+def state_pointing_at(tmp_path, name="in.json", wrong_sha=False):
+    """A state file with a wallpaper and a Notepad that opens and has its own text."""
+    from art98.state import dump_state
+    from test_state import bmp
+
+    wall, note = bmp(4, 3), b"one\ntwo\n"
+    (tmp_path / "wall.bmp").write_bytes(wall)
+    (tmp_path / "note.txt").write_bytes(note)
+    (tmp_path / "text.txt").write_bytes(b"edited\n")
+    value = {
+        "version": 1,
+        "desktop": {
+            "wallpaper": {
+                "file": "wall.bmp",
+                "sha256": "0" * 64 if wrong_sha else sha(wall),
+            },
+        },
+        "windows": [
+            {
+                "id": "note",
+                "app": "notepad",
+                "title": "note - Notepad",
+                "at": [10, 20],
+                "size": [300, 200],
+                "open": {"file": "note.txt", "sha256": sha(note)},
+                "text": {"file": "text.txt", "sha256": sha(b"edited\n")},
+            }
+        ],
+    }
+    if wrong_sha:  # dump_state would refuse it, so write the file as a user could
+        (tmp_path / name).write_text(json.dumps(value))
+    else:
+        dump_state(value, tmp_path / name)
+    return tmp_path / name, {
+        posix(tmp_path / name): sha((tmp_path / name).read_bytes()),
+        posix(tmp_path / "wall.bmp"): sha(wall),
+        posix(tmp_path / "note.txt"): sha(note),
+        posix(tmp_path / "text.txt"): sha(b"edited\n"),
+    }
+
+
+def skip_applying(monkeypatch):
+    from art98.anim import setstate
+
+    monkeypatch.setattr(setstate, "apply_state", lambda scene, state: {})
+    monkeypatch.setattr(setstate, "check_state", lambda *a: None)
+
+
+def test_the_scene_state_file_and_the_files_it_points_at_are_recorded(
+    guest, monkeypatch, tmp_path
+):
+    skip_applying(monkeypatch)
+    path, expected = state_pointing_at(tmp_path)
+
+    class WithState(Stage):
+        state = path
+
+    scene = WithState()
+    scene.run(FakeSession(guest), FakeVideo(guest))
+    assert scene._deps == expected
+    assert next(iter(scene._deps)) == posix(path)  # the state first, then its files
+
+
+def test_a_set_state_file_and_its_files_are_recorded(
+    guest, scene, tmp_path, monkeypatch
+):
+    skip_applying(monkeypatch)
+    path, expected = state_pointing_at(tmp_path)
+    assert scene._deps == {}
+    scene.set_state(path)
+    scene.set_state(path)
+    assert scene._deps == expected
+
+
+def test_a_picture_and_a_notepad_file_are_recorded(guest, scene, tmp_path, monkeypatch):
+    captured_scene(guest, scene, tmp_path, monkeypatch)
+    assert scene._deps == {
+        posix(tmp_path / "flower.bmp"): sha((tmp_path / "flower.bmp").read_bytes()),
+        posix(tmp_path / "note.txt"): sha(b"one\ntwo\n"),
+    }
+
+
+def test_a_prop_built_at_import_is_recorded_when_added(guest, tmp_path, monkeypatch):
+    from test_state import bmp
+
+    monkeypatch.setattr(guestfiles, "viewer", lambda: b"MZ view")
+    data = bmp(4, 3)
+    (tmp_path / "late.bmp").write_bytes(data)
+    guest.add_window(0x30, "Art98View", (60, 60, 360, 280), "Late", pid=7000)
+
+    class Late(Stage):
+        prop = Picture(
+            "Late", image=tmp_path / "late.bmp", at=(60, 60), size=(300, 220)
+        )
+
+        def construct(self):
+            assert self._deps == {}  # built, but not added yet
+            self.add(self.prop)
+
+    scene = Late()
+    scene.run(FakeSession(guest), FakeVideo(guest))
+    assert scene._deps == {posix(tmp_path / "late.bmp"): sha(data)}
+
+
+def test_the_notepad_hash_is_of_the_raw_bytes_not_the_crlf_ones(guest, scene, tmp_path):
+    raw = b"one\ntwo\n"
+    (tmp_path / "raw.txt").write_bytes(raw)
+    guest.add_window(0x10, "Notepad", (92, 88, 692, 499), "raw - Notepad", pid=7000)
+    guest.add_window(0x11, "Edit", (96, 130, 688, 495), parent=0x10)
+    scene.add(Notepad(open=tmp_path / "raw.txt"))
+    assert scene._deps == {posix(tmp_path / "raw.txt"): sha(raw)}
+    assert sha(raw) != sha(raw.replace(b"\n", b"\r\n"))
+
+
+def test_a_wrong_sha_in_a_state_raises_state_error_and_records_nothing(
+    guest, scene, tmp_path, monkeypatch
+):
+    from art98.state import StateError
+
+    skip_applying(monkeypatch)
+    path, _ = state_pointing_at(tmp_path, wrong_sha=True)
+    with pytest.raises(StateError):
+        scene.set_state(path)
+    assert scene._deps == {}
+
+
+# ---- the solo check hashes every dependency file ----
+
+DEPS_SCENE = """state = "in.json"
+    here = __import__("pathlib").Path(__file__).parent
+
+    def setup(self):
+        self.set_state(self.here / "set.json")
+        picture = Picture(
+            "Flower", image=self.here / "flower.bmp", at=(60, 60), size=(300, 220)
+        )
+        self.add(picture, id="flower")
+
+    def construct(self):
+        self.section("one", self.one)
+        self.section("two", self.two)
+        self.section("three", self.three)
+
+    def one(self):
+        self.pause(1)
+
+    def two(self):
+        self.pause(2)
+
+    def three(self):
+        self.pause(1)
+"""
+
+
+def write_set_state(folder, colour=(0, 128, 128)):
+    """`set.json`: a state whose wallpaper is `set_wall.bmp`, both beside the scene."""
+    from art98.state import dump_state
+
+    wall = (folder / "set_wall.bmp").read_bytes()
+    dump_state(
+        {
+            "version": 1,
+            "desktop": {
+                "fill_colour": list(colour),
+                "wallpaper": {"file": "set_wall.bmp", "sha256": sha(wall)},
+            },
+            "windows": [],
+        },
+        folder / "set.json",
+    )
+
+
+def deps_scene(guest, folder, monkeypatch):
+    """A full run of a three-section scene file in `folder` that reads four kinds of file.
+
+    Returns (scene class, captures folder). The scene `state` is in.json (it points at
+    wall.bmp, note.txt and text.txt), setup() calls set_state on set.json (it points at
+    set_wall.bmp) and adds a Picture of flower.bmp.
+    """
+    from art98.anim import renderer as render_module
+    from test_state import bmp
+
+    folder.mkdir(exist_ok=True)
+    skip_applying(monkeypatch)
+    monkeypatch.setattr(guestfiles, "viewer", lambda: b"MZ view")
+    state_pointing_at(folder)
+    (folder / "set_wall.bmp").write_bytes(bmp(2, 2))
+    write_set_state(folder)
+    (folder / "flower.bmp").write_bytes(bmp(4, 3))
+    guest.add_window(0x30, "Art98View", (60, 60, 360, 280), "Flower", pid=7000)
+    scene_class = scene_file_in(folder, body=DEPS_SCENE)
+    caps = folder / "caps"
+    run_sections(scene_class, caps, guest)
+    render_module.swap_captures(caps)
+    return scene_class, caps
+
+
+def _rewrite(name, data):
+    return lambda folder: (folder / name).write_bytes(data)
+
+
+def _rewrite_set_state(folder):
+    write_set_state(folder, colour=(1, 2, 3))
+
+
+# (id, recorded path, how a test changes it)
+DEPENDENCY_SOURCES = [
+    ("scene_state_pointed_at_file", "note.txt", _rewrite("note.txt", b"other\n")),
+    ("set_state_file", "set.json", _rewrite_set_state),
+    ("file_a_state_points_at", "set_wall.bmp", _rewrite("set_wall.bmp", b"BM other")),
+    ("prop_file", "flower.bmp", _rewrite("flower.bmp", b"BM other")),
+]
+SOURCE_IDS = [source[0] for source in DEPENDENCY_SOURCES]
+
+
+@pytest.mark.parametrize("section", ["two", "three"])
+@pytest.mark.parametrize(
+    ("_", "recorded", "change"), DEPENDENCY_SOURCES, ids=SOURCE_IDS
+)
+def test_a_changed_dependency_file_makes_a_later_section_stale(
+    guest, tmp_path, monkeypatch, _, recorded, change, section
+):
+    scene_class, caps = deps_scene(guest, tmp_path, monkeypatch)
+    change(tmp_path)
+    guest.calls.clear()
+    with pytest.raises(UsageError, match=rf"before {re.escape(recorded)} changed"):
+        run_sections(scene_class, caps, guest, only=section)
+
+
+@pytest.mark.parametrize(
+    ("_", "recorded", "change"), DEPENDENCY_SOURCES, ids=SOURCE_IDS
+)
+def test_a_missing_dependency_file_says_moved_or_deleted(
+    guest, tmp_path, monkeypatch, _, recorded, change
+):
+    scene_class, caps = deps_scene(guest, tmp_path, monkeypatch)
+    (tmp_path / recorded).unlink()
+    with pytest.raises(
+        UsageError, match=rf"before {re.escape(recorded)} was moved or deleted:"
+    ):
+        run_sections(scene_class, caps, guest, only="three")
+
+
+@pytest.mark.parametrize("section", ["two", "three"])
+def test_unchanged_files_leave_the_capture_fresh(guest, tmp_path, monkeypatch, section):
+    scene_class, caps = deps_scene(guest, tmp_path, monkeypatch)
+    scene, _, video = run_sections(scene_class, caps, guest, only=section)
+    assert [name for name, _ in scene.sections] == [section]
+    assert video.cuts == [] and video.count == (60 if section == "two" else 30)
+
+
+def test_a_file_a_state_points_at_changed_without_its_sha_is_stale_in_section_two(
+    guest, tmp_path, monkeypatch
+):
+    from art98.state import StateError
+
+    scene_class, caps = deps_scene(guest, tmp_path, monkeypatch)
+    (tmp_path / "note.txt").write_bytes(b"other\n")  # in.json still holds the old sha
+    with pytest.raises(UsageError, match=r"before note\.txt changed"):
+        run_sections(scene_class, caps, guest, only="two")
+    with pytest.raises(StateError):  # section one loads the state itself
+        run_sections(scene_class, caps, guest, only="one")
+
+
+def test_the_stale_messages_match_exactly(guest, tmp_path, monkeypatch):
+    scene_class, caps = deps_scene(guest, tmp_path, monkeypatch)
+    (tmp_path / "flower.bmp").write_bytes(b"BM other")
+    with pytest.raises(UsageError) as changed:
+        run_sections(scene_class, caps, guest, only="three")
+    assert str(changed.value) == (
+        "section 'three' starts from a capture made before flower.bmp changed: "
+        "render the whole scene again"
+    )
+    (tmp_path / "flower.bmp").unlink()
+    with pytest.raises(UsageError) as gone:
+        run_sections(scene_class, caps, guest, only="three")
+    assert str(gone.value) == (
+        "section 'three' starts from a capture made before flower.bmp was moved or "
+        "deleted: render the whole scene again"
+    )
+
+
+def test_a_moved_project_keeps_its_captures_fresh(guest, tmp_path, monkeypatch):
+    from art98.cli import _load_scene
+
+    deps_scene(guest, tmp_path / "project", monkeypatch)
+    shutil.copytree(tmp_path / "project", tmp_path / "moved")
+    shutil.rmtree(tmp_path / "project")
+    moved = _load_scene(tmp_path / "moved" / "scene_deps.py", None)
+    scene, _, video = run_sections(moved, tmp_path / "moved" / "caps", guest, "three")
+    assert scene.sections == [("three", 3.0)] and video.count == 30
+
+
+def test_one_change_is_named_in_a_fixed_order(guest, tmp_path, monkeypatch):
+    scene_class, caps = deps_scene(guest, tmp_path, monkeypatch)
+    meta_path = caps / "03-three.meta.json"
+    meta_bytes = meta_path.read_bytes()
+    meta = json.loads(meta_bytes)
+    recorded = [entry["path"] for entry in meta["files"]]
+    files = ["wall.bmp", "note.txt", "set_wall.bmp", "flower.bmp"]
+    assert [p for p in recorded if p in files] == files  # the recording order
+    capture_path = caps / "03-three.state.json"
+    capture_bytes = capture_path.read_bytes()
+    originals = {name: (tmp_path / name).read_bytes() for name in files}
+
+    meta_keys = {
+        "setup()": "setup",
+        "the state file": "state",
+        "one()": "section one",
+        "two()": "section two",
+    }
+    # in the order they must be named
+    order = [*meta_keys, "03-three.state.json", *files]
+
+    def apply_all(remaining):
+        edited = json.loads(meta_bytes)
+        for named, key in meta_keys.items():
+            if named in remaining:
+                edited["hashes"][key] = "0" * 64
+        meta_path.write_text(json.dumps(edited))
+        capture_path.write_bytes(
+            capture_bytes + b" "
+            if "03-three.state.json" in remaining
+            else capture_bytes
+        )
+        for name in files:
+            (tmp_path / name).write_bytes(
+                b"BM other" if name in remaining else originals[name]
+            )
+
+    remaining = list(order)
+    while remaining:
+        apply_all(remaining)
+        with pytest.raises(UsageError) as stale:
+            run_sections(scene_class, caps, guest, only="three")
+        assert f"before {remaining[0]} changed:" in str(stale.value)
+        remaining.pop(0)
+    apply_all([])
+    run_sections(scene_class, caps, guest, only="three")
+
+
+def test_the_solo_check_makes_no_guest_call_before_it_passes(
+    guest, tmp_path, monkeypatch
+):
+    scene_class, caps = deps_scene(guest, tmp_path, monkeypatch)
+    for damage in (
+        lambda: (tmp_path / "flower.bmp").write_bytes(b"BM other"),
+        lambda: (tmp_path / "flower.bmp").unlink(),
+    ):
+        damage()
+        guest.calls.clear()
+        with pytest.raises(UsageError):
+            run_sections(scene_class, caps, guest, only="three")
+        assert guest.calls == []

@@ -35,6 +35,9 @@ class Win(Prop):
     open_keyword: str | None = None
     # Extra state window fields this program accepts (see `state.py`).
     state_fields: tuple[str, ...] = ()
+    # The host file and the exact bytes this prop was built from, for a program that
+    # opens a file; None otherwise. `from_state` fills it with the bytes the state checked.
+    source: tuple[Path, bytes] | None = None
 
     @staticmethod
     def check_file(data: bytes, source: str) -> None:
@@ -50,7 +53,11 @@ class Win(Prop):
     def from_state(cls, window) -> Win:
         """The prop for one window of a state file. The file's `show` is applied
         by setstate once the prop is added, and read back by `refresh`."""
-        opened = {} if window.open is None else {cls.open_keyword: window.open.path}
+        opened = (
+            {}
+            if window.open is None
+            else {cls.open_keyword: window.open.path, "_data": window.open.data}
+        )
         return cls(window.title, at=window.at, size=window.size, **opened)
 
     def to_state(self, files: Path) -> dict:

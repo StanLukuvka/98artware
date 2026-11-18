@@ -26,7 +26,7 @@ Repository = "https://github.com/StanLukuvka/98artware"
 art98 = "art98.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "pycdlib>=1.14", "ruff==0.17.4"]
+dev = ["pytest>=8", "pycdlib>=1.14", "hypothesis>=6", "ruff==0.17.4"]
 
 [build-system]
 requires = ["hatchling"]

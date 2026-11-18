@@ -3,9 +3,13 @@
 import hashlib
 import json
 import struct
+import tempfile
+from pathlib import Path
 
 import pytest
 from art98.state import StateError, dump_state, load_state
+from hypothesis import given
+from hypothesis import strategies as st
 
 
 def bmp(width=4, height=3):
@@ -395,3 +399,104 @@ def test_a_window_id_must_be_letters_digits_underscore_or_dash(folder):
     with pytest.raises(StateError) as caught:
         load_state(path)
     assert any(p.startswith("windows[0].id:") for p in caught.value.problems)
+
+
+def test_a_loaded_state_carries_the_sha256_of_its_bytes(folder):
+    path = write(folder, {"version": 1, "windows": [flower(folder)]})
+    state = load_state(path)
+    assert state.sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_a_state_lists_its_files_wallpaper_then_windows_open_before_text(folder):
+    (folder / "assets" / "wall.bmp").write_bytes(bmp(8, 8))
+    (folder / "assets" / "note.txt").write_bytes(b"hello")
+    (folder / "assets" / "other.txt").write_bytes(b"other")
+
+    def ref(name):
+        data = (folder / "assets" / name).read_bytes()
+        return {"file": f"assets/{name}", "sha256": hashlib.sha256(data).hexdigest()}
+
+    note = {
+        "id": "note",
+        "app": "notepad",
+        "at": [100, 80],
+        "size": [320, 200],
+        "open": ref("note.txt"),
+        "text": ref("other.txt"),
+    }
+    bare = {"id": "bare", "app": "picture", "at": [0, 0], "size": [50, 50]}
+    state = load_state(
+        write(
+            folder,
+            {
+                "version": 1,
+                "desktop": {"wallpaper": ref("wall.bmp")},
+                "windows": [note, bare, flower(folder)],
+            },
+        )
+    )
+    names = [r.path.name for r in state.files()]
+    assert names == ["wall.bmp", "note.txt", "other.txt", "flower.bmp"]
+    assert load_state(write(folder, {"version": 1}, "empty.json")).files() == ()
+
+
+def test_dump_state_returns_a_state_with_its_sha256(folder):
+    path = folder / "dumped.json"
+    state = dump_state({"version": 1, "windows": [flower(folder)]}, path)
+    assert state.sha256 == hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def test_the_state_file_format_and_version_are_unchanged(folder):
+    from art98.state import VERSION
+
+    path = folder / "dumped.json"
+    dump_state({"version": 1, "windows": [flower(folder)]}, path)
+    written = json.loads(path.read_text())
+    assert VERSION == 1
+    assert set(written) == {"version", "windows"}
+    assert "sha256" not in written
+    assert set(written["windows"][0]["open"]) == {"file", "sha256"}
+
+
+@given(
+    wallpaper=st.booleans(),
+    windows=st.lists(
+        st.one_of(
+            st.tuples(st.just("picture"), st.booleans(), st.just(False)),
+            st.tuples(st.just("notepad"), st.booleans(), st.booleans()),
+        ),
+        max_size=5,
+    ),
+)
+def test_files_lists_every_file_once_in_file_order(wallpaper, windows):
+    """**Validates: Requirements 1.2, 1.3, 5.2**"""
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        count = 0
+
+        def ref(ext, data):
+            nonlocal count
+            count += 1
+            name = f"f{count}.{ext}"
+            (base / name).write_bytes(data)
+            return {"file": name, "sha256": hashlib.sha256(data).hexdigest()}, name
+
+        expected = []
+        value = {"version": 1, "windows": []}
+        if wallpaper:
+            wall, name = ref("bmp", bmp(8, 8))
+            value["desktop"] = {"wallpaper": wall}
+            expected.append(name)
+        for index, (app, opens, texts) in enumerate(windows):
+            window = {"id": f"w{index}", "app": app, "at": [0, 0], "size": [50, 50]}
+            if opens:
+                window["open"], name = (
+                    ref("bmp", bmp()) if app == "picture" else ref("txt", b"open")
+                )
+                expected.append(name)
+            if texts:
+                window["text"], name = ref("txt", b"text")
+                expected.append(name)
+            value["windows"].append(window)
+        state = load_state(write(base, value))
+        assert [r.path.name for r in state.files()] == expected
