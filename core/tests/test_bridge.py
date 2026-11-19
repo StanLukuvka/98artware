@@ -254,6 +254,22 @@ def test_missing_display_mode_is_an_error(pair):
         win32.set_display_mode(bridge, 800, 600, 16)
 
 
+def test_a_display_mode_that_needs_a_restart_is_an_error(pair):
+    bridge, agent = pair
+
+    def call(i, a):
+        if a[1] == "EnumDisplaySettingsA":
+            blob = bytearray(a[4])
+            struct.pack_into("<III", blob, 104, 4, 640, 480)
+            agent.send(b"%d OK 1 0 #%s" % (i, bytes(blob).hex().encode()))
+        else:
+            agent.send(b"%d OK 1 0 #00" % i)  # DISP_CHANGE_RESTART
+
+    agent.handlers["CALL"] = call
+    with pytest.raises(BridgeError, match="640x480x4 display mode needs a restart"):
+        win32.set_display_mode(bridge, 640, 480, 4, persist=False)
+
+
 def test_a_window_matches_each_filter_given_and_ignores_case():
     window = Window(1, 7, True, (0, 0, 1, 1), "Notepad", "Untitled - Notepad")
     assert window.matches(title="untitled", class_name="notepad", pid=7)
