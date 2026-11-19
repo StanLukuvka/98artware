@@ -45,6 +45,10 @@ written for 0.2.0 needs edits; see "Changed" and "Removed".
   `Minesweeper.clear` are claimed for you. A window you open another way needs `self.add(...)`,
   or a `with self.claim(...)` block.
 - `Scene.remove` on a window does what `Close` does.
+- A section capture now goes stale when any host file it was built from changes, and the error
+  names that file. A capture written by an earlier build has no file records, so it is refused
+  and must be rendered again with a full `art98 render` (breaking). See
+  [Sections](docs/scenes/scene-api.md#sections).
 
 ### Removed
 

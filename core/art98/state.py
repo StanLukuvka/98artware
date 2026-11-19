@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .actions.apps import APPS
@@ -124,6 +124,14 @@ class State:
     pointer: tuple[int, int] | None
     desktop: DesktopState | None = None
     stack: tuple[str, ...] | None = None  # window ids, back to front
+    sha256: str = ""  # of the bytes load_state read; "" for a State built by hand
+
+    def files(self) -> tuple[FileRef, ...]:
+        """Every file the state points at: the wallpaper, then each window's open and text."""
+        refs = [self.desktop.wallpaper] if self.desktop else []
+        for window in self.windows:
+            refs += [window.open, window.text]
+        return tuple(ref for ref in refs if ref is not None)
 
     @property
     def back_to_front(self) -> tuple[WindowState, ...]:
@@ -381,18 +389,21 @@ def load_state(path: Path | str) -> State:
     """Read and check a state file, or raise StateError listing every problem."""
     path = Path(path).resolve()
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        data = path.read_bytes()
     except FileNotFoundError:
         raise StateError(path, ["the file doesn't exist"]) from None
     except OSError as error:
         raise StateError(path, [f"can't read the file: {error.strerror}"]) from None
+    digest = hashlib.sha256(data).hexdigest()
+    try:
+        value = json.loads(data.decode("utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as error:
         raise StateError(path, [f"not valid JSON: {error}"]) from None
     reader = _Reader(path)
     state = reader.state(value)
     if state is None:
         raise StateError(path, reader.problems)
-    return state
+    return replace(state, sha256=digest)
 
 
 _ORDER = {

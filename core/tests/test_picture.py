@@ -11,7 +11,7 @@ from art98.anim.setstate import StateMismatch
 from art98.errors import MissingFile
 from art98.guest import guestfiles
 from art98.guest.bridge import CallResult, Window
-from art98.state import StateError
+from art98.state import StateError, load_state
 from test_anim import FakeGuest, FakeVideo, FakeVM
 from test_state import bmp
 
@@ -195,6 +195,23 @@ def test_a_picture_opens_where_it_should_with_its_image_copied_once(guest, folde
     assert guest.puts == [viewer, picture]
     assert scene.first.image_size == (4, 3)
     assert scene.first.rect == (40, 50, 340, 250)
+
+
+def test_a_picture_remembers_the_file_and_bytes_it_was_built_from(guest, folder):
+    image = folder / "flower.bmp"
+    picture = Picture(image=image)
+    assert picture.source == (image.resolve(), image.read_bytes())
+    assert picture.source[1] is picture._image_data
+
+
+def test_a_picture_given_checked_bytes_does_not_read_the_file(guest, folder):
+    image = folder / "flower.bmp"
+    data = bmp(4, 3)
+    image.unlink()
+    picture = Picture(image=image, _data=data)
+    assert picture.source == (image.resolve(), data)
+    assert picture.source[1] is data
+    assert picture.image_size == (4, 3)
 
 
 def test_a_bad_picture_fails_before_the_guest_is_asked(folder):
@@ -485,3 +502,14 @@ def test_a_missing_image_is_a_missing_file(tmp_path):
 
 def test_a_picture_without_an_image_has_no_image_size():
     assert Picture().image_size is None
+
+
+def test_a_file_that_changes_after_the_check_is_not_read_again(guest, folder):
+    window = load_state(state_file(folder)).windows[1]
+    checked = window.open.data
+    (folder / "flower.bmp").write_bytes(bmp(9, 9))
+    picture = Picture.from_state(window)
+    assert picture.source[1] == checked
+    assert picture._image_data == checked
+    assert picture.image_size == (4, 3)
+    assert hashlib.sha256(picture.source[1]).hexdigest() == window.open.sha256

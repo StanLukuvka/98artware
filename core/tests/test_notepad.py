@@ -256,3 +256,31 @@ def test_a_notepad_not_on_stage_says_so():
         _ = pad.text
     with pytest.raises(UsageError, match="not on stage"):
         pad.close()
+
+
+def test_the_notepad_source_is_the_raw_bytes_not_the_crlf_ones(folder, guest):
+    path = folder / "lf.txt"
+    path.write_bytes(b"one\ntwo\nthree")
+    pad = Notepad(open=path)
+    assert pad.source == (path.resolve(), b"one\ntwo\nthree")
+    assert b"\r\n" in pad._file_data
+    assert b"\r\n" not in pad.source[1]
+
+
+def test_a_notepad_given_checked_bytes_does_not_read_the_file(folder, guest):
+    path = folder / "gone.txt"
+    data = b"one\ntwo"
+    pad = Notepad(open=path, _data=data)
+    assert pad.source == (path.resolve(), data)
+    assert pad.source[1] is data
+    assert pad._file_data == b"one\r\ntwo"
+
+
+def test_a_file_that_changes_after_the_check_is_not_read_again(folder, guest):
+    window = load_state(state_file(folder, [note_window(folder)])).windows[0]
+    checked = window.open.data
+    (folder / "note.txt").write_bytes(b"changed after the check")
+    pad = Notepad.from_state(window)
+    assert pad.source[1] == checked
+    assert pad._file_data == guestfiles.check_text(checked, "note.txt")
+    assert hashlib.sha256(pad.source[1]).hexdigest() == window.open.sha256
