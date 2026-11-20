@@ -66,7 +66,9 @@ def apply_state(scene, state: State) -> dict:
     """Make the reverted desktop match the state. Returns its props by window id."""
     guest = scene.guest
     if state.display and display_mode(guest) != state.display:
-        set_display_mode(guest, *state.display, persist=False)
+        # Persisted, or Explorer leaves the taskbar where the old mode had it.
+        # The registry write is undone with everything else at the next revert.
+        set_display_mode(guest, *state.display, persist=True)
         scene.prepare_desktop()
     desk = state.desktop
     if desk and desk.fill_colour:

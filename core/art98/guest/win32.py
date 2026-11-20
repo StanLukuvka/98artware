@@ -92,6 +92,7 @@ MF_BYPOSITION = 0x0400
 # display modes: EnumDisplaySettingsA / ChangeDisplaySettingsA
 ENUM_SETTINGS_END_OF_LIST = 0
 CDS_UPDATEREGISTRY = 1
+DISP_CHANGE_RESTART = 1  # the mode is only taken at the next boot
 DISPLAY_SIZES = ((640, 480), (800, 600), (1024, 768), (1280, 1024))  # the Cirrus modes
 DEVMODE_SIZE = 156
 DM_BITSPERPEL, DM_PELSWIDTH, DM_PELSHEIGHT = 0x00040000, 0x00080000, 0x00100000
@@ -228,8 +229,12 @@ def set_display_mode(
 ) -> None:
     """Switch resolution, using a mode the video driver itself reports.
 
-    `persist` also writes the mode to the registry. Raises `BridgeError` if the
-    driver has no such mode or refuses the change.
+    `persist` also writes the mode to the registry. Explorer only moves the
+    taskbar to the new bottom edge for a persisted mode: with `persist=False`
+    the taskbar keeps its old rect (measured on Win98 SE; WM_DISPLAYCHANGE,
+    WM_SIZE or WM_SETTINGCHANGE sent to it afterwards don't move it). Raises
+    `BridgeError` if the driver has no such mode, refuses the change, or can
+    only take it at the next boot.
     """
     mode = 0
     while True:
@@ -248,6 +253,10 @@ def set_display_mode(
     result = guest.user32.ChangeDisplaySettingsA(devmode, flags)
     if result.signed < 0:
         raise BridgeError(f"ChangeDisplaySettings failed with {result.signed}")
+    if result.signed == DISP_CHANGE_RESTART:
+        raise BridgeError(
+            f"the {width}x{height}x{depth} display mode needs a restart, so it can't be set"
+        )
 
 
 def sys_command(guest, hwnd: int, command: int) -> None:

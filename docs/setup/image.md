@@ -332,7 +332,8 @@ The Cirrus driver offers these modes:
 | 1024x768 | 8, 16 |
 | 1280x1024 | 8 |
 
-Setup only sets 800x600x16.
+Setup only sets 800x600x16. 640x480x4 only takes effect after a restart, so `set_display_mode`
+raises for it.
 
 ## The snapshot
 
