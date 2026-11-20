@@ -1,3 +1,4 @@
+<!-- FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 11-12). Check the flow before hand-editing. -->
 # Scene API
 
 Everything here comes from `from art98.anim import *`. For what you pass to `play`, see
@@ -5,8 +6,8 @@ Everything here comes from `from art98.anim import *`. For what you pass to `pla
 
 Positions are screen pixels, with `(0, 0)` at the top left and y running down. The screen is
 800 x 600 unless the desktop is set to another [display mode](../setup/image.md#display). The
-[work area](#desktop-space) is the whole screen on the default blank desktop, and above the
-taskbar on the stock one.
+[work area](#desktop-space) is the whole screen on the default blank desktop, unless the taskbar
+is on, and above the taskbar on the stock one.
 
 ## Scene
 
@@ -17,14 +18,14 @@ Subclass it and write `construct`. One scene is one recording.
 | Attribute | Meaning |
 | --- | --- |
 | `output_fps` | Frames per second of the finished video: set it to match your edit timeline (24, 30, 60). It is not a capture or run rate. Default 30. |
-| `desktop` | `"blank"`, the default: a black screen with no icons, taskbar or Start menu, and the work area the whole screen. `"stock"`: the Windows 98 desktop as the `ready` snapshot has it. Either is set again after every revert. See [Blank start](../design/blank-start.md). |
-| `pointer_visible` | On a blank desktop, whether the pointer is drawn. Default `False`. It still moves and clicks either way. Paint's tools still draw their own pointer over the canvas. It can't change partway through a scene. The stock desktop always draws it. |
+| `desktop` | A preset or a [`Desktop`](#desktop-options). `"blank"`, the default: a black screen with no icons, taskbar or Start menu, and the work area the whole screen. `"stock"`: the Windows 98 desktop as the `ready` snapshot has it. `Desktop("stock", clock=False)` writes single parts over a preset. Any of them is set again after every revert. See [Desktop options](#desktop-options) and [Blank start](../design/blank-start.md). |
+| `pointer_visible` | On a blank desktop, whether the pointer is drawn. Default `False`. It still moves and clicks either way. Paint's tools still draw their own pointer over the canvas. It can't change partway through a scene. The stock desktop always draws it. It maps onto the `pointer` part of a [`Desktop`](#desktop-options); when one writes `pointer` and the two disagree, the `Desktop` wins, with a warning. The warning also fires for a class that sets only `pointer_visible` against an inherited `Desktop(pointer=...)`; see [Warnings](#warnings). |
 | `state` | A [state file](#states) to set the desktop to before `setup`. Default `None`, the plain desktop. |
 | `guest` | The raw [`Bridge`](bridge.md). |
 | `vm` | The QEMU `VM`, for real key presses and captures. |
 | `pointer` | The [`Pointer`](#pointer). |
 | `props` | The props on stage. |
-| `work_area` | `(left, top, right, bottom)` of the work area: the whole screen when blank, above the taskbar when stock. Read from `space`. |
+| `work_area` | `(left, top, right, bottom)` of the work area: the whole screen when the taskbar is off, above it when it is on. Read from `space`. |
 | `screen` | The same area as a `Box`, to measure against. |
 | `space` | The [desktop space](#desktop-space): screen, work area, taskbar and metrics, as read from the guest. |
 | `strict_placement` | `False` by default. `True` makes a clamped size or a lost window raise `PlacementError` instead of warning. |
@@ -43,6 +44,147 @@ Subclass it and write `construct`. One scene is one recording.
 
 A scene class that still sets the retired `clock` attribute is refused when the class is
 defined, with a `UsageError` saying why.
+
+### Desktop options
+
+`desktop` takes a preset name or a `Desktop`. A preset is a starting point; a `Desktop` names a
+preset and then writes single parts over it.
+
+`Desktop(preset="blank", *, icons=None, pointer=None, taskbar=None, buttons=None,
+quick_launch=None, tray=None, clock=None)`
+
+Each option is `True`, `False` or left out, and left out means the preset's value. The options
+are keyword-only, so `Desktop("stock", False)` is a `TypeError`, and so is a misspelled option such
+as `Desktop(clok=False)`. `desktop = "blank"` and `desktop = "stock"` mean `Desktop("blank")` and
+`Desktop("stock")`.
+
+| Preset | Parts that show |
+| --- | --- |
+| `"blank"` | None, except the pointer when `pointer_visible` is True. It also makes the colour black, turns off the interface effects and disables the desktop's right-click menu, as in [Blank start](../design/blank-start.md). The default. |
+| `"stock"` | All of them. It changes nothing in the guest. |
+
+A part is one piece of the shell. Some sit under another: the taskbar holds the window buttons,
+Quick Launch and the tray, and the tray holds the clock.
+
+| Option | Level | Sits under | Hidden by |
+| --- | --- | --- | --- |
+| `icons` | 0 | nothing | nothing |
+| `pointer` | 0 | nothing | nothing |
+| `taskbar` | 0 | nothing | nothing |
+| `buttons` | 1 | `taskbar` | `taskbar` |
+| `quick_launch` | 1 | `taskbar` | `taskbar` |
+| `tray` | 1 | `taskbar` | `taskbar` |
+| `clock` | 2 | `tray` | `tray`, `taskbar` |
+
+A part that is off hides the ones under it, so `clock` shows only when `tray` and `taskbar` are
+both on. Writing an option under an off part has no effect, and art98 warns about it (below). The
+work area is the whole screen when `taskbar` is off, and the stock work area otherwise: hiding
+the buttons, Quick Launch, tray or clock leaves the taskbar its size, so the work area does not
+change.
+
+The clock hidden on the stock desktop:
+
+```python
+from art98.anim import *
+
+
+class NoClock(Scene):
+    """The stock desktop with the clock hidden."""
+
+    desktop = Desktop("stock", clock=False)
+
+    def construct(self):
+        self.add(Notepad("Untitled - Notepad", at=(80, 60)))
+        self.wait(1)
+```
+
+A taskbar on the black desktop, with no window buttons:
+
+```python
+from art98.anim import *
+
+
+class BlankWithTaskbar(Scene):
+    """Black desktop, no icons, but a taskbar with no window buttons."""
+
+    desktop = Desktop("blank", taskbar=True, buttons=False)
+
+    def construct(self):
+        self.add(Notepad("Untitled - Notepad", at=(80, 60)))
+        self.wait(1)
+```
+
+The stock desktop with no taskbar and no pointer:
+
+```python
+from art98.anim import *
+
+
+class StockNoTaskbarNoPointer(Scene):
+    """The stock desktop with no taskbar and no pointer."""
+
+    desktop = Desktop("stock", taskbar=False, pointer=False)
+
+    def construct(self):
+        self.wait(1)
+```
+
+`pointer_visible` still works. On a blank desktop it is the `pointer` part. If a `Desktop` also
+writes `pointer` and the two disagree, the `Desktop` wins, with a warning.
+
+#### Warnings
+
+An option written under an off part gets one warning, which names the highest part that is off,
+because that is the one to change. It also says where the off value came from, the `Desktop` or
+the preset. For `Desktop("stock", tray=False, clock=True)` in a scene called `Example`:
+
+```text
+Example.desktop: clock=True has no effect, because tray is off (tray=False). Remove clock=True, or write tray=True.
+```
+
+With a blank preset it ends `because taskbar is off (the "blank" preset)`, as for `buttons=False`
+on `Desktop("blank", buttons=False)`. The option is dead whether it says `True` or `False`, so
+writing it the same as its effective value still warns. A preset on its own does not warn, nor
+does an override that takes effect, such as `Desktop("blank", taskbar=True, buttons=False)`.
+
+An override warning comes from the class whose body sets `desktop`; a subclass that inherits it
+does not warn again. The `pointer_visible` warning also fires for a class that sets only
+`pointer_visible` against an inherited `Desktop(pointer=...)`.
+
+For a `desktop` set in the class body, it shows at the `class` line. For one set on an instance, it
+shows at `run`.
+
+#### What a colour change and a revert do
+
+The parts are applied after every revert, so `set_state` starts from them too. They are applied
+again after a state file's `display` changes the mode, because `apply_state` runs `prepare_desktop`
+again. A [`Backdrop`](#backdrop) hides the icons again when they were hidden, and the tray too when
+it was.
+The window buttons, Quick Launch and the clock stay hidden through a colour change on their own.
+A wallpaper does not bring any part back. With the pointer off it is hidden on each apply, so twice
+when a state changes the display mode. That is harmless. See [`pointer_visible`](#scene).
+
+#### Errors
+
+A `desktop` that is not a preset name or a `Desktop`, an unknown preset, or an option that is not
+`True` or `False` raises `UsageError` when the class is defined. After a revert, art98 reads back
+what is off, except the pointer, which is not read back, and `DesktopError` lists whatever did
+not take.
+
+#### What was checked
+
+On the real image, at 800x600, each taskbar part (buttons, rebar, clock, tray) was hidden and read
+back with `IsWindowVisible`, after a colour change and after a revert. The buttons, rebar and tray
+stayed hidden when a new window opened (the clock wasn't tried), and the clock stayed hidden after
+65 seconds. A second probe covered Quick Launch alone, settling the
+tray with `WM_SIZE`, and the wallpaper broadcast, which leaves the buttons, clock and tray hidden.
+A display change with `persist=False`, which is what a state file's `display` does today, leaves the
+hidden parts hidden and does not move the taskbar. At 640x480 and 1024x768 the parts hide and read
+back the same. 1280x1024 at 16 bit is not offered by the driver. Icons hidden on stock survive a
+colour change, and `hide_pointer` works on stock, checked by screenshot.
+
+Not yet measured: a display change with `persist=True`, and a window opened after `buttons` is off
+at other resolutions.
 
 ### Stage
 

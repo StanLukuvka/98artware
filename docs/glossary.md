@@ -1,3 +1,4 @@
+<!-- FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 11-12). Check the flow before hand-editing. -->
 # Glossary
 
 The words art98 uses, in plain terms. Each one links to where it is explained in full.
@@ -26,4 +27,7 @@ The words art98 uses, in plain terms. Each one links to where it is explained in
 | **Recorder** | The class that writes frames to video with ffmpeg on the host. `self.cut()` ends one clip and starts the next. See [Clips](scenes/scene-api.md#clips). |
 | **Clip, section** | A clip is one video file of a scene. `self.cut()` starts a new clip; `self.section(name, method)` does the same and records a label, and `--section NAME` renders that one section from the state a full render captured. The clips are kept beside the output and joined into it. |
 | **Frame sync** | Before each frame is captured, art98 sends the agent a `SYNC` request, which waits until the guest's windows have repainted. Only then does QEMU take the screenshot. Together with software emulation, that is why a scene renders the same frames on any host. |
+| **Part** | One piece of the desktop a scene can show or hide: `icons`, `pointer`, `taskbar`, `buttons`, `quick_launch`, `tray` or `clock`. A part under another one (`clock` under `tray`) is hidden when that one is off. See [Desktop options](scenes/scene-api.md#desktop-options). |
+| **Preset** | A named starting set of parts, `"blank"` or `"stock"`, that `desktop` takes. See [Desktop options](scenes/scene-api.md#desktop-options). |
+| **Override** | A part written after a preset, as in `Desktop("stock", clock=False)`. One that sits under an off part has no effect, and art98 warns about it. See [Desktop options](scenes/scene-api.md#desktop-options). |
 | **Work folder** | `work/`: the prepared image and the files the VM service uses. It holds an installed copy of Windows, so it is never committed or shared. See [The work directory](setup/cli.md#the-work-directory). |

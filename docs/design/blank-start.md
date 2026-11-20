@@ -1,3 +1,4 @@
+<!-- FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 11-12). Check the flow before hand-editing. -->
 # Blank start
 
 A scene starts on a black, empty 800 x 600 screen: no wallpaper colour, icons, taskbar or
@@ -26,9 +27,11 @@ Not checked: a clean reboot, daylight-saving prompts, and idling for longer than
 
 ## How the blank screen is made
 
-`blank(guest)` runs right after every revert, for each scene whose `desktop` is `"blank"`, the
+`apply_desktop` runs right after every revert, for each scene whose `desktop` is `"blank"`, the
 default. Each step changes memory only, so the `ready` snapshot stays as it is and the next revert
 undoes it all. None of it needs Explorer restarted. It takes about 0.4 s.
+
+Blank is now a preset of [`Desktop`](../scenes/scene-api.md#desktop-options), and the steps below are the same as before.
 
 | Step | Call | Notes |
 | --- | --- | --- |

@@ -1,3 +1,4 @@
+# FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Task 11). Check the flow before hand-editing.
 """A Manim-style layer over the bridge: `from art98.anim import *`.
 
 Names follow Manim where the meaning matches. Units do not: everything is in
@@ -54,6 +55,7 @@ from ..base.rate_functions import (
 )
 from ..base.units import lerp
 from ..base.vectors import DL, DOWN, DR, LEFT, ORIGIN, RIGHT, UL, UP, UR, Vec
+from ..desktop import Desktop
 from ..output.gif import GifOptions
 from .renderer import render
 from .scene import Scene
@@ -75,6 +77,7 @@ __all__ = [
     "Box",
     "Click",
     "Close",
+    "Desktop",
     "Dialog",
     "DoubleClick",
     "Drag",

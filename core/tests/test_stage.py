@@ -1,3 +1,4 @@
+# FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Task 4). Check the flow before hand-editing.
 """The prepared image itself, on the long-lived VM service.
 
 These need a finished work folder (ART98_TEST_WORK, else work/ in the checkout)
@@ -121,7 +122,7 @@ def test_backdrop_colour_reads_back(booted, tmp_path):
     rgb = (200, 10, 30)
     session = booted
     guest = session.bridge
-    desktop.blank(guest)
+    desktop.apply_desktop(guest, desktop.BLANK_PARTS)
     desktop.set_colour(guest, rgb)
     guest.sync()
     assert guest.user32.GetSysColor(1).value & 0xFFFFFF == win32.colourref(rgb)

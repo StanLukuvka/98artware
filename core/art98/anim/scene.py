@@ -1,3 +1,4 @@
+# FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 4, 7-8). Check the flow before hand-editing.
 """Scene: a script for one recording of the desktop."""
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from ..base.animation import Animation
 from ..base.props import Box, Prop
 from ..base.space import STOCK, DesktopSpace
 from ..base.units import frames
-from ..desktop import blank
+from ..desktop import Parts, apply_desktop, resolve_desktop
 from ..errors import Art98Error, GuestError, MissingFile, NotFound, UsageError
 from ..guest import win32
 from ..guest.bridge import wait_for
@@ -31,8 +32,6 @@ from ..output.recorder import Pacer
 from ..state import VERSION, FileRef, State, dump_state, id_problem, load_state
 from . import setstate
 from .renderer import render
-
-DESKTOPS = ("blank", "stock")
 
 # Only Scene class attributes a scene author sets, whose rename or removal would
 # otherwise be silently ignored, go here. It is emptied at each release.
@@ -47,13 +46,25 @@ def pin_legacy(cls) -> None:
             raise UsageError(f"{cls.__name__}.{name}: {why}")
 
 
-def check_desktop(scene) -> None:
-    """Refuse a `desktop` that isn't one of DESKTOPS (a class or an instance)."""
-    if scene.desktop not in DESKTOPS:
-        raise UsageError(
-            f"{getattr(scene, '__name__', type(scene).__name__)}.desktop "
-            f"{scene.desktop!r}: use one of {', '.join(DESKTOPS)}"
-        )
+def _desktop_of(scene) -> tuple[Parts, list[str]]:
+    """Resolve `desktop` and `pointer_visible` of a scene class or instance."""
+    cls = scene if isinstance(scene, type) else type(scene)
+    declared = "pointer_visible" in getattr(scene, "__dict__", {}) or any(
+        "pointer_visible" in vars(k) for k in cls.__mro__ if k is not Scene
+    )
+    return resolve_desktop(
+        scene.desktop,
+        f"{cls.__name__}.desktop",
+        scene.pointer_visible if declared else None,
+    )
+
+
+def check_desktop(scene) -> tuple[Parts, list[str]]:
+    """The effective parts and the warning texts for a class or an instance.
+
+    Raises UsageError for a bad `desktop` or option; never warns.
+    """
+    return _desktop_of(scene)
 
 
 class UntrackedWindow(GuestError):
@@ -138,11 +149,14 @@ class Scene:
     all the time: what the script drives lands on exact frames, while anything
     the guest times for itself follows the host clock.
 
-    `desktop` is what the scene starts on. "blank", the default, is a black
-    screen with no icons or taskbar (see art98.desktop), and no pointer
-    unless `pointer_visible` is True. "stock" is the Windows 98 desktop as
-    the `ready` snapshot has it, pointer included. Either way it is set again
-    after every revert, so `set_state` starts from it too.
+    `desktop` is what the scene starts on: a preset or a `Desktop(...)` (see
+    art98.desktop). "blank", the default, is a black screen with no icons or
+    taskbar, and no pointer unless `pointer_visible` is True. "stock" is the
+    Windows 98 desktop as the `ready` snapshot has it, pointer included.
+    `Desktop("stock", icons=False, tray=False, ...)` starts from a preset and
+    changes single parts; an option under an off part (clock under tray,
+    buttons under taskbar) warns, because it has no effect. Either way it is
+    set again after every revert, so `set_state` starts from it too.
 
     `state`, a path to a state file, sets the desktop before `setup` runs.
     `set_state` jumps to another state at any point, and `prop(id)` is the
@@ -169,7 +183,15 @@ class Scene:
         super().__init_subclass__(**kwargs)
         scene_fps(cls)
         pin_legacy(cls)
-        check_desktop(cls)
+        _parts, notes = check_desktop(cls)
+        pointer_note = f"{cls.__name__}.pointer_visible"
+        for note in notes:
+            if note.startswith(pointer_note):
+                wanted = "desktop" in vars(cls) or "pointer_visible" in vars(cls)
+            else:
+                wanted = "desktop" in vars(cls)
+            if wanted:
+                warnings.warn(note, UserWarning, stacklevel=2)
 
     def __init__(self):
         self.session = None
@@ -217,7 +239,15 @@ class Scene:
 
         With `only_section` set, only that section plays (see `section`).
         """
-        check_desktop(self)
+        _parts, notes = check_desktop(self)
+        pointer_note = f"{type(self).__name__}.pointer_visible"
+        for note in notes:
+            if note.startswith(pointer_note):
+                wanted = "desktop" in vars(self) or "pointer_visible" in vars(self)
+            else:
+                wanted = "desktop" in vars(self)
+            if wanted:
+                warnings.warn(note, UserWarning, stacklevel=2)
         self.session, self.recorder = session, video
         self.sections = []
         self._earlier = []
@@ -513,8 +543,7 @@ class Scene:
 
     def prepare_desktop(self) -> None:
         """Put the desktop the scene asked for in place, then read the work area."""
-        if self.desktop == "blank":
-            blank(self.guest, pointer=self.pointer_visible)
+        apply_desktop(self.guest, check_desktop(self)[0])
         self.calibrate()
 
     def calibrate(self) -> None:
@@ -524,7 +553,7 @@ class Scene:
 
     @property
     def work_area(self) -> tuple[int, int, int, int]:
-        """(left, top, right, bottom) above the taskbar, or the whole screen when blank."""
+        """(left, top, right, bottom) above the taskbar, or the whole screen when the taskbar is off."""
         return self.space.work_area
 
     def _scene_dir(self) -> Path | None:

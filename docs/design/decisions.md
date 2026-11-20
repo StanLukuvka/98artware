@@ -1,3 +1,4 @@
+<!-- FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 11-12). Check the flow before hand-editing. -->
 # Design decisions
 
 This page explains the major choices behind art98: what was chosen, why, and the rule that
@@ -326,7 +327,7 @@ pops up on its own after a restore. Making the blank screen at run time means th
 as it is and the next revert undoes it all.
 
 **For new work.** Anything a scene changes about the desktop as a whole is done after the revert
-and checked by reading it back, as `blank()` does. Tests on stand-in guests use the stock desktop
+and checked by reading it back, as `apply_desktop` does. Tests on stand-in guests use the stock desktop
 (`conftest.py`), and `test_desktop.py` covers the blank one. See [Blank start](blank-start.md).
 
 ## 13. One desktop space for every window action
