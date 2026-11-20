@@ -12,7 +12,7 @@ in `core/art98/desktop.py`, beside `blank`, with a flat option for each part of 
 module. The parts have implicit levels: an option that is off hides the options under it. One pure
 function turns the written value into the effective parts and the warnings. One function applies
 the parts after every revert, and the same check path reads them back. `"blank"` and `"stock"` are
-two presets, and blank applies the same calls in the same order as today.
+two presets, and blank makes the same changes, in the same order, as today.
 
 Nothing here touches prep, the `ready` snapshot or the display-mode path in `apply_state`
 (`apply_state` keeps calling `scene.prepare_desktop()`, as it does now).
@@ -148,7 +148,7 @@ PRESETS = {
 ```
 
 Blank's children are on in the preset, so `Desktop("blank", taskbar=True)` shows a full taskbar.
-`STOCK` is `Parts` with every part on and `blank_steps=False`, and `resolve_desktop(Desktop("stock"))`
+`STOCK_PARTS` is `Parts` with every part on and `blank_steps=False`, and `resolve_desktop(Desktop("stock"))`
 equals it, which lets `apply` return at once.
 
 ### The function
@@ -236,15 +236,27 @@ collects `scene.desktop` and that value, calls `resolve_desktop`, and returns `(
 
   ```python
   parts, notes = check_desktop(cls)
-  if "desktop" in vars(cls) or "pointer_visible" in vars(cls):
-      for note in notes:
+  pointer_note = f"{cls.__name__}.pointer_visible"
+  for note in notes:
+      if note.startswith(pointer_note):
+          wanted = "desktop" in vars(cls) or "pointer_visible" in vars(cls)
+      else:
+          wanted = "desktop" in vars(cls)
+      if wanted:
           warnings.warn(note, UserWarning, stacklevel=2)
   ```
 
   Called straight from `__init_subclass__`, `stacklevel=2` is the frame that runs the `class`
   statement: the author's file and the `class` line. (`type.__new__` has no Python frame.) A
   helper would need `stacklevel=3`; the loop stays inline so the count is plain. A subclass that
-  inherits both settings does not warn again.
+  inherits both settings does not warn again. A subclass that sets only `pointer_visible` gets
+  the pointer warning but not its parent's override warnings, which belong to a `class` line it
+  doesn't have (review fix 4).
+- **An instance that sets `desktop` or `pointer_visible` warns at the start of `run`** (review
+  fix 11). `run` already calls `check_desktop(self)`; when `"desktop"` or `"pointer_visible"` is
+  in the instance's `__dict__`, it warns the same notes, with the same rule as above applied to
+  the instance's `__dict__`, `stacklevel=2` (the caller of `run`). The texts start with the class
+  name, as at class definition, so Requirement 6.1 holds for both ways of setting it.
 - `UserWarning`, no new category. It shows under default filters in `python scene.py` and in
   `art98 render`, which sets no filters (owner decision, question 10). The warning is seen when
   the script runs, at the `class` line, and the render goes on (Requirement 6.6).
@@ -275,7 +287,7 @@ Steps, in order. Because `Parts` has a child off whenever its parent is off, a s
 runs only inside `if parts.taskbar` (and the clock only inside `if parts.tray`); no check of the
 levels is left in `apply`.
 
-1. `if parts == STOCK: return`. Stock with nothing off makes no guest call, as today.
+1. `if parts == STOCK_PARTS: return`. Stock with nothing off makes no guest call, as today.
 2. `shell_windows(guest)` gives taskbar, desktop, icons. `taskbar_windows(guest, taskbar)` (new,
    beside it) gives `{"buttons", "quick_launch", "tray", "clock"}` handles, 0 for a missing one. It
    uses `FindWindowExA`: rebar under the taskbar, `MSTaskSwWClass` and `ToolbarWindow32` under the
@@ -290,7 +302,11 @@ levels is left in `apply`.
    taskbar on does not (Requirement 3.3, 3.4).
 8. `if parts.blank_steps`: the effects off (`for ... in UI_EFFECTS`).
    Steps 3 to 8 are today's order for `blank`: colour, icons, taskbar hide and disable, desktop
-   disable, work area, effects. A unit test pins that order for `BLANK`.
+   disable, work area, effects. A unit test pins that order for `BLANK_PARTS`. It pins the calls
+   that change the guest (`SetSysColors`, `ShowWindow`, `EnableWindow`, the `SystemParametersInfoA`
+   set actions, the pointer calls, `sync`), not the reads, because `set_colour` gains reads in
+   step 3 (see below). The pin is written against today's `blank` first and seen to pass, then
+   pointed at `apply_desktop(guest, BLANK_PARTS)` (review fix 2).
 9. `if parts.taskbar`, the children that are off, in this order:
    1. clock off and tray on: `ShowWindow(clock, SW_HIDE)`, then
       `SendMessageA(taskbar, WM_SIZE, 0, 0)`. This settles the tray at once to its icon, with
@@ -307,9 +323,18 @@ levels is left in `apply`.
 11. `guest.sync()`, then `problems = check_parts(guest, parts)`; raise
     `DesktopError(problems, lead)` when there are any.
 
-For `BLANK` this is exactly today's `blank(guest, pointer=False)`: same calls, same order, one
-`sync` at the end, so `test_desktop`'s count of 3 syncs still holds. `pointer_visible = True` on
-blank is `replace(BLANK, pointer=True)`, which skips only `hide_pointer`.
+For `BLANK_PARTS` this makes today's `blank(guest, pointer=False)` changes: the same state-changing
+calls in the same order, one `sync` at the end, so `test_desktop`'s count of 3 syncs still holds.
+The only additions are three reads inside `set_colour` (next section). `pointer_visible = True` on
+blank is `replace(BLANK_PARTS, pointer=True)`, which skips only `hide_pointer`.
+
+**Applied twice in one revert.** When a state file changes the display mode, `apply_state` calls
+`scene.prepare_desktop()` again after the mode change (`setstate.py`), so `apply_desktop` runs a
+second time on a desktop where the parts are already off. The second pass hides what is already
+hidden and sends `WM_SIZE` with buttons and quick launch already hidden; they stay hidden, and
+`check_parts` still reads `[]`. With PR #41's `persist=True`, Explorer moves the taskbar on the
+mode change, so this second pass is what puts the parts back in place: it is load-bearing, and a
+unit test applies every `Parts` twice (property 9).
 
 ### `set_colour` keeps the tray hidden
 
@@ -322,35 +347,54 @@ tray = (
     if taskbar and user32.IsWindowVisible(taskbar).value
     else 0
 )
-hidden = [h for h in (icons, tray) if h and not user32.IsWindowVisible(h).value]
+icons_hidden = bool(icons) and not user32.IsWindowVisible(icons).value
+tray_hidden = bool(tray) and not user32.IsWindowVisible(tray).value
 ... SetSysColors ...
-for h in hidden: user32.ShowWindow(h, SW_HIDE)
+if icons_hidden: user32.ShowWindow(icons, SW_HIDE)   # as today, before the sync
+guest.sync()
+if tray_hidden: user32.ShowWindow(tray, SW_HIDE)     # after the sync (review fix 3)
+repaint_all(guest)
 ```
 
-The tray is looked at only when the taskbar is visible. On blank the taskbar is hidden, so the tray
-is not touched: blank's calls in `set_colour` stay as they are, apart from one
-`IsWindowVisible(taskbar)`. Buttons, quick launch and the clock stay hidden through a colour change
+The tray is hidden again **after** the `sync`, once Explorer's thread has handled the broadcast:
+both probes only measured a hide after `set_colour` had returned, and a hide before the sync
+could lose to Explorer showing the tray when its thread gets to the message. Task 3 probes both
+spots; if the early hide also holds, the late one is kept anyway, since it is the one measured.
+The icons keep their place before the sync, as today, so blank's pinned order does not move.
+`repaint_all` ends with its own `sync`, so no sync is added.
+
+The tray is looked at only when the taskbar is visible. Inside `apply_desktop` for blank, step 3
+runs while the taskbar is still visible (it is hidden in step 5), so there `set_colour` adds three
+reads: `IsWindowVisible(taskbar)`, `FindWindowExA(taskbar, TrayNotifyWnd)` and
+`IsWindowVisible(tray)`. The tray is visible, so no `ShowWindow` is added. A later `Backdrop` on
+blank finds the taskbar hidden and adds one read, `IsWindowVisible(taskbar)`. Buttons, quick launch and the clock stay hidden through a colour change
 on their own (probe), so only the tray needs this. The wallpaper broadcast and a display mode
-change leave all parts hidden (probe, question 8), so `set_wallpaper` does not change.
+change leave all parts hidden (probe, question 8, measured with `persist=False`; Task 3 measures
+it again with `persist=True`), so `set_wallpaper` does not change.
 `apply_state` is not changed.
 
 ## 4. Checking it
 
 `check_blank` is extended and renamed `check_parts(guest, parts) -> list[str]`: one check path, no
-copy beside it. Each existing line keeps its exact text. What it reads depends on `parts`:
+copy beside it. Each existing line keeps its exact text. What it reads depends on `parts`. The rows
+run in this order, which is today's order for blank (icons, taskbar, desktop window, colour, work
+area, effects; review fix 8), with the children after the taskbar:
 
-| Condition | Check, with its message |
-| --- | --- |
-| icons off | list found and not visible: "the desktop icons are showing", "the desktop icon list wasn't found" |
-| taskbar off | not visible, not enabled: the two existing messages; work area equals the screen |
-| taskbar on | found and visible: "the taskbar wasn't found" is raised when missing |
-| taskbar on, a child | off: not visible, "the taskbar's tray is showing"; on: found, "the taskbar's tray (TrayNotifyWnd) wasn't found". Same for buttons, quick launch, clock |
-| `blank_steps` | `Progman` disabled; colour black; the five effects off, as today |
+| Order | Condition | Check, with its message |
+| --- | --- | --- |
+| 1 | icons off | list found and not visible: "the desktop icons are showing", "the desktop icon list wasn't found" |
+| 2 | always, unless `parts` is `STOCK_PARTS` | taskbar found: "the taskbar wasn't found" |
+| 3 | taskbar off | not visible, not enabled: the two existing messages |
+| 4 | taskbar on, a child off | found and not visible: "the taskbar's tray (TrayNotifyWnd) wasn't found", "the taskbar's tray is showing". Same for buttons, quick launch, clock |
+| 5 | `blank_steps` | `Progman` disabled; colour black |
+| 6 | taskbar off | work area equals the screen |
+| 7 | `blank_steps` | the five effects off, as today |
 
-A child of an off parent is not read, because `Parts` has it off and its parent already reads as
-hidden: the clock under an off tray, any child under an off taskbar. The pointer is not checked,
-as today. Every difference is collected before raising, so `DesktopError` lists them all, one per
-line. The lead is "the desktop isn't blank:" when `blank_steps` is true and "the desktop options
+Only parts that are off are read, plus the taskbar itself (review, over-engineering note). A child
+that is on is not looked up: the scene never touched it, so it is not a new way to fail. A child of
+an off parent is not read either, because `Parts` has it off and its parent already reads as
+hidden. The pointer is not checked, as today. Every difference is collected before raising, so
+`DesktopError` lists them all, one per line. The lead is "the desktop isn't blank:" when `blank_steps` is true and "the desktop options
 didn't take:" otherwise.
 
 ## 5. Constants and class names
@@ -381,14 +425,17 @@ work. Extend `DesktopGuest`, no new fake, with only what the probes saw:
 
 - `FindWindowExA` finds the rebar, `ToolbarWindow32`, `MSTaskSwWClass`, `TrayNotifyWnd` and
   `TrayClockWClass` under their parents.
-- A child's `IsWindowVisible` is true only when it and every ancestor is visible.
+- A child's `IsWindowVisible` is true only when it and every ancestor is visible. The children's
+  own visibility lives in a separate set (`hidden_parts`, say), not in `visible`: existing tests
+  assert `guest.visible == set()` and `== {TASKBAR, ICONS}`, and those stay exactly as they are
+  (review fix 5).
 - `ShowWindow(SW_HIDE)` hides a part. `SetSysColors` shows the tray again, and nothing else
   (probe table). `SendMessageA(taskbar, WM_SIZE)` is recorded.
 
 `test_desktop.py`:
 
-- Blank and stock unchanged: `BLANK` gives the guest state and the call order of today's test;
-  `STOCK` makes no call at all; the syncs count is 3.
+- Blank and stock unchanged: `BLANK_PARTS` gives the guest state and the call order of today's test;
+  `STOCK_PARTS` makes no call at all; the syncs count is 3.
 - Each part off on stock: buttons, quick launch, tray, clock, icons, pointer, taskbar, alone and in
   one combination. `work_area` read from the guest is unchanged when only children are off.
 - Blank with the taskbar on: taskbar visible and enabled, work area as the guest gave it, colour
@@ -443,8 +490,9 @@ test builds an oracle from the level table in section 1, written as explicit lis
 4. **A warned option does nothing.** For every case with a warned option `o`, replacing its written
    value by `None`, `True` and `False` in turn gives the same `Parts` and the same set of other
    warnings.
-5. **A preset alone never warns.** `Desktop(preset)` and the bare string give `STOCK` or `BLANK`
-   and no notes, for any `pointer_visible` (which only sets the blank pointer, per property 6).
+5. **A preset alone never warns.** `Desktop(preset)` and the bare string give no notes for any
+   `pointer_visible`, and give `STOCK_PARTS` or `BLANK_PARTS` apart from `pointer` (on blank,
+   `pointer_visible=True` turns the pointer on, per property 6).
 6. **`pointer_visible` touches only the pointer.** For every case, the three values of
    `pointer_visible` give equal `Parts` apart from `pointer`, and the pointer warning appears
    exactly when `pointer` is written and `pointer_visible` is declared and differs.
@@ -453,14 +501,19 @@ test builds an oracle from the level table in section 1, written as explicit lis
    and `[]` raises `UsageError` whose message holds the owner string and the option name.
 9. **Apply and check agree.** For each distinct `Parts` that `resolve_desktop` produces (a few
    dozen), `apply_desktop` on the extended `DesktopGuest` leaves `check_parts` returning `[]`, and
-   no `ShowWindow` call goes to a child whose parent is off.
+   no `ShowWindow` call goes to a child whose parent is off. Applying the same `Parts` a second
+   time on that guest (as a display-mode state does) raises nothing and leaves the same visibility
+   (review fix 9).
 
 VM tests in `core/tests/test_stage.py` (marker `stage`, `with attach()`): each part hidden reads
 back with `IsWindowVisible` after `run`; a window opened after `buttons` is off gets no button
 (`IsWindowVisible` of the button area stays false); `scene.work_area` equals the stock one with
-only children off; the tray stays off after `Backdrop`; parts are re-applied after `set_state`;
-a pass at 640x480 and 1024x768. If there is no image: `VM tests: not run (no prepared image on
-this machine)`. `tools/check_docs.py` renders the doc samples.
+only children off; the tray stays off after `Backdrop` (a gate: the feature does not ship until
+this passes on the VM, since only the VM shows when Explorer re-shows the tray); parts are
+re-applied after `set_state`; a pass at 640x480 and 1024x768 that changes the mode through a
+state file, so `apply_state` runs, and checks the parts after it. These need PR #41: without it
+the 640x480 pass is vacuous, because the taskbar is off the bottom of the screen. If there is no
+image: `VM tests: not run (no prepared image on this machine)`, and the feature waits for them. `tools/check_docs.py` renders the doc samples.
 
 Callers of `blank` and `check_blank` move to `apply_desktop` and `check_parts`, including
 `core/tests/test_stage.py` (owner decision 4). Probes under `experiments/` stay as they are.
@@ -477,15 +530,26 @@ Callers of `blank` and `check_blank` move to `apply_desktop` and `check_parts`, 
   warning with its text (a `text` block), what a colour change and a revert do, and the errors.
   It says that a higher option that is off hides the ones under it, and that writing one of those
   is warned about. It says what the probes checked on the real image (800x600 full probe, 640x480
-  and 1024x768 hiding and read-back; 1280x1024 at 16 bit not offered by the driver) and what was
-  not (the taskbar after a display mode change; see the probe notes). It names `Desktop`, which
-  the docs test requires.
+  and 1024x768 hiding and read-back; 1280x1024 at 16 bit not offered by the driver; a display
+  mode change with `persist=True`, as Task 3 finds it). The old "not checked: the taskbar after a
+  display mode change" line is gone, since PR #41 moves the taskbar and Task 3 measures the parts
+  after it. It names `Desktop`, which the docs test requires.
 - The intro line "work area is the whole screen on the default blank desktop" gets "unless the
   taskbar is on".
 
 `docs/glossary.md`: **Part**, **Preset** and **Override** (an option written after a preset; one
 that sits under an off option is warned about). `docs/design/blank-start.md`: one sentence that
-blank is now a preset and the steps are the same. `docs/status.md` is not edited.
+blank is now a preset and the steps are the same, and `blank(guest)` at line 29 becomes
+`apply_desktop`. `docs/design/decisions.md` line 329: "as `blank()` does" becomes "as
+`apply_desktop` does". Code docstrings that describe the old model change too: the `Scene`
+docstring (`scene.py` around line 141, the `desktop` paragraph), `work_area` (`scene.py` around
+line 527: "or the whole screen when blank" becomes "or the whole screen when the taskbar is off"),
+and the `test_desktop.py` module docstring, which names `blank()` (review fix 12).
+`docs/status.md` is not edited.
+
+The scene-author skill ships outside this repo (`skills/art98/SKILL.md` in the Hermes plugin).
+`Desktop` changes what a scene author sees, so the final report says the skill needs a follow-up;
+no task edits it (review fix 13).
 
 `CHANGELOG.md`, under `[Unreleased]` / `### Added`:
 
@@ -509,7 +573,8 @@ And under `### Changed`:
 `core/art98/desktop.py`, `core/art98/guest/win32.py`, `core/art98/anim/scene.py`,
 `core/art98/anim/__init__.py`, tests (`test_desktop.py`, `test_stage.py`, any test that calls
 `blank` or `check_blank`), `docs/scenes/scene-api.md`, `docs/glossary.md`,
-`docs/design/blank-start.md`, `CHANGELOG.md`. `setstate.py` and `backdrop.py` do not change
+`docs/design/blank-start.md`, `docs/design/decisions.md`, `CHANGELOG.md`, and a new probe
+`experiments/taskbar/probe_taskbar_3.py` with its results in `experiments/taskbar/README.md`. `setstate.py` and `backdrop.py` do not change
 (`Backdrop` calls `set_colour`, which now keeps the tray). `pyproject.toml` does not change.
 
 ## Decisions for the owner
@@ -554,3 +619,38 @@ And under `### Changed`:
 - **Remaining decisions 1 to 4 (2026-11-20):** accepted as recommended. An override that is off
   only by the preset warns and names the preset (1a). The tests walk every case (2). There is one
   warning per overridden option (3). The options are keyword-only (4).
+
+## Review fixes (2026-11-20)
+
+A second review of this spec and the tasks against the code found the points below. The owner
+asked for all of them to be folded in. Each is marked "review fix N" where the text changed.
+
+1. `set_colour`'s tray lookup adds three reads to blank's sequence inside `apply_desktop`, not
+   one. The pinned order test pins the calls that change the guest, not the reads (section 3).
+2. The pin is written against today's `blank` first and seen to pass, then moved to
+   `apply_desktop` (section 3).
+3. The tray is hidden again after `set_colour`'s `sync`, the spot the probes measured, not before
+   it. Task 3 probes both spots, and the VM test "the tray stays off after `Backdrop`" is a gate
+   (sections 3 and 6).
+4. Override warnings come only from the class that sets `desktop`; a subclass that sets only
+   `pointer_visible` gets only the pointer warning (section 2).
+5. `DesktopGuest` keeps the children's visibility in its own set, so today's `visible`
+   assertions stay as they are (section 6).
+6. Task facts: the `test_stage.py` caller is line 124, the Task 4 grep finds 11 lines today, and
+   the rename of `test_check_blank_reports_a_missing_shell` is required (tasks.md).
+7. The new constants are `STOCK_PARTS` and `BLANK_PARTS`. `scene.py` already imports `STOCK`
+   from `base.space` for the `DesktopSpace` default.
+8. `check_parts` keeps today's message order for blank (section 4).
+9. `apply_desktop` can run twice in one revert when a state changes the display mode; a unit test
+   applies every `Parts` twice (sections 3 and 6).
+10. PR #41 (`persist=True` for a state's display mode) lands first. Task 3 re-measures the parts
+    after a display change with `persist=True`, and the VM passes at 640x480 and 1024x768 go
+    through `apply_state` (sections 3, 6 and 7).
+11. An instance that sets `desktop` or `pointer_visible` warns at the start of `run` (section 2).
+12. Old names left in `blank-start.md`, `decisions.md`, the `Scene` and `work_area` docstrings
+    and the `test_desktop.py` docstring are updated (section 7).
+13. The final report says the scene-author skill needs a follow-up outside this repo (section 7).
+
+Over-engineering, also folded in: `check_parts` reads only the parts that are off plus the
+taskbar (section 4); the comment-only task and the empty merged task are gone from tasks.md;
+property 5 says "apart from `pointer`".
