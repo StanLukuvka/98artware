@@ -48,7 +48,7 @@ class Briefcase(Scene):
 | Argument | Meaning |
 | --- | --- |
 | `label` | the text under the icon, also the folder's name (section 4) |
-| `image` | a key of `SHELL_ICONS`; a `(guest file, index)` pair; or a host path (`str` or `Path`) ending `.ico` or `.png` |
+| `image` | a key of `SHELL_ICONS`; a `(guest file, index)` pair; or a host path (`str` or `Path`) ending `.ico` or `.png`, relative to the current folder as `Picture`'s `image` is |
 | `at` | `(x, y)`, the top left of the 32x32 image. Left out: `(0, 0)` until a layout call moves it |
 
 The prop's `Box` is the 32x32 image: `x, y = at`, `width = height = 32`. Layout calls work on
@@ -85,8 +85,8 @@ def guest_icon(data: bytes, source: str) -> bytes:
   6 (RGBA) and 3 (palette, with `tRNS` for alpha), not interlaced. Anything else is a
   `UsageError` that names it ("an interlaced PNG", "a 16-bit PNG", "a 48x48 PNG").
 - **ICO.** The directory picks the entry that is 32x32 (a width or height byte of 0 means 256).
-  Among several 32x32 entries, the one with the most bits per pixel. An entry starting with the
-  PNG signature is decoded as a PNG. A BMP entry: `BITMAPINFOHEADER`, height twice the image,
+  Among several 32x32 entries, the one with the most bits per pixel. A 32x32 entry stored as PNG
+  is refused ("a PNG-compressed ICO entry; save it as a .png instead"). A BMP entry: `BITMAPINFOHEADER`, height twice the image,
   1, 4, 8, 24 or 32 bits, no compression, palette for 1/4/8, then the AND mask. For 32-bit, alpha
   below 128 is transparent (the AND mask is ignored, since many 32-bit icons leave it empty); for
   the rest, the AND mask.
@@ -102,10 +102,14 @@ No new dependency. `pyproject.toml` does not change.
 
 New constants go in `core/art98/guest/win32.py`: `LVM_GETITEMCOUNT` (0x1004),
 `LVM_DELETEITEM` (0x1008), `LVM_SETITEMPOSITION` (0x100F), `LVM_GETITEMPOSITION` (0x1010),
-`LVM_GETITEMTEXTA` (0x102D),
+`LVM_SETITEMSTATE` (0x102B), `LVM_GETITEMSTATE` (0x102C, for the VM test), `LVM_GETITEMTEXTA`
+(0x102D), `LVIF_STATE` (0x8), `LVIS_FOCUSED` (0x1), `LVIS_SELECTED` (0x2), `MEM_COMMIT` (0x1000),
+`MEM_RESERVE` (0x2000), `MEM_RELEASE` (0x8000), `PAGE_READWRITE` (0x4), `SW_SHOW` (5),
 `SHCNE_MKDIR` (0x8), `SHCNE_RMDIR` (0x10), `SHCNF_PATHA` (0x1), `SHCNF_FLUSH` (0x1000),
 `FILE_ATTRIBUTE_HIDDEN` (0x2), `FILE_ATTRIBUTE_SYSTEM` (0x4), `VA_SHARED` (0x08000000) if not there
-already, and `DESKTOP_FOLDER = r"C:\WINDOWS\DESKTOP"`.
+already, `DESKTOP_FOLDER = r"C:\WINDOWS\DESKTOP"`, and `ICON_TIMEOUT = 5.0`. A name already in
+`win32.py` is reused, never defined again (`test_win32.py` fails on a duplicate). The
+`(y << 16) | x` packing for `LVM_SETITEMPOSITION` is a small `lparam_xy(x, y)` beside them.
 
 ```python
 def desktop_items(guest) -> dict[str, tuple[str, int, int, int]]:
@@ -122,12 +126,15 @@ def remove_icon_folder(guest, label: str) -> None:
 def place_item(guest, label: str, x: int, y: int) -> None:
     """LVM_SETITEMPOSITION on the item with this label, found fresh each time."""
 
-def delete_items(guest, keep: set[str]) -> None:
-    """LVM_DELETEITEM every item whose label is not in `keep` (the stock icons)."""
+def delete_items(guest, keep: set[str]) -> list[str]:
+    """LVM_DELETEITEM every item whose label is not in `keep` (the stock icons). Returns them."""
+
+def clear_item_state(guest) -> None:
+    """LVM_SETITEMSTATE(-1) with LVIS_FOCUSED | LVIS_SELECTED cleared, through shared memory."""
 
 ```
 
-- **Shared memory.** `desktop_items` and `place_item` use one
+- **Shared memory.** `desktop_items` and `clear_item_state` use one
   `VirtualAlloc(0, 4096, MEM_COMMIT | MEM_RESERVE | VA_SHARED, PAGE_READWRITE)` block, freed in a
   `finally`, as the recipe in `docs/scenes/win32-recipes.md` does. Explorer owns the list, and a
   private pointer can hang the agent.
@@ -142,25 +149,29 @@ def delete_items(guest, keep: set[str]) -> None:
   `win32.py` beside `SHELL_ICONS`). A miss is `UsageError` (Requirement 1.5). All seven
   `SHELL_ICONS` were measured as desktop icon images (README).
 - **Waiting.** After `make_icon_folder`, `wait_for` polls `desktop_items` until the label is listed
-  (every 0.05 s, up to `ICON_TIMEOUT = 5.0` s), else `GuestError` naming the label. Removal waits
+  (every 0.05 s, up to `win32.ICON_TIMEOUT` s), else `GuestError` naming the label. Removal waits
   the same way for it to go.
 
 ### The stock icons when the options have them off
 
 The scene keeps one flag, `Scene._icon_list_shown`. On the first fake icon while
-`parts.icons` is off:
+`parts.icons` is off, before its folder is made, in the order `probe_icons_3.py` measured:
 
-1. make the folder and wait for the item (the list is still hidden),
-2. `delete_items(guest, keep={labels of fake icons on stage, including this one})`,
-3. `ShowWindow(list, SW_SHOW)` (what the probe used), set the flag, and remember the deleted
-   labels in `Scene._deleted_stock` for the clash check.
+1. `ShowWindow(list, SW_SHOW)` and set the flag,
+2. `delete_items(guest, keep={labels of fake icons on stage})` (none yet), and remember the
+   deleted labels in `Scene._deleted_stock` for the clash check,
+3. then the folder as usual. After it is placed, `clear_item_state(guest)` (measured: it
+   returned 1 and cleared a focus box) so no fake icon is focused or selected.
+
+If the add then fails and no fake icon is on stage, the list is hidden again and the flag cleared.
 
 On removing the last fake icon while the flag is set: `ShowWindow(list, SW_HIDE)`, clear the flag
 (measured: the list hides, and later adds and removes leave the stock icons away). After a revert
 the flag and `_deleted_stock` are cleared with the props.
 
-No item state is cleared: adding with `SHCNE_MKDIR` alone draws no focus box (README). The VM
-test checks Requirement 5.6 instead.
+`clear_item_state` runs only on a desktop with the stock icons off. On stock it would also clear
+My Computer's focus box, which the `ready` snapshot shows. Adding with `SHCNE_MKDIR` alone drew
+no focus box on stock (README), and the VM test checks Requirement 5.6 on both.
 
 `check_parts` does not change: it runs in `prepare_desktop`, before any fake icon exists in a
 state or a run. `set_colour` re-hides the list only when it was hidden, so a shown list stays
@@ -183,7 +194,9 @@ class DesktopIcon(Prop):
 ```
 
 - **Label rules** (Requirement 4), checked in `__init__`: `label_problem(label) -> str | None`,
-  beside `id_problem` in `state.py`, so the state loader uses the same rules. It wraps
+  beside `name_problem` in `core/art98/guest/guestfiles.py`, which `state.py` already imports, so
+  the state loader uses the same rules. (Not in `state.py`: `state.py` imports `actions.apps`,
+  so a prop module importing `state` risks an import cycle.) It wraps
   `guestfiles.name_problem` (characters, control characters, a trailing space or dot, Windows
   1252, DOS devices) and adds: at most 80 characters, no leading space or dot, and no all-capital
   8.3 name (a base of 1 to 8 and an optional extension of 1 to 3 characters, no space, no small
@@ -203,14 +216,19 @@ class DesktopIcon(Prop):
 - **Off screen** (Requirement 3.6): the image square must lie inside the screen
   (`scene.space` gives its size). Checked in `apply` and `attach`.
 - **`apply`** compares `(pixel(x), pixel(y))` with the last place it set, and calls `place_item`
-  only when it changed, then `guest.sync()`. `Scene._apply` already calls `apply` on every prop
+  only when it changed, then `guest.sync()` and the same read-back as `attach`: a place that
+  differs raises `GuestError` (Requirement 3.5), whatever moved it (`shift`, a layout call,
+  `Teleport`). `Scene._apply` already calls `apply` on every prop
   each frame, so a layout call shows on the next frame (Requirement 7.1).
 - **`animate`** raises `UsageError`: "a DesktopIcon moves only in one frame: change its place and
   let the next frame show it (animated desktop icons are out of scope, docs/design/decisions.md)".
   `MoveAlongPath` raises the same in `begin` for a target with `one_frame_moves = True` (a class
-  attribute `DesktopIcon` sets; `Box` has it `False`). `Teleport` is one frame and works.
-- **`refresh`** calls `apply()` first, as `Win.refresh` does (`win.py`, `refresh`), so a pending
-  `shift` isn't lost when `next_to` or `get_state` reads the place back.
+  attribute `DesktopIcon` sets; `Box` has it `False`). `Teleport` is one frame and works, but `Teleport(icon, size=...)` raises `UsageError`: the box
+  stays 32x32 (`resize` and `set_rect` with another size raise too).
+- **`refresh`** does nothing while the icon is not on stage (`scene is None`), as `Win.refresh`
+  does (`actions/window/win.py:239`), so layout before `add` works (`next_to` calls `other.refresh()`,
+  `props.py:131`). On stage it calls `apply()` first, so a pending `shift` isn't lost when
+  `next_to` or `get_state` reads the place back.
 - **Removing.** `Scene.remove` today sends every prop through `Close`, which takes only a `Win`.
   It becomes: a `Win` goes through `Close` as today; any other prop must be on stage
   (`UsageError` "can't remove ...: it is not on stage", as `Close.begin` says), then gets
@@ -247,16 +265,21 @@ class DesktopIcon(Prop):
   string and `index` a non-negative integer. Named keys are not used in a state: `get_state`
   writes the resolved pair.
 - `_ORDER` in `state.py` gets `"icon": ("id", "label", "at", "image")` and the image keys, and
-  `dump_state` walks `desktop.icons` and each nested `image` (it orders only the top, desktop and
-  file levels today), so a dumped state reads in a fixed order.
+  `dump_state` walks `desktop.icons` and each nested `image` (it orders the top, desktop,
+  window and file levels today), so a dumped state reads in a fixed order.
 
 ### Applying and checking
 
+- `DesktopIcon.from_state(icon: IconState)` builds the prop from the loaded state: a guest
+  image as the pair, a provided image from the `FileRef`'s bytes (already read and checked by
+  the loader, passed through a private `_data` as `Win.from_state` does, `actions/window/win.py:53-61`), with
+  `source` set to the `FileRef`'s path and bytes.
 - `apply_state`: after the wallpaper and before the windows, each icon is
   `scene.add(DesktopIcon.from_state(icon), id=icon.id)`. The props dict it returns holds icons
   too.
-- `wallpaper_sample` avoids the icons too: each icon's cell (its `at` minus (13, 2) to plus
-  (45, 51), from the measured rects in README) joins the rectangles it already keeps clear of
+- `wallpaper_sample` avoids the icons too: each icon's cell, from `at` minus (22, 2) to plus
+  (54, 64) (a 76-pixel-wide grid cell and two label lines; an estimate, unmeasured: README measured one line at 58 wide, and
+  Explorer cuts longer labels to two lines), joins the rectangles it already keeps clear of
   windows and the pointer.
 - `check_state`: `icon_problems(guest, state)` reads `desktop_items` once. For each icon: missing
   ("desktop.icons[case]: 'My Briefcase' isn't on the desktop"), or at another place (wanted and
@@ -266,7 +289,8 @@ class DesktopIcon(Prop):
 
 `Scene.get_state`: the icons on stage, in `self.props` order, each needing an id
 (Requirement 6.5). `DesktopIcon.to_state(files)` writes a provided image to
-`files/desktop/icons/<id><suffix>` (the original bytes, the `.png` or `.ico` suffix) and returns
+`files/desktop/icons/<id><suffix>` (the original bytes, the `.png` or `.ico` suffix; made with
+`mkdir(parents=True, exist_ok=True)`, since the wallpaper code may have made `desktop/` already) and returns
 the dict above with the hash. A guest image writes `{"guest", "index"}`.
 
 ## 6. Testing
@@ -298,6 +322,9 @@ VM tests (`core/tests/test_stage.py`, next to the desktop ones):
 - On blank: the fake icon is the only item; after `Backdrop`, a Notepad open and close, and a
   second icon added and removed, still the only one(s).
 - No fake icon has a focus box or selection after `add` (`LVM_GETITEMSTATE`), on stock and blank.
+- On blank with a fake icon: `Backdrop` to a non-black colour, then `set_wallpaper` through a
+  state; the stock icons stay away, and a screenshot pixel of the label background matches the
+  desktop colour (unmeasured until this test).
 - A state with icons at 640x480 through `set_state` (the display change runs `prepare_desktop`
   again): the icons at their places and the label background the desktop colour.
 - `get_state` then `set_state` of the capture: same items at the same places.
@@ -325,10 +352,11 @@ VM tests (`core/tests/test_stage.py`, next to the desktop ones):
 | `core/art98/desktop.py` | the guest functions of section 3 |
 | `core/art98/actions/desktop_icon.py` | new: `DesktopIcon` |
 | `core/art98/actions/programs/dialog.py` | uses the shared table and constants |
-| `core/art98/actions/__init__.py`, `core/art98/anim/__init__.py` | export `DesktopIcon` |
+| `core/art98/anim/__init__.py` | `from ..actions.desktop_icon import DesktopIcon`, as `Backdrop` is, and `__all__` |
+| `core/art98/guest/guestfiles.py` | `label_problem` |
 | `core/art98/anim/scene.py` | `remove` for non-window props, `source` for any prop, `get_state` icons, `_icon_list_shown`, `_deleted_stock`, `_icon_images` |
 | `core/art98/base/animation.py`, `core/art98/base/props.py` | `one_frame_moves`, refused by `MoveAlongPath` |
-| `core/art98/state.py` | `IconState`, `label_problem`, the loader, `_ORDER` |
+| `core/art98/state.py` | `IconState`, the loader, `_ORDER`, `dump_state` |
 | `core/art98/anim/setstate.py` | apply and check icons |
 | tests and docs | sections 6 and 7 |
 

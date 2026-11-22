@@ -56,13 +56,16 @@ Requires: none. Requirements 2.1 to 2.4. Design section 2.
 
 #### Task 2: Constants and one table of guest images
 
-Requires: none. Requirement 1.3. Design sections 1 and 3.
+Requires: none. Requirements 1.3, 4.1. Design sections 1, 3 and 4 (label rules).
 
-- In `core/art98/guest/win32.py`: the `LVM_*`, `SHCNE_*`, `SHCNF_*`, `FILE_ATTRIBUTE_*`
-  constants of design section 3, `DESKTOP_FOLDER`, `ICON_TIMEOUT = 5.0`,
-  `SHELL_ICONS` (moved from `Dialog.CUSTOM_ICONS` with its comment), and `NO_ICON`,
-  `NOT_ICON_FILE` (moved from `dialog.py`). Check `VA_SHARED` and `SW_SHOW` aren't there already
-  before adding them.
+- In `core/art98/guest/win32.py`: every constant listed at the top of design section 3 (the
+  `LVM_*`, `LVIF_STATE`, `LVIS_*`, `SHCNE_*`, `SHCNF_*`, `FILE_ATTRIBUTE_*`, `MEM_*`,
+  `PAGE_READWRITE`, `SW_SHOW`, `VA_SHARED`), `DESKTOP_FOLDER`, `ICON_TIMEOUT = 5.0`,
+  `lparam_xy(x, y)`, `SHELL_ICONS` (moved from `Dialog.CUSTOM_ICONS` with its comment), and
+  `NO_ICON`, `NOT_ICON_FILE` (moved from `dialog.py`). Grep `win32.py` first and reuse a name
+  already there.
+- In `core/art98/guest/guestfiles.py`: `label_problem`, as design section 4 gives it, with its
+  tests beside the `name_problem` ones.
 - `dialog.py` imports them; `Dialog.CUSTOM_ICONS = SHELL_ICONS` stays as the public name.
 - Done when `UNIT` passes, including `test_win32.py` (no constant defined twice) and
   `test_dialog.py` unchanged.
@@ -74,13 +77,14 @@ Requires: none. Requirement 1.3. Design sections 1 and 3.
 Requires: 2, and `feat/desktop-options` merged. Requirements 1.4, 1.5, 5.5. Design section 3.
 
 - In `core/art98/desktop.py`: `desktop_items`, `make_icon_folder`, `remove_icon_folder`,
-  `place_item`, `delete_items`, and a `check_guest_image(guest, file, index)`
+  `place_item`, `delete_items` (returning the deleted labels), `clear_item_state`, and a
+  `check_guest_image(guest, file, index)`
   that raises `UsageError` (ExtractIconA, then DestroyIcon).
 - The shared-memory block is allocated and freed in each function, in a `finally`.
 - The notice sent is `SHCNE_MKDIR` or `SHCNE_RMDIR` only, with a comment citing the README on why
   never `SHCNE_UPDATEDIR`.
 - Tests in a new `core/tests/test_desktop_icon.py`: teach `DesktopGuest` a desktop list (labels,
-  positions, indices that change on delete, a label listed in other capitals), the file calls and
+  positions, indices that change on delete, a label listed in other capitals), `LVM_SETITEMSTATE`, the file calls and
   `SHChangeNotify` (any event other than MKDIR and RMDIR fails the test). Cover each function,
   including a missing label, a lookup ignoring case, and a guest file with no icon.
 - Done when `UNIT` passes.
@@ -91,19 +95,22 @@ Requires: 2, and `feat/desktop-options` merged. Requirements 1.4, 1.5, 5.5. Desi
 
 Requires: 1, 3. Requirements 1, 2, 3, 4, 7. Design sections 1 and 4.
 
-- New `core/art98/actions/desktop_icon.py` with `DesktopIcon` and `label_problem` placed in
-  `core/art98/state.py` beside `id_problem` (the state loader in Task 6 uses it).
-- Export it from `core/art98/actions/__init__.py` and add it to `__all__` in
-  `core/art98/anim/__init__.py`.
+- New `core/art98/actions/desktop_icon.py` with `DesktopIcon`. It imports `label_problem` from
+  `guestfiles` and never imports `state`.
+- In `core/art98/anim/__init__.py`: `from ..actions.desktop_icon import DesktopIcon`, as
+  `Backdrop` is imported, and add it to `__all__`. `actions/__init__.py` does not change.
 - `core/art98/anim/scene.py`: `remove` sends a `Win` through `Close` as today, and for any other
   prop checks it is on stage and calls `prop.remove()`; `add` records `source` for any prop that
   has one; `_icon_images`, cleared in `_reset`.
 - `one_frame_moves` on `Box` (`False`) and `DesktopIcon` (`True`); `MoveAlongPath.begin` refuses
-  such a target (`core/art98/base/animation.py`).
+  such a target (`core/art98/base/animation.py`). `Teleport(icon, size=...)` refused.
 - In this task the stock icons are always treated as on (the stock preset). Task 5 adds the
   blank case.
 - Tests in `core/tests/test_desktop_icon.py`: the prop cases of design section 6 that don't need
-  the blank desktop, plus `Close(icon)` refused and `remove` of an icon not on stage refused.
+  the blank desktop, plus `Close(icon)` refused, `remove` of an icon not on stage refused, layout
+  (`next_to`) between two icons before either is added, and a move the guest doesn't take
+  (the fake's position stays put) raising `GuestError` from `apply`, and `Teleport(icon, size=...)`
+  raising `UsageError`.
 - Done when `UNIT` passes.
 
 ### Wave 4
@@ -115,17 +122,19 @@ when the options have them off".
 
 - `Scene._icon_list_shown` and `Scene._deleted_stock`, cleared in `_reset`. `DesktopIcon.attach`
   and `remove` follow the design's steps when the scene's resolved parts have `icons` off.
-- Tests: on `Desktop("blank")` the first icon deletes every non-fake item and shows the list;
+- Tests: on `Desktop("blank")` the first icon shows the list and deletes every item before its
+  folder is made (the call order is asserted), and clears the item state after placing;
   a second icon deletes nothing more; a deleted stock label is refused; removing the last hides
   the list; on `"stock"` and on `Desktop("blank", icons=True)` nothing is deleted and the list is
-  never hidden; `check_parts` is unchanged.
+  never hidden and no item state is cleared; a failed first add hides the list again;
+  `check_parts` is unchanged.
 - Done when `UNIT` passes.
 
 #### Task 6: Icons in a state file
 
 Requires: 4. Requirement 6.1, 6.2. Design section 5, "The schema".
 
-- `core/art98/state.py`: `IconState`, `DesktopState.icons`, `icons` out of `LATER_DESKTOP` and
+- `core/art98/state.py` (using `label_problem` from `guestfiles`): `IconState`, `DesktopState.icons`, `icons` out of `LATER_DESKTOP` and
   into `DESKTOP_FIELDS`, the loader checks, `State.files()`, `_ORDER`, and `dump_state` walking
   `desktop.icons` and each `image`. Ids are unique across icons and windows.
 - Tests in `core/tests/test_state.py`: a good state loads; each problem is reported at its path,
@@ -142,6 +151,8 @@ Requires: 5, 6. Requirements 6.3 to 6.7. Design section 5.
 
 - `core/art98/anim/setstate.py`: `apply_state` adds the icons after the wallpaper and before the
   windows; `check_state` gets `icon_problems`; `wallpaper_sample` keeps clear of icon cells.
+- `DesktopIcon.from_state(icon)` (design section 5, "Applying and checking"), in
+  `core/art98/actions/desktop_icon.py`.
 - `core/art98/anim/scene.py` `get_state`: captures icons (id needed), `DesktopIcon.to_state`
   writes a provided image under `files/desktop/icons/`.
 - Tests with the scene fakes: apply then check a state with both image kinds; a missing or moved

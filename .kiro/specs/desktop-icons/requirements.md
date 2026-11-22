@@ -106,7 +106,7 @@ so that my desktop looks the way I drew it.
 3. WHEN the box changes after `add` and `apply()` runs, or a frame is drawn, THE guest SHALL show
    the icon at the new place in that one frame.
 4. WHEN a scene asks for `icon.animate`, or plays `MoveAlongPath` on it, THE Scene SHALL raise
-   `UsageError` saying a fake icon moves only in one frame. `Teleport` works. (Animated desktop icons are out of scope, `docs/design/decisions.md`.)
+   `UsageError` saying a fake icon moves only in one frame. `Teleport` works, but not with `size=`: the box stays 32x32. (Animated desktop icons are out of scope, `docs/design/decisions.md`.)
 5. WHEN a fake icon is placed, THE Scene SHALL read its place back and raise `GuestError` if it
    differs.
 6. IF the place is off the screen, THEN THE Scene SHALL raise `UsageError`.
