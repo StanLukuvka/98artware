@@ -19,9 +19,9 @@ _spec.loader.exec_module(p3)
 p1 = p3.p1
 rec, shot, items = p1.rec, p1.shot, p1.items
 
-from art98.container.service import attach  # noqa: E402
-from art98.desktop import blank, shell_windows  # noqa: E402
-from art98.guest.win32 import set_display_mode  # noqa: E402
+from art98.container.service import attach
+from art98.desktop import blank, shell_windows
+from art98.guest.win32 import set_display_mode
 
 LVM_GETITEMRECT = 0x100E
 LVIR = {"bounds": 0, "icon": 1, "label": 2}

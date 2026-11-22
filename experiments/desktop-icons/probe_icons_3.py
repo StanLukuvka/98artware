@@ -21,8 +21,8 @@ p1 = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(p1)  # sets p1.OUT from sys.argv[1]
 rec, shot, items, ico_bytes, lparam = p1.rec, p1.shot, p1.items, p1.ico_bytes, p1.lparam
 
-from art98.container.service import attach  # noqa: E402
-from art98.desktop import blank, shell_windows  # noqa: E402
+from art98.container.service import attach
+from art98.desktop import blank, shell_windows
 
 LVM_DELETEITEM, LVM_SETITEMPOSITION, LVM_SETITEMSTATE = 0x1008, 0x100F, 0x102B
 LVIS_FOCUSED, LVIS_SELECTED = 0x1, 0x2

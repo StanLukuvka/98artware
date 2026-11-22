@@ -19,9 +19,9 @@ _spec.loader.exec_module(p3)
 p1 = p3.p1
 rec, shot, items = p1.rec, p1.shot, p1.items
 
-from art98.container.service import attach  # noqa: E402
-from art98.desktop import blank, shell_windows  # noqa: E402
-from art98.actions.programs.dialog import Dialog  # noqa: E402
+from art98.actions.programs.dialog import Dialog
+from art98.container.service import attach
+from art98.desktop import blank, shell_windows
 
 SW_HIDE = 0
 

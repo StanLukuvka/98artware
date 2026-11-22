@@ -9,8 +9,6 @@
 """
 
 import importlib.util
-import struct
-import sys
 import time
 from pathlib import Path
 
@@ -19,8 +17,8 @@ p1 = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(p1)  # sets p1.OUT from sys.argv[1]
 rec, shot, items, folder_icon, ico_bytes, lparam = p1.rec, p1.shot, p1.items, p1.folder_icon, p1.ico_bytes, p1.lparam
 
-from art98.container.service import attach  # noqa: E402
-from art98.desktop import NAMED_COLOURS, blank, set_colour, shell_windows  # noqa: E402
+from art98.container.service import attach
+from art98.desktop import NAMED_COLOURS, blank, set_colour, shell_windows
 
 LVM_DELETEITEM, LVM_SETITEMPOSITION = 0x1008, 0x100F
 SHCNE_RMDIR, SHCNE_UPDATEDIR = 0x10, 0x1000
