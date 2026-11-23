@@ -1,7 +1,7 @@
 """The desktop tree: Desktop options resolved to Parts, with warning texts.
 
-Every case of the pure function is walked (2 presets x 3^7 options x 3
-pointer_visible values = 13,122) against an oracle written from the level table
+Every case of the pure function is walked (2 presets x 3^7 options = 4,374)
+against an oracle written from the level table
 as explicit lists, not from the implementation's PARENT.
 """
 
@@ -36,14 +36,12 @@ PRESET_VALUES = {
     },
 }
 VALUES = (None, True, False)
-POINTERS = (None, True, False)
 
 
 def cases():
     for preset in PRESET_VALUES:
         for combo in itertools.product(VALUES, repeat=len(OPTIONS)):
-            for pv in POINTERS:
-                yield preset, dict(zip(OPTIONS, combo)), pv
+            yield preset, dict(zip(OPTIONS, combo))
 
 
 def oracle(preset, written):
@@ -69,34 +67,31 @@ def oracle(preset, written):
 
 
 def test_every_case_warns_exactly_for_a_written_option_under_an_off_one():
-    for preset, written, pv in cases():
-        _parts, notes = resolve_desktop(Desktop(preset, **written), OWNER, pv)
+    for preset, written in cases():
+        _parts, notes = resolve_desktop(Desktop(preset, **written), OWNER)
         _, hit = oracle(preset, written)
-        overrides = [n for n in notes if "pointer_visible" not in n]
-        assert len(overrides) == len(hit), (preset, written, pv, notes)
+        assert len(notes) == len(hit), (preset, written, notes)
         expected = [
             f"{OWNER}: {o}={written[o]} has no effect, because {top} is off ({src}). "
             f"Remove {o}={written[o]}, or write {top}=True."
             for o, (top, src) in hit.items()  # table order: UNDER is in table order
         ]
-        assert overrides == expected, (preset, written, pv)
+        assert notes == expected, (preset, written)
 
 
 def test_every_case_never_shows_a_child_of_an_off_parent():
-    for preset, written, pv in cases():
-        parts, _ = resolve_desktop(Desktop(preset, **written), OWNER, pv)
+    for preset, written in cases():
+        parts, _ = resolve_desktop(Desktop(preset, **written), OWNER)
         for child, unders in UNDER.items():
             if getattr(parts, child):
                 assert all(getattr(parts, u) for u in unders), (preset, written, child)
 
 
 def test_every_case_gives_what_was_written_unless_something_above_is_off():
-    for preset, written, pv in cases():
-        parts, _ = resolve_desktop(Desktop(preset, **written), OWNER, pv)
+    for preset, written in cases():
+        parts, _ = resolve_desktop(Desktop(preset, **written), OWNER)
         base, _ = oracle(preset, written)
         for o in OPTIONS:
-            if o == "pointer":
-                continue  # see the pointer_visible test
             above_off = any(not base[u] for u in UNDER.get(o, ()))
             assert getattr(parts, o) is (False if above_off else base[o]), (
                 preset,
@@ -107,16 +102,16 @@ def test_every_case_gives_what_was_written_unless_something_above_is_off():
 
 
 def test_every_case_a_warned_option_does_nothing():
-    for preset, written, pv in cases():
+    for preset, written in cases():
         _, hit = oracle(preset, written)
         if not hit:
             continue
-        parts, notes = resolve_desktop(Desktop(preset, **written), OWNER, pv)
+        parts, notes = resolve_desktop(Desktop(preset, **written), OWNER)
         for option in hit:
             others = [n for n in notes if f" {option}=" not in n]
             for value in VALUES:
                 again, again_notes = resolve_desktop(
-                    Desktop(preset, **{**written, option: value}), OWNER, pv
+                    Desktop(preset, **{**written, option: value}), OWNER
                 )
                 assert again == parts, (preset, written, option, value)
                 assert [n for n in again_notes if f" {option}=" not in n] == others
@@ -126,55 +121,23 @@ def test_every_case_a_warned_option_does_nothing():
     "preset,parts", [("stock", STOCK_PARTS), ("blank", BLANK_PARTS)]
 )
 def test_a_preset_alone_never_warns_and_gives_its_parts(preset, parts):
-    for pv in POINTERS:
-        for value in (preset, Desktop(preset)):
-            got, notes = resolve_desktop(value, OWNER, pv)
-            assert notes == []
-            on_blank = preset == "blank" and bool(pv)
-            assert got == dataclasses.replace(
-                parts, pointer=preset == "stock" or on_blank
-            )
+    got, notes = resolve_desktop(Desktop(preset), OWNER)
+    assert notes == []
+    assert got == parts
 
 
-def test_pointer_visible_touches_only_the_pointer_and_its_warning():
-    for preset, written, _ in cases():
-        results = {
-            pv: resolve_desktop(Desktop(preset, **written), OWNER, pv)
-            for pv in POINTERS
-        }
-        stripped = {
-            pv: dataclasses.replace(p, pointer=False) for pv, (p, _) in results.items()
-        }
-        assert stripped[None] == stripped[True] == stripped[False]
-        for pv, (parts, notes) in results.items():
-            pointer_notes = [n for n in notes if "pointer_visible" in n]
-            wants = (
-                written["pointer"] is not None
-                and pv is not None
-                and pv != written["pointer"]
-            )
-            assert bool(pointer_notes) is wants, (preset, written, pv)
-            if written["pointer"] is not None:
-                assert parts.pointer is written["pointer"]
-            elif preset == "blank":
-                assert parts.pointer is bool(pv)
-            else:
-                assert parts.pointer is True
-            # the override notes do not depend on pointer_visible
-            assert [n for n in notes if "pointer_visible" not in n] == [
-                n for n in results[None][1] if "pointer_visible" not in n
-            ]
-            if pointer_notes:
-                assert notes[-1] == pointer_notes[0]
+def test_the_pointer_comes_from_the_preset_unless_written():
+    assert not resolve_desktop(Desktop(), OWNER)[0].pointer
+    assert resolve_desktop(Desktop("stock"), OWNER)[0].pointer
+    assert resolve_desktop(Desktop(pointer=True), OWNER)[0].pointer
+    assert not resolve_desktop(Desktop("stock", pointer=False), OWNER)[0].pointer
 
 
 def test_resolving_is_pure():
-    for preset, written, pv in itertools.islice(cases(), 0, None, 7):
+    for preset, written in itertools.islice(cases(), 0, None, 7):
         desktop = Desktop(preset, **written)
         before = dataclasses.astuple(desktop)
-        assert resolve_desktop(desktop, OWNER, pv) == resolve_desktop(
-            desktop, OWNER, pv
-        )
+        assert resolve_desktop(desktop, OWNER) == resolve_desktop(desktop, OWNER)
         assert dataclasses.astuple(desktop) == before
 
 
@@ -184,7 +147,7 @@ def test_a_value_that_is_not_true_or_false_is_refused_naming_owner_and_option(
     option, bad
 ):
     with pytest.raises(UsageError) as caught:
-        resolve_desktop(Desktop("stock", **{option: bad}), OWNER, None)
+        resolve_desktop(Desktop("stock", **{option: bad}), OWNER)
     assert (
         caught.value.args[0] == f"{OWNER}: {option} must be True or False, not {bad!r}"
     )
@@ -192,7 +155,7 @@ def test_a_value_that_is_not_true_or_false_is_refused_naming_owner_and_option(
 
 def test_the_clock_warning_names_the_tray():
     _, notes = resolve_desktop(
-        Desktop("stock", tray=False, clock=True), "NoTray.desktop", None
+        Desktop("stock", tray=False, clock=True), "NoTray.desktop"
     )
     assert notes == [
         (
@@ -204,7 +167,7 @@ def test_the_clock_warning_names_the_tray():
 
 def test_a_child_warning_names_the_taskbar_the_author_turned_off():
     _, notes = resolve_desktop(
-        Desktop("stock", taskbar=False, buttons=False), "A.desktop", None
+        Desktop("stock", taskbar=False, buttons=False), "A.desktop"
     )
     assert notes == [
         (
@@ -215,7 +178,7 @@ def test_a_child_warning_names_the_taskbar_the_author_turned_off():
 
 
 def test_a_child_warning_names_the_blank_preset_when_it_turns_the_taskbar_off():
-    _, notes = resolve_desktop(Desktop("blank", buttons=False), "A.desktop", None)
+    _, notes = resolve_desktop(Desktop("blank", buttons=False), "A.desktop")
     assert notes == [
         (
             'A.desktop: buttons=False has no effect, because taskbar is off (the "blank" preset). '
@@ -226,42 +189,15 @@ def test_a_child_warning_names_the_blank_preset_when_it_turns_the_taskbar_off():
 
 def test_the_clock_warning_names_the_highest_off_option():
     _, notes = resolve_desktop(
-        Desktop("stock", taskbar=False, tray=False, clock=True), "A.desktop", None
+        Desktop("stock", taskbar=False, tray=False, clock=True), "A.desktop"
     )
     assert notes[-1].startswith(
         "A.desktop: clock=True has no effect, because taskbar is off (taskbar=False)."
     )
 
 
-def test_the_pointer_warning_says_the_tree_wins():
-    parts, notes = resolve_desktop(
-        Desktop("stock", pointer=False), "Hover.desktop", True
-    )
-    assert not parts.pointer
-    assert notes == [
-        (
-            "Hover.pointer_visible = True is ignored, because Desktop(pointer=False) sets the pointer. "
-            "Remove pointer_visible, or make the two agree."
-        )
-    ]
-
-
-def test_the_pointer_note_comes_last():
-    _, notes = resolve_desktop(
-        Desktop("stock", tray=False, clock=True, pointer=True), "A.desktop", False
-    )
-    assert len(notes) == 2 and notes[-1].startswith("A.pointer_visible")
-
-
-def test_the_stock_and_blank_presets_equal_their_constants():
-    assert resolve_desktop("stock", OWNER, None)[0] == STOCK_PARTS
-    assert resolve_desktop("blank", OWNER, None)[0] == BLANK_PARTS
-
-
 def test_blank_with_a_taskbar_shows_every_child():
-    parts, notes = resolve_desktop(
-        Desktop("blank", taskbar=True, buttons=False), OWNER, None
-    )
+    parts, notes = resolve_desktop(Desktop("blank", taskbar=True, buttons=False), OWNER)
     assert notes == []
     assert (parts.taskbar, parts.buttons, parts.quick_launch, parts.tray, parts.clock) == (
         True, False, True, True, True,
@@ -284,14 +220,5 @@ def test_a_desktop_cannot_be_changed():
 
 def test_an_unknown_preset_is_refused_with_the_class_name():
     with pytest.raises(UsageError) as caught:
-        resolve_desktop("foo", "Scene.desktop", None)
+        resolve_desktop(Desktop("foo"), "Scene.desktop")
     assert caught.value.args[0] == "Scene.desktop 'foo': use one of blank, stock"
-
-
-def test_a_value_that_is_not_a_preset_or_a_desktop_is_refused():
-    with pytest.raises(UsageError) as caught:
-        resolve_desktop(5, "Scene.desktop", None)
-    assert (
-        caught.value.args[0]
-        == "Scene.desktop 5: use one of blank, stock, or a Desktop(...)"
-    )

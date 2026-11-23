@@ -34,8 +34,8 @@ written for 0.2.0 needs edits; see "Changed" and "Removed".
   Minesweeper.
 - `UntrackedWindow`, `ImplicitClose` and `SectionNotFound` errors.
 - `Desktop` sets which parts of the desktop show: `icons`, `pointer`, `taskbar`, `buttons`,
-  `quick_launch`, `tray` and `clock`. `desktop = "blank"` and `"stock"` are presets of it, so
-  `Desktop("blank", taskbar=True, buttons=False)` is a black desktop with a taskbar. An option that
+  `quick_launch`, `tray` and `clock`. `Desktop("blank")` and `Desktop("stock")` are its presets,
+  so `Desktop("blank", taskbar=True, buttons=False)` is a black desktop with a taskbar. An option that
   is off hides the ones under it (`taskbar` over `buttons`, `quick_launch` and `tray`; `tray` over
   `clock`), and writing one of those gives a warning. The options are applied after every revert
   and survive a colour change. See [Desktop options](docs/scenes/scene-api.md#desktop-options).
@@ -55,9 +55,26 @@ written for 0.2.0 needs edits; see "Changed" and "Removed".
   names that file. A capture written by an earlier build has no file records, so it is refused
   and must be rendered again with a full `art98 render` (breaking). See
   [Sections](docs/scenes/scene-api.md#sections).
-- A `Desktop` that sets `pointer` makes `pointer_visible` ignored, with a warning.
+- A scene's `desktop` must be a `Desktop`. A string is refused where the class is defined, or at
+  `run` for one set on an instance, and the message says what to write. Change
+  `desktop = "stock"` to `desktop = Desktop("stock")`, and `desktop = "blank"` (or nothing) to
+  `desktop = Desktop()`. `Desktop` comes with `from art98.anim import *`.
+- The desktop is resolved once, when `run` starts, and every revert in that run uses the result.
+  Changing `self.desktop` during a run raises `UsageError`: set it before `run`. A second `run`
+  of the same scene resolves again.
 
 ### Removed
+
+- `Scene.pointer_visible`. A scene that sets it, on the class (including through a mixin) or on an instance, is refused with
+  a message naming the replacement. The pointer now comes only from the `Desktop`: the blank
+  preset hides it and the stock preset shows it. To update a 0.2.0 scene:
+
+  | 0.2.0 | Now |
+  |---|---|
+  | `desktop = "blank"`, or nothing | `desktop = Desktop()`, or nothing |
+  | `desktop = "stock"` | `desktop = Desktop("stock")` |
+  | blank with `pointer_visible = True` | `desktop = Desktop(pointer=True)` |
+  | stock with `pointer_visible`, either value | `desktop = Desktop("stock")` (it did nothing) |
 
 - `Scene.next_section(name)`. Use `self.section(name, method)`, or `self.cut()` for a clip with no
   state to start from.

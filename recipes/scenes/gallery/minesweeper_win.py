@@ -4,7 +4,7 @@ from art98.anim import *
 
 
 class MinesweeperWin(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         board = Minesweeper(at=(300, 120))

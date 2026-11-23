@@ -11,7 +11,7 @@ CANVAS = (300, 250)
 
 
 class Hero(Scene):
-    desktop = "stock"  # the taskbar and icons say "Windows 98" at a glance
+    desktop = Desktop("stock")  # the taskbar and icons say "Windows 98" at a glance
 
     def construct(self):
         self.pointer.place((400, 500))

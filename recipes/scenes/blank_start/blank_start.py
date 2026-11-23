@@ -9,7 +9,7 @@ from art98.anim import *
 
 class BlankStart(Scene):
     state = "states/desk.json"  # blank desktop + picture "flower" + notepad "note"
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         self.section("type", self.typing)

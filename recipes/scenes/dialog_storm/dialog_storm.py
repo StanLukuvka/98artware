@@ -15,7 +15,7 @@ BOX = (300, 130)  # outer size, a bit more than the stock box
 
 class DialogStorm(Scene):
     output_fps = 24
-    desktop = "blank"
+    desktop = Desktop()
 
     def construct(self):
         self.pause(0.5)
@@ -76,7 +76,7 @@ class DialogStormStock(Scene):
     """The same boxes on the stock desktop: taskbar and icons, on a dark red colour."""
 
     output_fps = 24
-    desktop = "stock"
+    desktop = Desktop("stock")
 
     def construct(self):
         self.pause(0.5)

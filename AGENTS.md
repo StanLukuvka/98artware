@@ -161,7 +161,7 @@ Formatting is ruff's: `uv run ruff format core setup tools`.
   marker) are in [CONTRIBUTING.md](CONTRIBUTING.md#writing-tests). Beyond them: other stand-ins
   are `FakeVM` in `test_anim.py`, `FakeEngine` in `test_service.py`/`test_freshness.py`, and
   `serve_harness.py` for the container server. Extend those rather than writing new fakes.
-- `conftest.py` pins scenes to `desktop = "stock"` (the fakes don't model the blank start) and
+- `conftest.py` pins scenes to `desktop = Desktop("stock")` (the fakes don't model the blank start) and
   silences freshness warnings. `test_desktop.py` covers the blank start.
 - VM tests must release the VM when they end (`with attach()` or the `booted` fixture), so a
   failure never holds the lock.

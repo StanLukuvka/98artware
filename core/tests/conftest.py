@@ -1,5 +1,5 @@
 import pytest
-from art98.anim import Scene
+from art98.anim import Desktop, Scene
 from art98.container import freshness
 
 
@@ -7,7 +7,7 @@ from art98.container import freshness
 def stock_desktop(monkeypatch):
     """The fake guests don't model the blank desktop, so scenes keep the stock
     one unless a test asks. test_desktop.py covers the blank start."""
-    monkeypatch.setattr(Scene, "desktop", "stock")
+    monkeypatch.setattr(Scene, "desktop", Desktop("stock"))
 
 
 @pytest.fixture(autouse=True)

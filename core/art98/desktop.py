@@ -165,9 +165,12 @@ def resolve_colour(colour) -> tuple[int, int, int]:
 
 
 def set_colour(guest, rgb) -> None:
-    """Set the desktop colour. The change shows the icons and tray again on a
-    blank desktop, so hide them again: the icons before the sync (as before),
-    the tray after it, once Explorer's thread has handled the broadcast.
+    """Set the desktop colour: the plain background behind the icons and around a
+    centred wallpaper. It isn't the taskbar or selection colour.
+
+    The change shows the icons and tray again on a blank desktop, so hide them
+    again: the icons before the sync (as before), the tray after it, once
+    Explorer's thread has handled the broadcast.
 
     The broadcast makes every window repaint itself on its own thread, in no
     set order, and a frame repainted late can draw over the window in front of
@@ -458,23 +461,16 @@ STOCK_PARTS = Parts(*(True,) * 7, blank_steps=False)
 BLANK_PARTS = Parts(False, False, False, False, False, False, False, blank_steps=True)
 
 
-def resolve_desktop(
-    value, owner: str, pointer_visible: bool | None
-) -> tuple[Parts, list[str]]:
+def resolve_desktop(desktop: Desktop, owner: str) -> tuple[Parts, list[str]]:
     """The effective parts and the warning texts. Pure; raises UsageError.
 
-    `owner` is "ClassName.desktop". `pointer_visible` is None when never declared.
+    `owner` is "ClassName.desktop". `desktop` must be a Desktop: the caller refuses
+    anything else, because it knows what to tell the author to write.
     """
-    if isinstance(value, str):
-        value = Desktop(value)
-    elif not isinstance(value, Desktop):
-        raise UsageError(
-            f"{owner} {value!r}: use one of {', '.join(PRESETS)}, or a Desktop(...)"
-        )
-    preset = value.preset
+    preset = desktop.preset
     if not isinstance(preset, str) or preset not in PRESETS:
         raise UsageError(f"{owner} {preset!r}: use one of {', '.join(PRESETS)}")
-    written = {name: getattr(value, name) for name in _OPTIONS}
+    written = {name: getattr(desktop, name) for name in _OPTIONS}
     for name, got in written.items():
         if got is not None and type(got) is not bool:
             raise UsageError(f"{owner}: {name} must be True or False, not {got!r}")
@@ -499,13 +495,4 @@ def resolve_desktop(
                 f"{owner}: {name}={written[name]} has no effect, because {top} is off "
                 f"({source}). Remove {name}={written[name]}, or write {top}=True."
             )
-    if written["pointer"] is not None:
-        if pointer_visible is not None and bool(pointer_visible) != written["pointer"]:
-            notes.append(
-                f"{owner.removesuffix('.desktop')}.pointer_visible = {bool(pointer_visible)} "
-                f"is ignored, because Desktop(pointer={written['pointer']}) sets the pointer. "
-                "Remove pointer_visible, or make the two agree."
-            )
-    elif preset == "blank":
-        effective["pointer"] = bool(pointer_visible)
     return Parts(**effective, blank_steps=preset == "blank"), notes
