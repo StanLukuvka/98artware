@@ -65,5 +65,33 @@ CPU pressure `avg10` was 0.00 at the start and 0.56 at the end of the main run (
 **Taskbar after a display mode change.** A `set_display_mode(..., persist=False)` on the reverted
 VM leaves the taskbar where it was, even 15 s later. At 1024x768 it floats at its 800x600 height
 (top 572), and at 640x480 it's off the bottom of the screen. The screen also wasn't fully
-repainted right after the change. This is how a state's `display` behaves today, separate from the
-taskbar options; it needs its own look.
+repainted right after the change. A state's `display` behaved this way until PR #41 made it
+`persist=True`; the third probe below measures that.
+
+## Third probe: the tray re-hide spot, and a persisted display change (2026-11-23)
+
+`probe_taskbar_3.py`, run on `feat/desktop-options` with PR #41 merged in. Each case starts from a
+revert. CPU pressure `avg10` was 0.00 at the start and the end (38 s). Run twice with the same
+results.
+
+**Where to hide the tray again after `SetSysColors`.** The tray is hidden, then `SetSysColors` is
+called, then the tray is hidden again (a) before or (b) after `guest.sync()`, then `repaint_all`.
+Five runs of each:
+
+| Hidden again | Tray visible after the sync | After `repaint_all` | 2 s later |
+| --- | --- | --- | --- |
+| (a) before the sync | no, 5 of 5 | no, 5 of 5 | no, 5 of 5 |
+| (b) after the sync | yes, 5 of 5 (that is when it is hidden again) | no, 5 of 5 | no, 5 of 5 |
+
+(a) never lost in these runs. The design hides after the sync, which also holds.
+
+**A display change with `persist=True`**, with the buttons, clock and tray hidden first:
+
+| Mode | Buttons, clock | Tray | Taskbar rect | Work area |
+| --- | --- | --- | --- | --- |
+| 1024x768x16 | stay hidden | shows again straight away | (-2, 740, 1026, 770) | (0, 0, 1024, 740) |
+| 640x480x16 | stay hidden | shows again straight away | (-2, 452, 642, 482) | (0, 0, 640, 452) |
+
+The tray shows again after the persisted change, and hiding all three again holds for 2 s. So the
+second `prepare_desktop()` in `apply_state` is needed for the tray. (The second probe's
+`persist=False` change left it hidden.) A revert brings back all the parts and 800x600.

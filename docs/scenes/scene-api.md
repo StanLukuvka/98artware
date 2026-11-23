@@ -1,4 +1,3 @@
-<!-- FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 11-12). Check the flow before hand-editing. -->
 # Scene API
 
 Everything here comes from `from art98.anim import *`. For what you pass to `play`, see
@@ -178,13 +177,16 @@ back with `IsWindowVisible`, after a colour change and after a revert. The butto
 stayed hidden when a new window opened (the clock wasn't tried), and the clock stayed hidden after
 65 seconds. A second probe covered Quick Launch alone, settling the
 tray with `WM_SIZE`, and the wallpaper broadcast, which leaves the buttons, clock and tray hidden.
-A display change with `persist=False`, which is what a state file's `display` does today, leaves the
-hidden parts hidden and does not move the taskbar. At 640x480 and 1024x768 the parts hide and read
-back the same. 1280x1024 at 16 bit is not offered by the driver. Icons hidden on stock survive a
+A third probe covered a display change. A raw `set_display_mode(..., persist=False)` leaves the
+hidden parts hidden and does not move the taskbar. A state file's `display` uses `persist=True`,
+which moves the taskbar to the new bottom edge and shows the tray again; art98 hides it again when
+it applies the parts a second time. At 640x480 and 1024x768 the parts hide and read back the same. 1280x1024 at 16 bit is not offered by the driver. Icons hidden on stock survive a
 colour change, and `hide_pointer` works on stock, checked by screenshot.
 
-Not yet measured: a display change with `persist=True`, and a window opened after `buttons` is off
-at other resolutions.
+The VM tests check each part hidden, the tray after a `Backdrop`, the parts after `set_state`, and
+the parts and the taskbar's place after a state's `display` at 640x480 and 1024x768.
+
+Not yet measured: a window opened after `buttons` is off at other resolutions.
 
 ### Stage
 

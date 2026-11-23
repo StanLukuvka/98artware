@@ -1,4 +1,3 @@
-# FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 4, 7-8). Check the flow before hand-editing.
 """The blank start, against a fake guest that keeps the state apply_desktop() changes."""
 
 import itertools

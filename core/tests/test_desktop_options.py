@@ -1,4 +1,3 @@
-# FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Task 1). Check the flow before hand-editing.
 """The desktop tree: Desktop options resolved to Parts, with warning texts.
 
 Every case of the pure function is walked (2 presets x 3^7 options x 3

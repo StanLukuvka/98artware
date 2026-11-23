@@ -1,4 +1,3 @@
-# FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 4, 7-8). Check the flow before hand-editing.
 """Scene: a script for one recording of the desktop."""
 
 from __future__ import annotations

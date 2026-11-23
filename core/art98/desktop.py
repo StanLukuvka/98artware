@@ -1,4 +1,3 @@
-# FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Task 1). Check the flow before hand-editing.
 """The blank start: a black, empty screen on the restored desktop.
 
 The `ready` snapshot is the stock Windows 98 desktop: a teal background,

@@ -1,4 +1,3 @@
-<!-- FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 11-12). Check the flow before hand-editing. -->
 # Glossary
 
 The words art98 uses, in plain terms. Each one links to where it is explained in full.

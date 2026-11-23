@@ -1,4 +1,3 @@
-<!-- FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 11-12). Check the flow before hand-editing. -->
 # Blank start
 
 A scene starts on a black, empty 800 x 600 screen: no wallpaper colour, icons, taskbar or

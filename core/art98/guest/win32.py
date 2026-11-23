@@ -1,4 +1,3 @@
-# FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Task 2). Check the flow before hand-editing.
 """Win32 constants and small named helpers for calls the guest makes often.
 
 Raw `guest.user32.X(...)` stays fine anywhere; these only name the repeated ones.

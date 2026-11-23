@@ -1,4 +1,3 @@
-# FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Task 11). Check the flow before hand-editing.
 """A Manim-style layer over the bridge: `from art98.anim import *`.
 
 Names follow Manim where the meaning matches. Units do not: everything is in

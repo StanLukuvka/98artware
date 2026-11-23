@@ -1,4 +1,3 @@
-<!-- FLOW-PRODUCED: written by a LAD worker for .kiro/specs/desktop-taskbar-options/tasks.md (Tasks 11-12). Check the flow before hand-editing. -->
 # Design decisions
 
 This page explains the major choices behind art98: what was chosen, why, and the rule that
