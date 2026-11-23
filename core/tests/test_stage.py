@@ -121,7 +121,7 @@ def test_backdrop_colour_reads_back(booted, tmp_path):
     rgb = (200, 10, 30)
     session = booted
     guest = session.bridge
-    desktop.blank(guest)
+    desktop.apply_desktop(guest, desktop.BLANK_PARTS)
     desktop.set_colour(guest, rgb)
     guest.sync()
     assert guest.user32.GetSysColor(1).value & 0xFFFFFF == win32.colourref(rgb)
@@ -217,6 +217,175 @@ def test_state_display_moves_the_taskbar(booted, tmp_path, mode):
     session.revert()  # the registry write goes with the revert
     assert screen_size(guest) == (800, 600)
     assert window_rect(guest, shell_windows(guest)[0]) == (-2, 572, 802, 602)
+
+
+# ---- desktop options (.kiro/specs/desktop-taskbar-options, Task 10) ----
+
+# part -> the parts that read as hidden when it is off (a child is hidden under an off parent)
+_HIDDEN_WITH = {
+    "icons": {"icons"},
+    "taskbar": {"taskbar", "buttons", "quick_launch", "tray", "clock"},
+    "buttons": {"buttons"},
+    "quick_launch": {"quick_launch"},
+    "tray": {"tray", "clock"},
+    "clock": {"clock"},
+}
+_PARTS = tuple(_HIDDEN_WITH["taskbar"] | {"icons"})
+
+
+def _visible(guest):
+    """IsWindowVisible of each part that has a window, by name."""
+    from art98.desktop import shell_windows, taskbar_windows
+
+    taskbar, _desk, icons = shell_windows(guest)
+    found = {"icons": icons, "taskbar": taskbar, **taskbar_windows(guest, taskbar)}
+    return {
+        name: bool(hwnd and guest.user32.IsWindowVisible(hwnd).value)
+        for name, hwnd in found.items()
+    }
+
+
+def _run(session, tmp_path, desktop, construct, state=None):
+    """Render a real Scene with `desktop`; construct(scene, seen) fills `seen`."""
+    from art98.anim import Scene, render
+
+    seen = {}
+
+    class Probe(Scene):
+        def construct(self):
+            construct(self, seen)
+
+    Probe.desktop = desktop
+    scene = Probe()
+    scene.state = state
+    render(scene, tmp_path / "probe.mp4", session=session)
+    return seen
+
+
+def _read(scene, seen):
+    seen["parts"] = _visible(scene.guest)
+    seen["work_area"] = scene.work_area
+
+
+def _off(name):
+    from art98.anim import Desktop
+
+    return Desktop("stock", **{name: False})
+
+
+@pytest.mark.parametrize("off", list(_HIDDEN_WITH))
+def test_each_part_hidden_reads_back_after_run(booted, tmp_path, off):
+    seen = _run(
+        booted, tmp_path, _off(off), lambda s, out: (s.pause(0.3), _read(s, out))
+    )
+    assert seen["parts"] == {name: name not in _HIDDEN_WITH[off] for name in _PARTS}, (
+        seen["parts"]
+    )
+
+
+def test_a_window_opened_after_buttons_is_off_gets_no_button(booted, tmp_path):
+    from art98.anim import Dialog
+
+    def construct(scene, seen):
+        scene.add(Dialog("Late", "Opened after.", at=(100, 100), size=(300, 130)))
+        scene.pause(0.5)
+        _read(scene, seen)
+
+    seen = _run(booted, tmp_path, _off("buttons"), construct)
+    assert seen["parts"]["buttons"] is False
+    assert all(on for name, on in seen["parts"].items() if name != "buttons"), seen
+
+
+def test_the_work_area_is_the_stock_one_with_only_children_off(booted, tmp_path):
+    from art98.anim import Desktop
+
+    def construct(scene, seen):
+        scene.pause(0.3)
+        _read(scene, seen)
+
+    stock = _run(booted, tmp_path, Desktop("stock"), construct)["work_area"]
+    seen = _run(
+        booted,
+        tmp_path,
+        Desktop("stock", buttons=False, quick_launch=False, tray=False, clock=False),
+        construct,
+    )
+    assert stock == (0, 0, 800, 572)  # the taskbar is on, so not the whole screen
+    assert seen["work_area"] == stock
+    assert seen["parts"]["taskbar"] and not seen["parts"]["buttons"]
+
+
+def test_the_tray_stays_off_after_backdrop(booted, tmp_path):
+    # The gate: only the VM shows when Explorer re-shows the tray after SetSysColors.
+    from art98.anim import Backdrop, Desktop
+
+    def construct(scene, seen):
+        scene.pause(0.3)
+        scene.play(Backdrop((200, 10, 30)))
+        scene.pause(2.0)
+        _read(scene, seen)
+
+    seen = _run(booted, tmp_path, Desktop("stock", tray=False), construct)
+    assert seen["parts"] == {name: name not in {"tray", "clock"} for name in _PARTS}, (
+        seen["parts"]
+    )
+
+
+def test_the_parts_are_applied_again_after_set_state(booted, tmp_path):
+    import json
+
+    from art98.anim import Desktop
+
+    (tmp_path / "s.json").write_text(json.dumps({"version": 1}))
+
+    def construct(scene, seen):
+        scene.pause(0.3)
+        _read(scene, seen)
+        seen["before"] = seen.pop("parts")
+        scene.set_state(tmp_path / "s.json")  # a revert, then the parts again
+        scene.pause(0.3)
+        _read(scene, seen)
+
+    seen = _run(
+        booted, tmp_path, Desktop("stock", tray=False, buttons=False), construct
+    )
+    want = {name: name not in {"tray", "clock", "buttons"} for name in _PARTS}
+    assert seen["before"] == want, seen["before"]
+    assert seen["parts"] == want, seen["parts"]
+
+
+@pytest.mark.parametrize("mode", [(640, 480, 16), (1024, 768, 16)])
+def test_state_display_keeps_the_parts_off_and_moves_the_taskbar(
+    booted, tmp_path, mode
+):
+    import json
+
+    from art98.anim import Desktop
+    from art98.desktop import shell_windows
+    from art98.guest.win32 import window_rect
+
+    width, height = mode[:2]
+    (tmp_path / "s.json").write_text(json.dumps({"version": 1, "display": mode}))
+
+    def construct(scene, seen):
+        scene.pause(0.3)
+        _read(scene, seen)
+        seen["rect"] = window_rect(scene.guest, shell_windows(scene.guest)[0])
+
+    # tray (and so the clock) and the buttons off; the icons, taskbar and quick launch on
+    seen = _run(
+        booted,
+        tmp_path,
+        Desktop("stock", tray=False, buttons=False),
+        construct,
+        state=tmp_path / "s.json",
+    )
+    assert seen["parts"] == {
+        name: name not in {"tray", "clock", "buttons"} for name in _PARTS
+    }, seen["parts"]
+    # Measured on the image: the taskbar is 30 tall, 2 past each screen edge.
+    assert seen["rect"] == (-2, height - 28, width + 2, height + 2)
+    assert seen["work_area"] == (0, 0, width, height - 28)
 
 
 def test_same_title_dialogs(booted):

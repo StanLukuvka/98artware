@@ -33,6 +33,12 @@ written for 0.2.0 needs edits; see "Changed" and "Removed".
 - `RightClick(target, menu=False)` for a right click that opens no menu, such as a flag in
   Minesweeper.
 - `UntrackedWindow`, `ImplicitClose` and `SectionNotFound` errors.
+- `Desktop` sets which parts of the desktop show: `icons`, `pointer`, `taskbar`, `buttons`,
+  `quick_launch`, `tray` and `clock`. `desktop = "blank"` and `"stock"` are presets of it, so
+  `Desktop("blank", taskbar=True, buttons=False)` is a black desktop with a taskbar. An option that
+  is off hides the ones under it (`taskbar` over `buttons`, `quick_launch` and `tray`; `tray` over
+  `clock`), and writing one of those gives a warning. The options are applied after every revert
+  and survive a colour change. See [Desktop options](docs/scenes/scene-api.md#desktop-options).
 
 ### Changed
 
@@ -49,6 +55,7 @@ written for 0.2.0 needs edits; see "Changed" and "Removed".
   names that file. A capture written by an earlier build has no file records, so it is refused
   and must be rendered again with a full `art98 render` (breaking). See
   [Sections](docs/scenes/scene-api.md#sections).
+- A `Desktop` that sets `pointer` makes `pointer_visible` ignored, with a warning.
 
 ### Removed
 

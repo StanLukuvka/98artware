@@ -26,9 +26,11 @@ Not checked: a clean reboot, daylight-saving prompts, and idling for longer than
 
 ## How the blank screen is made
 
-`blank(guest)` runs right after every revert, for each scene whose `desktop` is `"blank"`, the
+`apply_desktop` runs right after every revert, for each scene whose `desktop` is `"blank"`, the
 default. Each step changes memory only, so the `ready` snapshot stays as it is and the next revert
 undoes it all. None of it needs Explorer restarted. It takes about 0.4 s.
+
+Blank is now a preset of [`Desktop`](../scenes/scene-api.md#desktop-options), and the steps below are the same as before.
 
 | Step | Call | Notes |
 | --- | --- | --- |

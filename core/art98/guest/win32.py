@@ -17,6 +17,14 @@ from .protocol import Out
 WM_SETTEXT, WM_GETTEXT, WM_GETTEXTLENGTH, WM_CLOSE = 0x000C, 0x000D, 0x000E, 0x0010
 WM_SYSCOMMAND = 0x0112
 WM_CHAR = 0x0102
+WM_SIZE = 0x0005
+# taskbar window classes
+TASKBAR_CLASS = "Shell_TrayWnd"
+REBAR_CLASS = "ReBarWindow32"
+QUICK_LAUNCH_CLASS = "ToolbarWindow32"
+BUTTONS_CLASS = "MSTaskSwWClass"
+TRAY_CLASS = "TrayNotifyWnd"
+CLOCK_CLASS = "TrayClockWClass"
 BM_CLICK = 0x00F5  # a button's press-and-release, as its own click would send
 BM_SETSTATE = 0x00F3  # wParam 1 draws a button pressed, 0 draws it up again
 VK_BACK = 8
