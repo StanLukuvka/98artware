@@ -191,6 +191,35 @@ def test_state_with_wallpaper(booted, tmp_path):
         assert near(_pixel(session, tmp_path, 5, 5), (0, 128, 128))
 
 
+@pytest.mark.parametrize("mode", [(640, 480, 16), (1024, 768, 16)])
+def test_state_display_moves_the_taskbar(booted, tmp_path, mode):
+    import json
+
+    from art98.anim import Scene
+    from art98.desktop import shell_windows
+    from art98.guest.win32 import screen_size, window_rect, work_area
+
+    (tmp_path / "s.json").write_text(json.dumps({"version": 1, "display": mode}))
+    session = booted
+    scene = Scene()
+    scene.desktop = "stock"
+    scene.session, scene.guest, scene.vm = session, session.bridge, session.vm
+    scene.set_state(tmp_path / "s.json")
+    guest = session.bridge
+    width, height = mode[:2]
+    # The stock taskbar is 30 pixels tall, 2 of them past each screen edge.
+    assert window_rect(guest, shell_windows(guest)[0]) == (
+        -2,
+        height - 28,
+        width + 2,
+        height + 2,
+    )
+    assert scene.work_area == work_area(guest) == (0, 0, width, height - 28)
+    session.revert()  # the registry write goes with the revert
+    assert screen_size(guest) == (800, 600)
+    assert window_rect(guest, shell_windows(guest)[0]) == (-2, 572, 802, 602)
+
+
 def test_same_title_dialogs(booted):
     from art98.anim import Dialog, Scene
     from art98.guest import win32

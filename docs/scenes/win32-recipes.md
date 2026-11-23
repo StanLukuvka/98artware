@@ -1155,6 +1155,11 @@ win32.set_display_mode(g, 800, 600, 16, persist=False)
 
 `persist=True`, the default, writes the mode to the registry. Program exits that restore "the
 default mode" then land on that mode. 3D Maze does this, see [screensavers](#screensavers).
+Explorer also moves the taskbar only for a persisted mode. With `persist=False` the taskbar keeps
+its old rect, and sending it `WM_DISPLAYCHANGE`, `WM_SIZE` or `WM_SETTINGCHANGE` doesn't move it.
+A revert undoes the registry write.
+
+640 x 480 at 4 bits per pixel needs a restart, so `set_display_mode` raises `BridgeError` for it.
 
 List the modes yourself with `EnumDisplaySettingsA`. A `DEVMODE` is 156 bytes, its `dmSize` field
 is at 36, and depth, width and height are at 104.

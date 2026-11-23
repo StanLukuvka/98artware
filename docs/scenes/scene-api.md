@@ -266,6 +266,12 @@ The modes the Cirrus driver offers are listed under [Display](../setup/image.md#
 1280x720 and 1920x1080 are not offered, so they are not supported. They would need another
 display adapter in the image.
 
+A state's `display` writes the mode to the registry, as the Display control panel does, so the
+taskbar moves to the new bottom edge and `scene.space` gets the work area above it. The next
+revert brings back 800x600 and the old registry value. A raw
+`set_display_mode(..., persist=False)` changes only the screen: Explorer leaves the taskbar where
+the old mode had it, so at 1024x768 it floats mid-screen and at 640x480 it is off the bottom.
+
 ### States
 
 A state file describes the desktop: the display mode, its colour and wallpaper, the windows,
