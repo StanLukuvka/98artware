@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import struct
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -346,6 +347,65 @@ def test_a_bad_state_fails_before_the_desktop_is_reverted(guest, folder):
         run(guest, Bad)
     assert not isinstance(caught.value, StateMismatch)
     assert guest.spawned == []
+
+
+MODES = [(16, 640, 480), (16, 800, 600), (16, 1024, 768)]  # DEVMODE order: depth first
+
+
+class GuestWithModes(GuestWithFiles):
+    """Adds the driver's display modes and a work area that follows the screen."""
+
+    def __init__(self):
+        super().__init__()
+        self.mode_changes = []
+
+    def revert(self):
+        super().revert()
+        self.display = (800, 600, 16)
+
+    def do_EnumDisplaySettingsA(self, device, index, blank):
+        if index >= len(MODES):
+            return CallResult(0, 0, [])
+        blob = bytearray(blank)
+        struct.pack_into("<III", blob, 104, *MODES[index])
+        return CallResult(1, 0, [bytes(blob)])
+
+    def do_ChangeDisplaySettingsA(self, devmode, flags):
+        depth, width, height = struct.unpack_from("<III", devmode, 104)
+        self.mode_changes.append(((width, height, depth), flags))
+        self.display = (width, height, depth)
+        return CallResult(0, 0, [])
+
+    def do_SystemParametersInfoA(self, action, value, out, flags):
+        width, height = self.display[:2]
+        return CallResult(1, 0, [struct.pack("<iiii", 0, 0, width, height - 28)])
+
+
+@pytest.mark.parametrize("mode", [(640, 480, 16), (1024, 768, 16)])
+def test_a_state_display_mode_is_persisted_so_the_taskbar_moves(folder, mode):
+    # Explorer moves the taskbar only for a mode written to the registry
+    # (CDS_UPDATEREGISTRY, flags 1); the next revert undoes the write.
+    guest = GuestWithModes()
+    path = state_file(folder, display=list(mode), pointer=[300, 200])
+
+    class Hold(Scene):
+        state = path
+
+    scene, _ = run(guest, Hold)
+    assert guest.mode_changes == [(mode, 1)]
+    width, height = mode[:2]
+    assert scene.work_area == (0, 0, width, height - 28)
+
+
+def test_a_state_in_the_current_mode_leaves_the_display_alone(folder):
+    guest = GuestWithModes()
+    path = state_file(folder, display=[800, 600, 16])
+
+    class Hold(Scene):
+        state = path
+
+    run(guest, Hold)
+    assert guest.mode_changes == []
 
 
 def test_a_guest_that_does_not_match_says_how(guest, folder):

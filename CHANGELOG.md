@@ -55,6 +55,15 @@ written for 0.2.0 needs edits; see "Changed" and "Removed".
 - `Scene.next_section(name)`. Use `self.section(name, method)`, or `self.cut()` for a clip with no
   state to start from.
 
+### Fixed
+
+- A state's `display` now moves the taskbar to the new bottom edge, and `scene.space` gets the
+  work area above it. The mode is written to the registry, as the Display control panel does, and
+  the next revert undoes the write. Before, the taskbar stayed at its 800x600 place: mid-screen at
+  1024x768, and off the bottom at 640x480.
+- `set_display_mode` raises `BridgeError` for a mode that takes effect only after a restart
+  (640x480 at 4 bits per pixel), instead of returning as if it had switched.
+
 ## [0.2.0] - 2026-11-16
 
 A clean-up release: the containers run from a committed `compose.yaml`, the library is regrouped
