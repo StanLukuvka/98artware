@@ -189,7 +189,7 @@ What happens when it runs:
    desktop is touched, and a mismatch stops with each difference. A Set takes about 1.5 s, and
    none of it is filmed.
 2. **A blank start.** The desktop is cleared to plain black, with no icons, taskbar or pointer,
-   so only what the scene puts there shows. `desktop = "stock"` keeps the normal Windows
+   so only what the scene puts there shows. `desktop = Desktop("stock")` keeps the normal Windows
    desktop. See [Blank start](docs/design/blank-start.md).
 3. **Actions.** `play` moves real windows, and each frame waits for the guest to repaint before
    it is captured. `self.guest` is the raw link to the agent, so any Win32 call can sit between

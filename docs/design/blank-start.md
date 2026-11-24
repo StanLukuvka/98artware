@@ -26,8 +26,8 @@ Not checked: a clean reboot, daylight-saving prompts, and idling for longer than
 
 ## How the blank screen is made
 
-`apply_desktop` runs right after every revert, for each scene whose `desktop` is `"blank"`, the
-default. Each step changes memory only, so the `ready` snapshot stays as it is and the next revert
+`apply_desktop` runs right after every revert, for each scene whose `Desktop` uses the blank
+preset, the default. Each step changes memory only, so the `ready` snapshot stays as it is and the next revert
 undoes it all. None of it needs Explorer restarted. It takes about 0.4 s.
 
 Blank is now a preset of [`Desktop`](../scenes/scene-api.md#desktop-options), and the steps below are the same as before.
@@ -41,14 +41,14 @@ Blank is now a preset of [`Desktop`](../scenes/scene-api.md#desktop-options), an
 | No desktop menu | `EnableWindow(Progman, FALSE)` | Without this, a right-click on the black opens the desktop menu. |
 | Full work area | `SPI_SETWORKAREA` to the whole screen | A maximized window covers all 800 x 600. `scene.screen` measures the whole screen. The desktop space is read after this step, so `scene.space` has the whole screen too. |
 | No interface effects | `SPI_SETMENUANIMATION`, `SPI_SETCOMBOBOXANIMATION`, `SPI_SETLISTBOXSMOOTHSCROLLING`, `SPI_SETGRADIENTCAPTIONS`, `SPI_SETHOTTRACKING`, all off | Their timing comes from the guest's clock. Prep was meant to turn them off; see [below](#prep-changes-not-made). |
-| No pointer | Every system pointer shape swapped for an empty one with `SetSystemCursor` | `ShowCursor(FALSE)` doesn't hide it on Windows 98. Skipped when `pointer_visible` is True. |
+| No pointer | Every system pointer shape swapped for an empty one with `SetSystemCursor` | `ShowCursor(FALSE)` doesn't hide it on Windows 98. Skipped when the `Desktop` shows the pointer (`Desktop(pointer=True)`). |
 
 `blank` then reads everything back except the pointer and raises `DesktopError` listing what
 didn't take.
 
 ### The pointer is chosen once per desktop
 
-A scene sets `pointer_visible` and can't switch it partway through. Swapping the shapes again
+A scene's `Desktop` sets the pointer and it can't be switched partway through. The desktop is resolved once when `run` starts, and changing it during a run is an error. Swapping the shapes again
 after the first swap was tested on the real image, and Windows 98 kept drawing the old shape until
 the pointer moved to a new spot and stayed there. Moving it away and back didn't help, even with
 a 300 ms pause, and nor did `SetCursor`, `WM_SETCURSOR` or reloading the shapes with
@@ -67,7 +67,7 @@ A scene run on a private copy, 2026-11-10, CPU pressure `some avg10` 0.00 to 0.3
 - after `set_state` with two picture windows, everything outside the windows is black;
 - a maximized window covers the whole screen, and the desktop stays blank after a window
   closes;
-- with `pointer_visible = True`, only the arrow shows, before and after `set_state`.
+- with `Desktop(pointer=True)`, only the arrow shows, before and after `set_state`.
 
 ## The first frame
 

@@ -3,13 +3,14 @@
 import itertools
 import json
 import struct
+import sys
 import warnings
 from dataclasses import replace
 
 import pytest
 from art98 import desktop
 from art98.anim import Backdrop, Scene
-from art98.errors import GuestError
+from art98.errors import GuestError, UsageError
 from art98.guest import win32
 from art98.guest.bridge import CallResult
 from test_anim import FakeGuest, FakeSession, FakeVideo, Stage
@@ -26,6 +27,9 @@ CHILD_PARENT = {
 }
 EMPTY = 0x900
 EFFECT_GETS = {get: set_ for _name, get, set_ in desktop.UI_EFFECTS}
+
+
+Desktop = desktop.Desktop
 
 
 class DesktopGuest(FakeGuest):
@@ -252,7 +256,7 @@ def test_check_parts_reports_a_missing_shell():
 
 
 class Blank(Scene):
-    desktop = "blank"
+    desktop = Desktop()
 
     def construct(self):
         self.seen = (self.work_area, self.screen.rect)
@@ -270,7 +274,7 @@ def test_a_scene_starts_blank_and_measures_the_whole_screen():
 
 def test_a_scene_hides_the_pointer_unless_it_wants_it():
     class Pointed(Blank):
-        pointer_visible = True
+        desktop = Desktop(pointer=True)
 
     hidden, shown = DesktopGuest(), DesktopGuest()
     Blank().run(FakeSession(hidden), FakeVideo(hidden))
@@ -282,7 +286,7 @@ def test_a_scene_hides_the_pointer_unless_it_wants_it():
 
 def test_a_stock_scene_leaves_the_desktop_alone():
     class Stock(Blank):
-        desktop = "stock"
+        desktop = Desktop("stock")
 
     guest = DesktopGuest()
     Stock().run(FakeSession(guest), FakeVideo(guest))
@@ -291,24 +295,45 @@ def test_a_stock_scene_leaves_the_desktop_alone():
     assert guest.named("SetSysColors") == []
 
 
-def test_an_unknown_desktop_is_refused_where_the_class_is_defined():
-    with pytest.raises(ValueError, match="Odd.desktop 'teal'"):
+def test_a_string_desktop_is_refused_where_the_class_is_defined():
+    with pytest.raises(UsageError) as caught:
+
+        class Old(Blank):
+            desktop = "stock"
+
+    assert caught.value.args[0] == 'Old.desktop = "stock": write Desktop("stock")'
+
+
+def test_a_teal_desktop_is_refused_where_the_class_is_defined():
+    with pytest.raises(UsageError) as caught:
 
         class Odd(Blank):
             desktop = "teal"
 
+    assert caught.value.args[0] == "Odd.desktop 'teal': use a Desktop(...)"
 
-def test_an_unknown_desktop_set_on_an_instance_is_refused_at_run():
+
+def test_a_string_desktop_set_on_an_instance_is_refused_at_run_before_any_guest_call():
+    scene = Blank()
+    scene.desktop = "stock"
+    guest = traced(DesktopGuest())
+    with pytest.raises(UsageError) as caught:
+        scene.run(FakeSession(guest), FakeVideo(guest))
+    assert caught.value.args[0] == 'Blank.desktop = "stock": write Desktop("stock")'
+    assert guest.calls == []
+
+
+def test_a_teal_desktop_set_on_an_instance_is_refused_at_run():
     scene = Blank()
     scene.desktop = "teal"
     guest = DesktopGuest()
-    with pytest.raises(ValueError, match="desktop 'teal'"):
+    with pytest.raises(UsageError, match="Blank.desktop 'teal': use a Desktop"):
         scene.run(FakeSession(guest), FakeVideo(guest))
 
 
 def test_scenes_start_blank_unless_told_otherwise(monkeypatch):
     monkeypatch.undo()
-    assert Scene.desktop == "blank"
+    assert Scene.desktop == Desktop()
 
 
 CHILD_HANDLE = {
@@ -323,7 +348,7 @@ CHILD_HANDLE = {
 def test_hiding_one_part_on_stock_leaves_the_rest(part):
     if part == "taskbar":
         parts = desktop.resolve_desktop(
-            desktop.Desktop("stock", taskbar=False), "T.desktop", None
+            desktop.Desktop("stock", taskbar=False), "T.desktop"
         )[0]
     else:
         parts = replace(desktop.STOCK_PARTS, **{part: False})
@@ -382,7 +407,7 @@ def test_stock_with_the_pointer_off_hides_the_pointer_once():
 def test_blank_with_the_taskbar_on_keeps_the_taskbar():
     guest = DesktopGuest()
     parts = desktop.resolve_desktop(
-        desktop.Desktop("blank", taskbar=True), "T.desktop", None
+        desktop.Desktop("blank", taskbar=True), "T.desktop"
     )[0]
     desktop.apply_desktop(guest, parts)
     assert guest.do_IsWindowVisible(TASKBAR).value == 1
@@ -503,7 +528,7 @@ def test_every_resolved_parts_applies_and_checks_twice():
     for preset in ("blank", "stock"):
         for values in itertools.product((None, True, False), repeat=7):
             parts = desktop.resolve_desktop(
-                desktop.Desktop(preset, **dict(zip(options, values))), "T.desktop", None
+                desktop.Desktop(preset, **dict(zip(options, values))), "T.desktop"
             )[0]
             distinct.setdefault(parts, (preset, values))
     assert len(distinct) > 20
@@ -583,8 +608,6 @@ def test_a_backdrop_keeps_the_tray_hidden():
 
 # ---- the scene wiring: refusals, warnings and the parts a run applies ----
 
-Desktop = desktop.Desktop
-
 CLOCK_TEXT = (
     "{name}.desktop: clock=True has no effect, because tray is off (tray=False). "
     "Remove clock=True, or write tray=True."
@@ -603,8 +626,8 @@ def defined_warnings(make):
     return caught
 
 
-def test_a_desktop_that_is_not_a_preset_or_desktop_is_refused():
-    with pytest.raises(ValueError, match="Odd.desktop 5"):
+def test_a_desktop_that_is_not_a_desktop_is_refused():
+    with pytest.raises(ValueError, match=r"Odd.desktop 5: use a Desktop\(\.\.\.\)"):
 
         class Odd(Blank):
             desktop = 5
@@ -625,13 +648,14 @@ def test_a_non_bool_option_is_refused_naming_the_class(bad):
 
 
 def test_a_clock_under_a_hidden_tray_warns_where_the_class_is_defined():
+    line = sys._getframe().f_lineno + 3  # the `class` line below
     with pytest.warns(UserWarning) as caught:
 
         class NoTray(Blank):
             desktop = Desktop("stock", tray=False, clock=True)
 
     assert [str(w.message) for w in caught] == [CLOCK_TEXT.format(name="NoTray")]
-    assert caught[0].filename == __file__
+    assert (caught[0].filename, caught[0].lineno) == (__file__, line)
 
 
 def test_buttons_under_a_hidden_taskbar_warn_with_the_author_s_option():
@@ -669,43 +693,67 @@ def test_a_warning_shows_once_per_class_and_a_subclass_does_not_repeat_it():
     assert [str(w.message) for w in caught] == [CLOCK_TEXT.format(name="Once")]
 
 
-def test_a_subclass_setting_only_the_pointer_gets_no_override_warning():
-    def make():
-        class Parent(Blank):
-            desktop = Desktop("stock", tray=False, clock=True)
+def test_a_class_that_sets_pointer_visible_is_refused_naming_the_new_form():
+    with pytest.raises(UsageError) as caught:
 
-        class Child(Parent):
+        class Old(Blank):
             pointer_visible = True
 
-    caught = defined_warnings(make)
-    assert [str(w.message) for w in caught] == [CLOCK_TEXT.format(name="Parent")]
+    assert caught.value.args[0] == (
+        "Old.pointer_visible: removed. Write desktop = Desktop(pointer=True)"
+    )
 
 
-def test_a_pointer_visible_the_desktop_overrides_warns_at_the_class():
-    with pytest.warns(UserWarning, match=r"Hover\.pointer_visible = True") as caught:
+def test_an_instance_that_sets_pointer_visible_is_refused_at_run_before_any_guest_call():
+    scene = Blank()
+    scene.pointer_visible = True
+    guest = traced(DesktopGuest())
+    with pytest.raises(UsageError) as caught:
+        scene.run(FakeSession(guest), FakeVideo(guest))
+    assert caught.value.args[0] == (
+        "Blank.pointer_visible: removed. Write desktop = Desktop(pointer=True)"
+    )
+    assert guest.calls == []
 
-        class Hover(Blank):
-            desktop = Desktop("blank", pointer=False)
-            pointer_visible = True
 
-    assert len(caught) == 1
+def test_a_mixin_with_pointer_visible_is_refused_where_the_class_is_defined():
+    class Mixin:
+        pointer_visible = True
+
+    with pytest.raises(UsageError) as caught:
+
+        class Old(Mixin, Blank):
+            pass
+
+    assert caught.value.args[0] == (
+        "Old.pointer_visible: removed. Write desktop = Desktop(pointer=True)"
+    )
 
 
-def test_a_subclass_that_sets_pointer_visible_against_an_inherited_desktop_warns():
-    class Parent(Blank):
-        desktop = Desktop("blank", pointer=False)
+def test_a_class_attribute_set_after_definition_is_refused_at_run_before_any_guest_call():
+    class Late(Blank):
+        pass
 
-    with pytest.warns(UserWarning, match=r"Child\.pointer_visible = True"):
+    Late.pointer_visible = True
+    guest = traced(DesktopGuest())
+    with pytest.raises(UsageError) as caught:
+        Late().run(FakeSession(guest), FakeVideo(guest))
+    assert caught.value.args[0] == (
+        "Late.pointer_visible: removed. Write desktop = Desktop(pointer=True)"
+    )
+    assert guest.calls == []
 
-        class Child(Parent):
-            pointer_visible = True
+
+def test_scene_itself_does_not_trip_the_retired_check():
+    assert "pointer_visible" not in vars(Scene)
+    assert not hasattr(Scene, "pointer_visible")
 
 
 @pytest.mark.parametrize(
     "value",
     [
-        "stock",
-        "blank",
+        Desktop("stock"),
+        Desktop(),
         Desktop("stock", clock=False),
         Desktop("blank", taskbar=True, buttons=False),
     ],
@@ -718,34 +766,15 @@ def test_a_preset_alone_or_an_override_that_takes_effect_does_not_warn(value):
     assert defined_warnings(make) == []
 
 
-def test_pointer_visible_false_on_stock_does_not_warn():
-    def make():
-        class Quiet(Blank):
-            desktop = "stock"
-            pointer_visible = False
-
-    assert defined_warnings(make) == []
-
-
 def test_an_instance_that_sets_a_dead_option_warns_at_run_naming_the_class():
     scene = Blank()
     scene.desktop = Desktop("stock", tray=False, clock=True)
     guest = DesktopGuest()
+    line = sys._getframe().f_lineno + 2  # the `run` line below
     with pytest.warns(UserWarning) as caught:
         scene.run(FakeSession(guest), FakeVideo(guest))
     assert [str(w.message) for w in caught] == [CLOCK_TEXT.format(name="Blank")]
-    assert caught[0].filename == __file__
-
-
-def test_an_instance_that_sets_pointer_visible_against_the_desktop_warns_at_run():
-    class Hidden(Blank):
-        desktop = Desktop("blank", pointer=False)
-
-    scene = Hidden()
-    scene.pointer_visible = True
-    guest = DesktopGuest()
-    with pytest.warns(UserWarning, match=r"Hidden\.pointer_visible = True"):
-        scene.run(FakeSession(guest), FakeVideo(guest))
+    assert (caught[0].filename, caught[0].lineno) == (__file__, line)
 
 
 def test_a_class_that_warned_does_not_warn_again_at_run():
@@ -770,17 +799,6 @@ def test_the_render_goes_on_after_a_warning_with_the_effective_parts():
     Goes().run(FakeSession(guest), FakeVideo(guest))
     assert TRAY in guest.hidden_parts
     assert CLOCK not in guest.hidden_parts  # the tray's hide covers it
-    assert guest.visible == {TASKBAR, ICONS}
-
-
-def test_pointer_visible_on_stock_changes_nothing():
-    class Stock(Blank):
-        desktop = "stock"
-        pointer_visible = True
-
-    guest = DesktopGuest()
-    Stock().run(FakeSession(guest), FakeVideo(guest))
-    assert guest.named("SetSystemCursor") == []
     assert guest.visible == {TASKBAR, ICONS}
 
 
@@ -889,3 +907,98 @@ def test_get_state_writes_no_part_fields_for_a_scene_with_parts_off(tmp_path):
     part_fields = {"tray", "clock", "buttons", "quick_launch", "taskbar", "icons"}
     assert not part_fields & set(written)
     assert not part_fields & set(written["desktop"])
+
+
+# ---- the desktop is resolved once per run ----
+
+
+def counting_resolves(monkeypatch):
+    from art98.anim import scene as scene_module
+
+    seen = []
+    real = scene_module.resolve_desktop
+
+    def counted(value, owner):
+        seen.append(value)
+        return real(value, owner)
+
+    monkeypatch.setattr(scene_module, "resolve_desktop", counted)
+    return seen
+
+
+def test_a_run_resolves_the_desktop_once_even_with_a_display_change(monkeypatch):
+    from art98 import state as state_module
+    from art98.anim import setstate
+
+    class Mode(Blank):
+        desktop = Desktop("stock", buttons=False)
+
+        def construct(self):
+            setstate.apply_state(
+                self,
+                state_module.State(
+                    path=None, display=(640, 480, 16), windows=(), pointer=None
+                ),
+            )
+
+    monkeypatch.setattr(setstate, "display_mode", lambda guest: (800, 600, 16))
+    monkeypatch.setattr(setstate, "set_display_mode", lambda *a, **k: None)
+    seen = counting_resolves(monkeypatch)
+    guest = DesktopGuest()
+    Mode().run(FakeSession(guest), FakeVideo(guest))
+    assert len(seen) == 1
+
+
+def test_a_desktop_changed_during_a_run_is_refused():
+    class Changes(Blank):
+        def construct(self):
+            self.desktop = Desktop("stock")
+            self.prepare_desktop()
+
+    guest = DesktopGuest()
+    with pytest.raises(UsageError) as caught:
+        Changes().run(FakeSession(guest), FakeVideo(guest))
+    assert caught.value.args[0] == (
+        "Changes.desktop changed during the run. Set it before run"
+    )
+
+
+def test_a_second_run_resolves_again(monkeypatch):
+    seen = counting_resolves(monkeypatch)
+    scene = Blank()
+    scene.run(FakeSession(DesktopGuest()), FakeVideo(DesktopGuest()))
+    assert len(seen) == 1
+    scene.desktop = Desktop("stock")
+    guest = DesktopGuest()
+    scene.run(FakeSession(guest), FakeVideo(guest))
+    assert len(seen) == 2
+    assert guest.visible == {TASKBAR, ICONS}  # the new desktop, not the first run's
+
+
+def test_a_failed_run_clears_the_resolved_desktop():
+    class Fails(Blank):
+        def construct(self):
+            assert self._resolved is not None
+            raise RuntimeError("boom")
+
+    scene = Fails()
+    guest = DesktopGuest()
+    with pytest.raises(RuntimeError):
+        scene.run(FakeSession(guest), FakeVideo(guest))
+    assert scene._resolved is None
+
+
+def test_a_finished_run_clears_the_resolved_desktop():
+    scene = Blank()
+    guest = DesktopGuest()
+    scene.run(FakeSession(guest), FakeVideo(guest))
+    assert scene._resolved is None
+
+
+def test_prepare_desktop_outside_a_run_resolves_on_the_spot():
+    scene = Blank()
+    guest = DesktopGuest()
+    scene.guest = guest
+    scene.prepare_desktop()
+    assert guest.visible == set()
+    assert scene._resolved is None

@@ -4,7 +4,7 @@ from art98.anim import *
 
 
 class MenusKeys(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         pad = Notepad(at=(130, 80), size=(460, 300))

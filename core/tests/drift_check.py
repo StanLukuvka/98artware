@@ -10,7 +10,15 @@ import time
 from pathlib import Path
 
 from art98.actions.window.win import Win
-from art98.anim import Maximize, Minimize, Notepad, RestoreWindow, Scene, Teleport
+from art98.anim import (
+    Desktop,
+    Maximize,
+    Minimize,
+    Notepad,
+    RestoreWindow,
+    Scene,
+    Teleport,
+)
 from art98.guest.win32 import RDW_REPAINT_ALL, cursor_pos, show_state, window_rect
 from art98.output.recorder import Recorder
 
@@ -18,7 +26,7 @@ from art98.output.recorder import Recorder
 class Commands(Scene):
     """Maximize, restore, teleport and minimize: Windows moves the window, Python only asks."""
 
-    desktop = "blank"
+    desktop = Desktop()
 
     def construct(self):
         pad = Notepad(at=(100, 80), size=(320, 220))

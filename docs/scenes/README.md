@@ -35,7 +35,7 @@ from art98.anim import *
 
 
 class Hello(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         pad = Notepad(at=(100, 60), size=(420, 260))

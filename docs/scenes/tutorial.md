@@ -60,7 +60,7 @@ from art98.anim import *
 
 class First(Scene):
     state = "states/desk.json"
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         flower, note = self.prop("flower"), self.prop("note")
@@ -89,9 +89,9 @@ What the lines do:
 - `Teleport` moves a window in one frame.
 - `self.pause(1)` holds the last frame for one second.
 
-Unlike `hello.py`, which sets `desktop = "stock"`, this video starts on a black screen: no icons
-and no taskbar. Only what the state puts there shows. `pointer_visible = True` shows the pointer,
-and `desktop = "stock"` gives the Windows 98 desktop as it is. See [Blank start](../design/blank-start.md).
+Unlike `hello.py`, which sets `desktop = Desktop("stock")`, this video starts on a black screen: no
+icons and no taskbar. Only what the state puts there shows. `desktop = Desktop(pointer=True)` shows
+the pointer, and `Desktop("stock")` gives the Windows 98 desktop as it is. See [Blank start](../design/blank-start.md).
 
 ## States
 
@@ -158,7 +158,7 @@ from art98.anim import *
 
 
 class UseTheMouse(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         pad = Notepad(at=(120, 100), size=(420, 260))
@@ -185,7 +185,7 @@ from art98.anim import *
 
 
 class Draw(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         paint = Paint(at=(120, 40), size=(520, 480))

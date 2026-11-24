@@ -17,8 +17,7 @@ Subclass it and write `construct`. One scene is one recording.
 | Attribute | Meaning |
 | --- | --- |
 | `output_fps` | Frames per second of the finished video: set it to match your edit timeline (24, 30, 60). It is not a capture or run rate. Default 30. |
-| `desktop` | A preset or a [`Desktop`](#desktop-options). `"blank"`, the default: a black screen with no icons, taskbar or Start menu, and the work area the whole screen. `"stock"`: the Windows 98 desktop as the `ready` snapshot has it. `Desktop("stock", clock=False)` writes single parts over a preset. Any of them is set again after every revert. See [Desktop options](#desktop-options) and [Blank start](../design/blank-start.md). |
-| `pointer_visible` | On a blank desktop, whether the pointer is drawn. Default `False`. It still moves and clicks either way. Paint's tools still draw their own pointer over the canvas. It can't change partway through a scene. The stock desktop always draws it. It maps onto the `pointer` part of a [`Desktop`](#desktop-options); when one writes `pointer` and the two disagree, the `Desktop` wins, with a warning. The warning also fires for a class that sets only `pointer_visible` against an inherited `Desktop(pointer=...)`; see [Warnings](#warnings). |
+| `desktop` | A [`Desktop`](#desktop-options), and nothing else: a string is refused. `Desktop()`, the default, is the blank preset: a black screen with no icons, taskbar, pointer or Start menu, and the work area the whole screen. `Desktop("stock")` is the Windows 98 desktop as the `ready` snapshot has it, pointer included. `Desktop(pointer=True)` is blank with the pointer drawn, and `Desktop("stock", clock=False)` writes single parts over a preset. It is resolved once when `run` starts and set again after every revert; changing it during a run is an error. See [Desktop options](#desktop-options) and [Blank start](../design/blank-start.md). |
 | `state` | A [state file](#states) to set the desktop to before `setup`. Default `None`, the plain desktop. |
 | `guest` | The raw [`Bridge`](bridge.md). |
 | `vm` | The QEMU `VM`, for real key presses and captures. |
@@ -41,25 +40,27 @@ Subclass it and write `construct`. One scene is one recording.
 `Scene.render(output=None, *, session, **options)` plays the scene on a session from
 `art98.attach()` and renders from Python. The options are those of [`render`](#rendering).
 
-A scene class that still sets the retired `clock` attribute is refused when the class is
-defined, with a `UsageError` saying why.
+A scene that has the retired `pointer_visible` attribute is refused with a `UsageError` that says
+to write `desktop = Desktop(pointer=True)`. The check runs when the class is defined (the class
+itself, or a mixin it inherits from) and at the start of `run` (an instance, or a class attribute
+added after the definition). It does not see one set during `construct`.
 
 ### Desktop options
 
-`desktop` takes a preset name or a `Desktop`. A preset is a starting point; a `Desktop` names a
-preset and then writes single parts over it.
+`desktop` takes a `Desktop`. A preset is a starting point; a `Desktop` names a preset and then
+writes single parts over it.
 
 `Desktop(preset="blank", *, icons=None, pointer=None, taskbar=None, buttons=None,
 quick_launch=None, tray=None, clock=None)`
 
 Each option is `True`, `False` or left out, and left out means the preset's value. The options
 are keyword-only, so `Desktop("stock", False)` is a `TypeError`, and so is a misspelled option such
-as `Desktop(clok=False)`. `desktop = "blank"` and `desktop = "stock"` mean `Desktop("blank")` and
-`Desktop("stock")`.
+as `Desktop(clok=False)`. A preset name on its own is not accepted: `desktop = "stock"` is
+refused, with a message that says to write `Desktop("stock")`.
 
 | Preset | Parts that show |
 | --- | --- |
-| `"blank"` | None, except the pointer when `pointer_visible` is True. It also makes the colour black, turns off the interface effects and disables the desktop's right-click menu, as in [Blank start](../design/blank-start.md). The default. |
+| `"blank"` | None, and the pointer is hidden unless `pointer=True`. It also makes the colour black, turns off the interface effects and disables the desktop's right-click menu, as in [Blank start](../design/blank-start.md). The default. |
 | `"stock"` | All of them. It changes nothing in the guest. |
 
 A part is one piece of the shell. Some sit under another: the taskbar holds the window buttons,
@@ -128,8 +129,15 @@ class StockNoTaskbarNoPointer(Scene):
         self.wait(1)
 ```
 
-`pointer_visible` still works. On a blank desktop it is the `pointer` part. If a `Desktop` also
-writes `pointer` and the two disagree, the `Desktop` wins, with a warning.
+The pointer comes only from the `Desktop`: the blank preset hides it and the stock preset draws
+it, and `pointer=True` or `pointer=False` overrides that. It can't change partway through a scene.
+It still moves and clicks when hidden, and Paint's tools still draw their own pointer over the
+canvas. The 0.2.0 `pointer_visible` attribute is gone; see [Scene](#scene).
+
+The desktop is resolved once, when `run` starts, before any guest call, and every revert in that
+run uses the result. Setting `self.desktop` to something else during the run raises `UsageError`
+("X.desktop changed during the run"), so set it before `run`. A second `run` of the same scene
+object resolves again.
 
 #### Warnings
 
@@ -147,8 +155,7 @@ writing it the same as its effective value still warns. A preset on its own does
 does an override that takes effect, such as `Desktop("blank", taskbar=True, buttons=False)`.
 
 An override warning comes from the class whose body sets `desktop`; a subclass that inherits it
-does not warn again. The `pointer_visible` warning also fires for a class that sets only
-`pointer_visible` against an inherited `Desktop(pointer=...)`.
+does not warn again.
 
 For a `desktop` set in the class body, it shows at the `class` line. For one set on an instance, it
 shows at `run`.
@@ -161,12 +168,13 @@ again. A [`Backdrop`](#backdrop) hides the icons again when they were hidden, an
 it was.
 The window buttons, Quick Launch and the clock stay hidden through a colour change on their own.
 A wallpaper does not bring any part back. With the pointer off it is hidden on each apply, so twice
-when a state changes the display mode. That is harmless. See [`pointer_visible`](#scene).
+when a state changes the display mode. That is harmless.
 
 #### Errors
 
-A `desktop` that is not a preset name or a `Desktop`, an unknown preset, or an option that is not
-`True` or `False` raises `UsageError` when the class is defined. After a revert, art98 reads back
+A `desktop` that is not a `Desktop` (a preset name such as `"stock"` included), an unknown preset,
+or an option that is not `True` or `False` raises `UsageError` when the class is defined, or at
+`run` for one set on an instance. After a revert, art98 reads back
 what is off, except the pointer, which is not read back, and `DesktopError` lists whatever did
 not take.
 
@@ -537,7 +545,7 @@ These are not tracked, so changing them leaves a capture fresh:
 
 - files the scene reads with its own `open()`
 - helper code the sections call, including `recipes/helpers` modules
-- class attributes such as `desktop`, `pointer_visible` and `strict_placement`
+- class attributes such as `desktop` and `strict_placement`
 
 There is no way to declare extra files or code to track. If you change one of these, render the
 whole scene again yourself.
@@ -680,7 +688,7 @@ from art98.anim import *
 
 
 class Spots(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         pad = Notepad(at=(100, 100), size=(300, 200))
@@ -743,7 +751,7 @@ SEVEN, TIMES, SIX, EQUALS = 131, 91, 130, 112  # Calculator's control ids
 
 
 class Calculator(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         calc = Win(command="calc.exe", class_name="SciCalc", at=(240, 120))
@@ -777,7 +785,7 @@ from art98.anim import *
 
 
 class OutOfShot(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         pad = Notepad(at=(120, 90), size=(400, 240))
@@ -952,7 +960,7 @@ from art98.anim import *
 
 
 class Colours(Scene):
-    desktop = "blank"
+    desktop = Desktop()
 
     def construct(self):
         self.pause(0.3)
@@ -1035,7 +1043,7 @@ from art98.anim import *
 
 
 class Question(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         box = Dialog("Keep this?", icon="question", buttons="yesno", at=(280, 200))

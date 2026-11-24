@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 from art98.container import service
+from art98.desktop import Desktop
 from art98.settings import load
 
 HERE = Path(__file__).resolve().parents[2]
@@ -179,7 +180,7 @@ def test_state_with_wallpaper(booted, tmp_path):
 
     session = booted
     scene = Scene()
-    scene.desktop = "stock"
+    scene.desktop = Desktop("stock")
     scene.session, scene.guest, scene.vm = session, session.bridge, session.vm
     for _ in range(
         2
@@ -201,7 +202,7 @@ def test_state_display_moves_the_taskbar(booted, tmp_path, mode):
     (tmp_path / "s.json").write_text(json.dumps({"version": 1, "display": mode}))
     session = booted
     scene = Scene()
-    scene.desktop = "stock"
+    scene.desktop = Desktop("stock")
     scene.session, scene.guest, scene.vm = session, session.bridge, session.vm
     scene.set_state(tmp_path / "s.json")
     guest = session.bridge
@@ -394,7 +395,7 @@ def test_same_title_dialogs(booted):
 
     session = booted
     scene = Scene()
-    scene.desktop = "stock"
+    scene.desktop = Desktop("stock")
     scene.session, scene.guest, scene.vm = session, session.bridge, session.vm
     boxes = [
         Dialog("???", "???", icon=icon, at=at, size=size)
@@ -460,7 +461,7 @@ def _drift_short_scenes():
     from art98.anim import DOWN, LEFT, Click, Minesweeper, Paint, Picture, Scene, Stroke
 
     class PaintShort(Scene):
-        desktop = "stock"
+        desktop = Desktop("stock")
 
         def construct(self):
             paint = Paint(at=(150, 40), size=(520, 480))
@@ -470,7 +471,7 @@ def _drift_short_scenes():
             self.play(Stroke(lambda t: paint.canvas(40 + 120 * t, 40 + 60 * t).point()))
 
     class MinesweeperShort(Scene):
-        desktop = "stock"
+        desktop = Desktop("stock")
 
         def construct(self):
             board = Minesweeper(at=(300, 120))
@@ -479,7 +480,7 @@ def _drift_short_scenes():
             self.play(Click(board.client(60, 90), run_time=0.3))
 
     class PictureShort(Scene):
-        desktop = "stock"
+        desktop = Desktop("stock")
 
         def construct(self):
             pic = Picture(

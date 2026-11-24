@@ -319,7 +319,7 @@ sent, because Windows 98's `LoadImage` can crash in 16-bit code on a cut-short f
 
 **Decision.** By default a scene starts on a black screen with no icons, taskbar, Start menu or
 pointer. It is made in memory after every revert by `desktop.py`, then read back. `desktop =
-"stock"` keeps the normal desktop, and `pointer_visible = True` shows the pointer.
+Desktop("stock")` keeps the normal desktop, and `desktop = Desktop(pointer=True)` shows the pointer.
 
 **Why.** Nothing should be on screen that the scene didn't put there. An audit found nothing that
 pops up on its own after a restore. Making the blank screen at run time means the snapshot stays

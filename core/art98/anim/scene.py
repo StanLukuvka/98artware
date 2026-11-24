@@ -22,7 +22,7 @@ from ..base.animation import Animation
 from ..base.props import Box, Prop
 from ..base.space import STOCK, DesktopSpace
 from ..base.units import frames
-from ..desktop import Parts, apply_desktop, resolve_desktop
+from ..desktop import PRESETS, Desktop, Parts, apply_desktop, resolve_desktop
 from ..errors import Art98Error, GuestError, MissingFile, NotFound, UsageError
 from ..guest import win32
 from ..guest.bridge import wait_for
@@ -34,36 +34,43 @@ from .renderer import render
 
 # Only Scene class attributes a scene author sets, whose rename or removal would
 # otherwise be silently ignored, go here. It is emptied at each release.
-RETIRED: dict[str, str] = {}
+RETIRED: dict[str, str] = {
+    "pointer_visible": "removed. Write desktop = Desktop(pointer=True)",
+}
 
 
-def pin_legacy(cls) -> None:
-    """Last resort: refuse a retired setting a scene still defines, rather than
-    let it be ignored silently. Never maps an old name onto a new one."""
+def pin_legacy(scene) -> None:
+    """Last resort: refuse a retired setting that a scene class or instance has,
+    set on it, inherited (a mixin too) or added after the class was defined, rather
+    than let it be ignored silently. Never maps an old name onto a new one.
+    Scene itself must define no RETIRED name."""
+    cls = scene if isinstance(scene, type) else type(scene)
     for name, why in RETIRED.items():
-        if name in vars(cls):
+        if hasattr(scene, name):
             raise UsageError(f"{cls.__name__}.{name}: {why}")
 
 
-def _desktop_of(scene) -> tuple[Parts, list[str]]:
-    """Resolve `desktop` and `pointer_visible` of a scene class or instance."""
-    cls = scene if isinstance(scene, type) else type(scene)
-    declared = "pointer_visible" in getattr(scene, "__dict__", {}) or any(
-        "pointer_visible" in vars(k) for k in cls.__mro__ if k is not Scene
-    )
-    return resolve_desktop(
-        scene.desktop,
-        f"{cls.__name__}.desktop",
-        scene.pointer_visible if declared else None,
-    )
+def resolve_scene_desktop(scene) -> tuple[Parts, list[str]]:
+    """The effective parts and the warning texts for a scene class or instance.
 
-
-def check_desktop(scene) -> tuple[Parts, list[str]]:
-    """The effective parts and the warning texts for a class or an instance.
-
-    Raises UsageError for a bad `desktop` or option; never warns.
+    Raises UsageError for a `desktop` that isn't a `Desktop`, or a bad option;
+    never warns.
     """
-    return _desktop_of(scene)
+    cls = scene if isinstance(scene, type) else type(scene)
+    owner = f"{cls.__name__}.desktop"
+    if not isinstance(scene.desktop, Desktop):
+        if isinstance(scene.desktop, str) and scene.desktop in PRESETS:
+            raise UsageError(
+                f'{owner} = "{scene.desktop}": write Desktop("{scene.desktop}")'
+            )
+        raise UsageError(f"{owner} {scene.desktop!r}: use a Desktop(...)")
+    return resolve_desktop(scene.desktop, owner)
+
+
+def warn_desktop(notes: list[str], stacklevel: int) -> None:
+    """Warn each note at the line `stacklevel` frames above the caller (2: its caller)."""
+    for note in notes:
+        warnings.warn(note, UserWarning, stacklevel=stacklevel + 1)
 
 
 class UntrackedWindow(GuestError):
@@ -148,10 +155,11 @@ class Scene:
     all the time: what the script drives lands on exact frames, while anything
     the guest times for itself follows the host clock.
 
-    `desktop` is what the scene starts on: a preset or a `Desktop(...)` (see
-    art98.desktop). "blank", the default, is a black screen with no icons or
-    taskbar, and no pointer unless `pointer_visible` is True. "stock" is the
-    Windows 98 desktop as the `ready` snapshot has it, pointer included.
+    `desktop` is what the scene starts on: a `Desktop(...)` (see art98.desktop).
+    `Desktop()`, the default, is the blank preset: a black screen with no icons,
+    taskbar or pointer. `Desktop("stock")` is the Windows 98 desktop as the
+    `ready` snapshot has it, pointer included. `Desktop(pointer=True)` is blank
+    with the pointer shown.
     `Desktop("stock", icons=False, tray=False, ...)` starts from a preset and
     changes single parts; an option under an off part (clock under tray,
     buttons under taskbar) warns, because it has no effect. Either way it is
@@ -166,8 +174,7 @@ class Scene:
     """
 
     output_fps = 30
-    desktop = "blank"
-    pointer_visible = False
+    desktop: Desktop = Desktop()
     state: str | Path | None = None
     # True: a clamped size or a lost window raises PlacementError
     strict_placement = False
@@ -177,20 +184,16 @@ class Scene:
     captures: Path | None = None
     # A solo run of a later section starts at the time its capture was made.
     _time_offset: float = 0.0
+    # (desktop, parts) resolved when `run` starts; None outside a run.
+    _resolved: tuple[Desktop, Parts] | None = None
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         scene_fps(cls)
         pin_legacy(cls)
-        _parts, notes = check_desktop(cls)
-        pointer_note = f"{cls.__name__}.pointer_visible"
-        for note in notes:
-            if note.startswith(pointer_note):
-                wanted = "desktop" in vars(cls) or "pointer_visible" in vars(cls)
-            else:
-                wanted = "desktop" in vars(cls)
-            if wanted:
-                warnings.warn(note, UserWarning, stacklevel=2)
+        _parts, notes = resolve_scene_desktop(cls)
+        if "desktop" in vars(cls):
+            warn_desktop(notes, 2)
 
     def __init__(self):
         self.session = None
@@ -238,15 +241,17 @@ class Scene:
 
         With `only_section` set, only that section plays (see `section`).
         """
-        _parts, notes = check_desktop(self)
-        pointer_note = f"{type(self).__name__}.pointer_visible"
-        for note in notes:
-            if note.startswith(pointer_note):
-                wanted = "desktop" in vars(self) or "pointer_visible" in vars(self)
-            else:
-                wanted = "desktop" in vars(self)
-            if wanted:
-                warnings.warn(note, UserWarning, stacklevel=2)
+        pin_legacy(self)
+        parts, notes = resolve_scene_desktop(self)
+        if "desktop" in vars(self):
+            warn_desktop(notes, 2)
+        self._resolved = (self.desktop, parts)
+        try:
+            self._play(session, video)
+        finally:
+            self._resolved = None
+
+    def _play(self, session, video) -> None:
         self.session, self.recorder = session, video
         self.sections = []
         self._earlier = []
@@ -542,7 +547,15 @@ class Scene:
 
     def prepare_desktop(self) -> None:
         """Put the desktop the scene asked for in place, then read the work area."""
-        apply_desktop(self.guest, check_desktop(self)[0])
+        if self._resolved is None:
+            parts = resolve_scene_desktop(self)[0]
+        else:
+            resolved, parts = self._resolved
+            if self.desktop != resolved:
+                raise UsageError(
+                    f"{type(self).__name__}.desktop changed during the run. Set it before run"
+                )
+        apply_desktop(self.guest, parts)
         self.calibrate()
 
     def calibrate(self) -> None:
@@ -804,7 +817,7 @@ class Scene:
     def _hashes(self) -> dict[str, str | None]:
         """What a capture depends on: `setup`, the scene's state file and every earlier section.
 
-        lazy: source that section methods call (helpers, recipes/helpers modules) and Scene class attributes (desktop, pointer_visible, strict_placement) are not tracked, nor are files a scene reads with its own open(); a change there leaves a capture fresh; upgrade: hash what the sections call, or declare extra dependencies.
+        lazy: source that section methods call (helpers, recipes/helpers modules) and Scene class attributes (desktop, strict_placement) are not tracked, nor are files a scene reads with its own open(); a change there leaves a capture fresh; upgrade: hash what the sections call, or declare extra dependencies.
         """
         hashes: dict[str, str | None] = {
             "setup": _source_hash(type(self).setup, "setup()"),

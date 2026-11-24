@@ -44,7 +44,7 @@ CI has no VM, so a green CI run does not show that a change works on Windows 98.
 - Some tests guard the code's layout: `test_win32.py` fails on a Win32 constant defined outside
   `core/art98/guest/win32.py`, `test_units.py` on a built-in `round` or `math.hypot` in the scene layer, and
   `test_errors.py` on an error that doesn't inherit `Art98Error`. Fix the code, not the guard.
-- `conftest.py` pins scenes to `desktop = "stock"` because the fakes don't model the blank
+- `conftest.py` pins scenes to `desktop = Desktop("stock")` because the fakes don't model the blank
   start. `test_desktop.py` covers the blank start.
 
 ## Property-based tests

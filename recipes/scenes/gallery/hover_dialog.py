@@ -4,7 +4,7 @@ from art98.anim import *
 
 
 class HoverDialog(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         self.pause(0.3)

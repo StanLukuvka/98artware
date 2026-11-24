@@ -6,7 +6,7 @@ the same way.
 
 import subprocess
 
-from art98.anim import Click, Minesweeper, Paint, Scene, render
+from art98.anim import Click, Desktop, Minesweeper, Paint, Scene, render
 from art98.cli import _load_scene
 from test_stage import (  # noqa: F401  (also brings the skip marks)
     HERE,
@@ -48,7 +48,7 @@ def test_each_scene_in_one_attach_starts_clean(tmp_path):
             self.pause(0.2)
 
     class FromState(Scene):
-        desktop = "stock"
+        desktop = Desktop("stock")
         state = STATE
 
         def construct(self):
@@ -71,7 +71,7 @@ from art98.anim import *
 
 
 class Three(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         self.section("one", self.one)

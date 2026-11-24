@@ -12,7 +12,7 @@ RADIUS = 110
 
 
 class PaintDrawing(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         paint = Paint(at=(150, 40), size=(520, 480))

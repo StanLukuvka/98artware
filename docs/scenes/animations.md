@@ -151,7 +151,7 @@ from art98.anim import *
 
 
 class InOrder(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         pad = Notepad(at=(120, 100), size=(420, 260))
@@ -217,7 +217,7 @@ from art98.anim import *
 
 
 class Tooltip(Scene):
-    desktop = "stock"  # it uses the desktop icons or the taskbar
+    desktop = Desktop("stock")  # it uses the desktop icons or the taskbar
 
     def construct(self):
         self.play(Hover((768, 587), hold=1.5))
@@ -255,7 +255,7 @@ from art98.anim import *
 
 
 class OpenMyComputer(Scene):
-    desktop = "stock"  # it uses the desktop icons or the taskbar
+    desktop = Desktop("stock")  # it uses the desktop icons or the taskbar
 
     def construct(self):
         # My Computer opens on the double click, before the scene has a prop for it.
@@ -288,7 +288,7 @@ from art98.anim import *
 
 
 class DragAndResize(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         pad = Notepad(at=(90, 60), size=(340, 240))
@@ -315,7 +315,7 @@ from art98.anim import *
 
 
 class Line(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         paint = Paint(at=(120, 40), size=(520, 480))
@@ -348,7 +348,7 @@ from art98.anim import *
 
 
 class WordWrap(Scene):
-    pointer_visible = True
+    desktop = Desktop(pointer=True)
 
     def construct(self):
         pad = Notepad(at=(120, 90), size=(300, 220))

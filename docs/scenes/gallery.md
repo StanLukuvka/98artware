@@ -33,7 +33,7 @@ CANVAS = (300, 250)
 
 
 class Hero(Scene):
-    desktop = "stock"  # the taskbar and icons say "Windows 98" at a glance
+    desktop = Desktop("stock")  # the taskbar and icons say "Windows 98" at a glance
 
     def construct(self):
         self.pointer.place((400, 500))
@@ -161,7 +161,7 @@ from art98.anim import *
 
 
 class Hello(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         pad = Notepad(at=(100, 60), size=(420, 260))
@@ -190,7 +190,7 @@ from art98.anim import *
 
 
 class PointerClicks(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         self.pause(0.4)
@@ -223,7 +223,7 @@ from art98.anim import *
 
 
 class Typing(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         pad = Notepad(at=(120, 90), size=(480, 300))
@@ -256,7 +256,7 @@ from art98.anim import *
 
 
 class WindowMotion(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         pad = Notepad(at=(100, 80), size=(320, 220))
@@ -293,7 +293,7 @@ from art98.anim import *
 
 
 class DragWindow(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         pad = Notepad(at=(90, 60), size=(340, 240))
@@ -321,7 +321,7 @@ from art98.anim import *
 
 
 class MenusKeys(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         pad = Notepad(at=(130, 80), size=(460, 300))
@@ -352,7 +352,7 @@ from art98.anim import *
 
 
 class HoverDialog(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         self.pause(0.3)
@@ -398,7 +398,7 @@ BOX = (300, 130)  # outer size, a bit more than the stock box
 
 class DialogStorm(Scene):
     output_fps = 24
-    desktop = "blank"
+    desktop = Desktop()
 
     def construct(self):
         self.pause(0.5)
@@ -459,7 +459,7 @@ class DialogStormStock(Scene):
     """The same boxes on the stock desktop: taskbar and icons, on a dark red colour."""
 
     output_fps = 24
-    desktop = "stock"
+    desktop = Desktop("stock")
 
     def construct(self):
         self.pause(0.5)
@@ -501,7 +501,7 @@ RADIUS = 110
 
 
 class PaintDrawing(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         paint = Paint(at=(150, 40), size=(520, 480))
@@ -548,7 +548,7 @@ from art98.anim import *
 
 
 class MinesweeperWin(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         board = Minesweeper(at=(300, 120))
@@ -574,7 +574,7 @@ from art98.anim import *
 
 
 class ScreensaverRun(Scene):
-    desktop = "stock"  # made before the blank start, and it shows the pointer
+    desktop = Desktop("stock")  # made before the blank start, and it shows the pointer
 
     def construct(self):
         self.pause(0.4)
