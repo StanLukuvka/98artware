@@ -381,6 +381,58 @@ Beyond that:
   ([decision 18](docs/design/decisions.md#18-measure-on-the-real-image-keep-the-probes)).
 - **Test names are sentences**, as under [Writing tests](#writing-tests).
 
+### Variable names
+
+A tracked variable is named `<scope>_<base>`. The base is on the list in
+[docs/design/code-names.md](docs/design/code-names.md), with its meaning. The scope is the
+function, method or class that binds the variable.
+
+The rules:
+
+1. **One idea, one base.** Use the base as listed, and never shorten or reword it. Two values of
+   one idea in the same scope get a word in front of the base: `full_main`, `coarse_main`.
+2. **The scope is the function or class name**, never a description.
+3. **Each scope replaces the last one**, even when the value is unchanged. Never stack scopes.
+4. **Write both in full**, even when words repeat: `apply_desktop_desktop_parts`.
+5. **No clashes** with a function, class, method, module, or a variable in another scope.
+6. **Renaming a function renames its variables** in the same commit.
+7. **Australian English** in new names. Names fixed by outside code keep their spelling.
+8. **A value that crosses a function or class boundary goes on the base list**, with its
+   meaning. A name that is not on the list keeps its plain name.
+9. **A name that starts with its scope's prefix ends in a listed base.** A shortened base, such
+   as `off_children_parts`, is reported.
+
+The scope of each kind of name:
+
+| Where | Example with base `notes` |
+| --- | --- |
+| function `resolve` or `_resolve` | `resolve_notes`, `_resolve_notes` |
+| method `Scene.run` or `Scene._apply` | `scene_run_notes`, `scene__apply_notes` |
+| `Scene.__init__`, or any dunder | `scene_init_notes` |
+| `inner` inside `outer` | `outer_inner_notes` |
+| private attribute of `Scene` | `self._scene_notes` |
+| module constant: base in capitals, no scope; a word may go in front | `NOTES`, `STOCK_NOTES` |
+
+A class's scope is its name in snake_case (`Scene` gives `scene`). A method's scope joins the
+class and the method (`scene_run`). A dunder drops its underscores, and a private method keeps
+its own (`scene__apply`).
+
+Exemptions. These stay bare, and the test does not check them:
+
+- Public functions, classes, methods, public attributes and public names in a class body,
+  dataclass fields included.
+- Loop and comprehension variables, `self`, `cls`, and a `_`-prefixed name that is never read.
+- Test variables.
+- Parameters a caller passes by keyword in a public API. These are listed in the
+  [Exempt table](docs/design/code-names.md#exempt), each with the page that documents it. The
+  test skips only those rows, and every other parameter is checked. The table is empty today.
+
+A value that never leaves its function keeps its name. The test does not read the
+[left-alone list](docs/design/code-names.md#left-alone), which gives the reason for each one.
+
+`core/tests/test_code_names.py` fails on a name that breaks these rules in the modules that
+[code-names.md](docs/design/code-names.md#checked-modules) lists.
+
 ## Docs
 
 A change isn't done until the docs say what it does. Docs change in the same pull request as

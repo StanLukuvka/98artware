@@ -1,4 +1,4 @@
-"""The desktop tree: Desktop options resolved to Parts, with warning texts.
+"""The desktop tree: Desktop options resolved to DesktopParts, with warning texts.
 
 Every case of the pure function is walked (2 presets x 3^7 options = 4,374)
 against an oracle written from the level table
@@ -11,7 +11,12 @@ import dataclasses
 import itertools
 
 import pytest
-from art98.desktop import BLANK_PARTS, STOCK_PARTS, Desktop, resolve_desktop
+from art98.desktop import (
+    BLANK_DESKTOP_PARTS,
+    STOCK_DESKTOP_PARTS,
+    Desktop,
+    resolve_desktop,
+)
 from art98.errors import UsageError
 
 OWNER = "Scene.desktop"
@@ -118,7 +123,7 @@ def test_every_case_a_warned_option_does_nothing():
 
 
 @pytest.mark.parametrize(
-    "preset,parts", [("stock", STOCK_PARTS), ("blank", BLANK_PARTS)]
+    "preset,parts", [("stock", STOCK_DESKTOP_PARTS), ("blank", BLANK_DESKTOP_PARTS)]
 )
 def test_a_preset_alone_never_warns_and_gives_its_parts(preset, parts):
     got, notes = resolve_desktop(Desktop(preset), OWNER)
