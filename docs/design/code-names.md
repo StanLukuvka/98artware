@@ -35,9 +35,11 @@ variables, public names, `self`, `cls` and `_` names that are never read are not
 
 ## Exempt
 
-Public parameters that a caller passes by keyword are not checked. Each row names the function,
-the parameter and the page that documents the API. The test skips a parameter only when its
-function and name are both a row here. No other name is skipped.
+Parameters are checked. Each row names the function, the parameter and the page that documents
+the API. The test skips a parameter only when its function and name are both a row here. No
+other parameter is skipped. The test also leaves out loop and comprehension variables, and
+`self`, `cls` and unused `_` names, even when they are parameters. The
+[CONTRIBUTING.md](../../CONTRIBUTING.md#variable-names) lists everything it leaves out.
 
 | Where | Parameter | Documented in |
 | --- | --- | --- |
