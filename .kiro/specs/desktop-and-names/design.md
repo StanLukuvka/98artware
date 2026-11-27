@@ -71,6 +71,9 @@ A tracked variable is `<scope>_<base>`.
 5. No clashes with a function, class, method, module or a variable in another scope.
 6. Renaming a function renames its variables in the same commit.
 7. Australian English, except names fixed by outside code.
+8. A value that crosses a function or class boundary goes on the base list, with its meaning.
+9. A name that starts with its scope's prefix must end in a listed base. The naming test fails
+   otherwise.
 
 | Where | Example with base `notes` |
 |---|---|
@@ -83,7 +86,6 @@ A tracked variable is `<scope>_<base>`.
 
 Class names go to snake_case. Inherited: the class that defines it. A variable read from an outer
 function keeps its name. Never prefixed: those in Requirement 6.3, and anything not on the base list.
-A value goes on the list when its idea crosses a function or class boundary.
 
 `guest` and `scene` stay off the list: each is one object, under one name, everywhere.
 
