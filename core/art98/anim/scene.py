@@ -22,7 +22,7 @@ from ..base.animation import Animation
 from ..base.props import Box, Prop
 from ..base.space import STOCK, DesktopSpace
 from ..base.units import frames
-from ..desktop import PRESETS, Desktop, Parts, apply_desktop, resolve_desktop
+from ..desktop import PRESETS, Desktop, DesktopParts, apply_desktop, resolve_desktop
 from ..errors import Art98Error, GuestError, MissingFile, NotFound, UsageError
 from ..guest import win32
 from ..guest.bridge import wait_for
@@ -50,26 +50,35 @@ def pin_legacy(scene) -> None:
             raise UsageError(f"{cls.__name__}.{name}: {why}")
 
 
-def resolve_scene_desktop(scene) -> tuple[Parts, list[str]]:
+def resolve_scene_desktop(scene) -> tuple[DesktopParts, list[str]]:
     """The effective parts and the warning texts for a scene class or instance.
 
     Raises UsageError for a `desktop` that isn't a `Desktop`, or a bad option;
     never warns.
     """
     cls = scene if isinstance(scene, type) else type(scene)
-    owner = f"{cls.__name__}.desktop"
-    if not isinstance(scene.desktop, Desktop):
-        if isinstance(scene.desktop, str) and scene.desktop in PRESETS:
+    resolve_scene_desktop_desktop_owner = f"{cls.__name__}.desktop"
+    resolve_scene_desktop_desktop = scene.desktop
+    if not isinstance(resolve_scene_desktop_desktop, Desktop):
+        if (
+            isinstance(resolve_scene_desktop_desktop, str)
+            and resolve_scene_desktop_desktop in PRESETS
+        ):
             raise UsageError(
-                f'{owner} = "{scene.desktop}": write Desktop("{scene.desktop}")'
+                f'{resolve_scene_desktop_desktop_owner} = "{resolve_scene_desktop_desktop}": '
+                f'write Desktop("{resolve_scene_desktop_desktop}")'
             )
-        raise UsageError(f"{owner} {scene.desktop!r}: use a Desktop(...)")
-    return resolve_desktop(scene.desktop, owner)
+        raise UsageError(
+            f"{resolve_scene_desktop_desktop_owner} {resolve_scene_desktop_desktop!r}: use a Desktop(...)"
+        )
+    return resolve_desktop(
+        resolve_scene_desktop_desktop, resolve_scene_desktop_desktop_owner
+    )
 
 
-def warn_desktop(notes: list[str], stacklevel: int) -> None:
+def warn_desktop(warn_desktop_desktop_notes: list[str], stacklevel: int) -> None:
     """Warn each note at the line `stacklevel` frames above the caller (2: its caller)."""
-    for note in notes:
+    for note in warn_desktop_desktop_notes:
         warnings.warn(note, UserWarning, stacklevel=stacklevel + 1)
 
 
@@ -184,16 +193,17 @@ class Scene:
     captures: Path | None = None
     # A solo run of a later section starts at the time its capture was made.
     _time_offset: float = 0.0
-    # (desktop, parts) resolved when `run` starts; None outside a run.
-    _resolved: tuple[Desktop, Parts] | None = None
+    # The desktop and its parts, resolved when `run` starts; None outside a run.
+    _scene_desktop: Desktop | None = None
+    _scene_desktop_parts: DesktopParts | None = None
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         scene_fps(cls)
         pin_legacy(cls)
-        _parts, notes = resolve_scene_desktop(cls)
+        _parts, scene_init_subclass_desktop_notes = resolve_scene_desktop(cls)
         if "desktop" in vars(cls):
-            warn_desktop(notes, 2)
+            warn_desktop(scene_init_subclass_desktop_notes, 2)
 
     def __init__(self):
         self.session = None
@@ -242,14 +252,16 @@ class Scene:
         With `only_section` set, only that section plays (see `section`).
         """
         pin_legacy(self)
-        parts, notes = resolve_scene_desktop(self)
+        scene_run_desktop_parts, scene_run_desktop_notes = resolve_scene_desktop(self)
         if "desktop" in vars(self):
-            warn_desktop(notes, 2)
-        self._resolved = (self.desktop, parts)
+            warn_desktop(scene_run_desktop_notes, 2)
+        self._scene_desktop = self.desktop
+        self._scene_desktop_parts = scene_run_desktop_parts
         try:
             self._play(session, video)
         finally:
-            self._resolved = None
+            self._scene_desktop = None
+            self._scene_desktop_parts = None
 
     def _play(self, session, video) -> None:
         self.session, self.recorder = session, video
@@ -374,7 +386,7 @@ class Scene:
         colour = win32.rgb(
             self.guest.user32.GetSysColor(win32.COLOR_DESKTOP).value & 0xFFFFFF
         )
-        desktop: dict = {"fill_colour": list(colour)}
+        scene_get_state_desktop_state: dict = {"fill_colour": list(colour)}
         # The capture is built and checked in a sibling folder, then moved in, so a
         # failure leaves the earlier capture untouched.
         part = path.parent / f".{path.name}.part"
@@ -390,17 +402,17 @@ class Scene:
                 target = part_files / "desktop" / ref.path.name
                 target.parent.mkdir()
                 target.write_bytes(ref.data)
-                desktop["wallpaper"] = {
+                scene_get_state_desktop_state["wallpaper"] = {
                     "file": target.relative_to(part).as_posix(),
                     "sha256": ref.sha256,
                 }
-                desktop["style"] = style
+                scene_get_state_desktop_state["style"] = style
             windows = [{"id": p.state_id, **p.to_state(part_files)} for p in creation]
             dump_state(
                 {
                     "version": VERSION,
                     "display": list(setstate.display_mode(self.guest)),
-                    "desktop": desktop,
+                    "desktop": scene_get_state_desktop_state,
                     "windows": windows,
                     "stack": [p.state_id for p in stack],
                     "pointer": list(win32.cursor_pos(self.guest)),
@@ -547,15 +559,15 @@ class Scene:
 
     def prepare_desktop(self) -> None:
         """Put the desktop the scene asked for in place, then read the work area."""
-        if self._resolved is None:
-            parts = resolve_scene_desktop(self)[0]
+        if self._scene_desktop_parts is None:
+            scene_prepare_desktop_desktop_parts = resolve_scene_desktop(self)[0]
         else:
-            resolved, parts = self._resolved
-            if self.desktop != resolved:
+            scene_prepare_desktop_desktop_parts = self._scene_desktop_parts
+            if self.desktop != self._scene_desktop:
                 raise UsageError(
                     f"{type(self).__name__}.desktop changed during the run. Set it before run"
                 )
-        apply_desktop(self.guest, parts)
+        apply_desktop(self.guest, scene_prepare_desktop_desktop_parts)
         self.calibrate()
 
     def calibrate(self) -> None:

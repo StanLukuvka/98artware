@@ -134,6 +134,8 @@ Formatting is ruff's: `uv run ruff format core setup tools`.
 
 - Python 3.11+. Modules with code start with a docstring that says what the module is for, then
   `from __future__ import annotations`.
+- Variable names follow [CONTRIBUTING.md](CONTRIBUTING.md#variable-names): `<scope>_<base>`, with
+  the bases in `docs/design/code-names.md`.
 - No runtime dependencies. Don't add any to `[project] dependencies`.
 - One home per thing. A guest read used twice becomes one helper (in `win32.py`, or on `Win`); a
   Win32 constant goes in `win32.py`, and `test_win32.py` fails on one defined elsewhere; pixel and frame rounding and distance live in

@@ -70,13 +70,18 @@ def apply_state(scene, state: State) -> dict:
         # The registry write is undone with everything else at the next revert.
         set_display_mode(guest, *state.display, persist=True)
         scene.prepare_desktop()
-    desk = state.desktop
-    if desk and desk.fill_colour:
-        set_colour(guest, desk.fill_colour)
-    if desk and desk.wallpaper:
-        scene.session.attach_disc({DISC_NAME: desk.wallpaper.data})
-        set_wallpaper(guest, wait_for_disc(guest, DISC_NAME), desk.style)
-        scene._wallpaper = (desk.wallpaper, desk.style)  # for Scene.get_state
+    apply_state_desktop_state = state.desktop
+    if apply_state_desktop_state and apply_state_desktop_state.fill_colour:
+        set_colour(guest, apply_state_desktop_state.fill_colour)
+    if apply_state_desktop_state and apply_state_desktop_state.wallpaper:
+        scene.session.attach_disc({DISC_NAME: apply_state_desktop_state.wallpaper.data})
+        set_wallpaper(
+            guest, wait_for_disc(guest, DISC_NAME), apply_state_desktop_state.style
+        )
+        scene._wallpaper = (
+            apply_state_desktop_state.wallpaper,
+            apply_state_desktop_state.style,
+        )  # for Scene.get_state
     props = {}
     for window in state.windows:
         prop = APPS[window.app].from_state(window)
@@ -170,33 +175,41 @@ def wallpaper_sample(state: State, width: int, height: int, work_bottom: int):
 
 
 def expected_pixels(
-    desk, screen: tuple[int, int], colour: tuple[int, int, int], x: int, y: int
+    expected_pixels_desktop_state,
+    screen: tuple[int, int],
+    colour: tuple[int, int, int],
+    x: int,
+    y: int,
 ):
-    """The colours a wallpaper in `desk.style` may put at screen (x, y), best guess first, or None if it can't be told.
+    """The colours a wallpaper in the state's `style` may put at screen (x, y), best guess first, or None if it can't be told.
 
     Tile is exact. Stretch and center guess which BMP pixel lands on the point, and
     Windows may round differently, so the 3x3 pixels around the guess all count. A
     center point on or next to the image's edge may also show the fill colour.
     """
-    data = desk.wallpaper.data
+    data = expected_pixels_desktop_state.wallpaper.data
     width, height = check_bmp(data)
-    if desk.style == "tile":
+    if expected_pixels_desktop_state.style == "tile":
         guess = bmp_pixel(data, x % width, y % height)
         return None if guess is None else [guess]
-    if desk.style == "stretch":
+    if expected_pixels_desktop_state.style == "stretch":
         gx, gy = x * width // screen[0], y * height // screen[1]
     else:
         gx, gy = x - (screen[0] - width) // 2, y - (screen[1] - height) // 2
-    if desk.style == "center" and not (-1 <= gx <= width and -1 <= gy <= height):
+    if expected_pixels_desktop_state.style == "center" and not (
+        -1 <= gx <= width and -1 <= gy <= height
+    ):
         return [colour]
     wanted = []
-    if desk.style == "center" and not (0 <= gx < width and 0 <= gy < height):
+    if expected_pixels_desktop_state.style == "center" and not (
+        0 <= gx < width and 0 <= gy < height
+    ):
         wanted.append(colour)
     points = [(gx, gy)] + [
         (gx + dx, gy + dy) for dy in (-1, 0, 1) for dx in (-1, 0, 1) if dx or dy
     ]
     for px, py in points:
-        if desk.style == "stretch":
+        if expected_pixels_desktop_state.style == "stretch":
             px, py = clamp(px, 0, width - 1), clamp(py, 0, height - 1)
         elif not (0 <= px < width and 0 <= py < height):
             if colour not in wanted:
@@ -214,9 +227,11 @@ def check_state(guest, space, state: State, props: dict) -> None:
     """Raise StateMismatch listing every way the guest differs from the state."""
     problems = display_problems(guest, state)
     problems += colour_problems(guest, state)
-    desk = state.desktop
-    if desk and desk.wallpaper:
-        problem = wallpaper_problem(guest, state, desk, space.work_area[3])
+    check_state_desktop_state = state.desktop
+    if check_state_desktop_state and check_state_desktop_state.wallpaper:
+        problem = wallpaper_problem(
+            guest, state, check_state_desktop_state, space.work_area[3]
+        )
         if problem:
             problems.append(problem)
     found = {w.hwnd: w for w in guest.windows()}
@@ -237,14 +252,16 @@ def display_problems(guest, state: State) -> list[str]:
 
 
 def colour_problems(guest, state: State) -> list[str]:
-    desk = state.desktop
-    if not (desk and desk.fill_colour):
+    colour_problems_desktop_state = state.desktop
+    if not (
+        colour_problems_desktop_state and colour_problems_desktop_state.fill_colour
+    ):
         return []
     actual = rgb(guest.user32.GetSysColor(COLOR_DESKTOP).value & 0xFFFFFF)
-    if actual == tuple(desk.fill_colour):
+    if actual == tuple(colour_problems_desktop_state.fill_colour):
         return []
     return [
-        f"desktop.fill_colour: {list(desk.fill_colour)} wanted, the guest has {list(actual)}"
+        f"desktop.fill_colour: {list(colour_problems_desktop_state.fill_colour)} wanted, the guest has {list(actual)}"
     ]
 
 
@@ -309,7 +326,9 @@ def pointer_problems(guest, state: State) -> list[str]:
     return [f"pointer: {list(state.pointer)} wanted, the guest has {list(actual)}"]
 
 
-def wallpaper_problem(guest, state: State, desk, work_bottom: int) -> str | None:
+def wallpaper_problem(
+    guest, state: State, wallpaper_problem_desktop_state, work_bottom: int
+) -> str | None:
     """The wallpaper can't be read back (SPI_GETDESKWALLPAPER gives nothing), so one pixel is compared."""
     width, height, depth = display_mode(guest)
     tolerance = PIXEL_TOLERANCE.get(depth)
@@ -320,7 +339,9 @@ def wallpaper_problem(guest, state: State, desk, work_bottom: int) -> str | None
     if point is None:
         return None
     colour = guest.user32.GetSysColor(COLOR_DESKTOP).value & 0xFFFFFF
-    wanted = expected_pixels(desk, screen, rgb(colour), *point)
+    wanted = expected_pixels(
+        wallpaper_problem_desktop_state, screen, rgb(colour), *point
+    )
     if wanted is None:
         return None
     got = screen_pixel(guest, *point)

@@ -1,7 +1,7 @@
 """The blank start: a black, empty screen on the restored desktop.
 
 The `ready` snapshot is the stock Windows 98 desktop: a teal background,
-icons, the taskbar and the arrow pointer. `apply_desktop(guest, BLANK_PARTS)`
+icons, the taskbar and the arrow pointer. `apply_desktop(guest, BLANK_DESKTOP_PARTS)`
 turns all of that off in the running guest. Each step only changes memory, so it holds until the next
 revert and the snapshot stays as it is. None of it needs Explorer restarted.
 
@@ -136,13 +136,21 @@ class DesktopError(GuestError):
 def shell_windows(guest) -> tuple[int, int, int]:
     """The taskbar, the desktop and its icon list, as window handles (0 if missing)."""
     user32 = guest.user32
-    taskbar = user32.FindWindowA(TASKBAR_CLASS, 0).value
-    desktop = user32.FindWindowA("Progman", 0).value
+    shell_windows_taskbar_hwnd = user32.FindWindowA(TASKBAR_CLASS, 0).value
+    shell_windows_progman_hwnd = user32.FindWindowA("Progman", 0).value
     view = (
-        user32.FindWindowExA(desktop, 0, "SHELLDLL_DefView", 0).value if desktop else 0
+        user32.FindWindowExA(shell_windows_progman_hwnd, 0, "SHELLDLL_DefView", 0).value
+        if shell_windows_progman_hwnd
+        else 0
     )
-    icons = user32.FindWindowExA(view, 0, "SysListView32", 0).value if view else 0
-    return taskbar, desktop, icons
+    shell_windows_icons_hwnd = (
+        user32.FindWindowExA(view, 0, "SysListView32", 0).value if view else 0
+    )
+    return (
+        shell_windows_taskbar_hwnd,
+        shell_windows_progman_hwnd,
+        shell_windows_icons_hwnd,
+    )
 
 
 def resolve_colour(colour) -> tuple[int, int, int]:
@@ -179,22 +187,31 @@ def set_colour(guest, rgb) -> None:
     fresh paint would draw it, on every run.
     """
     user32 = guest.user32
-    taskbar, _desk, icons = shell_windows(guest)
-    tray = (
-        user32.FindWindowExA(taskbar, 0, TRAY_CLASS, 0).value
-        if taskbar and user32.IsWindowVisible(taskbar).value
+    set_colour_taskbar_hwnd, _desk, set_colour_icons_hwnd = shell_windows(guest)
+    set_colour_tray_hwnd = (
+        user32.FindWindowExA(set_colour_taskbar_hwnd, 0, TRAY_CLASS, 0).value
+        if set_colour_taskbar_hwnd
+        and user32.IsWindowVisible(set_colour_taskbar_hwnd).value
         else 0
     )
-    icons_hidden = bool(icons) and not user32.IsWindowVisible(icons).value
-    tray_hidden = bool(tray) and not user32.IsWindowVisible(tray).value
+    icons_hidden = (
+        bool(set_colour_icons_hwnd)
+        and not user32.IsWindowVisible(set_colour_icons_hwnd).value
+    )
+    tray_hidden = (
+        bool(set_colour_tray_hwnd)
+        and not user32.IsWindowVisible(set_colour_tray_hwnd).value
+    )
     user32.SetSysColors(
         1, struct.pack("<I", COLOR_DESKTOP), struct.pack("<I", colourref(rgb))
     )
     if icons_hidden:
-        user32.ShowWindow(icons, SW_HIDE)  # as today, before the sync
+        user32.ShowWindow(set_colour_icons_hwnd, SW_HIDE)  # as today, before the sync
     guest.sync()  # every window's thread has handled WM_SYSCOLORCHANGE
     if tray_hidden:
-        user32.ShowWindow(tray, SW_HIDE)  # after the sync (Explorer shows it again)
+        user32.ShowWindow(
+            set_colour_tray_hwnd, SW_HIDE
+        )  # after the sync (Explorer shows it again)
     repaint_all(guest)
 
 
@@ -231,7 +248,7 @@ def set_wallpaper(guest, path: str, style: str) -> None:
 
 
 # The taskbar's children, in the order apply_desktop hides them after the clock,
-# with the name check_parts gives each in a message.
+# with the name check_desktop_parts gives each in a message.
 CHILDREN = (
     ("buttons", "buttons", BUTTONS_CLASS),
     ("quick_launch", "quick launch", QUICK_LAUNCH_CLASS),
@@ -240,137 +257,191 @@ CHILDREN = (
 )
 
 
-def off_children(parts: Parts) -> list[str]:
+def off_children(off_children_desktop_parts: DesktopParts) -> list[str]:
     """The taskbar children to touch: those off, and the clock only under a tray that is on."""
-    if not parts.taskbar:
+    if not off_children_desktop_parts.taskbar:
         return []
     return [
         name
         for name, _label, _cls in CHILDREN
-        if not getattr(parts, name) and (name != "clock" or parts.tray)
+        if not getattr(off_children_desktop_parts, name)
+        and (name != "clock" or off_children_desktop_parts.tray)
     ]
 
 
-def taskbar_windows(guest, taskbar: int, names=None) -> dict[str, int]:
-    """The handles of the taskbar's children named in `names` (all four when None); 0 for a missing one."""
+def taskbar_windows(
+    guest, taskbar_windows_taskbar_hwnd: int, taskbar_windows_taskbar_children=None
+) -> dict[str, int]:
+    """The handles of the taskbar's children named in `taskbar_windows_taskbar_children` (all four when None); 0 for a missing one."""
     user32 = guest.user32
-    names = {name for name, _l, _c in CHILDREN} if names is None else set(names)
-    found = dict.fromkeys(names, 0)
-    if names & {"buttons", "quick_launch"}:
-        rebar = user32.FindWindowExA(taskbar, 0, REBAR_CLASS, 0).value
+    taskbar_windows_taskbar_children = (
+        {name for name, _l, _c in CHILDREN}
+        if taskbar_windows_taskbar_children is None
+        else set(taskbar_windows_taskbar_children)
+    )
+    taskbar_windows_taskbar_child_hwnds = dict.fromkeys(
+        taskbar_windows_taskbar_children, 0
+    )
+    if taskbar_windows_taskbar_children & {"buttons", "quick_launch"}:
+        rebar = user32.FindWindowExA(
+            taskbar_windows_taskbar_hwnd, 0, REBAR_CLASS, 0
+        ).value
         for name, _label, cls in CHILDREN[:2]:
-            if name in names and rebar:
-                found[name] = user32.FindWindowExA(rebar, 0, cls, 0).value
-    if names & {"tray", "clock"}:
-        tray = user32.FindWindowExA(taskbar, 0, TRAY_CLASS, 0).value
-        if "tray" in names:
-            found["tray"] = tray
-        if "clock" in names and tray:
-            found["clock"] = user32.FindWindowExA(tray, 0, CLOCK_CLASS, 0).value
-    return found
+            if name in taskbar_windows_taskbar_children and rebar:
+                taskbar_windows_taskbar_child_hwnds[name] = user32.FindWindowExA(
+                    rebar, 0, cls, 0
+                ).value
+    if taskbar_windows_taskbar_children & {"tray", "clock"}:
+        taskbar_windows_tray_hwnd = user32.FindWindowExA(
+            taskbar_windows_taskbar_hwnd, 0, TRAY_CLASS, 0
+        ).value
+        if "tray" in taskbar_windows_taskbar_children:
+            taskbar_windows_taskbar_child_hwnds["tray"] = taskbar_windows_tray_hwnd
+        if "clock" in taskbar_windows_taskbar_children and taskbar_windows_tray_hwnd:
+            taskbar_windows_taskbar_child_hwnds["clock"] = user32.FindWindowExA(
+                taskbar_windows_tray_hwnd, 0, CLOCK_CLASS, 0
+            ).value
+    return taskbar_windows_taskbar_child_hwnds
 
 
-def apply_desktop(guest, parts: Parts) -> None:
+def apply_desktop(guest, apply_desktop_desktop_parts: DesktopParts) -> None:
     """Put the parts in place on a reverted desktop, then check them.
 
     Raises DesktopError listing anything that didn't take.
     """
-    if parts == STOCK_PARTS:
+    if apply_desktop_desktop_parts == STOCK_DESKTOP_PARTS:
         return
     user32 = guest.user32
-    taskbar, desk, icons = shell_windows(guest)
-    children = off_children(parts)
-    handles = taskbar_windows(guest, taskbar, children) if taskbar and children else {}
-    if parts.blank_steps:
+    apply_desktop_taskbar_hwnd, apply_desktop_progman_hwnd, apply_desktop_icons_hwnd = (
+        shell_windows(guest)
+    )
+    apply_desktop_taskbar_children = off_children(apply_desktop_desktop_parts)
+    apply_desktop_taskbar_child_hwnds = (
+        taskbar_windows(
+            guest, apply_desktop_taskbar_hwnd, apply_desktop_taskbar_children
+        )
+        if apply_desktop_taskbar_hwnd and apply_desktop_taskbar_children
+        else {}
+    )
+    if apply_desktop_desktop_parts.blank_steps:
         set_colour(guest, NAMED_COLOURS["black"])
-    if not parts.icons and icons:
-        user32.ShowWindow(icons, SW_HIDE)
-    if not parts.taskbar and taskbar:
-        user32.ShowWindow(taskbar, SW_HIDE)
-        user32.EnableWindow(taskbar, 0)
-    if parts.blank_steps and desk:
-        user32.EnableWindow(desk, 0)
-    if not parts.taskbar:
+    if not apply_desktop_desktop_parts.icons and apply_desktop_icons_hwnd:
+        user32.ShowWindow(apply_desktop_icons_hwnd, SW_HIDE)
+    if not apply_desktop_desktop_parts.taskbar and apply_desktop_taskbar_hwnd:
+        user32.ShowWindow(apply_desktop_taskbar_hwnd, SW_HIDE)
+        user32.EnableWindow(apply_desktop_taskbar_hwnd, 0)
+    if apply_desktop_desktop_parts.blank_steps and apply_desktop_progman_hwnd:
+        user32.EnableWindow(apply_desktop_progman_hwnd, 0)
+    if not apply_desktop_desktop_parts.taskbar:
         width, height = screen_size(guest)
         user32.SystemParametersInfoA(
             SPI_SETWORKAREA, 0, struct.pack("<4i", 0, 0, width, height), 0
         )
-    if parts.blank_steps:
+    if apply_desktop_desktop_parts.blank_steps:
         for _name, _get, set_action in UI_EFFECTS:
             user32.SystemParametersInfoA(set_action, 0, 0, 0)
     # The clock first, then WM_SIZE so the tray settles to its icon before
     # anything else is hidden; the tray last.
-    if handles.get("clock"):
-        user32.ShowWindow(handles["clock"], SW_HIDE)
-        user32.SendMessageA(taskbar, WM_SIZE, 0, 0)
+    if apply_desktop_taskbar_child_hwnds.get("clock"):
+        user32.ShowWindow(apply_desktop_taskbar_child_hwnds["clock"], SW_HIDE)
+        user32.SendMessageA(apply_desktop_taskbar_hwnd, WM_SIZE, 0, 0)
     for name in ("buttons", "quick_launch", "tray"):
-        if handles.get(name):
-            user32.ShowWindow(handles[name], SW_HIDE)
-    if not parts.pointer:
+        if apply_desktop_taskbar_child_hwnds.get(name):
+            user32.ShowWindow(apply_desktop_taskbar_child_hwnds[name], SW_HIDE)
+    if not apply_desktop_desktop_parts.pointer:
         hide_pointer(guest)
     guest.sync()
-    problems = check_parts(guest, parts)
-    if problems:
+    apply_desktop_desktop_problems = check_desktop_parts(
+        guest, apply_desktop_desktop_parts
+    )
+    if apply_desktop_desktop_problems:
         raise DesktopError(
-            problems,
+            apply_desktop_desktop_problems,
             "the desktop isn't blank:"
-            if parts.blank_steps
+            if apply_desktop_desktop_parts.blank_steps
             else "the desktop options didn't take:",
         )
 
 
-def check_parts(guest, parts: Parts) -> list[str]:
-    """Every way the guest differs from `parts`. Reads only what is off, plus the taskbar.
+def check_desktop_parts(
+    guest, check_desktop_parts_desktop_parts: DesktopParts
+) -> list[str]:
+    """Every way the guest differs from `check_desktop_parts_desktop_parts`. Reads only what is off, plus the taskbar.
 
     The pointer isn't checked.
     """
-    if parts == STOCK_PARTS:
+    if check_desktop_parts_desktop_parts == STOCK_DESKTOP_PARTS:
         return []
     user32 = guest.user32
-    problems = []
-    taskbar, desk, icons = shell_windows(guest)
-    if not parts.icons:
-        if not icons:
-            problems.append("the desktop icon list wasn't found")
-        elif user32.IsWindowVisible(icons).value:
-            problems.append("the desktop icons are showing")
-    if not taskbar:
-        problems.append("the taskbar wasn't found")
-    elif not parts.taskbar:
-        if user32.IsWindowVisible(taskbar).value:
-            problems.append("the taskbar is showing")
-        elif user32.IsWindowEnabled(taskbar).value:
-            problems.append(
+    check_desktop_parts_desktop_problems = []
+    (
+        check_desktop_parts_taskbar_hwnd,
+        check_desktop_parts_progman_hwnd,
+        check_desktop_parts_icons_hwnd,
+    ) = shell_windows(guest)
+    if not check_desktop_parts_desktop_parts.icons:
+        if not check_desktop_parts_icons_hwnd:
+            check_desktop_parts_desktop_problems.append(
+                "the desktop icon list wasn't found"
+            )
+        elif user32.IsWindowVisible(check_desktop_parts_icons_hwnd).value:
+            check_desktop_parts_desktop_problems.append("the desktop icons are showing")
+    if not check_desktop_parts_taskbar_hwnd:
+        check_desktop_parts_desktop_problems.append("the taskbar wasn't found")
+    elif not check_desktop_parts_desktop_parts.taskbar:
+        if user32.IsWindowVisible(check_desktop_parts_taskbar_hwnd).value:
+            check_desktop_parts_desktop_problems.append("the taskbar is showing")
+        elif user32.IsWindowEnabled(check_desktop_parts_taskbar_hwnd).value:
+            check_desktop_parts_desktop_problems.append(
                 "the taskbar takes input, so the Windows key opens the Start menu"
             )
-    elif children := off_children(parts):
-        handles = taskbar_windows(guest, taskbar, children)
+    elif check_desktop_parts_taskbar_children := off_children(
+        check_desktop_parts_desktop_parts
+    ):
+        check_desktop_parts_taskbar_child_hwnds = taskbar_windows(
+            guest,
+            check_desktop_parts_taskbar_hwnd,
+            check_desktop_parts_taskbar_children,
+        )
         for name, label, cls in CHILDREN:
-            if name not in children:
+            if name not in check_desktop_parts_taskbar_children:
                 continue
-            if not handles[name]:
-                problems.append(f"the taskbar's {label} ({cls}) wasn't found")
-            elif user32.IsWindowVisible(handles[name]).value:
-                problems.append(f"the taskbar's {label} is showing")
-    if parts.blank_steps:
-        if desk and user32.IsWindowEnabled(desk).value:
-            problems.append("the desktop takes input, so a right-click opens its menu")
+            if not check_desktop_parts_taskbar_child_hwnds[name]:
+                check_desktop_parts_desktop_problems.append(
+                    f"the taskbar's {label} ({cls}) wasn't found"
+                )
+            elif user32.IsWindowVisible(
+                check_desktop_parts_taskbar_child_hwnds[name]
+            ).value:
+                check_desktop_parts_desktop_problems.append(
+                    f"the taskbar's {label} is showing"
+                )
+    if check_desktop_parts_desktop_parts.blank_steps:
+        if (
+            check_desktop_parts_progman_hwnd
+            and user32.IsWindowEnabled(check_desktop_parts_progman_hwnd).value
+        ):
+            check_desktop_parts_desktop_problems.append(
+                "the desktop takes input, so a right-click opens its menu"
+            )
         colour = user32.GetSysColor(COLOR_DESKTOP).value & 0xFFFFFF
         if colour != colourref(NAMED_COLOURS["black"]):
-            problems.append(f"the desktop colour is {colour:06x}, not black")
-    if not parts.taskbar:
+            check_desktop_parts_desktop_problems.append(
+                f"the desktop colour is {colour:06x}, not black"
+            )
+    if not check_desktop_parts_desktop_parts.taskbar:
         width, height = screen_size(guest)
         area = work_area(guest)
         if area != (0, 0, width, height):
-            problems.append(
+            check_desktop_parts_desktop_problems.append(
                 f"the work area is {list(area)}, not the whole {width}x{height} screen"
             )
-    if parts.blank_steps:
+    if check_desktop_parts_desktop_parts.blank_steps:
         for name, get_action, _set in UI_EFFECTS:
             result = user32.SystemParametersInfoA(get_action, 0, Out(4), 0)
             if struct.unpack("<I", result.buffers[0])[0]:
-                problems.append(f"{name} is on")
-    return problems
+                check_desktop_parts_desktop_problems.append(f"{name} is on")
+    return check_desktop_parts_desktop_problems
 
 
 def hide_pointer(guest) -> None:
@@ -422,7 +493,7 @@ class Desktop:
 
 
 @dataclass(frozen=True)
-class Parts:
+class DesktopParts:
     """What the guest will show. A child of an off part is always False."""
 
     icons: bool
@@ -457,26 +528,35 @@ PRESETS = {
     "stock": dict.fromkeys(_OPTIONS, True),
 }
 
-STOCK_PARTS = Parts(*(True,) * 7, blank_steps=False)
-BLANK_PARTS = Parts(False, False, False, False, False, False, False, blank_steps=True)
+STOCK_DESKTOP_PARTS = DesktopParts(*(True,) * 7, blank_steps=False)
+BLANK_DESKTOP_PARTS = DesktopParts(
+    False, False, False, False, False, False, False, blank_steps=True
+)
 
 
-def resolve_desktop(desktop: Desktop, owner: str) -> tuple[Parts, list[str]]:
+def resolve_desktop(
+    resolve_desktop_desktop: Desktop, resolve_desktop_desktop_owner: str
+) -> tuple[DesktopParts, list[str]]:
     """The effective parts and the warning texts. Pure; raises UsageError.
 
-    `owner` is "ClassName.desktop". `desktop` must be a Desktop: the caller refuses
-    anything else, because it knows what to tell the author to write.
+    `resolve_desktop_desktop_owner` is "ClassName.desktop". `resolve_desktop_desktop`
+    must be a Desktop: the caller refuses anything else, because it knows what to
+    tell the author to write.
     """
-    preset = desktop.preset
+    preset = resolve_desktop_desktop.preset
     if not isinstance(preset, str) or preset not in PRESETS:
-        raise UsageError(f"{owner} {preset!r}: use one of {', '.join(PRESETS)}")
-    written = {name: getattr(desktop, name) for name in _OPTIONS}
+        raise UsageError(
+            f"{resolve_desktop_desktop_owner} {preset!r}: use one of {', '.join(PRESETS)}"
+        )
+    written = {name: getattr(resolve_desktop_desktop, name) for name in _OPTIONS}
     for name, got in written.items():
         if got is not None and type(got) is not bool:
-            raise UsageError(f"{owner}: {name} must be True or False, not {got!r}")
+            raise UsageError(
+                f"{resolve_desktop_desktop_owner}: {name} must be True or False, not {got!r}"
+            )
     base = {name: preset_value if written[name] is None else written[name]
             for name, preset_value in PRESETS[preset].items()}  # fmt: skip
-    notes = []
+    resolve_desktop_desktop_notes = []
     effective = {}
     for name in _OPTIONS:
         off = []  # the options this one sits under that are off, lowest first
@@ -491,8 +571,11 @@ def resolve_desktop(desktop: Desktop, owner: str) -> tuple[Parts, list[str]]:
             source = (
                 f"{top}=False" if written[top] is not None else f'the "{preset}" preset'
             )
-            notes.append(
-                f"{owner}: {name}={written[name]} has no effect, because {top} is off "
+            resolve_desktop_desktop_notes.append(
+                f"{resolve_desktop_desktop_owner}: {name}={written[name]} has no effect, because {top} is off "
                 f"({source}). Remove {name}={written[name]}, or write {top}=True."
             )
-    return Parts(**effective, blank_steps=preset == "blank"), notes
+    resolve_desktop_desktop_parts = DesktopParts(
+        **effective, blank_steps=preset == "blank"
+    )
+    return resolve_desktop_desktop_parts, resolve_desktop_desktop_notes

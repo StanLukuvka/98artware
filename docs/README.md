@@ -56,6 +56,7 @@ To change art98 itself, read [Contributing](../CONTRIBUTING.md), the
 | [Blank start](design/blank-start.md) | Why nothing pops up, and how a scene gets its black, empty screen. |
 | [Programs](design/programs.md) | What a program class is, how a state opens one, and how to add the next. |
 | [Inspiration](design/inspiration.md) | A Windows 98 lyric video, mapped to what art98 can do. |
+| [Code names](design/code-names.md) | The bases for variable names in the code, with the modules the name test checks. For contributors. |
 
 [All diagrams](diagrams/README.md), each with an editable `.drawio` file.
 

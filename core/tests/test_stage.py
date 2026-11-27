@@ -122,7 +122,7 @@ def test_backdrop_colour_reads_back(booted, tmp_path):
     rgb = (200, 10, 30)
     session = booted
     guest = session.bridge
-    desktop.apply_desktop(guest, desktop.BLANK_PARTS)
+    desktop.apply_desktop(guest, desktop.BLANK_DESKTOP_PARTS)
     desktop.set_colour(guest, rgb)
     guest.sync()
     assert guest.user32.GetSysColor(1).value & 0xFFFFFF == win32.colourref(rgb)

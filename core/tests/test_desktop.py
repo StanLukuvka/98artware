@@ -177,13 +177,13 @@ def traced(guest):
 
 def test_blank_makes_the_same_calls_in_the_same_order():
     guest = traced(DesktopGuest())
-    desktop.apply_desktop(guest, desktop.BLANK_PARTS)
+    desktop.apply_desktop(guest, desktop.BLANK_DESKTOP_PARTS)
     assert changes(guest) == EXPECTED_BLANK_CALLS
 
 
 def test_blank_hides_the_shell_and_turns_everything_off():
     guest = DesktopGuest()
-    desktop.apply_desktop(guest, desktop.BLANK_PARTS)
+    desktop.apply_desktop(guest, desktop.BLANK_DESKTOP_PARTS)
     assert guest.visible == set()
     assert guest.enabled == set()
     assert guest.colour == 0
@@ -199,7 +199,7 @@ def test_blank_hides_the_shell_and_turns_everything_off():
 
 def test_blank_can_keep_the_pointer():
     guest = DesktopGuest()
-    desktop.apply_desktop(guest, replace(desktop.BLANK_PARTS, pointer=True))
+    desktop.apply_desktop(guest, replace(desktop.BLANK_DESKTOP_PARTS, pointer=True))
     assert guest.named("SetSystemCursor") == []
 
 
@@ -207,7 +207,7 @@ def test_blank_says_so_when_there_is_no_empty_pointer():
     guest = DesktopGuest()
     guest.do_CreateCursor = lambda *args: CallResult(0, 0, [])
     with pytest.raises(desktop.DesktopError, match="CreateCursor returned no cursor"):
-        desktop.apply_desktop(guest, desktop.BLANK_PARTS)
+        desktop.apply_desktop(guest, desktop.BLANK_DESKTOP_PARTS)
     assert guest.named("SetSystemCursor") == []
 
 
@@ -215,7 +215,7 @@ def test_blank_says_so_when_a_pointer_shape_will_not_swap():
     guest = DesktopGuest()
     guest.do_SetSystemCursor = lambda handle, shape: CallResult(0, 0, [])
     with pytest.raises(desktop.DesktopError, match="SetSystemCursor failed for"):
-        desktop.apply_desktop(guest, desktop.BLANK_PARTS)
+        desktop.apply_desktop(guest, desktop.BLANK_DESKTOP_PARTS)
     assert guest.named("DestroyCursor") == [("DestroyCursor", (EMPTY,))]
 
 
@@ -243,14 +243,14 @@ def test_the_effect_and_pointer_tables_use_the_named_constants():
 def test_blank_says_what_did_not_take(ignore, problem):
     guest = DesktopGuest(ignore=[ignore])
     with pytest.raises(desktop.DesktopError) as error:
-        desktop.apply_desktop(guest, desktop.BLANK_PARTS)
+        desktop.apply_desktop(guest, desktop.BLANK_DESKTOP_PARTS)
     assert any(p.startswith(problem) for p in error.value.problems)
 
 
-def test_check_parts_reports_a_missing_shell():
+def test_check_desktop_parts_reports_a_missing_shell():
     guest = DesktopGuest()
     guest.do_FindWindowA = lambda class_name, title: CallResult(0, 0, [])
-    problems = desktop.check_parts(guest, desktop.BLANK_PARTS)
+    problems = desktop.check_desktop_parts(guest, desktop.BLANK_DESKTOP_PARTS)
     assert "the taskbar wasn't found" in problems
     assert "the desktop icon list wasn't found" in problems
 
@@ -351,10 +351,10 @@ def test_hiding_one_part_on_stock_leaves_the_rest(part):
             desktop.Desktop("stock", taskbar=False), "T.desktop"
         )[0]
     else:
-        parts = replace(desktop.STOCK_PARTS, **{part: False})
+        parts = replace(desktop.STOCK_DESKTOP_PARTS, **{part: False})
     guest = DesktopGuest()
     desktop.apply_desktop(guest, parts)
-    assert desktop.check_parts(guest, parts) == []
+    assert desktop.check_desktop_parts(guest, parts) == []
     if part in CHILD_HANDLE:
         assert CHILD_HANDLE[part] in guest.hidden_parts
         assert not guest.do_IsWindowVisible(CHILD_HANDLE[part]).value
@@ -374,10 +374,10 @@ def test_hiding_one_part_on_stock_leaves_the_rest(part):
 
 
 def test_hiding_buttons_and_the_clock_together():
-    parts = replace(desktop.STOCK_PARTS, buttons=False, clock=False)
+    parts = replace(desktop.STOCK_DESKTOP_PARTS, buttons=False, clock=False)
     guest = DesktopGuest()
     desktop.apply_desktop(guest, parts)
-    assert desktop.check_parts(guest, parts) == []
+    assert desktop.check_desktop_parts(guest, parts) == []
     assert BUTTONS in guest.hidden_parts
     assert CLOCK in guest.hidden_parts
     assert TRAY not in guest.hidden_parts
@@ -387,7 +387,7 @@ def test_hiding_buttons_and_the_clock_together():
 def test_the_work_area_stays_put_when_only_children_are_off():
     guest = DesktopGuest()
     before = guest.area
-    parts = replace(desktop.STOCK_PARTS, buttons=False, clock=False)
+    parts = replace(desktop.STOCK_DESKTOP_PARTS, buttons=False, clock=False)
     desktop.apply_desktop(guest, parts)
     assert guest.area == before
     assert all(
@@ -398,7 +398,7 @@ def test_the_work_area_stays_put_when_only_children_are_off():
 
 def test_stock_with_the_pointer_off_hides_the_pointer_once():
     guest = DesktopGuest()
-    desktop.apply_desktop(guest, replace(desktop.STOCK_PARTS, pointer=False))
+    desktop.apply_desktop(guest, replace(desktop.STOCK_DESKTOP_PARTS, pointer=False))
     assert guest.pointer_hidden()
     assert len(guest.named("CreateCursor")) == 1
     assert len(guest.named("DestroyCursor")) == 1
@@ -417,7 +417,7 @@ def test_blank_with_the_taskbar_on_keeps_the_taskbar():
     assert PROGMAN not in guest.enabled
     assert set(guest.effects.values()) == {0}
     assert ICONS not in guest.visible
-    assert desktop.check_parts(guest, parts) == []
+    assert desktop.check_desktop_parts(guest, parts) == []
 
 
 def test_the_clock_hides_first_and_the_tray_hides_last():
@@ -442,7 +442,9 @@ def test_the_clock_hides_first_and_the_tray_hides_last():
     # A clock hide (with WM_SIZE) only runs while its tray is still on, so the
     # clock-first and tray-last orders are checked with two different parts.
     assert child_sequence(
-        replace(desktop.STOCK_PARTS, buttons=False, quick_launch=False, clock=False)
+        replace(
+            desktop.STOCK_DESKTOP_PARTS, buttons=False, quick_launch=False, clock=False
+        )
     ) == [
         ("ShowWindow", CLOCK),
         ("SendMessageA", TASKBAR),
@@ -450,7 +452,9 @@ def test_the_clock_hides_first_and_the_tray_hides_last():
         ("ShowWindow", QUICK),
     ]
     assert child_sequence(
-        replace(desktop.STOCK_PARTS, buttons=False, quick_launch=False, tray=False)
+        replace(
+            desktop.STOCK_DESKTOP_PARTS, buttons=False, quick_launch=False, tray=False
+        )
     ) == [
         ("ShowWindow", BUTTONS),
         ("ShowWindow", QUICK),
@@ -460,16 +464,16 @@ def test_the_clock_hides_first_and_the_tray_hides_last():
 
 def test_stock_parts_makes_no_guest_call():
     guest = DesktopGuest()
-    desktop.apply_desktop(guest, desktop.STOCK_PARTS)
+    desktop.apply_desktop(guest, desktop.STOCK_DESKTOP_PARTS)
     assert guest.calls == []
 
 
-def test_check_parts_does_not_look_up_a_child_that_is_on():
+def test_check_desktop_parts_does_not_look_up_a_child_that_is_on():
     guest = DesktopGuest()
-    parts = replace(desktop.STOCK_PARTS, buttons=False)
+    parts = replace(desktop.STOCK_DESKTOP_PARTS, buttons=False)
     desktop.apply_desktop(guest, parts)
     guest.calls.clear()
-    assert desktop.check_parts(guest, parts) == []
+    assert desktop.check_desktop_parts(guest, parts) == []
     looked_up = {args[1] for name, args in guest.calls if name == "FindWindowExA"}
     assert win32.QUICK_LAUNCH_CLASS not in looked_up
     assert win32.TRAY_CLASS not in looked_up
@@ -478,7 +482,7 @@ def test_check_parts_does_not_look_up_a_child_that_is_on():
 
 def test_a_part_that_will_not_hide_is_named_on_one_line():
     guest = DesktopGuest(ignore=["hide"])
-    parts = replace(desktop.STOCK_PARTS, buttons=False)
+    parts = replace(desktop.STOCK_DESKTOP_PARTS, buttons=False)
     with pytest.raises(desktop.DesktopError) as error:
         desktop.apply_desktop(guest, parts)
     assert error.value.problems == ["the taskbar's buttons is showing"]
@@ -495,7 +499,7 @@ def test_a_part_that_cannot_be_found_is_named_on_one_line():
         return real(parent, after, class_name, title)
 
     guest.do_FindWindowExA = no_buttons
-    parts = replace(desktop.STOCK_PARTS, buttons=False)
+    parts = replace(desktop.STOCK_DESKTOP_PARTS, buttons=False)
     with pytest.raises(desktop.DesktopError) as error:
         desktop.apply_desktop(guest, parts)
     assert error.value.problems == [
@@ -505,7 +509,7 @@ def test_a_part_that_cannot_be_found_is_named_on_one_line():
 
 def test_two_problems_are_listed_in_check_order():
     guest = DesktopGuest(ignore=["hide"])
-    parts = replace(desktop.STOCK_PARTS, icons=False, buttons=False)
+    parts = replace(desktop.STOCK_DESKTOP_PARTS, icons=False, buttons=False)
     with pytest.raises(desktop.DesktopError) as error:
         desktop.apply_desktop(guest, parts)
     assert error.value.problems == [
@@ -535,7 +539,7 @@ def test_every_resolved_parts_applies_and_checks_twice():
     for parts, case in distinct.items():
         guest = DesktopGuest()
         desktop.apply_desktop(guest, parts)
-        assert desktop.check_parts(guest, parts) == [], case
+        assert desktop.check_desktop_parts(guest, parts) == [], case
         hidden = {
             args[0]
             for name, args in guest.calls
@@ -546,13 +550,15 @@ def test_every_resolved_parts_applies_and_checks_twice():
                 assert parent not in hidden, (case, child, parent)
         before = (frozenset(guest.visible), frozenset(guest.hidden_parts))
         desktop.apply_desktop(guest, parts)
-        assert desktop.check_parts(guest, parts) == [], case
+        assert desktop.check_desktop_parts(guest, parts) == [], case
         assert (frozenset(guest.visible), frozenset(guest.hidden_parts)) == before, case
 
 
 def test_a_colour_change_keeps_the_tray_hidden():
     guest = traced(DesktopGuest())
-    parts = replace(desktop.STOCK_PARTS, buttons=False, quick_launch=False, tray=False)
+    parts = replace(
+        desktop.STOCK_DESKTOP_PARTS, buttons=False, quick_launch=False, tray=False
+    )
     desktop.apply_desktop(guest, parts)
     guest.calls.clear()
     desktop.set_colour(guest, (0, 128, 128))
@@ -563,20 +569,20 @@ def test_a_colour_change_keeps_the_tray_hidden():
     show_tray = guest.calls.index(("ShowWindow", (TRAY, win32.SW_HIDE)))
     first_sync = names.index("sync")
     assert first_sync < show_tray < names.index("sync", first_sync + 1)
-    assert desktop.check_parts(guest, parts) == []
+    assert desktop.check_desktop_parts(guest, parts) == []
 
     # The clock stays hidden on its own while its tray is still on.
     guest = DesktopGuest()
-    clock_parts = replace(desktop.STOCK_PARTS, clock=False)
+    clock_parts = replace(desktop.STOCK_DESKTOP_PARTS, clock=False)
     desktop.apply_desktop(guest, clock_parts)
     desktop.set_colour(guest, (0, 128, 128))
     assert not guest.do_IsWindowVisible(CLOCK).value
-    assert desktop.check_parts(guest, clock_parts) == []
+    assert desktop.check_desktop_parts(guest, clock_parts) == []
 
 
 def test_a_colour_change_on_blank_adds_no_show_window():
     guest = DesktopGuest()
-    desktop.apply_desktop(guest, desktop.BLANK_PARTS)
+    desktop.apply_desktop(guest, desktop.BLANK_DESKTOP_PARTS)
     guest.calls.clear()
     desktop.set_colour(guest, (0, 128, 128))
     # The taskbar is already hidden on blank, so set_colour reads only its
@@ -592,7 +598,9 @@ def test_a_backdrop_keeps_the_tray_hidden():
     guest = traced(DesktopGuest())
     scene = Stage()
     scene.run(FakeSession(guest), FakeVideo(guest))
-    parts = replace(desktop.STOCK_PARTS, buttons=False, quick_launch=False, tray=False)
+    parts = replace(
+        desktop.STOCK_DESKTOP_PARTS, buttons=False, quick_launch=False, tray=False
+    )
     desktop.apply_desktop(guest, parts)
     guest.calls.clear()
     scene.play(Backdrop((0, 128, 128)))
@@ -603,7 +611,7 @@ def test_a_backdrop_keeps_the_tray_hidden():
     assert guest.calls.index(("ShowWindow", (TRAY, win32.SW_HIDE))) > names.index(
         "sync"
     )
-    assert desktop.check_parts(guest, parts) == []
+    assert desktop.check_desktop_parts(guest, parts) == []
 
 
 # ---- the scene wiring: refusals, warnings and the parts a run applies ----
@@ -978,21 +986,21 @@ def test_a_second_run_resolves_again(monkeypatch):
 def test_a_failed_run_clears_the_resolved_desktop():
     class Fails(Blank):
         def construct(self):
-            assert self._resolved is not None
+            assert self._scene_desktop_parts is not None
             raise RuntimeError("boom")
 
     scene = Fails()
     guest = DesktopGuest()
     with pytest.raises(RuntimeError):
         scene.run(FakeSession(guest), FakeVideo(guest))
-    assert scene._resolved is None
+    assert scene._scene_desktop_parts is None
 
 
 def test_a_finished_run_clears_the_resolved_desktop():
     scene = Blank()
     guest = DesktopGuest()
     scene.run(FakeSession(guest), FakeVideo(guest))
-    assert scene._resolved is None
+    assert scene._scene_desktop_parts is None
 
 
 def test_prepare_desktop_outside_a_run_resolves_on_the_spot():
@@ -1001,4 +1009,4 @@ def test_prepare_desktop_outside_a_run_resolves_on_the_spot():
     scene.guest = guest
     scene.prepare_desktop()
     assert guest.visible == set()
-    assert scene._resolved is None
+    assert scene._scene_desktop_parts is None
